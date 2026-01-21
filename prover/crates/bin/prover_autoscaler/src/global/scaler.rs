@@ -13,6 +13,23 @@ use crate::{
 
 const DEFAULT_SPEED: usize = 500;
 
+/// Operation mode for the scaler
+#[derive(Debug, Clone)]
+enum OperationMode {
+    /// Normal operation - sequential pool allocation by priority
+    Regular,
+    /// Aggressive mode - allocate to ALL pools simultaneously (no cooldown started yet)
+    Aggressive,
+    /// Aggressive mode with cooldown - resources obtained, waiting for cooldown to expire
+    AggressiveCooldown(DateTime<Utc>),
+}
+
+impl Default for OperationMode {
+    fn default() -> Self {
+        Self::Regular
+    }
+}
+
 #[derive(Debug, Eq, Hash, PartialEq)]
 pub struct PoolKey<K: Eq + Hash + Copy> {
     pub cluster: ClusterName,
@@ -65,7 +82,7 @@ pub struct Scaler<K> {
     hysteresis: usize,
     config: Arc<ScalerConfig>,
     target_priority: Option<PriorityConfig>,
-    aggressive_mode_active: Arc<std::sync::Mutex<Option<DateTime<Utc>>>>,
+    operation_mode: Arc<std::sync::Mutex<OperationMode>>,
 }
 
 impl<K: Key> Scaler<K> {
@@ -89,7 +106,7 @@ impl<K: Key> Scaler<K> {
             hysteresis,
             config,
             target_priority,
-            aggressive_mode_active: Arc::new(std::sync::Mutex::new(None)),
+            operation_mode: Arc::new(std::sync::Mutex::new(OperationMode::Regular)),
         }
     }
 
@@ -279,97 +296,114 @@ impl<K: Key> Scaler<K> {
     }
 
     /// Check if we should enter/stay in aggressive mode based on percentage of pools with errors
-    /// Also handles deactivation when cooldown expires
+    /// Also handles state transitions between Regular, Aggressive, and AggressiveCooldown
     fn is_aggressive_mode(&self, pools: &[Pool<K>], total_running: usize, queue: usize) -> bool {
         // If threshold is 0, aggressive mode is disabled
         if self.config.aggressive_mode_threshold == 0 {
             return false;
         }
 
-        let mut guard = self
-            .aggressive_mode_active
-            .lock()
-            .expect("aggressive_mode_active mutex is poisoned");
-        // Check if already in aggressive mode
-        if let Some(activated_at) = *guard {
-            // Check if we got enough Running resources and should start cooldown
-            if total_running >= queue {
-                // Check if cooldown period has passed
-                if Utc::now() >= activated_at + self.config.aggressive_mode_cooldown {
-                    *guard = None;
-                    tracing::info!(
-                        "Aggressive mode cooldown complete after having sufficient resources, returning to normal priority"
-                    );
+        let mut mode = self.operation_mode.lock().expect("operation_mode mutex is poisoned");
+
+        match *mode {
+            OperationMode::Regular => {
+                // Check if we should enter aggressive mode
+                if pools.is_empty() {
                     return false;
                 }
-                // Still in cooldown period with enough resources - stay in aggressive mode
-                return true;
+
+                // Count ALL pools with out_of_resources issues (NeedToMove or scale_errors)
+                let pools_with_errors = pools
+                    .iter()
+                    .filter(|p| p.sum_by_pod_status(PodStatus::NeedToMove) > 0 || p.scale_errors > 0)
+                    .count();
+
+                let total_pools = pools.len();
+                let error_percentage = (pools_with_errors * 100) / total_pools;
+
+                if error_percentage >= self.config.aggressive_mode_threshold {
+                    tracing::warn!(
+                        "Resource shortage detected: {}/{} pools ({}%) have resource errors (threshold: {}%). Entering AGGRESSIVE MODE.",
+                        pools_with_errors,
+                        total_pools,
+                        error_percentage,
+                        self.config.aggressive_mode_threshold
+                    );
+                    *mode = OperationMode::Aggressive;
+                    return true;
+                } else if pools_with_errors > 0 {
+                    tracing::debug!(
+                        "Resource errors detected: {}/{} pools ({}%) have errors, but threshold {}% not reached",
+                        pools_with_errors,
+                        total_pools,
+                        error_percentage,
+                        self.config.aggressive_mode_threshold
+                    );
+                }
+                false
             }
+            OperationMode::Aggressive => {
+                // Stay in aggressive mode
+                true
+            }
+            OperationMode::AggressiveCooldown(cooldown_start) => {
+                // Check if we still have enough resources
+                if total_running < queue {
+                    // Lost resources - go back to Aggressive mode
+                    tracing::warn!("Lost resources during cooldown, returning to Aggressive mode");
+                    *mode = OperationMode::Aggressive;
+                    return true;
+                }
 
-            // Don't have enough resources yet - stay in aggressive mode regardless of time
-            return true;
+                // Check if cooldown period has passed
+                if Utc::now() >= cooldown_start + self.config.aggressive_mode_cooldown {
+                    tracing::info!(
+                        "Aggressive mode cooldown complete after having sufficient resources for {:?}, returning to Regular mode",
+                        self.config.aggressive_mode_cooldown
+                    );
+                    *mode = OperationMode::Regular;
+                    return false;
+                }
+
+                // Still in cooldown with enough resources
+                true
+            }
         }
-        drop(guard);
-
-        if pools.is_empty() {
-            return false;
-        }
-
-        // Count ALL pools with out_of_resources issues (NeedToMove or scale_errors)
-        let pools_with_errors = pools
-            .iter()
-            .filter(|p| p.sum_by_pod_status(PodStatus::NeedToMove) > 0 || p.scale_errors > 0)
-            .count();
-
-        let total_pools = pools.len();
-        let error_percentage = (pools_with_errors * 100) / total_pools;
-
-        let should_activate = error_percentage >= self.config.aggressive_mode_threshold;
-
-        if should_activate {
-            tracing::warn!(
-                "Resource shortage detected: {}/{} pools ({}%) have resource errors (threshold: {}%)",
-                pools_with_errors,
-                total_pools,
-                error_percentage,
-                self.config.aggressive_mode_threshold
-            );
-        }
-
-        should_activate
     }
 
-    /// Activate aggressive mode and record timestamp when resources are first obtained
-    fn start_aggressive_cooldown(&self, total_running: usize, queue: usize) {
-        if total_running >= queue {
-            let mut guard = self
-                .aggressive_mode_active
-                .lock()
-                .expect("aggressive_mode_active mutex is poisoned");
-            if guard.is_none() {
-                // First time getting enough resources - start cooldown timer
-                *guard = Some(Utc::now());
-                tracing::info!(
-                    "Resources obtained (Running: {}, Queue: {}), starting cooldown period",
-                    total_running,
-                    queue
-                );
-            } else {
-                // Already in cooldown, just log that we still have resources
+    /// Update operation mode based on current resource availability
+    fn update_operation_mode(&self, total_running: usize, queue: usize) {
+        let mut mode = self.operation_mode.lock().expect("operation_mode mutex is poisoned");
+
+        match *mode {
+            OperationMode::Aggressive => {
+                if total_running >= queue {
+                    // Got enough resources - start cooldown
+                    let now = Utc::now();
+                    tracing::info!(
+                        "Resources obtained (Running: {}, Queue: {}), entering AggressiveCooldown mode",
+                        total_running,
+                        queue
+                    );
+                    *mode = OperationMode::AggressiveCooldown(now);
+                } else {
+                    tracing::debug!(
+                        "Still need more resources (Running: {}, Queue: {})",
+                        total_running,
+                        queue
+                    );
+                }
+            }
+            OperationMode::AggressiveCooldown(_) => {
+                // Just log that we're still in cooldown
                 tracing::debug!(
-                    "Still have sufficient resources (Running: {}, Queue: {}), cooldown continues",
+                    "AggressiveCooldown mode continues (Running: {}, Queue: {})",
                     total_running,
                     queue
                 );
             }
-        } else {
-            let guard = self
-                .aggressive_mode_active
-                .lock()
-                .expect("aggressive_mode_active mutex is poisoned");
-            if guard.is_none() {
-                // Entering aggressive mode for the first time - no cooldown yet
-                tracing::warn!("AGGRESSIVE MODE ACTIVATED - need more resources");
+            OperationMode::Regular => {
+                // Nothing to update in regular mode
             }
         }
     }
@@ -437,23 +471,31 @@ impl<K: Key> Scaler<K> {
     ) -> HashMap<PoolKey<K>, usize> {
         let mut pods: HashMap<PoolKey<K>, usize> = HashMap::new();
         let mut total_running: usize = 0;
-        let mut total_capacity: usize = 0; // Running + Pending
+        let mut total_capacity: usize = 0; // Running + Pending (only from healthy pools)
 
         // Step 1: Count existing pods
         for cluster in &sorted_clusters {
             let running = cluster.sum_by_pod_status(PodStatus::Running);
             let pending = cluster.sum_by_pod_status(PodStatus::Pending);
-            let total_in_pool = running + pending;
+
+            // In aggressive mode, ignore Pending pods from pools with errors (they're likely stuck)
+            let has_errors = cluster.sum_by_pod_status(PodStatus::NeedToMove) > 0 || cluster.scale_errors > 0;
+            let total_in_pool = if has_errors {
+                running  // Only count Running pods from pools with errors
+            } else {
+                running + pending  // Count both Running and Pending from healthy pools
+            };
 
             if total_in_pool > 0 {
                 pods.insert(cluster.to_key(), total_in_pool);
-                total_running += self.pods_to_speed(cluster.key, running);
-                total_capacity += self.pods_to_speed(cluster.key, total_in_pool);
             }
+
+            total_running += self.pods_to_speed(cluster.key, running);
+            total_capacity += self.pods_to_speed(cluster.key, total_in_pool);
         }
 
-        // Log current state and handle cooldown timer
-        self.start_aggressive_cooldown(total_running, queue);
+        // Update operation mode based on resource availability
+        self.update_operation_mode(total_running, queue);
 
         tracing::info!(
             "Aggressive mode: Running capacity = {}, Total capacity (Running+Pending) = {}, Queue = {}",
