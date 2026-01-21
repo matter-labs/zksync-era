@@ -8,11 +8,13 @@ use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_multivm::{interface::VmEvent, zk_evm_latest::ethereum_types::U64};
 use zksync_types::{
+    aggregated_operations::L1BatchAggregatedActionType,
     api,
     api::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
         TransactionDetailedResult, TransactionExecutionInfo,
     },
+    eth_sender::EthTxFinalityStatus,
     server_notification::GatewayMigrationState,
     tee_types::TeeType,
     web3,
@@ -248,6 +250,27 @@ impl UnstableNamespace {
             .await
             .map_err(DalError::generalize)?;
 
+        let all_batches_with_interop_roots_committed = match connection
+            .interop_root_dal()
+            .get_latest_processed_interop_root_l1_batch_number()
+            .await
+            .map_err(DalError::generalize)?
+        {
+            None => true,
+            Some(latest_processed_l1_batch_number) => {
+                match connection
+                    .eth_sender_dal()
+                    .get_last_sent_successfully_eth_tx_by_batch_and_op(
+                        L1BatchNumber::from(latest_processed_l1_batch_number),
+                        L1BatchAggregatedActionType::Commit,
+                    )
+                    .await
+                {
+                    Some(tx) => tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized,
+                    None => false,
+                }
+            }
+        };
         let state = GatewayMigrationState::from_sl_and_notification(
             self.state.api_config.settlement_layer,
             latest_notification,
@@ -257,6 +280,7 @@ impl UnstableNamespace {
             latest_notification,
             state,
             settlement_layer: self.state.api_config.settlement_layer,
+            wait_for_batches_to_be_committed: !all_batches_with_interop_roots_committed,
         })
     }
 
