@@ -859,13 +859,14 @@ impl EthTxAggregator {
             // so there is no restriction for prove and execute operations
             if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_))) {
                 if self
-                .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
-                .await?
-            {
-                // For the migration from gateway to L1, we need to ensure all batches containing interop roots
-                // get committed and executed. Once this happens, we can re-enable commit & precommit.
-                op_restrictions.commit_restriction = None;
-                op_restrictions.precommit_restriction = None;
+                    .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
+                    .await?
+                {
+                    // For the migration from gateway to L1, we need to ensure all batches containing interop roots
+                    // get committed and executed. Once this happens, we can re-enable commit & precommit.
+                    op_restrictions.commit_restriction = None;
+                    op_restrictions.precommit_restriction = None;
+                }
             }
         }
 
