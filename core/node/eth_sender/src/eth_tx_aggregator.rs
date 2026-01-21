@@ -819,18 +819,17 @@ impl EthTxAggregator {
             op_restrictions.commit_restriction = reason;
             op_restrictions.precommit_restriction = reason;
             // For the migration from gateway to L1, we need to wait for all blocks to be executed
-            if let None | Some(SettlementLayer::L1(_)) = self.settlement_layer {
+            if matches!(self.settlement_layer, None | Some(SettlementLayer::L1(_))) {
                 op_restrictions.prove_restriction = reason;
                 op_restrictions.execute_restriction = reason;
-            } else {
-                // For the migration from gateway to L1, we need we need to ensure all batches containing interop roots get committed and executed.
-                if !self
-                    .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
-                    .await?
-                {
-                    op_restrictions.commit_restriction = None;
-                    op_restrictions.precommit_restriction = None;
-                }
+            } else if self
+                .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
+                .await?
+            {
+                // For the migration from gateway to L1, we need to ensure all batches containing interop roots
+                // get committed and executed. Once this happens, we can re-enable commit & precommit.
+                op_restrictions.commit_restriction = None;
+                op_restrictions.precommit_restriction = None;
             }
         }
 

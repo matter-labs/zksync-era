@@ -1,5 +1,13 @@
 # Changelog
 
+## [29.7.1](https://github.com/matter-labs/zksync-era/compare/core-v29.7.0...core-v29.7.1) (2026-01-09)
+
+
+### Bug Fixes
+
+* **avail-client:** add GasRelay timeout and Referer header ([#4588](https://github.com/matter-labs/zksync-era/issues/4588)) ([3c97623](https://github.com/matter-labs/zksync-era/commit/3c976234e580631f8fae980cc7552462df30c8c8))
+* set User-Agent header for coingecko requests ([#4604](https://github.com/matter-labs/zksync-era/issues/4604)) ([bbc6bd0](https://github.com/matter-labs/zksync-era/commit/bbc6bd03318e07ac0c77f05af2dee43dc9d6ba6a))
+
 ## [29.7.0](https://github.com/matter-labs/zksync-era/compare/core-v29.6.0...core-v29.7.0) (2025-11-28)
 
 

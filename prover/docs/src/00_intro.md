@@ -63,8 +63,8 @@ components can be launched locally, but more work is needed to run a production 
 GCP.
 
 Witness generators, witness vector generators, and provers are spawned on demand based on the current system load via an
-autoscaler (WIP, so not released publicly yet). They can be spawned in multiple clusters among different zones, based on
-the availability of machines with required specs.
+autoscaler. They can be spawned in multiple clusters among different zones, based on the availability of machines with
+required specs.
 
 ## How to develop
 
