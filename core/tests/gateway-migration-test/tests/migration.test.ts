@@ -187,7 +187,6 @@ describe('Migration from gateway test', function () {
             tryCount += 1;
             await utils.sleep(1);
         }
-        console.error('tryCount', tryCount);
     });
 
     step('Migrate to/from gateway', async () => {
@@ -199,32 +198,10 @@ describe('Migration from gateway test', function () {
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
 
-        // Theoretically, if L1 is really slow at this part, it could lead to a situation
-        // where there is an inflight transaction before the migration is complete.
-        // If you encounter an error, such as a failed transaction, after the migration,
-        // this area might be worth revisiting to wait for unconfirmed transactions on the server.
-        await utils.sleep(30);
-
-        // Wait for all batches to be executed
-        await waitForAllBatchesToBeExecuted();
-
         if (direction == 'TO') {
-            const maxRetries = 3;
-            for (let i = 0; i < maxRetries; i++) {
-                try {
-                    // We use utils.exec instead of utils.spawn to capture stdout/stderr
-                    await utils.exec(
-                        `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
-                    );
-                    break;
-                } catch (error) {
-                    if (i === maxRetries - 1) {
-                        console.error(`Gateway migration failed after ${maxRetries} attempts.`);
-                        throw error;
-                    }
-                    console.log(`Gateway migration failed (attempt ${i + 1}/${maxRetries}). Retrying...`);
-                }
-            }
+            await utils.spawn(
+                `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+            );
         } else {
             let migrationSucceeded = false;
             for (let i = 0; i < 60; i++) {
@@ -269,7 +246,6 @@ describe('Migration from gateway test', function () {
     });
 
     step('Wait for block finalization', async () => {
-        await utils.spawn(`zkstack server wait --ignore-prerequisites --verbose --chain ${fileConfig.chain}`);
         // Execute an L2 transaction
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
