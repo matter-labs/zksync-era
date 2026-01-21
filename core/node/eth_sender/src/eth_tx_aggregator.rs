@@ -868,6 +868,7 @@ impl EthTxAggregator {
                     op_restrictions.precommit_restriction = None;
                 }
             }
+            
         }
 
         let precommit_params = self
