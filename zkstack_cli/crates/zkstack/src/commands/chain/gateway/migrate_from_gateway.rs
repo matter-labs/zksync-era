@@ -39,7 +39,10 @@ use crate::{
         admin_call_builder::AdminCallBuilder,
         gateway::{
             constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-            gateway_common::extract_and_wait_for_priority_ops,
+            gateway_common::{
+                extract_and_wait_for_priority_ops, get_gateway_migration_state,
+                GatewayMigrationProgressState, MigrationDirection,
+            },
         },
         init::get_l1_da_validator,
         utils::send_tx,
@@ -85,6 +88,32 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .ctm
         .diamond_cut_data;
 
+    let gateway_general_config = gateway_chain_config.get_general_config().await?;
+    let gw_rpc_url = gateway_general_config.l2_http_url()?;
+
+    let state = get_gateway_migration_state(
+        l1_url.clone(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        chain_config.chain_id.as_u64(),
+        chain_config
+            .get_general_config()
+            .await?
+            .l2_http_url()
+            .context("L2 RPC URL must be provided for cross checking")?,
+        gw_rpc_url.clone(),
+        MigrationDirection::FromGateway,
+    )
+    .await?;
+
+    if state != GatewayMigrationProgressState::ServerReady {
+        anyhow::bail!(
+            "Chain is not ready for starting the migration from Gateway. Current state: {:?}",
+            state
+        );
+    }
+
     let start_migrate_from_gateway_call = start_migrate_chain_from_gateway(
         shell,
         &args.forge_args,
@@ -108,8 +137,6 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let (calldata, value) =
         AdminCallBuilder::new(start_migrate_from_gateway_call.calls).compile_full_calldata();
 
-    let general_config = gateway_chain_config.get_general_config().await?;
-    let gw_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
     let gateway_zk_client = get_zk_client(&gw_rpc_url, chain_config.chain_id.as_u64())?;
 

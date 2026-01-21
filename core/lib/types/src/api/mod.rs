@@ -1112,6 +1112,7 @@ pub struct GatewayMigrationStatus {
     pub latest_notification: Option<GatewayMigrationNotification>,
     pub state: GatewayMigrationState,
     pub settlement_layer: Option<SettlementLayer>,
+    pub wait_for_batches_to_be_committed: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
