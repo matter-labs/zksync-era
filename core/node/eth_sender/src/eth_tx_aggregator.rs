@@ -870,7 +870,6 @@ impl EthTxAggregator {
             }
         }
 
-
         let precommit_params = self
             .precommit_params(storage, chain_protocol_version_id)
             .await?;
