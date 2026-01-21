@@ -303,7 +303,10 @@ impl<K: Key> Scaler<K> {
             return false;
         }
 
-        let mut mode = self.operation_mode.lock().expect("operation_mode mutex is poisoned");
+        let mut mode = self
+            .operation_mode
+            .lock()
+            .expect("operation_mode mutex is poisoned");
 
         match *mode {
             OperationMode::Regular => {
@@ -315,7 +318,9 @@ impl<K: Key> Scaler<K> {
                 // Count ALL pools with out_of_resources issues (NeedToMove or scale_errors)
                 let pools_with_errors = pools
                     .iter()
-                    .filter(|p| p.sum_by_pod_status(PodStatus::NeedToMove) > 0 || p.scale_errors > 0)
+                    .filter(|p| {
+                        p.sum_by_pod_status(PodStatus::NeedToMove) > 0 || p.scale_errors > 0
+                    })
                     .count();
 
                 let total_pools = pools.len();
@@ -373,7 +378,10 @@ impl<K: Key> Scaler<K> {
 
     /// Update operation mode based on current resource availability
     fn update_operation_mode(&self, total_running: usize, queue: usize) {
-        let mut mode = self.operation_mode.lock().expect("operation_mode mutex is poisoned");
+        let mut mode = self
+            .operation_mode
+            .lock()
+            .expect("operation_mode mutex is poisoned");
 
         match *mode {
             OperationMode::Aggressive => {
@@ -465,7 +473,6 @@ impl<K: Key> Scaler<K> {
     /// Aggressive mode calculation: add pods to ALL pools simultaneously
     fn calculate_aggressive(
         &self,
-        _namespace: &NamespaceName,
         queue: usize,
         sorted_clusters: Vec<Pool<K>>,
     ) -> HashMap<PoolKey<K>, usize> {
@@ -479,11 +486,12 @@ impl<K: Key> Scaler<K> {
             let pending = cluster.sum_by_pod_status(PodStatus::Pending);
 
             // In aggressive mode, ignore Pending pods from pools with errors (they're likely stuck)
-            let has_errors = cluster.sum_by_pod_status(PodStatus::NeedToMove) > 0 || cluster.scale_errors > 0;
+            let has_errors =
+                cluster.sum_by_pod_status(PodStatus::NeedToMove) > 0 || cluster.scale_errors > 0;
             let total_in_pool = if has_errors {
-                running  // Only count Running pods from pools with errors
+                running // Only count Running pods from pools with errors
             } else {
-                running + pending  // Count both Running and Pending from healthy pools
+                running + pending // Count both Running and Pending from healthy pools
             };
 
             if total_in_pool > 0 {
@@ -625,7 +633,7 @@ impl<K: Key> Scaler<K> {
         }
 
         if self.is_aggressive_mode(&sorted_clusters, total_running, queue) {
-            return self.calculate_aggressive(namespace, queue, sorted_clusters);
+            return self.calculate_aggressive(queue, sorted_clusters);
         }
 
         tracing::debug!("Queue already covered with pods: {}", total);
