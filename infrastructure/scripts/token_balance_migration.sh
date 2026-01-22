@@ -1,5 +1,4 @@
-# install zkstack
-sudo ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true && sudo env "PATH=$PATH" zkstackup -g --local 
+#!/bin/bash
 
 # Ecosystem init
 zkstack dev clean containers && zkstack up -o false
