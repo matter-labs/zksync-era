@@ -78,6 +78,7 @@ export class ChainHandler {
     public inner: TestChain;
     public l2RichWallet: zksync.Wallet;
     public l1Ntv: ethers.Contract;
+    public l1BaseTokenContract: ethers.Contract;
     public l1GettersContract: ethers.Contract;
     public gwGettersContract: zksync.Contract;
 
@@ -91,7 +92,7 @@ export class ChainHandler {
             readArtifact('L1NativeTokenVault').abi,
             l2RichWallet.ethWallet()
         );
-
+        this.l1BaseTokenContract = new ethers.Contract(contractsConfig.l1.base_token_addr, ERC20_ABI, l2RichWallet.ethWallet());
         this.l1GettersContract = new ethers.Contract(
             contractsConfig.l1.diamond_proxy_addr,
             readArtifact('Getters', 'out', 'GettersFacet').abi,
@@ -358,12 +359,32 @@ export class ERC20Handler {
         this.l1Contract = new ethers.Contract(l1Address, ERC20_ABI, this.wallet.ethWallet());
     }
 
+    async getL1Contract(chainHandler: ChainHandler): Promise<ethers.Contract> {
+        const l1Address = await chainHandler.l1Ntv.tokenAddress(await this.assetId());
+        if (l1Address === ethers.ZeroAddress) throw new Error('L1 token not found');
+        return new ethers.Contract(l1Address, ERC20_ABI, this.wallet.ethWallet());
+    }
+
     async getL1Balance() {
         return await this.l1Contract!.balanceOf(this.wallet.address);
     }
 
     async getL2Balance() {
         return await this.l2Contract!.balanceOf(this.wallet.address);
+    }
+
+    static async fromL2BL1Token(l1Contract: ethers.Contract, wallet: zksync.Wallet, secondChainWallet: zksync.Wallet) {
+        // L2-B wallet must hold some balance of the L2-B token on L1
+        const balance = await secondChainWallet.getBalanceL1(await l1Contract.getAddress());
+        if (balance === 0n) throw new Error('L2-B wallet must hold some balance of the L2-B token on L1');
+        // We need to provide the chain rich wallet with some balance of the L2-B token on L1, to
+        const l1Erc20 = new ethers.Contract(
+            await l1Contract.getAddress(),
+            ERC20_ABI,
+            secondChainWallet.ethWallet()
+        );
+        await (await l1Erc20.transfer(wallet.address, balance)).wait();        
+        return new ERC20Handler(wallet, l1Contract, undefined);
     }
 
     static async deployTokenOnL1(wallet: zksync.Wallet) {
@@ -449,7 +470,6 @@ async function waitForBalanceNonZero(contract: ethers.Contract | zksync.Contract
     let balance;
     while (true) {
         balance = await contract.balanceOf(wallet.address);
-        console.log('Waiting for balance to be non-zero', balance);
         if (balance !== 0n) break;
         await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
