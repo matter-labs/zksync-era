@@ -59,12 +59,26 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .context("Gateway config not present")?;
 
     logger::info("Migrating the chain to the Gateway...");
+
+    let l1_rpc_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
+
+    let gateway_rpc_url = match args.gateway_rpc_url {
+        Some(url) => url,
+        None => {
+            let general_config = gateway_chain_config.get_general_config().await?;
+            general_config.l2_http_url()?
+        }
+    };
+
     let context = get_migrate_to_gateway_context(
         &chain_config,
         &gateway_chain_config,
         false,
-        args.l1_rpc_url,
-        args.gateway_rpc_url,
+        l1_rpc_url,
+        gateway_rpc_url,
     )
     .await?;
     let (chain_admin, calls) = get_migrate_to_gateway_calls(
@@ -131,25 +145,12 @@ pub(crate) async fn get_migrate_to_gateway_context(
     chain_config: &ChainConfig,
     gateway_chain_config: &ChainConfig,
     skip_pre_migration_checks: bool,
-    l1_rpc_url: Option<String>,
-    gateway_rpc_url: Option<String>,
+    l1_rpc_url: String,
+    gateway_rpc_url: String,
 ) -> anyhow::Result<MigrateToGatewayContext> {
     let gateway_gateway_config = gateway_chain_config
         .get_gateway_config()
         .context("Gateway config not present")?;
-
-    let l1_url = match l1_rpc_url {
-        Some(url) => url,
-        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
-    };
-
-    let gw_rpc_url = match gateway_rpc_url {
-        Some(url) => url,
-        None => {
-            let general_config = gateway_chain_config.get_general_config().await?;
-            general_config.l2_http_url()?
-        }
-    };
 
     let genesis_config = chain_config.get_genesis_config().await?;
 
@@ -168,7 +169,7 @@ pub(crate) async fn get_migrate_to_gateway_context(
     let chain_secrets_config = chain_config.get_wallets_config().unwrap();
 
     let config = MigrateToGatewayConfig {
-        l1_rpc_url: l1_url.clone(),
+        l1_rpc_url,
         l1_bridgehub_addr: chain_contracts_config
             .ecosystem_contracts
             .bridgehub_proxy_addr,
@@ -176,7 +177,7 @@ pub(crate) async fn get_migrate_to_gateway_context(
         l2_chain_id: chain_config.chain_id.as_u64(),
         gateway_chain_id: gateway_chain_config.chain_id.as_u64(),
         gateway_diamond_cut: gateway_gateway_config.diamond_cut_data.0.clone(),
-        gateway_rpc_url: gw_rpc_url.clone(),
+        gateway_rpc_url,
         new_sl_da_validator: gateway_da_validator_address,
         validator: chain_secrets_config.operator.address,
         min_validator_balance: U256::from(10).pow(19.into()),

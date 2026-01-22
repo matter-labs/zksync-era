@@ -157,15 +157,15 @@ pub async fn run_inner(
     let l1_provider = get_ethers_provider(&l1_rpc_url)?;
 
     let gateway_chain_id = gateway_chain_config.chain_id.as_u64();
-    let gw_rpc_url = match &args.gateway_rpc_url {
+    let gateway_rpc_url = match &args.gateway_rpc_url {
         Some(url) => url.clone(),
         None => {
             let general_config = gateway_chain_config.get_general_config().await?;
             general_config.l2_http_url()?
         }
     };
-    let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
-    let gateway_zk_client = get_zk_client(&gw_rpc_url, chain_config.chain_id.as_u64())?;
+    let gateway_provider = get_ethers_provider(&gateway_rpc_url)?;
+    let gateway_zk_client = get_zk_client(&gateway_rpc_url, chain_config.chain_id.as_u64())?;
 
     let mut contracts_config = chain_config.get_contracts_config()?;
 
@@ -255,8 +255,8 @@ pub async fn run_inner(
         chain_config,
         gateway_chain_config,
         true,
-        Some(l1_rpc_url),
-        Some(gw_rpc_url.clone()),
+        l1_rpc_url,
+        gateway_rpc_url,
     )
     .await?;
 

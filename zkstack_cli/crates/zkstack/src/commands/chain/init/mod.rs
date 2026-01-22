@@ -261,11 +261,10 @@ pub async fn send_priority_txs(
             }
         } else {
             // For Validium, use CLI param if provided, otherwise read from general config
-            let da_client_type = match validium_type {
-                Some(ValidiumTypeInternal::NoDA) => None,
-                Some(ValidiumTypeInternal::Avail) => Some("Avail".to_string()),
-                Some(ValidiumTypeInternal::EigenDA) => Some("Eigen".to_string()),
-                None => chain_config.get_general_config().await?.da_client_type(),
+            let da_client_type = if let Some(x) = validium_type {
+                Some(x.as_str().to_string())
+            } else {
+                chain_config.get_general_config().await?.da_client_type()
             };
 
             match da_client_type.as_deref() {
@@ -356,11 +355,10 @@ pub(crate) async fn get_l1_da_validator(
         },
         L1BatchCommitmentMode::Validium => {
             // Use CLI param if provided, otherwise read from general config
-            let da_client_type = match validium_type {
-                Some(ValidiumTypeInternal::NoDA) => None,
-                Some(ValidiumTypeInternal::Avail) => Some("Avail".to_string()),
-                Some(ValidiumTypeInternal::EigenDA) => Some("Eigen".to_string()),
-                None => chain_config.get_general_config().await?.da_client_type(),
+            let da_client_type = if let Some(x) = validium_type {
+                Some(x.as_str().to_string())
+            } else {
+                chain_config.get_general_config().await?.da_client_type()
             };
 
             match da_client_type.as_deref() {
