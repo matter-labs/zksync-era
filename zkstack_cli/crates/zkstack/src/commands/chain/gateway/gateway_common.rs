@@ -63,6 +63,7 @@ pub struct NotifyServerArgs {
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum NotificationReceivedState {
+    NotAllBatchesCommitted,
     NotAllBatchesExecuted(U256, U256),
     UnconfirmedTxs(usize),
 }
@@ -81,6 +82,9 @@ impl std::fmt::Display for NotificationReceivedState {
                     f,
                     "There are some unconfirmed transactions: {unconfirmed_txs}"
                 )
+            }
+            NotificationReceivedState::NotAllBatchesCommitted => {
+                write!(f, "Not all batches have been committed yet")
             }
         }
     }
@@ -318,6 +322,12 @@ pub(crate) async fn get_gateway_migration_state(
                     total_batches_committed,
                     total_batches_executed,
                 ),
+            ));
+        }
+
+        if gateway_migration_status.wait_for_batches_to_be_committed {
+            return Ok(GatewayMigrationProgressState::NotificationReceived(
+                NotificationReceivedState::NotAllBatchesCommitted,
             ));
         }
     }
