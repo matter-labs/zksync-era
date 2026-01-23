@@ -6,7 +6,7 @@ import { createChainAndStartServer, TestChain, ChainType } from 'highlevel-test-
 import path from 'path';
 import { loadConfig } from 'utils/build/file-configs';
 import { sleep } from 'zksync-ethers/build/utils';
-import { L2_NATIVE_TOKEN_VAULT_ADDRESS } from 'utils/src/constants';
+import { L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_ASSET_TRACKER_ADDRESS, GW_ASSET_TRACKER_ADDRESS } from 'utils/src/constants';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { executeCommand, migrateToGatewayIfNeeded, startServer } from '../src';
@@ -34,8 +34,8 @@ const ERC20_ABI = ERC20_EVM_ARTIFACT.abi;
 
 const ERC20_ZKEVM_BYTECODE = readArtifact('TestnetERC20Token', 'zkout').bytecode.object;
 
-export const DEFAULT_SMALL_AMOUNT = 1n;
-export const DEFAULT_LARGE_AMOUNT = ethers.parseEther('0.01');
+const AMOUNT_FLOOR = ethers.parseEther('0.01');
+const AMOUNT_CEILING = ethers.parseEther('1');
 
 export async function generateChainRichWallet(chainName: string): Promise<zksync.Wallet> {
     const generalConfig = loadConfig({ pathToHome, chain: chainName, config: 'general.yaml' });
@@ -78,26 +78,71 @@ export class ChainHandler {
     public inner: TestChain;
     public l2RichWallet: zksync.Wallet;
     public l1Ntv: ethers.Contract;
+    public l2Ntv: zksync.Contract;
+    public l1AssetTracker: ethers.Contract;
+    public gwAssetTracker: zksync.Contract;
+    public l2AssetTracker: zksync.Contract;
     public l1BaseTokenContract: ethers.Contract;
     public l1GettersContract: ethers.Contract;
     public gwGettersContract: zksync.Contract;
 
     constructor(inner: TestChain, l2RichWallet: zksync.Wallet) {
+        const contractsConfig = loadConfig({ pathToHome, chain: inner.chainName, config: 'contracts.yaml' });
+
         this.inner = inner;
         this.l2RichWallet = l2RichWallet;
 
-        const contractsConfig = loadConfig({ pathToHome, chain: inner.chainName, config: 'contracts.yaml' });
         this.l1Ntv = new ethers.Contract(
             contractsConfig.ecosystem_contracts.native_token_vault_addr,
             readArtifact('L1NativeTokenVault').abi,
             l2RichWallet.ethWallet()
         );
-        this.l1BaseTokenContract = new ethers.Contract(contractsConfig.l1.base_token_addr, ERC20_ABI, l2RichWallet.ethWallet());
+        this.l2Ntv = getL2Ntv(l2RichWallet);
+        this.l2AssetTracker = new zksync.Contract(
+            L2_ASSET_TRACKER_ADDRESS,
+            readArtifact('L2AssetTracker').abi,
+            l2RichWallet
+        );
+
+        this.l1BaseTokenContract = new ethers.Contract(
+            contractsConfig.l1.base_token_addr,
+            ERC20_ABI,
+            l2RichWallet.ethWallet()
+        );
         this.l1GettersContract = new ethers.Contract(
             contractsConfig.l1.diamond_proxy_addr,
             readArtifact('Getters', 'out', 'GettersFacet').abi,
             l2RichWallet.ethWallet()
         );
+    }
+
+    async initEcosystemContracts(gwWallet: zksync.Wallet) {
+        const l1AssetTrackerAddr = await this.l1Ntv.l1AssetTracker();
+        this.l1AssetTracker = new ethers.Contract(
+            l1AssetTrackerAddr,
+            readArtifact('L1AssetTracker').abi,
+            this.l2RichWallet.ethWallet()
+        );
+        this.gwAssetTracker = new zksync.Contract(
+            GW_ASSET_TRACKER_ADDRESS,
+            readArtifact('GWAssetTracker').abi,
+            gwWallet
+        );
+    }
+
+    async assertBalances(balance: bigint, assetId: string, where: 'L1AT' | 'GWAT' | 'L2AT') {
+        let contract: ethers.Contract | zksync.Contract;
+        if (where === 'L1AT') {
+            contract = this.l1AssetTracker;
+        } else if (where === 'GWAT') {
+            contract = this.gwAssetTracker;
+        } else if (where === 'L2AT') {
+            contract = this.l2AssetTracker;
+        }
+        const actualBalance = await contract!.chainBalance(this.inner.chainId, assetId);
+        if (actualBalance !== balance) {
+            throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
+        }
     }
 
     async stopServer() {
@@ -263,10 +308,6 @@ export class ChainHandler {
         return new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
     }
 
-    async deployNativeToken() {
-        return await ERC20Handler.deployTokenOnL2(this.l2RichWallet);
-    }
-
     private async waitForPriorityQueueToBeEmpty(gettersContract: ethers.Contract | zksync.Contract) {
         let tryCount = 0;
         while ((await gettersContract.getPriorityQueueSize()) > 0 && tryCount < 100) {
@@ -292,16 +333,14 @@ export class ERC20Handler {
         this.l2Contract = l2Contract;
     }
 
-    async assetId(chainHandler?: ChainHandler): Promise<string> {
+    async assetId(chainHandler: ChainHandler): Promise<string> {
         if (this.cachedAssetId) return this.cachedAssetId;
 
         let assetId: string;
         if (this.l1Contract) {
-            if (!chainHandler) throw new Error('Chain handler must be provided');
             assetId = await chainHandler.l1Ntv.assetId(await this.l1Contract.getAddress());
         } else {
-            const l2Ntv = getL2Ntv(this.wallet);
-            assetId = await l2Ntv.assetId(await this.l2Contract!.getAddress());
+            assetId = await chainHandler.l2Ntv.assetId(await this.l2Contract!.getAddress());
         }
         this.cachedAssetId = assetId;
         return assetId;
@@ -310,9 +349,9 @@ export class ERC20Handler {
     async deposit(
         chainHandler: ChainHandler,
         awaitDeposit = false,
-        amount: bigint = DEFAULT_SMALL_AMOUNT
+        amount?: bigint
     ): Promise<bigint> {
-        const depositAmount = amount ?? ethers.parseUnits((Math.floor(Math.random() * 900) + 100).toString(), 'gwei');
+        const depositAmount = amount ?? (AMOUNT_FLOOR + BigInt(Math.floor(Math.random() * Number(AMOUNT_CEILING - AMOUNT_FLOOR + 1n))));
         const depositTx = await this.wallet.deposit({
             token: await this.l1Contract!.getAddress(),
             amount: depositAmount,
@@ -327,13 +366,13 @@ export class ERC20Handler {
         return depositAmount;
     }
 
-    async withdraw(amount: bigint = DEFAULT_SMALL_AMOUNT): Promise<WithdrawalHandler> {
-        const withdrawAmount = amount ?? ethers.parseUnits((Math.floor(Math.random() * 900) + 100).toString(), 'gwei');
+    async withdraw(amount?: bigint): Promise<WithdrawalHandler> {
+        const withdrawAmount = amount ?? (1n + BigInt(Math.floor(Math.random() * Number(AMOUNT_FLOOR - 1n))));
         await this.registerIfNeeded();
 
-        if ((await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < amount) {
+        if ((await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < withdrawAmount) {
             await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 0)).wait();
-            await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, amount)).wait();
+            await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, withdrawAmount)).wait();
         }
 
         const withdrawTx = await this.wallet.withdraw({
@@ -355,12 +394,12 @@ export class ERC20Handler {
     async setL1Contract(chainHandler: ChainHandler) {
         // After a withdrawal we can define the l1 contract if it wasn't already
         if (this.l1Contract) return;
-        const l1Address = await chainHandler.l1Ntv.tokenAddress(await this.assetId());
+        const l1Address = await chainHandler.l1Ntv.tokenAddress(await this.assetId(chainHandler));
         this.l1Contract = new ethers.Contract(l1Address, ERC20_ABI, this.wallet.ethWallet());
     }
 
     async getL1Contract(chainHandler: ChainHandler): Promise<ethers.Contract> {
-        const l1Address = await chainHandler.l1Ntv.tokenAddress(await this.assetId());
+        const l1Address = await chainHandler.l1Ntv.tokenAddress(await this.assetId(chainHandler));
         if (l1Address === ethers.ZeroAddress) throw new Error('L1 token not found');
         return new ethers.Contract(l1Address, ERC20_ABI, this.wallet.ethWallet());
     }
@@ -378,12 +417,8 @@ export class ERC20Handler {
         const balance = await secondChainWallet.getBalanceL1(await l1Contract.getAddress());
         if (balance === 0n) throw new Error('L2-B wallet must hold some balance of the L2-B token on L1');
         // We need to provide the chain rich wallet with some balance of the L2-B token on L1, to
-        const l1Erc20 = new ethers.Contract(
-            await l1Contract.getAddress(),
-            ERC20_ABI,
-            secondChainWallet.ethWallet()
-        );
-        await (await l1Erc20.transfer(wallet.address, balance)).wait();        
+        const l1Erc20 = new ethers.Contract(await l1Contract.getAddress(), ERC20_ABI, secondChainWallet.ethWallet());
+        await (await l1Erc20.transfer(wallet.address, balance)).wait();
         return new ERC20Handler(wallet, l1Contract, undefined);
     }
 
