@@ -86,6 +86,9 @@ export class ChainHandler {
     public l1GettersContract: ethers.Contract;
     public gwGettersContract: zksync.Contract;
 
+    // Records expected chain balances for each token asset ID
+    public chainBalances: Record<string, bigint> = {};
+
     constructor(inner: TestChain, l2RichWallet: zksync.Wallet) {
         const contractsConfig = loadConfig({ pathToHome, chain: inner.chainName, config: 'contracts.yaml' });
 
@@ -346,12 +349,8 @@ export class ERC20Handler {
         return assetId;
     }
 
-    async deposit(
-        chainHandler: ChainHandler,
-        awaitDeposit = false,
-        amount?: bigint
-    ): Promise<bigint> {
-        const depositAmount = amount ?? (AMOUNT_FLOOR + BigInt(Math.floor(Math.random() * Number(AMOUNT_CEILING - AMOUNT_FLOOR + 1n))));
+    async deposit(chainHandler: ChainHandler, awaitDeposit = false, amount?: bigint): Promise<bigint> {
+        const depositAmount = amount ?? getRandomDepositAmount();
         const depositTx = await this.wallet.deposit({
             token: await this.l1Contract!.getAddress(),
             amount: depositAmount,
@@ -363,12 +362,14 @@ export class ERC20Handler {
         await this.setL2Contract(chainHandler);
         if (awaitDeposit) await waitForBalanceNonZero(this.l2Contract!, this.wallet);
 
+        const assetId = await this.assetId(chainHandler);
+        chainHandler.chainBalances[assetId] = (chainHandler.chainBalances[assetId] ?? 0n) + depositAmount;
+
         return depositAmount;
     }
 
-    async withdraw(amount?: bigint): Promise<WithdrawalHandler> {
-        const withdrawAmount = amount ?? (1n + BigInt(Math.floor(Math.random() * Number(AMOUNT_FLOOR - 1n))));
-        await this.registerIfNeeded();
+    async withdraw(chainHandler: ChainHandler, amount?: bigint): Promise<WithdrawalHandler> {
+        const withdrawAmount = amount ?? getRandomWithdrawAmount();
 
         if ((await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < withdrawAmount) {
             await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 0)).wait();
@@ -380,6 +381,9 @@ export class ERC20Handler {
             amount: withdrawAmount
         });
         await withdrawTx.wait();
+
+        const assetId = await this.assetId(chainHandler);
+        chainHandler.chainBalances[assetId] -= withdrawAmount;
 
         return new WithdrawalHandler(withdrawTx.hash, this.wallet.provider, withdrawAmount);
     }
@@ -435,25 +439,25 @@ export class ERC20Handler {
         return new ERC20Handler(wallet, l1Contract, undefined);
     }
 
-    static async deployTokenOnL2(l2Wallet: zksync.Wallet) {
-        const factory = new zksync.ContractFactory(ERC20_ABI, ERC20_ZKEVM_BYTECODE, l2Wallet, 'create');
+    static async deployTokenOnL2(chainHandler: ChainHandler) {
+        const factory = new zksync.ContractFactory(
+            ERC20_ABI,
+            ERC20_ZKEVM_BYTECODE,
+            chainHandler.l2RichWallet,
+            'create'
+        );
 
         const props = this.generateRandomTokenProps();
         const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
         await newToken.waitForDeployment();
-        const l2Contract = new zksync.Contract(await newToken.getAddress(), ERC20_ABI, l2Wallet);
-        await (await l2Contract.mint(l2Wallet.address, RICH_WALLET_L1_BALANCE)).wait();
+        const l2Contract = new zksync.Contract(await newToken.getAddress(), ERC20_ABI, chainHandler.l2RichWallet);
+        await (await l2Contract.mint(chainHandler.l2RichWallet.address, getRandomDepositAmount())).wait();
 
-        return new ERC20Handler(l2Wallet, undefined, l2Contract);
-    }
+        await (await chainHandler.l2Ntv.registerToken(await l2Contract.getAddress())).wait();
+        const assetId = await chainHandler.l2Ntv.assetId(await l2Contract.getAddress());
+        chainHandler.chainBalances[assetId] = ethers.MaxUint256;
 
-    private async registerIfNeeded() {
-        const l2Ntv = getL2Ntv(this.wallet);
-        const l2AssetId = await l2Ntv.assetId(await this.l2Contract!.getAddress());
-        if (l2AssetId === ethers.ZeroHash) {
-            // Registering the token
-            await (await l2Ntv.registerToken(await this.l2Contract!.getAddress())).wait();
-        }
+        return new ERC20Handler(chainHandler.l2RichWallet, undefined, l2Contract);
     }
 
     private static generateRandomTokenProps() {
@@ -491,14 +495,12 @@ export class WithdrawalHandler {
     }
 }
 
-export class MigrationHandler {
-    public txHash: string;
+function getRandomDepositAmount(): bigint {
+    return AMOUNT_FLOOR + BigInt(Math.floor(Math.random() * Number(AMOUNT_CEILING - AMOUNT_FLOOR + 1n)));
+}
 
-    constructor(txHash: string, provider: zksync.Provider) {
-        this.txHash = txHash;
-    }
-
-    async finalizeMigration(l1RichWallet: ethers.Wallet) {}
+function getRandomWithdrawAmount(): bigint {
+    return 1n + BigInt(Math.floor(Math.random() * Number(AMOUNT_FLOOR - 1n)));
 }
 
 async function waitForBalanceNonZero(contract: ethers.Contract | zksync.Contract, wallet: zksync.Wallet) {
@@ -538,17 +540,5 @@ async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number,
         console.log(`Waiting for log proof... ${i}`);
         await zksync.utils.sleep(wallet.provider.pollingInterval);
         i++;
-    }
-}
-
-async function waitForAllBatchesToBeExecuted(gettersContract: ethers.Contract | zksync.Contract) {
-    let tryCount = 0;
-    let totalBatchesCommitted = await gettersContract.getTotalBatchesCommitted();
-    let totalBatchesExecuted = await gettersContract.getTotalBatchesExecuted();
-    while (totalBatchesCommitted !== totalBatchesExecuted && tryCount < 100) {
-        tryCount += 1;
-        await utils.sleep(1);
-        totalBatchesCommitted = await gettersContract.getTotalBatchesCommitted();
-        totalBatchesExecuted = await gettersContract.getTotalBatchesExecuted();
     }
 }

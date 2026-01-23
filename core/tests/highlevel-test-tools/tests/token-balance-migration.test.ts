@@ -118,11 +118,15 @@ if (shouldSkip) {
         // Token B: Native to L1, deposited to L2, fully withdrawn from L2
         tokens.L1NativeWithdrawnFromL2 = await ERC20Handler.deployTokenOnL1(chainRichWallet);
         const L1NativeWithdrawnFromL2Amount = await tokens.L1NativeWithdrawnFromL2.deposit(chainHandler, true);
-        withdrawalsToBeFinalized.push(await tokens.L1NativeWithdrawnFromL2.withdraw(L1NativeWithdrawnFromL2Amount));
+        withdrawalsToBeFinalized.push(
+            await tokens.L1NativeWithdrawnFromL2.withdraw(chainHandler, L1NativeWithdrawnFromL2Amount)
+        );
         // Token G: Native to L2-A, fully withdrawn to L1
-        tokens.L2NativeWithdrawnToL1 = await ERC20Handler.deployTokenOnL2(chainRichWallet);
+        tokens.L2NativeWithdrawnToL1 = await ERC20Handler.deployTokenOnL2(chainHandler);
         const L2NativeWithdrawnToL1Amount = await tokens.L2NativeWithdrawnToL1.getL2Balance();
-        withdrawalsToBeFinalized.push(await tokens.L2NativeWithdrawnToL1.withdraw(L2NativeWithdrawnToL1Amount));
+        withdrawalsToBeFinalized.push(
+            await tokens.L2NativeWithdrawnToL1.withdraw(chainHandler, L2NativeWithdrawnToL1Amount)
+        );
         // Token A: Native to L1, deposited to L2
         tokens.L1NativeDepositedToL2 = await ERC20Handler.deployTokenOnL1(chainRichWallet);
         await tokens.L1NativeDepositedToL2.deposit(chainHandler);
@@ -133,9 +137,9 @@ if (shouldSkip) {
         // Token: Base token of L2-B, withdrawn from L2-B, and deposited to L2-A
 
         // Token D: Native to L2-B, withdrawn from L2-B, and deposited to L2-A
-        const L2BToken = await ERC20Handler.deployTokenOnL2(customTokenChainRichWallet);
+        const L2BToken = await ERC20Handler.deployTokenOnL2(customTokenChainHandler);
         const L2BTokenBalance = await L2BToken.getL2Balance();
-        withdrawalsToBeFinalized.push(await L2BToken.withdraw(L2BTokenBalance));
+        withdrawalsToBeFinalized.push(await L2BToken.withdraw(customTokenChainHandler, L2BTokenBalance));
 
         // Token E: Native to L2-B, withdrawn from L2-B, not deposited to L2-A yet
 
@@ -159,7 +163,11 @@ if (shouldSkip) {
         );
         await tokens.L2BBaseToken.deposit(chainHandler, true);
         // Deposit L2-B token to L2-A
-        tokens.L2BToken = await ERC20Handler.fromL2BL1Token(L2BTokenL1Contract, chainRichWallet, customTokenChainRichWallet);
+        tokens.L2BToken = await ERC20Handler.fromL2BL1Token(
+            L2BTokenL1Contract,
+            chainRichWallet,
+            customTokenChainRichWallet
+        );
         await tokens.L2BToken.deposit(chainHandler, true);
 
         for (const token of Object.keys(tokens)) {
