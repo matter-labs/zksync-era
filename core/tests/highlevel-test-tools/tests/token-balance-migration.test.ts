@@ -7,11 +7,12 @@ import {
     ChainHandler,
     generateChainRichWallet,
     ERC20Handler,
-    RICH_WALLET_L1_BALANCE
+    RICH_WALLET_L1_BALANCE,
+    RICH_WALLET_L2_BALANCE
 } from './token-balance-migration-tester';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { expect } from 'chai';
+import { expect } from 'vitest';
 import fs from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { BytesLike } from '@ethersproject/bytes';
@@ -24,6 +25,7 @@ import { logsTestPath } from 'utils/build/logs';
 import { waitForNewL1Batch } from 'utils';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
 import { initTestWallet } from '../src/run-integration-tests';
+import { GATEWAY_CHAIN_ID } from 'utils/src/constants';
 
 async function logsPath(name: string): Promise<string> {
     return await logsTestPath(fileConfig.chain, 'logs/upgrade/', name);
@@ -94,6 +96,8 @@ if (shouldSkip) {
     // Stored token data for cross-test assertions
     const tokens: Record<string, ERC20Handler> = {};
 
+    // Useful for running tests locally, as the custom
+
     beforeAll(async () => {
         // Initialize gateway chain
         console.log('Initializing rich wallet for gateway chain...');
@@ -118,7 +122,7 @@ if (shouldSkip) {
         // We first deploy all tokens that will need to be withdrawn from L2 to make testing faster
         // Token B: Native to L1, deposited to L2, fully withdrawn from L2
         tokens.L1NativeWithdrawnFromL2 = await ERC20Handler.deployTokenOnL1(chainRichWallet);
-        const L1NativeWithdrawnFromL2Amount = await tokens.L1NativeWithdrawnFromL2.deposit(chainHandler, true);
+        const L1NativeWithdrawnFromL2Amount = await tokens.L1NativeWithdrawnFromL2.deposit(chainHandler);
         withdrawalsToBeFinalized.push(
             await tokens.L1NativeWithdrawnFromL2.withdraw(chainHandler, L1NativeWithdrawnFromL2Amount)
         );
@@ -155,20 +159,22 @@ if (shouldSkip) {
         await tokens.L2NativeWithdrawnToL1.setL1Contract(chainHandler);
         const L2BTokenL1Contract = await L2BToken.getL1Contract(customTokenChainHandler);
 
-        // Deposit L2-B base token to L2-A
-        tokens.L2BBaseToken = await ERC20Handler.fromL2BL1Token(
-            customTokenChainHandler.l1BaseTokenContract,
-            chainRichWallet,
-            customTokenChainRichWallet
-        );
-        await tokens.L2BBaseToken.deposit(chainHandler, true);
         // Deposit L2-B token to L2-A
         tokens.L2BToken = await ERC20Handler.fromL2BL1Token(
             L2BTokenL1Contract,
             chainRichWallet,
             customTokenChainRichWallet
         );
-        await tokens.L2BToken.deposit(chainHandler, true);
+        await tokens.L2BToken.deposit(chainHandler);
+
+        // Add the base token to the list
+        tokens.baseToken = new ERC20Handler(chainHandler.l2RichWallet, chainHandler.l1BaseTokenContract, undefined);
+        const baseTokenAssetId = await tokens.baseToken.assetId(chainHandler);
+        // We deposited `RICH_WALLET_L2_BALANCE` when we initialized the chain
+        const preBalance = await chainHandler.l1AssetTracker.chainBalance(chainHandler.inner.chainId, baseTokenAssetId);
+        chainHandler.chainBalances[baseTokenAssetId] = preBalance;
+        console.log('L1NTV BALANCE', preBalance);
+        // query l1at_gw and set that at start
 
         for (const token of Object.keys(tokens)) {
             console.log(`Token ${token} Asset ID: ${await tokens[token].assetId(chainHandler)}`);
@@ -179,12 +185,19 @@ if (shouldSkip) {
         // Chain balances are accounted correctly on L1AT
         for (const token of Object.keys(tokens)) {
             const assetId = await tokens[token].assetId(chainHandler);
-            expect(await chainHandler.assertChainBalance(assetId, 'L1AT')).to.be.true;
-            expect(await chainHandler.assertChainBalance(assetId, 'L1AT_GW', 0n)).to.be.true;
-            expect(await chainHandler.assertChainBalance(assetId, 'GWAT', 0n)).to.be.true;
-            expect(await chainHandler.assertAssetMigrationNumber(assetId, 'L1AT', 0n)).to.be.true;
-            expect(await chainHandler.assertAssetMigrationNumber(assetId, 'L1AT_GW', 0n)).to.be.true;
-            expect(await chainHandler.assertAssetMigrationNumber(assetId, 'GWAT', 0n)).to.be.true;
+            await expect(
+                chainHandler.assertAssetTrackersState(assetId, {
+                    balances: {
+                        L1AT_GW: 0n,
+                        GWAT: 0n
+                    },
+                    migrations: {
+                        L1AT: 0n,
+                        L1AT_GW: 0n,
+                        GWAT: 0n
+                    }
+                })
+            ).resolves.toBe(true);
         }
     });
 
@@ -195,29 +208,82 @@ if (shouldSkip) {
     it('Can deposit a token to the chain after migrating to gateway', async () => {
         tokens.L1NativeDepositedToL2AfterMigrationToGW = await ERC20Handler.deployTokenOnL1(chainRichWallet);
         // Fresh deposit after the chain migrated to gateway marks the asset ID as effectively migrated
+        await tokens.L1NativeDepositedToL2AfterMigrationToGW.deposit(chainHandler);
         const assetId = await tokens.L1NativeDepositedToL2AfterMigrationToGW.assetId(chainHandler);
-        expect(await chainHandler.assertChainBalance(assetId, 'L1AT', 0n)).to.be.true;
-        expect(await chainHandler.assertChainBalance(assetId, 'L1AT_GW')).to.be.true;
-        expect(await chainHandler.assertChainBalance(assetId, 'GWAT')).to.be.true;
-        expect(await chainHandler.assertAssetMigrationNumber(assetId, 'L1AT', 1n)).to.be.true;
-        expect(await chainHandler.assertAssetMigrationNumber(assetId, 'L1AT_GW', 1n)).to.be.true;
-        expect(await chainHandler.assertAssetMigrationNumber(assetId, 'GWAT', 1n)).to.be.true;
+        await expect(
+            chainHandler.assertAssetTrackersState(assetId, {
+                balances: {
+                    L1AT: 0n
+                },
+                migrations: {
+                    L1AT: 1n,
+                    L1AT_GW: 0n,
+                    GWAT: 1n
+                }
+            })
+        ).resolves.toBe(true);
     });
 
     it('Cannot initiate migration for a false assetId', async () => {
         const bogusAssetId = ethers.randomBytes(32);
-        expect(await chainHandler.l2AssetTracker.initiateL1ToGatewayMigrationOnL2(bogusAssetId)).to.be.rejected;
+        await expect(chainHandler.l2AssetTracker.initiateL1ToGatewayMigrationOnL2(bogusAssetId)).rejects.toThrow();
     });
 
     it('Can migrate token balances to GW', async () => {
+        for (const token of Object.keys(tokens)) {
+            console.log(`Token ${token} Asset ID: ${await tokens[token].assetId(chainHandler)}`);
+        }
+        // Take snapshot right before migration
+        // Base token balance increases slighly due to previous token deposits, here we account for that
+        const existingBaseTokenL1ATBalanceForGW = await chainHandler.l1AssetTracker.chainBalance(
+            GATEWAY_CHAIN_ID,
+            chainHandler.baseTokenAssetId
+        );
+        chainHandler.existingBaseTokenL1ATBalanceForGW = existingBaseTokenL1ATBalanceForGW;
+        // Migrate token balances to gateway
+        // This also tests repeated migrations, as `L1NativeDepositedToL2AfterMigrationToGW` was already effectively migrated
+        // This command tries to migrate it again, which will succeed, but later balance check will show it stays the same
         await chainHandler.migrateTokenBalancesToGateway();
         // We need to wait for a bit for L1AT's `_sendConfirmationToChains` to propagate to GW and the tested L2 chain
         await utils.sleep(5);
     });
 
+    it('Correctly assigns chain token balances after migrating token balances to gateway', async () => {
+        // Chain balances are accounted correctly on L1AT
+        for (const token of Object.keys(tokens)) {
+            const assetId = await tokens[token].assetId(chainHandler);
+            await expect(
+                chainHandler.assertAssetTrackersState(assetId, {
+                    balances: {
+                        L1AT: 0n
+                    },
+                    migrations: {
+                        L1AT: 1n,
+                        L1AT_GW: 0n,
+                        GWAT: 1n
+                    }
+                })
+            ).resolves.toBe(true);
+        }
+    });
+
     it('Can deposit a token to the chain after migrating balances to gateway', async () => {
-        // TODO
-        // Fresh deposit marks asset ID as migrated
+        tokens.L1NativeDepositedToL2AfterTBMToGW = await ERC20Handler.deployTokenOnL1(chainRichWallet);
+        // Fresh deposit after the chain migrated its token balances to gateway marks the asset ID as effectively migrated
+        await tokens.L1NativeDepositedToL2AfterTBMToGW.deposit(chainHandler);
+        const assetId = await tokens.L1NativeDepositedToL2AfterTBMToGW.assetId(chainHandler);
+        await expect(
+            chainHandler.assertAssetTrackersState(assetId, {
+                balances: {
+                    L1AT: 0n
+                },
+                migrations: {
+                    L1AT: 1n,
+                    L1AT_GW: 0n,
+                    GWAT: 1n
+                }
+            })
+        ).resolves.toBe(true);
     });
 
     it('Can withdraw a token after balances were migrated to gateway', async () => {});

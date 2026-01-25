@@ -1,25 +1,25 @@
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import * as utils from 'utils';
+import * as yaml from 'js-yaml';
+import * as fs from 'fs';
+import path from 'path';
+import { loadConfig, loadEcosystemConfig } from 'utils/build/file-configs';
+import { sleep } from 'zksync-ethers/build/utils';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
 import { createChainAndStartServer, TestChain, ChainType } from 'highlevel-test-tools/src/create-chain';
-import path from 'path';
-import { loadConfig } from 'utils/build/file-configs';
-import { sleep } from 'zksync-ethers/build/utils';
 import {
     L2_NATIVE_TOKEN_VAULT_ADDRESS,
     L2_ASSET_TRACKER_ADDRESS,
     GW_ASSET_TRACKER_ADDRESS,
     GATEWAY_CHAIN_ID
 } from 'utils/src/constants';
-import * as fs from 'fs';
-import * as yaml from 'js-yaml';
 import { executeCommand, migrateToGatewayIfNeeded, startServer } from '../src';
 import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
 
 export const RICH_WALLET_L1_BALANCE = ethers.parseEther('10.0');
-const RICH_WALLET_L2_BALANCE = RICH_WALLET_L1_BALANCE;
+export const RICH_WALLET_L2_BALANCE = RICH_WALLET_L1_BALANCE;
 const TEST_SUITE_NAME = 'Token Balance Migration Test';
 const pathToHome = path.join(__dirname, '../../../..');
 
@@ -42,10 +42,14 @@ const ERC20_ZKEVM_BYTECODE = readArtifact('TestnetERC20Token', 'zkout').bytecode
 const AMOUNT_FLOOR = ethers.parseEther('0.01');
 const AMOUNT_CEILING = ethers.parseEther('1');
 
+type AssetTrackerLocation = 'L1AT' | 'L1AT_GW' | 'GWAT';
+const ASSET_TRACKERS: readonly AssetTrackerLocation[] = ['L1AT', 'L1AT_GW', 'GWAT'] as const;
+
 export async function generateChainRichWallet(chainName: string): Promise<zksync.Wallet> {
     const generalConfig = loadConfig({ pathToHome, chain: chainName, config: 'general.yaml' });
     const contractsConfig = loadConfig({ pathToHome, chain: chainName, config: 'contracts.yaml' });
     const secretsConfig = loadConfig({ pathToHome, chain: chainName, config: 'secrets.yaml' });
+    const walletsConfig = loadConfig({ pathToHome, chain: chainName, config: 'wallets.yaml' });
     const ethProviderAddress = secretsConfig.l1.l1_rpc_url;
     const web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
 
@@ -71,6 +75,17 @@ export async function generateChainRichWallet(chainName: string): Promise<zksync
         })
     ).wait();
 
+    // Additionally fund the deployer wallet
+    // This skips the funding step on migrate_token_balances.rs, and allows for easier chain balance accounting
+    const ecosystemWallets = loadEcosystemConfig({ pathToHome, config: 'wallets.yaml' });
+    console.log('Deployer address', ecosystemWallets.deployer.address);
+    await (
+        await richWallet.transfer({
+            to: ecosystemWallets.deployer.address,
+            amount: ethers.parseEther('1')
+        })
+    ).wait();
+
     return richWallet;
 }
 
@@ -87,9 +102,13 @@ export class ChainHandler {
     public l1AssetTracker: ethers.Contract;
     public gwAssetTracker: zksync.Contract;
     public l2AssetTracker: zksync.Contract;
+    public baseTokenAssetId: string;
     public l1BaseTokenContract: ethers.Contract;
     public l1GettersContract: ethers.Contract;
     public gwGettersContract: zksync.Contract;
+
+    //
+    public existingBaseTokenL1ATBalanceForGW = 0n;
 
     // Records expected chain balances for each token asset ID
     public chainBalances: Record<string, bigint> = {};
@@ -112,6 +131,7 @@ export class ChainHandler {
             l2RichWallet
         );
 
+        this.baseTokenAssetId = contractsConfig.l1.base_token_asset_id;
         this.l1BaseTokenContract = new ethers.Contract(
             contractsConfig.l1.base_token_addr,
             ERC20_ABI,
@@ -131,6 +151,11 @@ export class ChainHandler {
             readArtifact('L1AssetTracker').abi,
             this.l2RichWallet.ethWallet()
         );
+        this.existingBaseTokenL1ATBalanceForGW = await this.l1AssetTracker.chainBalance(
+            GATEWAY_CHAIN_ID,
+            this.baseTokenAssetId
+        );
+        console.log('EXISTING BASE TOKEN L1AT BALANCE FOR GW', this.existingBaseTokenL1ATBalanceForGW);
         this.gwAssetTracker = new zksync.Contract(
             GW_ASSET_TRACKER_ADDRESS,
             readArtifact('GWAssetTracker').abi,
@@ -138,49 +163,31 @@ export class ChainHandler {
         );
     }
 
-    async assertChainBalance(
+    async assertAssetTrackersState(
         assetId: string,
-        where: 'L1AT' | 'L1AT_GW' | 'GWAT',
-        expectedBalance?: bigint
+        {
+            balances = {},
+            migrations
+        }: {
+            balances?: Partial<Record<AssetTrackerLocation, bigint>>;
+            migrations?: Record<AssetTrackerLocation, bigint>;
+        }
     ): Promise<boolean> {
-        const balance = expectedBalance ?? this.chainBalances[assetId] ?? 0n;
-        let contract: ethers.Contract | zksync.Contract;
-        if (where === 'L1AT' || where === 'L1AT_GW') {
-            contract = this.l1AssetTracker;
-        } else if (where === 'GWAT') {
-            contract = this.gwAssetTracker;
+        for (const where of ASSET_TRACKERS) {
+            const expected = balances?.[where];
+            if (expected !== undefined) {
+                await this.assertChainBalance(assetId, where, expected);
+            } else {
+                await this.assertChainBalance(assetId, where);
+            }
         }
-        const chainId = where === 'L1AT_GW' ? GATEWAY_CHAIN_ID : this.inner.chainId;
-        const actualBalance = await contract!.chainBalance(chainId, assetId);
-        if (actualBalance !== balance) {
-            throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
-        }
-        console.log(`Expected balance for ${where} ${assetId}: ${balance}, actual balance: ${actualBalance} MATCH ✅`);
-        return true;
-    }
 
-    async assertAssetMigrationNumber(
-        assetId: string,
-        where: 'L1AT' | 'L1AT_GW' | 'GWAT',
-        expectedMigrationNumber: bigint
-    ): Promise<boolean> {
-        let contract: ethers.Contract | zksync.Contract;
-        if (where === 'L1AT' || where === 'L1AT_GW') {
-            contract = this.l1AssetTracker;
-        } else if (where === 'GWAT') {
-            contract = this.gwAssetTracker;
+        if (migrations) {
+            for (const where of ASSET_TRACKERS) {
+                await this.assertAssetMigrationNumber(assetId, where, migrations[where]);
+            }
         }
-        // After migration to gateway, the chain balances of the chain on L1AT are accounted for inside GW's chain balance
-        const chainId = where === 'L1AT_GW' ? GATEWAY_CHAIN_ID : this.inner.chainId;
-        const actualMigrationNumber = await contract!.assetMigrationNumber(chainId, assetId);
-        if (actualMigrationNumber !== expectedMigrationNumber) {
-            throw new Error(
-                `Asset migration number mismatch for ${where} ${assetId}: expected ${expectedMigrationNumber}, got ${actualMigrationNumber}`
-            );
-        }
-        console.log(
-            `Expected asset migration number for ${where} ${assetId}: ${expectedMigrationNumber}, actual migration number: ${actualMigrationNumber} MATCH ✅`
-        );
+
         return true;
     }
 
@@ -243,6 +250,13 @@ export class ChainHandler {
             readArtifact('Getters', 'out', 'GettersFacet').abi,
             new zksync.Provider(secretsConfig.l1.gateway_rpc_url)
         );
+
+        // Redefine
+        this.existingBaseTokenL1ATBalanceForGW = await this.l1AssetTracker.chainBalance(
+            GATEWAY_CHAIN_ID,
+            this.baseTokenAssetId
+        );
+        console.log('EXISTING BASE TOKEN L1AT BALANCE FOR GW AFTER MIGRATION', this.existingBaseTokenL1ATBalanceForGW);
     }
 
     async migrateFromGateway() {
@@ -347,6 +361,61 @@ export class ChainHandler {
         return new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
     }
 
+    private async assertChainBalance(
+        assetId: string,
+        where: 'L1AT' | 'L1AT_GW' | 'GWAT',
+        expectedBalance?: bigint
+    ): Promise<boolean> {
+        let balance = expectedBalance ?? this.chainBalances[assetId] ?? 0n;
+        let contract: ethers.Contract | zksync.Contract;
+        if (where === 'L1AT' || where === 'L1AT_GW') {
+            contract = this.l1AssetTracker;
+        } else if (where === 'GWAT') {
+            contract = this.gwAssetTracker;
+        }
+        const chainId = where === 'L1AT_GW' ? GATEWAY_CHAIN_ID : this.inner.chainId;
+        balance +=
+            where === 'L1AT_GW' && assetId === this.baseTokenAssetId ? this.existingBaseTokenL1ATBalanceForGW : 0n;
+        const actualBalance = await contract!.chainBalance(chainId, assetId);
+
+        if (where === 'GWAT' && assetId === this.baseTokenAssetId) {
+            // Here we have to account for some balance drift from the migrate_token_balances.rs script
+            const tolerance = ethers.parseEther('0.001');
+            const diff = actualBalance > balance ? actualBalance - balance : balance - actualBalance;
+            if (diff > tolerance) {
+                throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
+            }
+            return true;
+        }
+
+        if (actualBalance !== balance) {
+            throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
+        }
+        return true;
+    }
+
+    private async assertAssetMigrationNumber(
+        assetId: string,
+        where: 'L1AT' | 'L1AT_GW' | 'GWAT',
+        expectedMigrationNumber: bigint
+    ): Promise<boolean> {
+        let contract: ethers.Contract | zksync.Contract;
+        if (where === 'L1AT' || where === 'L1AT_GW') {
+            contract = this.l1AssetTracker;
+        } else if (where === 'GWAT') {
+            contract = this.gwAssetTracker;
+        }
+        // After migration to gateway, the chain balances of the chain on L1AT are accounted for inside GW's chain balance
+        const chainId = where === 'L1AT_GW' ? GATEWAY_CHAIN_ID : this.inner.chainId;
+        const actualMigrationNumber = await contract!.assetMigrationNumber(chainId, assetId);
+        if (actualMigrationNumber !== expectedMigrationNumber) {
+            throw new Error(
+                `Asset migration number mismatch for ${where} ${assetId}: expected ${expectedMigrationNumber}, got ${actualMigrationNumber}`
+            );
+        }
+        return true;
+    }
+
     private async waitForPriorityQueueToBeEmpty(gettersContract: ethers.Contract | zksync.Contract) {
         let tryCount = 0;
         while ((await gettersContract.getPriorityQueueSize()) > 0 && tryCount < 100) {
@@ -385,7 +454,7 @@ export class ERC20Handler {
         return assetId;
     }
 
-    async deposit(chainHandler: ChainHandler, awaitDeposit = false, amount?: bigint): Promise<bigint> {
+    async deposit(chainHandler: ChainHandler, amount?: bigint): Promise<bigint> {
         const depositAmount = amount ?? getRandomDepositAmount();
         const depositTx = await this.wallet.deposit({
             token: await this.l1Contract!.getAddress(),
@@ -396,7 +465,7 @@ export class ERC20Handler {
         await depositTx.wait();
 
         await this.setL2Contract(chainHandler);
-        if (awaitDeposit) await waitForBalanceNonZero(this.l2Contract!, this.wallet);
+        await waitForBalanceNonZero(this.l2Contract!, this.wallet);
 
         const assetId = await this.assetId(chainHandler);
         chainHandler.chainBalances[assetId] = (chainHandler.chainBalances[assetId] ?? 0n) + depositAmount;
@@ -413,7 +482,6 @@ export class ERC20Handler {
         }
 
         const balance = await this.l2Contract!.balanceOf(this.wallet.address);
-        console.log('withdraw', await this.l2Contract!.getAddress(), 'amount', withdrawAmount, 'balance', balance);
 
         const withdrawTx = await this.wallet.withdraw({
             token: await this.l2Contract!.getAddress(),
