@@ -49,7 +49,6 @@ export async function generateChainRichWallet(chainName: string): Promise<zksync
     const generalConfig = loadConfig({ pathToHome, chain: chainName, config: 'general.yaml' });
     const contractsConfig = loadConfig({ pathToHome, chain: chainName, config: 'contracts.yaml' });
     const secretsConfig = loadConfig({ pathToHome, chain: chainName, config: 'secrets.yaml' });
-    const walletsConfig = loadConfig({ pathToHome, chain: chainName, config: 'wallets.yaml' });
     const ethProviderAddress = secretsConfig.l1.l1_rpc_url;
     const web3JsonRpc = generalConfig.api.web3_json_rpc.http_url;
 
@@ -78,7 +77,6 @@ export async function generateChainRichWallet(chainName: string): Promise<zksync
     // Additionally fund the deployer wallet
     // This skips the funding step on migrate_token_balances.rs, and allows for easier chain balance accounting
     const ecosystemWallets = loadEcosystemConfig({ pathToHome, config: 'wallets.yaml' });
-    console.log('Deployer address', ecosystemWallets.deployer.address);
     await (
         await richWallet.transfer({
             to: ecosystemWallets.deployer.address,
@@ -429,6 +427,7 @@ export class ERC20Handler {
     public wallet: zksync.Wallet;
     public l1Contract: ethers.Contract | undefined;
     public l2Contract: zksync.Contract | undefined;
+    public isL2Token: boolean;
     cachedAssetId: string | null = null;
 
     constructor(
@@ -439,6 +438,7 @@ export class ERC20Handler {
         this.wallet = wallet;
         this.l1Contract = l1Contract;
         this.l2Contract = l2Contract;
+        this.isL2Token = !!l2Contract;
     }
 
     async assetId(chainHandler: ChainHandler): Promise<string> {
@@ -473,15 +473,17 @@ export class ERC20Handler {
         return depositAmount;
     }
 
-    async withdraw(chainHandler: ChainHandler, amount?: bigint): Promise<WithdrawalHandler> {
+    async withdraw(
+        chainHandler: ChainHandler,
+        decreaseChainBalance = true,
+        amount?: bigint
+    ): Promise<WithdrawalHandler> {
         const withdrawAmount = amount ?? getRandomWithdrawAmount();
 
         if ((await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < withdrawAmount) {
             await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 0)).wait();
             await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, withdrawAmount)).wait();
         }
-
-        const balance = await this.l2Contract!.balanceOf(this.wallet.address);
 
         const withdrawTx = await this.wallet.withdraw({
             token: await this.l2Contract!.getAddress(),
@@ -490,7 +492,10 @@ export class ERC20Handler {
         await withdrawTx.wait();
 
         const assetId = await this.assetId(chainHandler);
-        chainHandler.chainBalances[assetId] -= withdrawAmount;
+        if (decreaseChainBalance) {
+            if (this.isL2Token) chainHandler.chainBalances[assetId] = ethers.MaxUint256;
+            chainHandler.chainBalances[assetId] -= withdrawAmount;
+        }
 
         return new WithdrawalHandler(withdrawTx.hash, this.wallet.provider, withdrawAmount);
     }
@@ -562,8 +567,6 @@ export class ERC20Handler {
         await (await l2Contract.mint(chainHandler.l2RichWallet.address, mintAmount)).wait();
 
         await (await chainHandler.l2Ntv.registerToken(await l2Contract.getAddress())).wait();
-        const assetId = await chainHandler.l2Ntv.assetId(await l2Contract.getAddress());
-        chainHandler.chainBalances[assetId] = ethers.MaxUint256;
 
         return new ERC20Handler(chainHandler.l2RichWallet, undefined, l2Contract);
     }
