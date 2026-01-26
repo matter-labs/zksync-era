@@ -292,18 +292,7 @@ async fn deploy_ecosystem(
         l1_rpc_url.clone(),
     )
     .await?;
-    accept_owner_aggregated(
-        shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        contracts_config.l1.governance_addr,
-        &ecosystem_config.get_wallets()?.governor,
-        contracts_config
-            .core_ecosystem_contracts
-            .bridgehub_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+
     accept_admin(
         shell,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
@@ -339,6 +328,18 @@ async fn deploy_ecosystem(
             .core_ecosystem_contracts
             .stm_deployment_tracker_proxy_addr
             .context("stm_deployment_tracker_proxy_addr")?,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+    accept_owner_aggregated(
+        shell,
+        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
+        contracts_config.l1.governance_addr,
+        &ecosystem_config.get_wallets()?.governor,
+        contracts_config
+            .core_ecosystem_contracts
+            .bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
     )
