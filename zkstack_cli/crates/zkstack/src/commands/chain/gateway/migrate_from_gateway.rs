@@ -37,9 +37,13 @@ use crate::{
     admin_functions::{set_da_validator_pair, start_migrate_chain_from_gateway},
     commands::chain::{
         admin_call_builder::AdminCallBuilder,
+        args::init::da_configs::ValidiumTypeInternal,
         gateway::{
             constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-            gateway_common::extract_and_wait_for_priority_ops,
+            gateway_common::{
+                extract_and_wait_for_priority_ops, get_gateway_migration_state,
+                GatewayMigrationProgressState, MigrationDirection,
+            },
         },
         init::get_l1_da_validator,
         utils::send_tx,
@@ -57,6 +61,18 @@ pub struct MigrateFromGatewayArgs {
 
     #[clap(long)]
     pub gateway_chain_name: String,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// Gateway RPC URL. If not provided, will be read from gateway chain's general config.
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
+
+    /// Validium type for the chain. If not provided, will be read from chain's general config.
+    #[clap(long)]
+    pub validium_type: Option<ValidiumTypeInternal>,
 }
 
 lazy_static! {
@@ -76,7 +92,10 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .context("Gateway not present")?;
     let gateway_chain_id = gateway_chain_config.chain_id.as_u64();
 
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
     let chain_contracts_config = chain_config.get_contracts_config()?;
 
     let l1_diamond_cut_data = chain_config
@@ -84,6 +103,37 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .ecosystem_contracts
         .ctm
         .diamond_cut_data;
+
+    let gw_rpc_url = match args.gateway_rpc_url {
+        Some(url) => url,
+        None => {
+            let general_config = gateway_chain_config.get_general_config().await?;
+            general_config.l2_http_url()?
+        }
+    };
+
+    let state = get_gateway_migration_state(
+        l1_url.clone(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        chain_config.chain_id.as_u64(),
+        chain_config
+            .get_general_config()
+            .await?
+            .l2_http_url()
+            .context("L2 RPC URL must be provided for cross checking")?,
+        gw_rpc_url.clone(),
+        MigrationDirection::FromGateway,
+    )
+    .await?;
+
+    if state != GatewayMigrationProgressState::ServerReady {
+        anyhow::bail!(
+            "Chain is not ready for starting the migration from Gateway. Current state: {:?}",
+            state
+        );
+    }
 
     let start_migrate_from_gateway_call = start_migrate_chain_from_gateway(
         shell,
@@ -108,8 +158,6 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let (calldata, value) =
         AdminCallBuilder::new(start_migrate_from_gateway_call.calls).compile_full_calldata();
 
-    let general_config = gateway_chain_config.get_general_config().await?;
-    let gw_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
     let gateway_zk_client = get_zk_client(&gw_rpc_url, chain_config.chain_id.as_u64())?;
 
@@ -184,7 +232,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
-    let l1_da_validator_addr = get_l1_da_validator(&chain_config)
+    let l1_da_validator_addr = get_l1_da_validator(&chain_config, args.validium_type.clone())
         .await
         .context("l1_da_validator_addr")?;
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
