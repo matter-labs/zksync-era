@@ -43,7 +43,7 @@ use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 pub use crate::storage::PersistenceThreadHandle;
 use crate::{
     hasher::{HashTree, HasherWithStats},
-    metrics::{RecoveryStage, RECOVERY_METRICS},
+    metrics::RecoveryStage,
     storage::{Database, MaybeParallel, PatchSet, PruneDatabase, PrunePatchSet, Storage},
     types::{Key, Manifest, Root, TreeEntry, TreeTags, ValueHash},
 };
@@ -176,18 +176,18 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
     #[allow(clippy::missing_errors_doc)]
     pub fn extend_linear(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
         tracing::debug!("Started extending tree");
-        RECOVERY_METRICS.chunk_size.observe(entries.len());
+        // RECOVERY_METRICS.chunk_size.observe(entries.len());
 
-        let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::Extend].start();
+        // let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::Extend].start();
         let storage = Storage::new(&self.db, &self.hasher, self.recovered_version, false);
         let patch = storage.extend_during_linear_recovery(entries);
-        let stage_latency = stage_latency.observe();
-        tracing::debug!("Finished processing keys; took {stage_latency:?}");
+        // let stage_latency = stage_latency.observe();
+        // tracing::debug!("Finished processing keys; took {stage_latency:?}");
 
-        let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::ApplyPatch].start();
+        // let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::ApplyPatch].start();
         self.db.apply_patch(patch)?;
-        let stage_latency = stage_latency.observe();
-        tracing::debug!("Finished persisting to DB; took {stage_latency:?}");
+        // let stage_latency = stage_latency.observe();
+        // tracing::debug!("Finished persisting to DB; took {stage_latency:?}");
         Ok(())
     }
 
@@ -204,18 +204,18 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
     #[allow(clippy::missing_errors_doc)]
     pub fn extend_random(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
         tracing::debug!("Started extending tree");
-        RECOVERY_METRICS.chunk_size.observe(entries.len());
+        // RECOVERY_METRICS.chunk_size.observe(entries.len());
 
-        let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::Extend].start();
+        // let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::Extend].start();
         let storage = Storage::new(&self.db, &self.hasher, self.recovered_version, false);
         let patch = storage.extend_during_random_recovery(entries);
-        let stage_latency = stage_latency.observe();
-        tracing::debug!("Finished processing keys; took {stage_latency:?}");
+        // let stage_latency = stage_latency.observe();
+        // tracing::debug!("Finished processing keys; took {stage_latency:?}");
 
-        let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::ApplyPatch].start();
+        // let stage_latency = RECOVERY_METRICS.stage_latency[&RecoveryStage::ApplyPatch].start();
         self.db.apply_patch(patch)?;
-        let stage_latency = stage_latency.observe();
-        tracing::debug!("Finished persisting to DB; took {stage_latency:?}");
+        // let stage_latency = stage_latency.observe();
+        // tracing::debug!("Finished persisting to DB; took {stage_latency:?}");
         Ok(())
     }
 

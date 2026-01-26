@@ -15,7 +15,7 @@ use anyhow::Context as _;
 use super::{patch::PartialPatchSet, Database, NodeKeys, PatchSet};
 use crate::{
     errors::DeserializeError,
-    metrics::{RecoveryStage, RECOVERY_METRICS},
+    metrics::RecoveryStage,
     types::{Manifest, Node, NodeKey, ProfiledTreeOperation, Root},
     PruneDatabase, PrunePatchSet,
 };
@@ -164,11 +164,11 @@ impl<DB: Database + Clone + 'static> ParallelDatabase<DB> {
                 updated_version: Some(updated_version),
                 stale_keys_by_version: HashMap::from([(updated_version, command.stale_keys)]),
             };
-            let stage_latency =
-                RECOVERY_METRICS.stage_latency[&RecoveryStage::ParallelPersistence].start();
+            // let stage_latency =
+            //     RECOVERY_METRICS.stage_latency[&RecoveryStage::ParallelPersistence].start();
             database.apply_patch(patch)?;
-            let stage_latency = stage_latency.observe();
-            tracing::debug!("Persisted patch #{persisted_count} in {stage_latency:?}");
+            // let stage_latency = stage_latency.observe();
+            // tracing::debug!("Persisted patch #{persisted_count} in {stage_latency:?}");
             persisted_count += 1;
         }
         Ok(())
@@ -182,7 +182,7 @@ impl<DB: Database> ParallelDatabase<DB> {
                 .retain(|command| Arc::strong_count(&command.patch) > 1);
             thread::sleep(Duration::from_millis(50)); // TODO: more intelligent approach
         }
-        RECOVERY_METRICS.parallel_persistence_buffer_size.set(0);
+        // RECOVERY_METRICS.parallel_persistence_buffer_size.set(0);
 
         // Check that the persistence thread hasn't panicked
         self.persistence_handle.check(false)
@@ -191,7 +191,7 @@ impl<DB: Database> ParallelDatabase<DB> {
     fn join(self) -> anyhow::Result<DB> {
         drop(self.command_sender);
         drop(self.commands);
-        RECOVERY_METRICS.parallel_persistence_buffer_size.set(0);
+        // RECOVERY_METRICS.parallel_persistence_buffer_size.set(0);
         self.persistence_handle.join()?;
         Ok(self.inner)
     }
@@ -293,9 +293,9 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             // if the persistence thread has failed, but this is OK because we'll propagate the failure below anyway.
             self.commands
                 .retain(|command| Arc::strong_count(&command.patch) > 1);
-            RECOVERY_METRICS
-                .parallel_persistence_buffer_size
-                .set(self.commands.len());
+            // RECOVERY_METRICS
+            //     .parallel_persistence_buffer_size
+            //     .set(self.commands.len());
             tracing::debug!(
                 "Retained {} buffered persistence command(s)",
                 self.commands.len()
@@ -341,7 +341,7 @@ impl<DB: Database> Database for ParallelDatabase<DB> {
             );
         }
         self.commands.push_back(command);
-        RECOVERY_METRICS.parallel_persistence_buffer_size.inc_by(1);
+        // RECOVERY_METRICS.parallel_persistence_buffer_size.inc_by(1);
         Ok(())
     }
 }
@@ -503,7 +503,7 @@ impl<DB: PruneDatabase> PruneDatabase for MaybeParallel<DB> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "rocksdb"))]
 mod tests {
     use assert_matches::assert_matches;
     use tempfile::TempDir;

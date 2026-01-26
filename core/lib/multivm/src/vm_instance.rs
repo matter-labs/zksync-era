@@ -27,28 +27,28 @@ use crate::{
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum LegacyVmInstance<S: ReadStorage, H: HistoryMode> {
-    VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
-    VmM6(crate::vm_m6::Vm<StorageView<S>, H>),
-    Vm1_3_2(crate::vm_1_3_2::Vm<StorageView<S>, H>),
-    VmVirtualBlocks(crate::vm_virtual_blocks::Vm<StorageView<S>, H>),
-    VmVirtualBlocksRefundsEnhancement(crate::vm_refunds_enhancement::Vm<StorageView<S>, H>),
-    VmBoojumIntegration(crate::vm_boojum_integration::Vm<StorageView<S>, H>),
-    Vm1_4_1(crate::vm_1_4_1::Vm<StorageView<S>, H>),
-    Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
+    // VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
+    // VmM6(crate::vm_m6::Vm<StorageView<S>, H>),
+    // Vm1_3_2(crate::vm_1_3_2::Vm<StorageView<S>, H>),
+    // VmVirtualBlocks(crate::vm_virtual_blocks::Vm<StorageView<S>, H>),
+    // VmVirtualBlocksRefundsEnhancement(crate::vm_refunds_enhancement::Vm<StorageView<S>, H>),
+    // VmBoojumIntegration(crate::vm_boojum_integration::Vm<StorageView<S>, H>),
+    // Vm1_4_1(crate::vm_1_4_1::Vm<StorageView<S>, H>),
+    // Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
     Vm1_5_2(vm_latest::Vm<StorageView<S>, H>),
 }
 
 macro_rules! dispatch_legacy_vm {
     ($self:ident.$function:ident($($params:tt)*)) => {
         match $self {
-            Self::VmM5(vm) => vm.$function($($params)*),
-            Self::VmM6(vm) => vm.$function($($params)*),
-            Self::Vm1_3_2(vm) => vm.$function($($params)*),
-            Self::VmVirtualBlocks(vm) => vm.$function($($params)*),
-            Self::VmVirtualBlocksRefundsEnhancement(vm) => vm.$function($($params)*),
-            Self::VmBoojumIntegration(vm) => vm.$function($($params)*),
-            Self::Vm1_4_1(vm) => vm.$function($($params)*),
-            Self::Vm1_4_2(vm) => vm.$function($($params)*),
+            // Self::VmM5(vm) => vm.$function($($params)*),
+            // Self::VmM6(vm) => vm.$function($($params)*),
+            // Self::Vm1_3_2(vm) => vm.$function($($params)*),
+            // Self::VmVirtualBlocks(vm) => vm.$function($($params)*),
+            // Self::VmVirtualBlocksRefundsEnhancement(vm) => vm.$function($($params)*),
+            // Self::VmBoojumIntegration(vm) => vm.$function($($params)*),
+            // Self::Vm1_4_1(vm) => vm.$function($($params)*),
+            // Self::Vm1_4_2(vm) => vm.$function($($params)*),
             Self::Vm1_5_2(vm) => vm.$function($($params)*),
         }
     };
@@ -131,124 +131,125 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
         storage_view: StoragePtr<StorageView<S>>,
         vm_version: VmVersion,
     ) -> Self {
-        match vm_version {
-            VmVersion::M5WithoutRefunds => {
-                let vm = crate::vm_m5::Vm::new_with_subversion(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    crate::vm_m5::vm_instance::MultiVmSubversion::V1,
-                );
-                Self::VmM5(vm)
-            }
-            VmVersion::M5WithRefunds => {
-                let vm = crate::vm_m5::Vm::new_with_subversion(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    crate::vm_m5::vm_instance::MultiVmSubversion::V2,
-                );
-                Self::VmM5(vm)
-            }
-            VmVersion::M6Initial => {
-                let vm = crate::vm_m6::Vm::new_with_subversion(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    crate::vm_m6::vm_instance::MultiVmSubversion::V1,
-                );
-                Self::VmM6(vm)
-            }
-            VmVersion::M6BugWithCompressionFixed => {
-                let vm = crate::vm_m6::Vm::new_with_subversion(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    crate::vm_m6::vm_instance::MultiVmSubversion::V2,
-                );
-                Self::VmM6(vm)
-            }
-            VmVersion::Vm1_3_2 => {
-                let vm = crate::vm_1_3_2::Vm::new(l1_batch_env, system_env, storage_view);
-                Self::Vm1_3_2(vm)
-            }
-            VmVersion::VmVirtualBlocks => {
-                let vm = crate::vm_virtual_blocks::Vm::new(l1_batch_env, system_env, storage_view);
-                Self::VmVirtualBlocks(vm)
-            }
-            VmVersion::VmVirtualBlocksRefundsEnhancement => {
-                let vm =
-                    crate::vm_refunds_enhancement::Vm::new(l1_batch_env, system_env, storage_view);
-                Self::VmVirtualBlocksRefundsEnhancement(vm)
-            }
-            VmVersion::VmBoojumIntegration => {
-                let vm =
-                    crate::vm_boojum_integration::Vm::new(l1_batch_env, system_env, storage_view);
-                Self::VmBoojumIntegration(vm)
-            }
-            VmVersion::Vm1_4_1 => {
-                let vm = crate::vm_1_4_1::Vm::new(l1_batch_env, system_env, storage_view);
-                Self::Vm1_4_1(vm)
-            }
-            VmVersion::Vm1_4_2 => {
-                let vm = crate::vm_1_4_2::Vm::new(l1_batch_env, system_env, storage_view);
-                Self::Vm1_4_2(vm)
-            }
-            VmVersion::Vm1_5_0SmallBootloaderMemory => {
-                let vm = crate::vm_latest::Vm::new_with_subversion(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    crate::vm_latest::MultiVmSubversion::SmallBootloaderMemory,
-                );
-                Self::Vm1_5_2(vm)
-            }
-            VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
-                let vm = crate::vm_latest::Vm::new_with_subversion(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    crate::vm_latest::MultiVmSubversion::IncreasedBootloaderMemory,
-                );
-                Self::Vm1_5_2(vm)
-            }
-            VmVersion::VmGateway => {
-                let vm = crate::vm_latest::Vm::new_with_subversion(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    crate::vm_latest::MultiVmSubversion::Gateway,
-                );
-                Self::Vm1_5_2(vm)
-            }
-            VmVersion::VmEvmEmulator => {
-                let vm = crate::vm_latest::Vm::new_with_subversion(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    crate::vm_latest::MultiVmSubversion::EvmEmulator,
-                );
-                Self::Vm1_5_2(vm)
-            }
-            VmVersion::VmEcPrecompiles => {
-                let vm = crate::vm_latest::Vm::new_with_subversion(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    crate::vm_latest::MultiVmSubversion::EcPrecompiles,
-                );
-                Self::Vm1_5_2(vm)
-            }
-            VmVersion::VmInterop => {
-                let vm = vm_latest::Vm::new_with_subversion(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    vm_latest::MultiVmSubversion::Interop,
-                );
-                Self::Vm1_5_2(vm)
-            }
-        }
+        todo!()
+        // match vm_version {
+        //     VmVersion::M5WithoutRefunds => {
+        //         let vm = crate::vm_m5::Vm::new_with_subversion(
+        //             l1_batch_env,
+        //             system_env,
+        //             storage_view,
+        //             crate::vm_m5::vm_instance::MultiVmSubversion::V1,
+        //         );
+        //         Self::VmM5(vm)
+        //     }
+        //     VmVersion::M5WithRefunds => {
+        //         let vm = crate::vm_m5::Vm::new_with_subversion(
+        //             l1_batch_env,
+        //             system_env,
+        //             storage_view,
+        //             crate::vm_m5::vm_instance::MultiVmSubversion::V2,
+        //         );
+        //         Self::VmM5(vm)
+        //     }
+        //     VmVersion::M6Initial => {
+        //         let vm = crate::vm_m6::Vm::new_with_subversion(
+        //             l1_batch_env,
+        //             system_env,
+        //             storage_view,
+        //             crate::vm_m6::vm_instance::MultiVmSubversion::V1,
+        //         );
+        //         Self::VmM6(vm)
+        //     }
+        //     VmVersion::M6BugWithCompressionFixed => {
+        //         let vm = crate::vm_m6::Vm::new_with_subversion(
+        //             l1_batch_env,
+        //             system_env,
+        //             storage_view,
+        //             crate::vm_m6::vm_instance::MultiVmSubversion::V2,
+        //         );
+        //         Self::VmM6(vm)
+        //     }
+        //     VmVersion::Vm1_3_2 => {
+        //         let vm = crate::vm_1_3_2::Vm::new(l1_batch_env, system_env, storage_view);
+        //         Self::Vm1_3_2(vm)
+        //     }
+        //     VmVersion::VmVirtualBlocks => {
+        //         let vm = crate::vm_virtual_blocks::Vm::new(l1_batch_env, system_env, storage_view);
+        //         Self::VmVirtualBlocks(vm)
+        //     }
+        //     VmVersion::VmVirtualBlocksRefundsEnhancement => {
+        //         let vm =
+        //             crate::vm_refunds_enhancement::Vm::new(l1_batch_env, system_env, storage_view);
+        //         Self::VmVirtualBlocksRefundsEnhancement(vm)
+        //     }
+        //     VmVersion::VmBoojumIntegration => {
+        //         let vm =
+        //             crate::vm_boojum_integration::Vm::new(l1_batch_env, system_env, storage_view);
+        //         Self::VmBoojumIntegration(vm)
+        //     }
+        //     VmVersion::Vm1_4_1 => {
+        //         let vm = crate::vm_1_4_1::Vm::new(l1_batch_env, system_env, storage_view);
+        //         Self::Vm1_4_1(vm)
+        //     }
+        //     VmVersion::Vm1_4_2 => {
+        //         let vm = crate::vm_1_4_2::Vm::new(l1_batch_env, system_env, storage_view);
+        //         Self::Vm1_4_2(vm)
+        //     }
+        //     VmVersion::Vm1_5_0SmallBootloaderMemory => {
+        //         let vm = crate::vm_latest::Vm::new_with_subversion(
+        //             l1_batch_env,
+        //             system_env,
+        //             storage_view,
+        //             crate::vm_latest::MultiVmSubversion::SmallBootloaderMemory,
+        //         );
+        //         Self::Vm1_5_2(vm)
+        //     }
+        //     VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
+        //         let vm = crate::vm_latest::Vm::new_with_subversion(
+        //             l1_batch_env,
+        //             system_env,
+        //             storage_view,
+        //             crate::vm_latest::MultiVmSubversion::IncreasedBootloaderMemory,
+        //         );
+        //         Self::Vm1_5_2(vm)
+        //     }
+        //     VmVersion::VmGateway => {
+        //         let vm = crate::vm_latest::Vm::new_with_subversion(
+        //             l1_batch_env,
+        //             system_env,
+        //             storage_view,
+        //             crate::vm_latest::MultiVmSubversion::Gateway,
+        //         );
+        //         Self::Vm1_5_2(vm)
+        //     }
+        //     VmVersion::VmEvmEmulator => {
+        //         let vm = crate::vm_latest::Vm::new_with_subversion(
+        //             l1_batch_env,
+        //             system_env,
+        //             storage_view,
+        //             crate::vm_latest::MultiVmSubversion::EvmEmulator,
+        //         );
+        //         Self::Vm1_5_2(vm)
+        //     }
+        //     VmVersion::VmEcPrecompiles => {
+        //         let vm = crate::vm_latest::Vm::new_with_subversion(
+        //             l1_batch_env,
+        //             system_env,
+        //             storage_view,
+        //             crate::vm_latest::MultiVmSubversion::EcPrecompiles,
+        //         );
+        //         Self::Vm1_5_2(vm)
+        //     }
+        //     VmVersion::VmInterop => {
+        //         let vm = vm_latest::Vm::new_with_subversion(
+        //             l1_batch_env,
+        //             system_env,
+        //             storage_view,
+        //             vm_latest::MultiVmSubversion::Interop,
+        //         );
+        //         Self::Vm1_5_2(vm)
+        //     }
+        // }
     }
 
     /// Returns memory-related oracle metrics.

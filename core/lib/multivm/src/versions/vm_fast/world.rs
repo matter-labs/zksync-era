@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use zk_evm_1_5_0::zkevm_opcode_defs::ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS;
+use zk_evm_1_5_2::zkevm_opcode_defs::ECRECOVER_INNER_FUNCTION_PRECOMPILE_ADDRESS;
 use zksync_contracts::SystemContractCode;
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L2_BASE_TOKEN_ADDRESS};
 use zksync_types::{

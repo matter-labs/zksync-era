@@ -52,18 +52,21 @@ pub use crate::{
     errors::NoVersionError,
     hasher::{HashTree, TreeRangeDigest},
     pruning::{MerkleTreePruner, MerkleTreePrunerHandle},
-    storage::{
-        Database, MerkleTreeColumnFamily, PatchSet, Patched, PruneDatabase, PrunePatchSet,
-        RocksDBWrapper,
-    },
+    storage::{Database, PatchSet, Patched, PruneDatabase, PrunePatchSet},
     types::{
         BlockOutput, BlockOutputWithProofs, Key, TreeEntry, TreeEntryWithProof, TreeInstruction,
         TreeLogEntry, TreeLogEntryWithProof, ValueHash,
     },
 };
+
+#[cfg(feature = "rocksdb")]
+pub use crate::storage::{MerkleTreeColumnFamily, RocksDBWrapper};
+
 use crate::{storage::Storage, types::Root};
 
 mod consistency;
+
+#[cfg(feature = "rocksdb")]
 pub mod domain;
 mod errors;
 mod getters;

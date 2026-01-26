@@ -251,25 +251,32 @@ rust-eigenda-signers = "0.1.6"
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,
 # Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
 
-circuit_encodings = "=0.153.5"
-circuit_sequencer_api = "=0.153.5"
-circuit_definitions = "=0.153.5"
-crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.32.6" }
+circuit_encodings = { path = "../../vm_setup/zksync-protocol/crates/circuit_encodings" }
+circuit_sequencer_api = { path = "../../vm_setup/zksync-protocol/crates/circuit_sequencer_api" }
+circuit_definitions = { path = "../../vm_setup/zksync-protocol/crates/circuit_definitions" }
+
+crypto_codegen = { package = "zksync_solidity_vk_codegen", path = "../../vm_setup/zksync-crypto/crates/codegen" }
+
+# circuit_encodings = "=0.153.5"
+# circuit_sequencer_api = "=0.153.5"
+# circuit_definitions = "=0.153.5"
+# crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.32.6" }
 
 kzg = { package = "zksync_kzg", version = "=0.153.5" }
 
-zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
-zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
-zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
-zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.8" }
-zk_evm_1_5_2 = { package = "zk_evm", version = "=0.153.5" }
+# zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
+# zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
+# zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
+# zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
+# zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.8" }
+# zk_evm_1_5_2 = { package = "zk_evm", version = "=0.153.5" }
+zk_evm_1_5_2 = { package = "zk_evm", path = "../../vm_setup/zksync-protocol/crates/zk_evm" }
 
 fflonk = "=0.32.6"
-bellman = { package = "zksync_bellman", version = "=0.32.6" }
+bellman = { package = "zksync_bellman", path = "../../vm_setup/zksync-crypto/crates/bellman" }
 
 # New VM
-zksync_vm2 = "=0.5.0"
+zksync_vm2 = { path = "../../vm_setup/vm2/crates/vm2" }
 
 # Consensus dependencies.
 zksync_concurrency = "=0.13"

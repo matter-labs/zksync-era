@@ -155,7 +155,7 @@ impl<S: ReadStorage> StorageView<S> {
     }
 
     fn get_value_no_log(&mut self, key: &StorageKey) -> StorageValue {
-        let started_at = Instant::now();
+        // let started_at = Instant::now();
 
         let cached_value = self
             .modified_storage_keys
@@ -164,7 +164,7 @@ impl<S: ReadStorage> StorageView<S> {
         cached_value.copied().unwrap_or_else(|| {
             let value = self.storage_handle.read_value(key);
             self.cache.read_storage_keys.insert(*key, value);
-            self.stats.time_spent_on_storage_missed += started_at.elapsed();
+            // self.stats.time_spent_on_storage_missed += started_at.elapsed();
             self.stats.storage_invocations_missed += 1;
             value
         })
@@ -192,7 +192,7 @@ impl<S: ReadStorage> StorageView<S> {
 
 impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        let started_at = Instant::now();
+        // let started_at = Instant::now();
         self.stats.get_value_storage_invocations += 1;
         let value = self.get_value_no_log(key);
 
@@ -204,7 +204,7 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
             key.key()
         );
 
-        self.stats.time_spent_on_get_value += started_at.elapsed();
+        // self.stats.time_spent_on_get_value += started_at.elapsed();
         value
     }
 
@@ -235,7 +235,7 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
     }
 
     fn set_value(&mut self, key: StorageKey, value: StorageValue) -> StorageValue {
-        let started_at = Instant::now();
+        // let started_at = Instant::now();
         self.stats.set_value_storage_invocations += 1;
         let original = self.get_value_no_log(&key);
 
@@ -248,7 +248,7 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
             key.key()
         );
         self.modified_storage_keys.insert(key, value);
-        self.stats.time_spent_on_set_value += started_at.elapsed();
+        // self.stats.time_spent_on_set_value += started_at.elapsed();
 
         original
     }
@@ -284,13 +284,13 @@ impl<S: ReadStorage> ImmutableStorageView<S> {
 // All methods other than `read_value()` do not read back modified storage slots, so we proxy them as-is.
 impl<S: ReadStorage> ReadStorage for ImmutableStorageView<S> {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        let started_at = Instant::now();
+        // let started_at = Instant::now();
         let mut this = self.0.borrow_mut();
         let cached_value = this.read_storage_keys().get(key);
         cached_value.copied().unwrap_or_else(|| {
             let value = this.storage_handle.read_value(key);
             this.cache.read_storage_keys.insert(*key, value);
-            this.stats.time_spent_on_storage_missed += started_at.elapsed();
+            // this.stats.time_spent_on_storage_missed += started_at.elapsed();
             this.stats.storage_invocations_missed += 1;
             value
         })

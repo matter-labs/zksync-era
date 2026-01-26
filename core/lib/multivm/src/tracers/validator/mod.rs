@@ -27,12 +27,12 @@ use crate::{
 };
 
 mod types;
-mod vm_1_4_1;
-mod vm_1_4_2;
-mod vm_boojum_integration;
+// mod vm_1_4_1;
+// mod vm_1_4_2;
+// mod vm_boojum_integration;
 mod vm_latest;
-mod vm_refunds_enhancement;
-mod vm_virtual_blocks;
+// mod vm_refunds_enhancement;
+// mod vm_virtual_blocks;
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.

@@ -11,10 +11,10 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-vise.workspace = true
+# vise.workspace = true
 zksync_types.workspace = true
 zksync_crypto_primitives.workspace = true
-zksync_storage.workspace = true
+zksync_storage = { workspace = true, optional = true }
 zksync_prover_interface.workspace = true
 
 anyhow.workspace = true
@@ -38,3 +38,8 @@ serde_with = { workspace = true, features = ["hex"] }
 tempfile.workspace = true
 test-casing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+
+[features]
+# default = ["rocksdb"]
+rocksdb = ["zksync_storage"]

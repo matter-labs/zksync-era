@@ -4,7 +4,7 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
     sync::Arc,
-    time::Instant,
+    // time::Instant,
 };
 
 use rayon::prelude::*;
@@ -373,7 +373,7 @@ impl WorkingPatchSet {
             leaf_count,
             operation,
             |nibble_count, level_changes| {
-                let started_at = Instant::now();
+                // let started_at = Instant::now();
                 let tree_level = nibble_count * 4;
                 // `into_par_iter()` below uses `rayon` to parallelize hash computations.
                 let output = level_changes
@@ -386,7 +386,7 @@ impl WorkingPatchSet {
                         },
                     )
                     .collect::<Vec<_>>();
-                stats.hashing_duration += started_at.elapsed();
+                // stats.hashing_duration += started_at.elapsed();
                 output
             },
         );

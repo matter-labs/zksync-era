@@ -5743,15 +5743,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "secrecy"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e891af845473308773346dc847b2c23ee78fe442e0472ac50e22a18a93d3ae5a"
-dependencies = [
- "zeroize",
-]
-
-[[package]]
 name = "security-framework"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8004,7 +7995,7 @@ dependencies = [
  "lazy_static",
  "prost",
  "reqwest 0.12.9",
- "secrecy 0.8.0",
+ "secrecy",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -8111,7 +8102,6 @@ dependencies = [
  "ethabi",
  "hex",
  "num_enum",
- "secrecy 0.10.3",
  "serde",
  "serde_json",
  "serde_with 1.14.0",
@@ -8119,8 +8109,6 @@ dependencies = [
  "strum 0.26.3",
  "thiserror 2.0.12",
  "tiny-keccak",
- "url",
- "vise",
 ]
 
 [[package]]

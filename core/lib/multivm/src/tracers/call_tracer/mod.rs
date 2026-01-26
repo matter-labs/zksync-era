@@ -2,17 +2,15 @@ use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
 
-use crate::{
-    glue::tracers::IntoOldVmTracer, interface::Call, tracers::call_tracer::metrics::CALL_METRICS,
-};
+use crate::{glue::tracers::IntoOldVmTracer, interface::Call};
 
-mod metrics;
-pub mod vm_1_4_1;
-pub mod vm_1_4_2;
-pub mod vm_boojum_integration;
+// mod metrics;
+// pub mod vm_1_4_1;
+// pub mod vm_1_4_2;
+// pub mod vm_boojum_integration;
 pub mod vm_latest;
-pub mod vm_refunds_enhancement;
-pub mod vm_virtual_blocks;
+// pub mod vm_refunds_enhancement;
+// pub mod vm_virtual_blocks;
 
 #[derive(Debug, Clone)]
 pub struct CallTracer {
@@ -34,8 +32,8 @@ struct FarcallAndNearCallCount {
 
 impl Drop for CallTracer {
     fn drop(&mut self) {
-        CALL_METRICS.call_stack_depth.observe(self.max_stack_depth);
-        CALL_METRICS.max_near_calls.observe(self.max_near_calls);
+        // CALL_METRICS.call_stack_depth.observe(self.max_stack_depth);
+        // CALL_METRICS.max_near_calls.observe(self.max_near_calls);
     }
 }
 

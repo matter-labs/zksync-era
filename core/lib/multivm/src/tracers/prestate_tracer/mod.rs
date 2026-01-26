@@ -8,11 +8,11 @@ use zksync_types::{
 
 use crate::interface::storage::{StoragePtr, WriteStorage};
 
-pub mod vm_1_4_1;
-pub mod vm_1_4_2;
+// pub mod vm_1_4_1;
+// pub mod vm_1_4_2;
 pub mod vm_latest;
-pub mod vm_refunds_enhancement;
-pub mod vm_virtual_blocks;
+// pub mod vm_refunds_enhancement;
+// pub mod vm_virtual_blocks;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Account {

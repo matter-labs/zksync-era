@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt, mem, rc::Rc};
 
-use zk_evm_1_5_0::{
+use zk_evm_1_5_2::{
     aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
 };
 use zksync_types::{

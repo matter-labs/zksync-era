@@ -2,7 +2,6 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
-use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
 /// A "final" TEE proof that can be sent to the L1 contract.
@@ -31,13 +30,13 @@ impl fmt::Debug for L1BatchTeeProofForL1 {
     }
 }
 
-impl StoredObject for L1BatchTeeProofForL1 {
-    const BUCKET: Bucket = Bucket::ProofsTee;
-    type Key<'a> = L1BatchNumber;
+// impl StoredObject for L1BatchTeeProofForL1 {
+//     const BUCKET: Bucket = Bucket::ProofsTee;
+//     type Key<'a> = L1BatchNumber;
 
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("l1_batch_tee_proof_{key}.bin")
-    }
+//     fn encode_key(key: Self::Key<'_>) -> String {
+//         format!("l1_batch_tee_proof_{key}.bin")
+//     }
 
-    serialize_using_bincode!();
-}
+//     serialize_using_bincode!();
+// }

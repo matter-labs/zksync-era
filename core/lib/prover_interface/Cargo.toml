@@ -12,18 +12,18 @@ categories.workspace = true
 
 [dependencies]
 zksync_vm_interface.workspace = true
-zksync_object_store.workspace = true
+# zksync_object_store.workspace = true
 zksync_types.workspace = true
 
 # We can use the newest api to send proofs to L1.
-circuit_definitions.workspace = true
-fflonk.workspace = true
-bellman.workspace = true
+# circuit_definitions.workspace = true
+# fflonk.workspace = true
+# bellman.workspace = true
 
 serde.workspace = true
 serde_with = { workspace = true, features = ["base64", "hex"] }
-ciborium.workspace = true
-chrono.workspace = true
+# ciborium.workspace = true
+# chrono.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

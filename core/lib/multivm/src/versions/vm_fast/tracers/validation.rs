@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashSet};
 
-use zk_evm_1_3_1::address_to_u256;
+use zk_evm_1_5_2::address_to_u256;
 use zksync_types::{
     u256_to_address, Address, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
     CONTRACT_DEPLOYER_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, L2_BASE_TOKEN_ADDRESS,

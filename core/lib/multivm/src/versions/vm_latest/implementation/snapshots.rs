@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
+// use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_5_2::aux_structures::Timestamp;
 
 use crate::{
@@ -12,8 +12,9 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
-#[metrics(label = "stage", rename_all = "snake_case")]
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// #[metrics(label = "stage", rename_all = "snake_case")]
 enum RollbackStage {
     DecommitmentProcessorRollback,
     EventSinkRollback,
@@ -23,15 +24,15 @@ enum RollbackStage {
     ApplyBootloaderSnapshot,
 }
 
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "server_vm")]
-struct VmMetrics {
-    #[metrics(buckets = Buckets::LATENCIES)]
-    rollback_time: Family<RollbackStage, Histogram<Duration>>,
-}
+// #[derive(Debug, Metrics)]
+// #[metrics(prefix = "server_vm")]
+// struct VmMetrics {
+//     #[metrics(buckets = Buckets::LATENCIES)]
+//     rollback_time: Family<RollbackStage, Histogram<Duration>>,
+// }
 
-#[vise::register]
-static METRICS: vise::Global<VmMetrics> = vise::Global::new();
+// #[vise::register]
+// static METRICS: vise::Global<VmMetrics> = vise::Global::new();
 
 /// Implementation of VM related to rollbacks inside virtual machine
 impl<S: WriteStorage> Vm<S, HistoryEnabled> {
@@ -53,41 +54,41 @@ impl<S: WriteStorage> Vm<S, HistoryEnabled> {
             bootloader_state,
         } = snapshot;
 
-        let stage_latency =
-            METRICS.rollback_time[&RollbackStage::DecommitmentProcessorRollback].start();
+        // let stage_latency =
+        //     METRICS.rollback_time[&RollbackStage::DecommitmentProcessorRollback].start();
         let timestamp = Timestamp(local_state.timestamp);
         tracing::trace!("Rolling back decomitter");
         self.state
             .decommittment_processor
             .rollback_to_timestamp(timestamp);
-        stage_latency.observe();
+        // stage_latency.observe();
 
-        let stage_latency = METRICS.rollback_time[&RollbackStage::EventSinkRollback].start();
+        // let stage_latency = METRICS.rollback_time[&RollbackStage::EventSinkRollback].start();
         tracing::trace!("Rolling back event_sink");
         self.state.event_sink.rollback_to_timestamp(timestamp);
-        stage_latency.observe();
+        // stage_latency.observe();
 
-        let stage_latency = METRICS.rollback_time[&RollbackStage::StorageRollback].start();
+        // let stage_latency = METRICS.rollback_time[&RollbackStage::StorageRollback].start();
         tracing::trace!("Rolling back storage");
         self.state.storage.rollback_to_timestamp(timestamp);
-        stage_latency.observe();
+        // stage_latency.observe();
 
-        let stage_latency = METRICS.rollback_time[&RollbackStage::MemoryRollback].start();
+        // let stage_latency = METRICS.rollback_time[&RollbackStage::MemoryRollback].start();
         tracing::trace!("Rolling back memory");
         self.state.memory.rollback_to_timestamp(timestamp);
-        stage_latency.observe();
+        // stage_latency.observe();
 
-        let stage_latency =
-            METRICS.rollback_time[&RollbackStage::PrecompilesProcessorRollback].start();
+        // let stage_latency =
+        //     METRICS.rollback_time[&RollbackStage::PrecompilesProcessorRollback].start();
         tracing::trace!("Rolling back precompiles_processor");
         self.state
             .precompiles_processor
             .rollback_to_timestamp(timestamp);
-        stage_latency.observe();
+        // stage_latency.observe();
 
         self.state.local_state = local_state;
-        let stage_latency = METRICS.rollback_time[&RollbackStage::ApplyBootloaderSnapshot].start();
+        // let stage_latency = METRICS.rollback_time[&RollbackStage::ApplyBootloaderSnapshot].start();
         self.bootloader_state.apply_snapshot(bootloader_state);
-        stage_latency.observe();
+        // stage_latency.observe();
     }
 }

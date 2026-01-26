@@ -36,11 +36,11 @@ pub type MultiVmTracerPointer<S, H> = Box<dyn MultiVmTracer<S, H>>;
 
 pub trait MultiVmTracer<S: WriteStorage, H: HistoryMode>:
     IntoLatestTracer<S, H>
-    + IntoVmVirtualBlocksTracer<S, H>
-    + IntoVmRefundsEnhancementTracer<S, H>
-    + IntoVmBoojumIntegrationTracer<S, H>
-    + IntoVm1_4_1IntegrationTracer<S, H>
-    + IntoVm1_4_2IntegrationTracer<S, H>
+    // + IntoVmVirtualBlocksTracer<S, H>
+    // + IntoVmRefundsEnhancementTracer<S, H>
+    // + IntoVmBoojumIntegrationTracer<S, H>
+    // + IntoVm1_4_1IntegrationTracer<S, H>
+    // + IntoVm1_4_2IntegrationTracer<S, H>
     + IntoOldVmTracer
 {
     fn into_tracer_pointer(self) -> MultiVmTracerPointer<S, H>
@@ -55,31 +55,31 @@ pub trait IntoLatestTracer<S: WriteStorage, H: HistoryMode> {
     fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_5_2>;
 }
 
-pub trait IntoVmVirtualBlocksTracer<S: WriteStorage, H: HistoryMode> {
-    fn vm_virtual_blocks(
-        &self,
-    ) -> crate::vm_virtual_blocks::TracerPointer<S, H::VmVirtualBlocksMode>;
-}
+// pub trait IntoVmVirtualBlocksTracer<S: WriteStorage, H: HistoryMode> {
+//     fn vm_virtual_blocks(
+//         &self,
+//     ) -> crate::vm_virtual_blocks::TracerPointer<S, H::VmVirtualBlocksMode>;
+// }
 
-pub trait IntoVmRefundsEnhancementTracer<S: WriteStorage, H: HistoryMode> {
-    fn vm_refunds_enhancement(
-        &self,
-    ) -> Box<dyn crate::vm_refunds_enhancement::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>;
-}
+// pub trait IntoVmRefundsEnhancementTracer<S: WriteStorage, H: HistoryMode> {
+//     fn vm_refunds_enhancement(
+//         &self,
+//     ) -> Box<dyn crate::vm_refunds_enhancement::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>;
+// }
 
-pub trait IntoVmBoojumIntegrationTracer<S: WriteStorage, H: HistoryMode> {
-    fn vm_boojum_integration(
-        &self,
-    ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>>;
-}
+// pub trait IntoVmBoojumIntegrationTracer<S: WriteStorage, H: HistoryMode> {
+//     fn vm_boojum_integration(
+//         &self,
+//     ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>>;
+// }
 
-pub trait IntoVm1_4_1IntegrationTracer<S: WriteStorage, H: HistoryMode> {
-    fn vm_1_4_1(&self) -> Box<dyn crate::vm_1_4_1::VmTracer<S, H::Vm1_4_1>>;
-}
+// pub trait IntoVm1_4_1IntegrationTracer<S: WriteStorage, H: HistoryMode> {
+//     fn vm_1_4_1(&self) -> Box<dyn crate::vm_1_4_1::VmTracer<S, H::Vm1_4_1>>;
+// }
 
-pub trait IntoVm1_4_2IntegrationTracer<S: WriteStorage, H: HistoryMode> {
-    fn vm_1_4_2(&self) -> Box<dyn crate::vm_1_4_2::VmTracer<S, H::Vm1_4_2>>;
-}
+// pub trait IntoVm1_4_2IntegrationTracer<S: WriteStorage, H: HistoryMode> {
+//     fn vm_1_4_2(&self) -> Box<dyn crate::vm_1_4_2::VmTracer<S, H::Vm1_4_2>>;
+// }
 
 /// Into tracers for old VM versions.
 ///
@@ -105,80 +105,80 @@ where
     }
 }
 
-impl<S, T, H> IntoVmVirtualBlocksTracer<S, H> for T
-where
-    S: WriteStorage,
-    H: HistoryMode,
-    T: crate::vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode> + Clone + 'static,
-{
-    fn vm_virtual_blocks(
-        &self,
-    ) -> crate::vm_virtual_blocks::TracerPointer<S, H::VmVirtualBlocksMode> {
-        Box::new(self.clone())
-    }
-}
+// impl<S, T, H> IntoVmVirtualBlocksTracer<S, H> for T
+// where
+//     S: WriteStorage,
+//     H: HistoryMode,
+//     T: crate::vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode> + Clone + 'static,
+// {
+//     fn vm_virtual_blocks(
+//         &self,
+//     ) -> crate::vm_virtual_blocks::TracerPointer<S, H::VmVirtualBlocksMode> {
+//         Box::new(self.clone())
+//     }
+// }
 
-impl<S, T, H> IntoVmRefundsEnhancementTracer<S, H> for T
-where
-    S: WriteStorage,
-    H: HistoryMode,
-    T: crate::vm_refunds_enhancement::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>
-        + Clone
-        + 'static,
-{
-    fn vm_refunds_enhancement(
-        &self,
-    ) -> Box<dyn crate::vm_refunds_enhancement::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>
-    {
-        Box::new(self.clone())
-    }
-}
+// impl<S, T, H> IntoVmRefundsEnhancementTracer<S, H> for T
+// where
+//     S: WriteStorage,
+//     H: HistoryMode,
+//     T: crate::vm_refunds_enhancement::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>
+//         + Clone
+//         + 'static,
+// {
+//     fn vm_refunds_enhancement(
+//         &self,
+//     ) -> Box<dyn crate::vm_refunds_enhancement::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>
+//     {
+//         Box::new(self.clone())
+//     }
+// }
 
-impl<S, T, H> IntoVmBoojumIntegrationTracer<S, H> for T
-where
-    S: WriteStorage,
-    H: HistoryMode,
-    T: crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration> + Clone + 'static,
-{
-    fn vm_boojum_integration(
-        &self,
-    ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>> {
-        Box::new(self.clone())
-    }
-}
+// impl<S, T, H> IntoVmBoojumIntegrationTracer<S, H> for T
+// where
+//     S: WriteStorage,
+//     H: HistoryMode,
+//     T: crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration> + Clone + 'static,
+// {
+//     fn vm_boojum_integration(
+//         &self,
+//     ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>> {
+//         Box::new(self.clone())
+//     }
+// }
 
-impl<S, T, H> IntoVm1_4_1IntegrationTracer<S, H> for T
-where
-    S: WriteStorage,
-    H: HistoryMode,
-    T: crate::vm_1_4_1::VmTracer<S, H::Vm1_4_1> + Clone + 'static,
-{
-    fn vm_1_4_1(&self) -> Box<dyn crate::vm_1_4_1::VmTracer<S, H::Vm1_4_1>> {
-        Box::new(self.clone())
-    }
-}
+// impl<S, T, H> IntoVm1_4_1IntegrationTracer<S, H> for T
+// where
+//     S: WriteStorage,
+//     H: HistoryMode,
+//     T: crate::vm_1_4_1::VmTracer<S, H::Vm1_4_1> + Clone + 'static,
+// {
+//     fn vm_1_4_1(&self) -> Box<dyn crate::vm_1_4_1::VmTracer<S, H::Vm1_4_1>> {
+//         Box::new(self.clone())
+//     }
+// }
 
-impl<S, T, H> IntoVm1_4_2IntegrationTracer<S, H> for T
-where
-    S: WriteStorage,
-    H: HistoryMode,
-    T: crate::vm_1_4_2::VmTracer<S, H::Vm1_4_2> + Clone + 'static,
-{
-    fn vm_1_4_2(&self) -> Box<dyn crate::vm_1_4_2::VmTracer<S, <H as HistoryMode>::Vm1_4_2>> {
-        Box::new(self.clone())
-    }
-}
+// impl<S, T, H> IntoVm1_4_2IntegrationTracer<S, H> for T
+// where
+//     S: WriteStorage,
+//     H: HistoryMode,
+//     T: crate::vm_1_4_2::VmTracer<S, H::Vm1_4_2> + Clone + 'static,
+// {
+//     fn vm_1_4_2(&self) -> Box<dyn crate::vm_1_4_2::VmTracer<S, <H as HistoryMode>::Vm1_4_2>> {
+//         Box::new(self.clone())
+//     }
+// }
 
 impl<S, H, T> MultiVmTracer<S, H> for T
 where
     S: WriteStorage,
     H: HistoryMode,
     T: IntoLatestTracer<S, H>
-        + IntoVmVirtualBlocksTracer<S, H>
-        + IntoVmRefundsEnhancementTracer<S, H>
-        + IntoVmBoojumIntegrationTracer<S, H>
-        + IntoVm1_4_1IntegrationTracer<S, H>
-        + IntoVm1_4_2IntegrationTracer<S, H>
+        // + IntoVmVirtualBlocksTracer<S, H>
+        // + IntoVmRefundsEnhancementTracer<S, H>
+        // + IntoVmBoojumIntegrationTracer<S, H>
+        // + IntoVm1_4_1IntegrationTracer<S, H>
+        // + IntoVm1_4_2IntegrationTracer<S, H>
         + IntoOldVmTracer,
 {
 }

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
+// use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_5_2::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -155,28 +155,28 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-        #[metrics(label = "type", rename_all = "snake_case")]
-        enum RefundType {
-            Bootloader,
-            Operator,
-        }
+        // #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+        // #[metrics(label = "type", rename_all = "snake_case")]
+        // enum RefundType {
+        //     Bootloader,
+        //     Operator,
+        // }
 
-        const PERCENT_BUCKETS: Buckets = Buckets::values(&[
-            5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 120.0,
-        ]);
+        // const PERCENT_BUCKETS: Buckets = Buckets::values(&[
+        //     5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 120.0,
+        // ]);
 
-        #[derive(Debug, Metrics)]
-        #[metrics(prefix = "vm")]
-        struct RefundMetrics {
-            #[metrics(buckets = PERCENT_BUCKETS)]
-            refund: Family<RefundType, Histogram<f64>>,
-            #[metrics(buckets = PERCENT_BUCKETS)]
-            refund_diff: Histogram<f64>,
-        }
+        // #[derive(Debug, Metrics)]
+        // #[metrics(prefix = "vm")]
+        // struct RefundMetrics {
+        //     #[metrics(buckets = PERCENT_BUCKETS)]
+        //     refund: Family<RefundType, Histogram<f64>>,
+        //     #[metrics(buckets = PERCENT_BUCKETS)]
+        //     refund_diff: Histogram<f64>,
+        // }
 
-        #[vise::register]
-        static METRICS: vise::Global<RefundMetrics> = vise::Global::new();
+        // #[vise::register]
+        // static METRICS: vise::Global<RefundMetrics> = vise::Global::new();
 
         // This means that the bootloader has informed the system (usually via `VMHooks`) - that some gas
         // should be refunded back (see `askOperatorForRefund` in `bootloader.yul` for details).
@@ -256,14 +256,14 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
                 );
             }
 
-            METRICS.refund[&RefundType::Bootloader]
-                .observe(bootloader_refund.refund as f64 / tx_gas_limit as f64 * 100.0);
-            METRICS.refund[&RefundType::Operator]
-                .observe(refund_to_propose as f64 / tx_gas_limit as f64 * 100.0);
-            let refund_diff = (refund_to_propose as f64 - bootloader_refund.refund as f64)
-                / tx_gas_limit as f64
-                * 100.0;
-            METRICS.refund_diff.observe(refund_diff);
+            // METRICS.refund[&RefundType::Bootloader]
+            //     .observe(bootloader_refund.refund as f64 / tx_gas_limit as f64 * 100.0);
+            // METRICS.refund[&RefundType::Operator]
+            //     .observe(refund_to_propose as f64 / tx_gas_limit as f64 * 100.0);
+            // let refund_diff = (refund_to_propose as f64 - bootloader_refund.refund as f64)
+            //     / tx_gas_limit as f64
+            //     * 100.0;
+            // METRICS.refund_diff.observe(refund_diff);
         }
         TracerExecutionStatus::Continue
     }

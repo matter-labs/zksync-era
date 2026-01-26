@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::{
-    metrics::{PruningStats, PRUNING_TIMINGS},
+    metrics::PruningStats,
     storage::{PruneDatabase, PrunePatchSet},
 };
 
@@ -158,7 +158,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         }
         tracing::info!("Collecting stale keys with new versions in {stale_key_new_versions:?}");
 
-        let load_stale_keys_latency = PRUNING_TIMINGS.load_stale_keys.start();
+        // let load_stale_keys_latency = PRUNING_TIMINGS.load_stale_keys.start();
         let mut pruned_keys = vec![];
         let mut max_stale_key_version = min_stale_key_version;
         for version in stale_key_new_versions {
@@ -168,17 +168,17 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
                 break;
             }
         }
-        let load_stale_keys_latency = load_stale_keys_latency.observe();
+        // let load_stale_keys_latency = load_stale_keys_latency.observe();
 
         if pruned_keys.is_empty() {
             tracing::debug!("No stale keys to remove; skipping");
             return Ok(None);
         }
         let deleted_stale_key_versions = min_stale_key_version..(max_stale_key_version + 1);
-        tracing::info!(
-            "Collected {} stale keys with new versions in {deleted_stale_key_versions:?} in {load_stale_keys_latency:?}",
-            pruned_keys.len()
-        );
+        // tracing::info!(
+        //     "Collected {} stale keys with new versions in {deleted_stale_key_versions:?} in {load_stale_keys_latency:?}",
+        //     pruned_keys.len()
+        // );
 
         let stats = PruningStats {
             target_retained_version,
@@ -186,10 +186,10 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
             deleted_stale_key_versions: deleted_stale_key_versions.clone(),
         };
         let patch = PrunePatchSet::new(pruned_keys, deleted_stale_key_versions);
-        let apply_patch_latency = PRUNING_TIMINGS.apply_patch.start();
+        // let apply_patch_latency = PRUNING_TIMINGS.apply_patch.start();
         self.db.prune(patch)?;
-        let apply_patch_latency = apply_patch_latency.observe();
-        tracing::info!("Pruned stale keys in {apply_patch_latency:?}: {stats:?}");
+        // let apply_patch_latency = apply_patch_latency.observe();
+        // tracing::info!("Pruned stale keys in {apply_patch_latency:?}: {stats:?}");
         Ok(Some(stats))
     }
 
@@ -218,7 +218,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
                 tracing::debug!(
                     "Performed pruning for target retained version {retained_version}: {stats:?}"
                 );
-                stats.report();
+                // stats.report();
                 if stats.has_more_work() {
                     // Continue pruning right away instead of waiting for abort.
                     Duration::ZERO
@@ -245,7 +245,7 @@ impl PruningStats {
 }
 
 #[allow(clippy::range_plus_one)] // required for comparisons
-#[cfg(test)]
+#[cfg(all(test, feature = "rocksdb"))]
 mod tests {
     use std::{collections::HashSet, thread, time::Instant};
 

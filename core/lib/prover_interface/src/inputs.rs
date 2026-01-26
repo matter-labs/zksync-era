@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
+// use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs, witness_block_state::WitnessStorageState, L1BatchId,
     L1BatchNumber, ProtocolVersionId, H256, U256,
@@ -67,32 +67,32 @@ pub struct WitnessInputMerklePaths {
     pub(crate) next_enumeration_index: u64,
 }
 
-impl StoredObject for WitnessInputMerklePaths {
-    const BUCKET: Bucket = Bucket::WitnessInput;
-    type Key<'a> = L1BatchNumber;
+// impl StoredObject for WitnessInputMerklePaths {
+//     const BUCKET: Bucket = Bucket::WitnessInput;
+//     type Key<'a> = L1BatchNumber;
 
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("merkle_tree_paths_{key}.cbor")
-    }
+//     fn encode_key(key: Self::Key<'_>) -> String {
+//         format!("merkle_tree_paths_{key}.cbor")
+//     }
 
-    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
-        let mut buf = Vec::new();
+//     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+//         let mut buf = Vec::new();
 
-        ciborium::into_writer(self, &mut buf).map_err(|e| {
-            BoxedError::from(format!("Failed to serialize WitnessInputMerklePaths: {e}"))
-        })?;
+//         ciborium::into_writer(self, &mut buf).map_err(|e| {
+//             BoxedError::from(format!("Failed to serialize WitnessInputMerklePaths: {e}"))
+//         })?;
 
-        Ok(buf)
-    }
+//         Ok(buf)
+//     }
 
-    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        ciborium::from_reader(&bytes[..]).map_err(|e| {
-            BoxedError::from(format!(
-                "Failed to deserialize WitnessInputMerklePaths: {e}"
-            ))
-        })
-    }
-}
+//     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+//         ciborium::from_reader(&bytes[..]).map_err(|e| {
+//             BoxedError::from(format!(
+//                 "Failed to deserialize WitnessInputMerklePaths: {e}"
+//             ))
+//         })
+//     }
+// }
 
 impl WitnessInputMerklePaths {
     /// Creates a new job with the specified leaf index and no included paths.
@@ -165,32 +165,32 @@ pub struct VMRunWitnessInputData {
     pub witness_block_state: WitnessStorageState,
 }
 
-impl StoredObject for VMRunWitnessInputData {
-    const BUCKET: Bucket = Bucket::WitnessInput;
+// impl StoredObject for VMRunWitnessInputData {
+//     const BUCKET: Bucket = Bucket::WitnessInput;
 
-    type Key<'a> = L1BatchNumber;
+//     type Key<'a> = L1BatchNumber;
 
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("vm_run_data_{key}.cbor")
-    }
+//     fn encode_key(key: Self::Key<'_>) -> String {
+//         format!("vm_run_data_{key}.cbor")
+//     }
 
-    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
-        let mut buf = Vec::new();
-        ciborium::into_writer(self, &mut buf).map_err(|e| {
-            BoxedError::from(format!("Failed to serialize VMRunWitnessInputData: {e}"))
-        })?;
+//     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+//         let mut buf = Vec::new();
+//         ciborium::into_writer(self, &mut buf).map_err(|e| {
+//             BoxedError::from(format!("Failed to serialize VMRunWitnessInputData: {e}"))
+//         })?;
 
-        Ok(buf)
-    }
+//         Ok(buf)
+//     }
 
-    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        ciborium::from_reader(&bytes[..])
-            .map_err(|e| {
-                BoxedError::from(format!("Failed to deserialize VMRunWitnessInputData: {e}"))
-            })
-            .map(|data: Self| data)
-    }
-}
+//     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+//         ciborium::from_reader(&bytes[..])
+//             .map_err(|e| {
+//                 BoxedError::from(format!("Failed to deserialize VMRunWitnessInputData: {e}"))
+//             })
+//             .map(|data: Self| data)
+//     }
+// }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WitnessInputData {
@@ -200,40 +200,40 @@ pub struct WitnessInputData {
     pub eip_4844_blobs: Eip4844Blobs,
 }
 
-impl StoredObject for WitnessInputData {
-    const BUCKET: Bucket = Bucket::WitnessInput;
+// impl StoredObject for WitnessInputData {
+//     const BUCKET: Bucket = Bucket::WitnessInput;
 
-    type Key<'a> = L1BatchId;
+//     type Key<'a> = L1BatchId;
 
-    fn fallback_key(key: Self::Key<'_>) -> Option<String> {
-        Some(format!(
-            "witness_inputs_{batch_number}.cbor",
-            batch_number = key.batch_number().0
-        ))
-    }
+//     fn fallback_key(key: Self::Key<'_>) -> Option<String> {
+//         Some(format!(
+//             "witness_inputs_{batch_number}.cbor",
+//             batch_number = key.batch_number().0
+//         ))
+//     }
 
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!(
-            "witness_inputs_{batch_number}_{chain_id}.cbor",
-            batch_number = key.batch_number().0,
-            chain_id = key.chain_id().inner()
-        )
-    }
+//     fn encode_key(key: Self::Key<'_>) -> String {
+//         format!(
+//             "witness_inputs_{batch_number}_{chain_id}.cbor",
+//             batch_number = key.batch_number().0,
+//             chain_id = key.chain_id().inner()
+//         )
+//     }
 
-    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
-        let mut buf = Vec::new();
-        ciborium::into_writer(self, &mut buf)
-            .map_err(|e| BoxedError::from(format!("Failed to serialize WitnessInputData: {e}")))?;
+//     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+//         let mut buf = Vec::new();
+//         ciborium::into_writer(self, &mut buf)
+//             .map_err(|e| BoxedError::from(format!("Failed to serialize WitnessInputData: {e}")))?;
 
-        Ok(buf)
-    }
+//         Ok(buf)
+//     }
 
-    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        ciborium::from_reader(&bytes[..])
-            .map_err(|e| BoxedError::from(format!("Failed to deserialize WitnessInputData: {e}")))
-            .map(|data: Self| data)
-    }
-}
+//     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+//         ciborium::from_reader(&bytes[..])
+//             .map_err(|e| BoxedError::from(format!("Failed to deserialize WitnessInputData: {e}")))
+//             .map(|data: Self| data)
+//     }
+// }
 
 pub struct PublicWitnessInputData(WitnessInputData);
 
@@ -243,22 +243,22 @@ impl PublicWitnessInputData {
     }
 }
 
-impl StoredObject for PublicWitnessInputData {
-    const BUCKET: Bucket = Bucket::PublicWitnessInputs;
-    type Key<'a> = L1BatchId;
+// impl StoredObject for PublicWitnessInputData {
+//     const BUCKET: Bucket = Bucket::PublicWitnessInputs;
+//     type Key<'a> = L1BatchId;
 
-    fn encode_key(key: Self::Key<'_>) -> String {
-        WitnessInputData::encode_key(key)
-    }
+//     fn encode_key(key: Self::Key<'_>) -> String {
+//         WitnessInputData::encode_key(key)
+//     }
 
-    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
-        <WitnessInputData as StoredObject>::serialize(&self.0)
-    }
+//     fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+//         <WitnessInputData as StoredObject>::serialize(&self.0)
+//     }
 
-    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        <WitnessInputData as StoredObject>::deserialize(bytes).map(Self)
-    }
-}
+//     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+//         <WitnessInputData as StoredObject>::deserialize(bytes).map(Self)
+//     }
+// }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct L1BatchMetadataHashes {

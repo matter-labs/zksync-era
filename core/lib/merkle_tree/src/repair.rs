@@ -11,7 +11,7 @@ use rayon::prelude::*;
 
 use crate::{
     types::{NodeKey, StaleNodeKey},
-    Database, PruneDatabase, RocksDBWrapper,
+    Database, PruneDatabase,
 };
 
 /// Persisted information about stale keys repair progress.
@@ -58,18 +58,20 @@ impl StaleKeysRepairHandle {
 /// Early tree versions contained a bug: If a tree version was truncated, stale keys for it remained intact.
 /// If an overwritten tree version did not contain the same keys, this could lead to keys incorrectly marked as stale,
 /// meaning that after pruning, a tree may end up broken.
+#[cfg(feature = "rocksdb")]
 #[derive(Debug)]
 pub struct StaleKeysRepairTask {
-    db: RocksDBWrapper,
+    db: crate::RocksDBWrapper,
     parallelism: u64,
     poll_interval: Duration,
     stats: Arc<Mutex<StaleKeysRepairStats>>,
     aborted_receiver: mpsc::Receiver<()>,
 }
 
+#[cfg(feature = "rocksdb")]
 impl StaleKeysRepairTask {
     /// Creates a new task.
-    pub fn new(db: RocksDBWrapper) -> (Self, StaleKeysRepairHandle) {
+    pub fn new(db: crate::RocksDBWrapper) -> (Self, StaleKeysRepairHandle) {
         let (aborted_sender, aborted_receiver) = mpsc::channel();
         let stats = Arc::<Mutex<StaleKeysRepairStats>>::default();
         let this = Self {
@@ -281,7 +283,7 @@ impl StaleKeysRepairTask {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "rocksdb"))]
 mod tests {
     use std::thread;
 

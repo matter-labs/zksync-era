@@ -1,18 +1,21 @@
 //! Storage-related logic.
 
+#[cfg(feature = "rocksdb")]
+pub use self::rocksdb::{MerkleTreeColumnFamily, RocksDBWrapper};
+
 pub use self::{
     database::{Database, NodeKeys, Patched, PruneDatabase, PrunePatchSet},
     parallel::PersistenceThreadHandle,
     patch::PatchSet,
-    rocksdb::{MerkleTreeColumnFamily, RocksDBWrapper},
 };
+
 pub(crate) use self::{
     parallel::MaybeParallel,
     patch::{LoadAncestorsResult, WorkingPatchSet},
 };
 use crate::{
     hasher::HashTree,
-    metrics::{TreeUpdaterStats, BLOCK_TIMINGS, GENERAL_METRICS},
+    metrics::TreeUpdaterStats,
     types::{
         BlockOutput, ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, Node,
         ProfiledTreeOperation, Root, TreeEntry, TreeLogEntry, TreeTags, ValueHash,
@@ -23,7 +26,10 @@ mod database;
 mod parallel;
 mod patch;
 mod proofs;
+
+#[cfg(feature = "rocksdb")]
 mod rocksdb;
+
 mod serialization;
 #[cfg(test)]
 mod tests;
@@ -289,13 +295,13 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     /// Extends the Merkle tree in the lightweight operation mode, without intermediate hash
     /// computations.
     pub fn extend(mut self, entries: Vec<TreeEntry>) -> (BlockOutput, PatchSet) {
-        let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
+        // let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
         let sorted_keys = SortedKeys::new(entries.iter().map(|entry| entry.key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
-        let load_nodes_latency = load_nodes_latency.observe();
-        tracing::debug!("Load stage took {load_nodes_latency:?}");
+        // let load_nodes_latency = load_nodes_latency.observe();
+        // tracing::debug!("Load stage took {load_nodes_latency:?}");
 
-        let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
+        // let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
         let mut logs = Vec::with_capacity(entries.len());
         for (entry, parent_nibbles) in entries.into_iter().zip(parent_nibbles) {
             let (log, _) = self.updater.insert(entry, &parent_nibbles);
@@ -304,8 +310,8 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             }
             logs.push(log);
         }
-        let extend_patch_latency = extend_patch_latency.observe();
-        tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
+        // let extend_patch_latency = extend_patch_latency.observe();
+        // tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
 
         let leaf_count = self.leaf_count;
         let (root_hash, patch) = self.finalize();
@@ -327,7 +333,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             None => (None, Nibbles::EMPTY),
         };
 
-        let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
+        // let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
         for entry in recovery_entries {
             if let Some(prev_key) = prev_key {
                 assert!(
@@ -344,27 +350,27 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             prev_nibbles = new_leaf.nibbles;
             self.leaf_count += 1;
         }
-        let extend_patch_latency = extend_patch_latency.observe();
-        tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
+        // let extend_patch_latency = extend_patch_latency.observe();
+        // tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
 
         let (_, patch) = self.finalize();
         patch
     }
 
     pub fn extend_during_random_recovery(mut self, recovery_entries: Vec<TreeEntry>) -> PatchSet {
-        let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
+        // let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
         let sorted_keys = SortedKeys::new(recovery_entries.iter().map(|entry| entry.key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
-        let load_nodes_latency = load_nodes_latency.observe();
-        tracing::debug!("Load stage took {load_nodes_latency:?}");
+        // let load_nodes_latency = load_nodes_latency.observe();
+        // tracing::debug!("Load stage took {load_nodes_latency:?}");
 
-        let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
+        // let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
         for (entry, parent_nibbles) in recovery_entries.into_iter().zip(parent_nibbles) {
             self.updater.insert(entry, &parent_nibbles);
             self.leaf_count += 1;
         }
-        let extend_patch_latency = extend_patch_latency.observe();
-        tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
+        // let extend_patch_latency = extend_patch_latency.observe();
+        // tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
 
         let (_, patch) = self.finalize();
         patch
@@ -376,23 +382,23 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             self.leaf_count,
             self.updater.metrics
         );
-        self.updater.metrics.report();
+        // self.updater.metrics.report();
 
-        let finalize_patch_latency = BLOCK_TIMINGS.finalize_patch.start();
+        // let finalize_patch_latency = BLOCK_TIMINGS.finalize_patch.start();
         let (root_hash, patch, stats) = self.updater.patch_set.finalize(
             self.manifest,
             self.leaf_count,
             self.operation,
             self.hasher,
         );
-        GENERAL_METRICS.leaf_count.set(self.leaf_count);
-        let finalize_patch_latency = finalize_patch_latency.observe();
-        tracing::debug!(
-            "Tree finalization stage took {finalize_patch_latency:?}; hashed {:?}B in {:?}",
-            stats.hashed_bytes,
-            stats.hashing_duration
-        );
-        stats.report();
+        // GENERAL_METRICS.leaf_count.set(self.leaf_count);
+        // let finalize_patch_latency = finalize_patch_latency.observe();
+        // tracing::debug!(
+        //     "Tree finalization stage took {finalize_patch_latency:?}; hashed {:?}B in {:?}",
+        //     stats.hashed_bytes,
+        //     stats.hashing_duration
+        // );
+        // stats.report();
 
         (root_hash, patch)
     }
