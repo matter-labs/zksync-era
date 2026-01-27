@@ -84,7 +84,7 @@ if (shouldSkip) {
 /// - Never migrated the balance to GW (but the token is bridged for the first time). No migration should be needed at all.
 /// After the chain migrates from GW, we need to test that all the tokens can be withdrawn in sufficient amounts to move
 /// the entire balance to L1. It should not be possible to finalize all old interops.
-(shouldSkip ? describe.skip : describe)('Token balance migration tests', function () {
+(shouldSkip ? describe.skip : describe)('Token balance migration TO GW tests', function () {
     let chainHandler: ChainHandler;
     let customTokenChainHandler: ChainHandler;
 
@@ -96,8 +96,8 @@ if (shouldSkip) {
     // Stored token data for cross-test assertions
     const tokens: Record<string, ERC20Handler> = {};
     // Stored withdrawal data for cross-test assertions
-    const withdrawalsBeforeTBMToGW: Record<string, WithdrawalHandler> = {};
-    const withdrawalsAfterTBMToGW: Record<string, WithdrawalHandler> = {};
+    const withdrawalsBeforeTBM: Record<string, WithdrawalHandler> = {};
+    const withdrawalsAfterTBM: Record<string, WithdrawalHandler> = {};
 
     beforeAll(async () => {
         // Initialize gateway chain
@@ -137,11 +137,11 @@ if (shouldSkip) {
         // Token native to L1, deposited to L2, fully withdrawn from L2 but not finalized yet
         tokens.L1NativeUnfinalizedWithdrawalBeforeTBMToGW = await ERC20Handler.deployTokenOnL1(chainRichWallet);
         await tokens.L1NativeUnfinalizedWithdrawalBeforeTBMToGW.deposit(chainHandler);
-        withdrawalsBeforeTBMToGW.L1NativeUnfinalizedWithdrawalBeforeTBMToGW =
+        withdrawalsBeforeTBM.L1NativeUnfinalizedWithdrawalBeforeTBMToGW =
             await tokens.L1NativeUnfinalizedWithdrawalBeforeTBMToGW.withdraw(chainHandler, false);
         tokens.L1NativeUnfinalizedWithdrawalAfterTBMToGW = await ERC20Handler.deployTokenOnL1(chainRichWallet);
         await tokens.L1NativeUnfinalizedWithdrawalAfterTBMToGW.deposit(chainHandler);
-        withdrawalsAfterTBMToGW.L1NativeUnfinalizedWithdrawalAfterTBMToGW =
+        withdrawalsAfterTBM.L1NativeUnfinalizedWithdrawalAfterTBMToGW =
             await tokens.L1NativeUnfinalizedWithdrawalAfterTBMToGW.withdraw(chainHandler, false);
         // Token native to L1, deposited to L2
         tokens.L1NativeDepositedToL2 = await ERC20Handler.deployTokenOnL1(chainRichWallet);
@@ -162,10 +162,10 @@ if (shouldSkip) {
             await tokens.L2NativePartiallyWithdrawnToL1.withdraw(chainHandler);
         // Token native to L2-A, fully withdrawn to L1 but not finalized yet
         tokens.L2NativeUnfinalizedWithdrawalBeforeTBMToGW = await ERC20Handler.deployTokenOnL2(chainHandler);
-        withdrawalsBeforeTBMToGW.L2NativeUnfinalizedWithdrawalBeforeTBMToGW =
+        withdrawalsBeforeTBM.L2NativeUnfinalizedWithdrawalBeforeTBMToGW =
             await tokens.L2NativeUnfinalizedWithdrawalBeforeTBMToGW.withdraw(chainHandler, false);
         tokens.L2NativeUnfinalizedWithdrawalAfterTBMToGW = await ERC20Handler.deployTokenOnL2(chainHandler);
-        withdrawalsAfterTBMToGW.L2NativeUnfinalizedWithdrawalAfterTBMToGW =
+        withdrawalsAfterTBM.L2NativeUnfinalizedWithdrawalAfterTBMToGW =
             await tokens.L2NativeUnfinalizedWithdrawalAfterTBMToGW.withdraw(chainHandler, false);
         // Token native to L2-A, not withdrawn to L1 yet
         tokens.L2NativeNotWithdrawnToL1 = await ERC20Handler.deployTokenOnL2(chainHandler);
@@ -201,8 +201,9 @@ if (shouldSkip) {
             baseTokenAssetId
         );
 
-        for (const token of Object.keys(tokens)) {
-            console.log(`Token ${token} Asset ID: ${await tokens[token].assetId(chainHandler)}`);
+        for (const tokenName of Object.keys(tokens)) {
+            if (tokenName === 'L1NativeNotDepositedToL2') continue;
+            console.log(`Token ${tokenName} Asset ID: ${await tokens[tokenName].assetId(chainHandler)}`);
         }
     });
 
@@ -232,17 +233,17 @@ if (shouldSkip) {
     });
 
     it('Can finalize pending withdrawals', async () => {
-        for (const tokenName of Object.keys(withdrawalsBeforeTBMToGW)) {
-            await withdrawalsBeforeTBMToGW[tokenName].finalizeWithdrawal(chainRichWallet.ethWallet());
+        for (const tokenName of Object.keys(withdrawalsBeforeTBM)) {
+            await withdrawalsBeforeTBM[tokenName].finalizeWithdrawal(chainRichWallet.ethWallet());
             const assetId = await tokens[tokenName].assetId(chainHandler);
 
             if (tokens[tokenName].isL2Token) {
-                chainHandler.chainBalances[assetId] = ethers.MaxUint256 - withdrawalsBeforeTBMToGW[tokenName].amount;
+                chainHandler.chainBalances[assetId] = ethers.MaxUint256 - withdrawalsBeforeTBM[tokenName].amount;
             } else {
-                chainHandler.chainBalances[assetId] -= withdrawalsBeforeTBMToGW[tokenName].amount;
+                chainHandler.chainBalances[assetId] -= withdrawalsBeforeTBM[tokenName].amount;
             }
 
-            delete withdrawalsBeforeTBMToGW[tokenName];
+            delete withdrawalsBeforeTBM[tokenName];
         }
     });
 
@@ -250,9 +251,24 @@ if (shouldSkip) {
         tokens.L1NativeDepositedToL2AfterMigrationToGW = await ERC20Handler.deployTokenOnL1(chainRichWallet);
         // Fresh deposit after the chain migrated to gateway marks the asset ID as effectively migrated
         await tokens.L1NativeDepositedToL2AfterMigrationToGW.deposit(chainHandler);
-        const assetId = await tokens.L1NativeDepositedToL2AfterMigrationToGW.assetId(chainHandler);
+        const assetIdA = await tokens.L1NativeDepositedToL2AfterMigrationToGW.assetId(chainHandler);
         await expect(
-            chainHandler.assertAssetTrackersState(assetId, {
+            chainHandler.assertAssetTrackersState(assetIdA, {
+                balances: {
+                    L1AT: 0n
+                },
+                migrations: {
+                    L1AT: 1n,
+                    L1AT_GW: 0n,
+                    GWAT: 1n
+                }
+            })
+        ).resolves.toBe(true);
+        // Deposit existing token has the same result
+        await tokens.L1NativeNotDepositedToL2.deposit(chainHandler);
+        const assetIdB = await tokens.L1NativeNotDepositedToL2.assetId(chainHandler);
+        await expect(
+            chainHandler.assertAssetTrackersState(assetIdB, {
                 balances: {
                     L1AT: 0n
                 },
@@ -297,7 +313,7 @@ if (shouldSkip) {
 
             const isL2Token = tokens[tokenName].isL2Token;
             const baseBalance = chainHandler.chainBalances[assetId] ?? (isL2Token ? ethers.MaxUint256 : 0n);
-            const pending = withdrawalsAfterTBMToGW[tokenName];
+            const pending = withdrawalsAfterTBM[tokenName];
             const pendingAmount = pending?.amount ?? 0n;
             const gwExpected = pendingAmount > 0n ? baseBalance - pendingAmount : baseBalance;
 
@@ -319,22 +335,28 @@ if (shouldSkip) {
     });
 
     it('Can finalize pending withdrawals', async () => {
-        for (const tokenName of Object.keys(withdrawalsAfterTBMToGW)) {
-            await withdrawalsAfterTBMToGW[tokenName].finalizeWithdrawal(chainRichWallet.ethWallet());
+        for (const tokenName of Object.keys(withdrawalsAfterTBM)) {
+            await withdrawalsAfterTBM[tokenName].finalizeWithdrawal(chainRichWallet.ethWallet());
             const assetId = await tokens[tokenName].assetId(chainHandler);
 
             if (tokens[tokenName].isL2Token) {
-                chainHandler.chainBalances[assetId] = ethers.MaxUint256 - withdrawalsAfterTBMToGW[tokenName].amount;
+                chainHandler.chainBalances[assetId] = ethers.MaxUint256 - withdrawalsAfterTBM[tokenName].amount;
             } else {
-                chainHandler.chainBalances[assetId] -= withdrawalsAfterTBMToGW[tokenName].amount;
+                chainHandler.chainBalances[assetId] -= withdrawalsAfterTBM[tokenName].amount;
             }
 
-            delete withdrawalsAfterTBMToGW[tokenName];
+            delete withdrawalsAfterTBM[tokenName];
         }
     });
 
-    it('Can withdraw migrated tokens from the chain', async () => {
-        // TODO
+    it('Can withdraw tokens from the chain', async () => {
+        // Can fully withdraw existing tokens
+        const withdrawalA = await tokens.L1NativeDepositedToL2.withdraw(chainHandler);
+        const withdrawalB = await tokens.L1NativeNotDepositedToL2.withdraw(chainHandler);
+        const withdrawalC = await tokens.L2BToken.withdraw(chainHandler);
+        await withdrawalA.finalizeWithdrawal(chainRichWallet.ethWallet());
+        await withdrawalB.finalizeWithdrawal(chainRichWallet.ethWallet());
+        await withdrawalC.finalizeWithdrawal(chainRichWallet.ethWallet());
     });
 
     it('Can deposit a token to the chain after migrating balances to gateway', async () => {
@@ -354,30 +376,6 @@ if (shouldSkip) {
                 }
             })
         ).resolves.toBe(true);
-    });
-
-    it('Can migrate token balances from GW', async () => {
-        // await chainHandler.migrateFromGateway();
-        // await chainHandler.migrateTokenBalancesToL1();
-        // We need to wait for a bit for L1AT's `_sendConfirmationToChains` to propagate to GW and the tested L2 chain
-        await utils.sleep(5);
-    });
-
-    it('Correctly assigns chain token balances after migrating token balances from gateway', async () => {
-        // TODO
-    });
-
-    it('Can do repeated migrations', async () => {
-        // TODO
-        // Chain token balances stay the same after repeated migrations
-    });
-
-    it('Can finalize pending withdrawals', async () => {
-        // TODO
-    });
-
-    it('Can withdraw migrated tokens from the chain', async () => {
-        // TODO
     });
 
     afterAll(async () => {

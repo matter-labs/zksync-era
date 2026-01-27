@@ -153,7 +153,6 @@ export class ChainHandler {
             GATEWAY_CHAIN_ID,
             this.baseTokenAssetId
         );
-        console.log('EXISTING BASE TOKEN L1AT BALANCE FOR GW', this.existingBaseTokenL1ATBalanceForGW);
         this.gwAssetTracker = new zksync.Contract(
             GW_ASSET_TRACKER_ADDRESS,
             readArtifact('GWAssetTracker').abi,
@@ -208,7 +207,6 @@ export class ChainHandler {
         let iter = 0;
         while (iter < 30) {
             try {
-                console.log(l2NodeUrl);
                 let provider = new zksync.Provider(l2NodeUrl);
                 await provider.getBlockNumber();
                 await sleep(1);
@@ -254,7 +252,6 @@ export class ChainHandler {
             GATEWAY_CHAIN_ID,
             this.baseTokenAssetId
         );
-        console.log('EXISTING BASE TOKEN L1AT BALANCE FOR GW AFTER MIGRATION', this.existingBaseTokenL1ATBalanceForGW);
     }
 
     async migrateFromGateway() {
@@ -334,26 +331,29 @@ export class ChainHandler {
         );
     }
 
-    static async createNewChain(chainType: ChainType): Promise<ChainHandler> {
-        const testChain = await createChainAndStartServer(chainType, TEST_SUITE_NAME, false);
+    static async createNewChain(chainType: ChainType, migrateIfNeeded = false): Promise<ChainHandler> {
+        const testChain = await createChainAndStartServer(chainType, TEST_SUITE_NAME, migrateIfNeeded);
 
-        // We need to kill the server first to set the gateway RPC URL in secrets.yaml
-        await testChain.mainNode.kill();
-        // Wait a bit for clean shutdown
-        await sleep(5000);
+        if (!migrateIfNeeded) {
+            // We need to kill the server first to set the gateway RPC URL in secrets.yaml
+            await testChain.mainNode.kill();
+            // Wait a bit for clean shutdown
+            await sleep(5000);
+    
+            // Set the gateway RPC URL before any migration operations
+            const gatewayGeneralConfig = loadConfig({ pathToHome, chain: 'gateway', config: 'general.yaml' });
+            const secretsPath = path.join(pathToHome, 'chains', testChain.chainName, 'configs', 'secrets.yaml');
+            const secretsConfig = loadConfig({ pathToHome, chain: testChain.chainName, config: 'secrets.yaml' });
+            secretsConfig.l1.gateway_rpc_url = gatewayGeneralConfig.api.web3_json_rpc.http_url;
+            fs.writeFileSync(secretsPath, yaml.dump(secretsConfig));
+    
+            // Restart the server
+            const newServerHandle = await startServer(testChain.chainName);
+            testChain.mainNode = newServerHandle;
+            // Need to wait for a bit before the server works fully
+            await sleep(5000);
+        }
 
-        // Set the gateway RPC URL before any migration operations
-        const gatewayGeneralConfig = loadConfig({ pathToHome, chain: 'gateway', config: 'general.yaml' });
-        const secretsPath = path.join(pathToHome, 'chains', testChain.chainName, 'configs', 'secrets.yaml');
-        const secretsConfig = loadConfig({ pathToHome, chain: testChain.chainName, config: 'secrets.yaml' });
-        secretsConfig.l1.gateway_rpc_url = gatewayGeneralConfig.api.web3_json_rpc.http_url;
-        fs.writeFileSync(secretsPath, yaml.dump(secretsConfig));
-
-        // Restart the server
-        const newServerHandle = await startServer(testChain.chainName);
-        testChain.mainNode = newServerHandle;
-        // Need to wait for a bit before the server works fully
-        await sleep(5000);
         await initTestWallet(testChain.chainName);
 
         return new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
@@ -450,7 +450,7 @@ export class ERC20Handler {
         } else {
             assetId = await chainHandler.l2Ntv.assetId(await this.l2Contract!.getAddress());
         }
-        this.cachedAssetId = assetId;
+        if (assetId !== ethers.ZeroHash) this.cachedAssetId = assetId;
         return assetId;
     }
 
@@ -611,7 +611,7 @@ function getRandomDepositAmount(): bigint {
 }
 
 function getRandomWithdrawAmount(): bigint {
-    return 1n + BigInt(Math.floor(Math.random() * Number(AMOUNT_FLOOR - 1n)));
+    return 1n + BigInt(Math.floor(Math.random() * Number((AMOUNT_FLOOR / 2n) - 1n)));
 }
 
 async function waitForBalanceNonZero(contract: ethers.Contract | zksync.Contract, wallet: zksync.Wallet) {
@@ -627,7 +627,6 @@ async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: numbe
     let printedBlockNumber = 0;
     while (true) {
         const block = await wallet.provider.getBlock('finalized');
-        console.log('block number', block.number, blockNumber);
         if (blockNumber <= block.number) {
             break;
         } else {
@@ -640,15 +639,12 @@ async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: numbe
 }
 
 async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
-    console.log('waiting for block to be finalized');
     // First, we wait for block to be finalized.
     await waitUntilBlockFinalized(wallet, blockNumber);
 
-    console.log('waiting for log proof');
     // Second, we wait for the log proof.
     let i = 0;
     while ((await wallet.provider.getLogProof(txHash)) == null) {
-        console.log(`Waiting for log proof... ${i}`);
         await zksync.utils.sleep(wallet.provider.pollingInterval);
         i++;
     }
