@@ -264,11 +264,25 @@ if (shouldSkip) {
                 }
             })
         ).resolves.toBe(true);
-        // Deposit existing token has the same result
-        await tokens.L1NativeNotDepositedToL2.deposit(chainHandler);
-        const assetIdB = await tokens.L1NativeNotDepositedToL2.assetId(chainHandler);
+        // Deposit existing tokens has the same result
+        await tokens.L1NativeWithdrawnFromL2.deposit(chainHandler);
+        const assetIdB = await tokens.L1NativeWithdrawnFromL2.assetId(chainHandler);
         await expect(
             chainHandler.assertAssetTrackersState(assetIdB, {
+                balances: {
+                    L1AT: 0n
+                },
+                migrations: {
+                    L1AT: 1n,
+                    L1AT_GW: 0n,
+                    GWAT: 1n
+                }
+            })
+        ).resolves.toBe(true);
+        await tokens.L1NativeNotDepositedToL2.deposit(chainHandler);
+        const assetIdC = await tokens.L1NativeNotDepositedToL2.assetId(chainHandler);
+        await expect(
+            chainHandler.assertAssetTrackersState(assetIdC, {
                 balances: {
                     L1AT: 0n
                 },

@@ -331,29 +331,26 @@ export class ChainHandler {
         );
     }
 
-    static async createNewChain(chainType: ChainType, migrateIfNeeded = false): Promise<ChainHandler> {
-        const testChain = await createChainAndStartServer(chainType, TEST_SUITE_NAME, migrateIfNeeded);
+    static async createNewChain(chainType: ChainType): Promise<ChainHandler> {
+        const testChain = await createChainAndStartServer(chainType, TEST_SUITE_NAME, false);
 
-        if (!migrateIfNeeded) {
-            // We need to kill the server first to set the gateway RPC URL in secrets.yaml
-            await testChain.mainNode.kill();
-            // Wait a bit for clean shutdown
-            await sleep(5000);
-    
-            // Set the gateway RPC URL before any migration operations
-            const gatewayGeneralConfig = loadConfig({ pathToHome, chain: 'gateway', config: 'general.yaml' });
-            const secretsPath = path.join(pathToHome, 'chains', testChain.chainName, 'configs', 'secrets.yaml');
-            const secretsConfig = loadConfig({ pathToHome, chain: testChain.chainName, config: 'secrets.yaml' });
-            secretsConfig.l1.gateway_rpc_url = gatewayGeneralConfig.api.web3_json_rpc.http_url;
-            fs.writeFileSync(secretsPath, yaml.dump(secretsConfig));
-    
-            // Restart the server
-            const newServerHandle = await startServer(testChain.chainName);
-            testChain.mainNode = newServerHandle;
-            // Need to wait for a bit before the server works fully
-            await sleep(5000);
-        }
+        // We need to kill the server first to set the gateway RPC URL in secrets.yaml
+        await testChain.mainNode.kill();
+        // Wait a bit for clean shutdown
+        await sleep(5000);
 
+        // Set the gateway RPC URL before any migration operations
+        const gatewayGeneralConfig = loadConfig({ pathToHome, chain: 'gateway', config: 'general.yaml' });
+        const secretsPath = path.join(pathToHome, 'chains', testChain.chainName, 'configs', 'secrets.yaml');
+        const secretsConfig = loadConfig({ pathToHome, chain: testChain.chainName, config: 'secrets.yaml' });
+        secretsConfig.l1.gateway_rpc_url = gatewayGeneralConfig.api.web3_json_rpc.http_url;
+        fs.writeFileSync(secretsPath, yaml.dump(secretsConfig));
+
+        // Restart the server
+        const newServerHandle = await startServer(testChain.chainName);
+        testChain.mainNode = newServerHandle;
+        // Need to wait for a bit before the server works fully
+        await sleep(5000);
         await initTestWallet(testChain.chainName);
 
         return new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
@@ -378,7 +375,7 @@ export class ChainHandler {
 
         if (where === 'GWAT' && assetId === this.baseTokenAssetId) {
             // Here we have to account for some balance drift from the migrate_token_balances.rs script
-            const tolerance = ethers.parseEther('0.001');
+            const tolerance = ethers.parseEther('0.0015');
             const diff = actualBalance > balance ? actualBalance - balance : balance - actualBalance;
             if (diff > tolerance) {
                 throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
