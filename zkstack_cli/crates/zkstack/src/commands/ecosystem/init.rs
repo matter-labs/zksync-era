@@ -1,6 +1,5 @@
 use std::{path::PathBuf, str::FromStr};
 
-use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
     contracts::rebuild_all_contracts, forge::ForgeScriptArgs, logger, spinner::Spinner, Prompt,
@@ -19,7 +18,7 @@ use super::{
     setup_observability,
 };
 use crate::{
-    admin_functions::{accept_admin, accept_owner, accept_owner_aggregated},
+    admin_functions::{accept_admin, accept_owner_aggregated},
     commands::{
         ctm::commands::init_new_ctm::deploy_new_ctm_and_accept_admin,
         ecosystem::{

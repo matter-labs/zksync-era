@@ -1,4 +1,3 @@
-use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
 use zkstack_cli_config::{
@@ -8,7 +7,7 @@ use zkstack_cli_config::{
 use zkstack_cli_types::VMOption;
 
 use crate::{
-    admin_functions::{accept_admin, accept_owner, accept_owner_aggregated},
+    admin_functions::{accept_admin, accept_owner_aggregated},
     commands::ecosystem::{
         args::init::{InitCoreContractsArgs, InitCoreContractsArgsFinal},
         common::{deploy_erc20, deploy_l1_core_contracts},
