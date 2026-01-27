@@ -373,7 +373,7 @@ export class ChainHandler {
             where === 'L1AT_GW' && assetId === this.baseTokenAssetId ? this.existingBaseTokenL1ATBalanceForGW : 0n;
         const actualBalance = await contract!.chainBalance(chainId, assetId);
 
-        if (where === 'GWAT' && assetId === this.baseTokenAssetId) {
+        if (assetId === this.baseTokenAssetId && (where === 'GWAT' || where === 'L1AT')) {
             // Here we have to account for some balance drift from the migrate_token_balances.rs script
             const tolerance = ethers.parseEther('0.0015');
             const diff = actualBalance > balance ? actualBalance - balance : balance - actualBalance;
@@ -608,7 +608,7 @@ function getRandomDepositAmount(): bigint {
 }
 
 function getRandomWithdrawAmount(): bigint {
-    return 1n + BigInt(Math.floor(Math.random() * Number((AMOUNT_FLOOR / 2n) - 1n)));
+    return 1n + BigInt(Math.floor(Math.random() * Number(AMOUNT_FLOOR / 2n - 1n)));
 }
 
 async function waitForBalanceNonZero(contract: ethers.Contract | zksync.Contract, wallet: zksync.Wallet) {
