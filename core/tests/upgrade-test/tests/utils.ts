@@ -41,6 +41,7 @@ export interface Contracts {
     complexUpgraderAbi: any;
     counterBytecode: any;
     chainTypeManager: any;
+    bytecodesSupplierAbi: any;
 }
 
 export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
@@ -70,6 +71,9 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             ).deployedBytecode,
             chainTypeManager: new ethers.Interface(
                 require(`${CONTRACTS_FOLDER}/l1-contracts/out/EraChainTypeManager.sol/EraChainTypeManager.json`).abi
+            ),
+            bytecodesSupplierAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/BytecodesSupplier.sol/BytecodesSupplier.json`).abi
             )
         };
     } else {
@@ -99,6 +103,9 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
                 .deployedBytecode,
             chainTypeManager: new ethers.Interface(
                 require(`${L1_CONTRACTS_FOLDER}/state-transition/ChainTypeManager.sol/ChainTypeManager.json`).abi
+            ),
+            bytecodesSupplierAbi: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/upgrades/BytecodesSupplier.sol/BytecodesSupplier.json`).abi
             )
         };
     }

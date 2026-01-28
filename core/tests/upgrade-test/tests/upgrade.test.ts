@@ -591,15 +591,10 @@ async function publishBytecode(
     nonce: number
 ): Promise<number> {
     const hash = zksync.utils.hashBytecode(bytecode);
-    const abi = [
-        'function publishBytecode(bytes calldata _bytecode) public',
-        'function publishingBlock(bytes32 _hash) public view returns (uint256)'
-    ];
-
-    const contract = new ethers.Contract(bytecodeSupplierAddr, abi, wallet);
+    const contract = new ethers.Contract(bytecodeSupplierAddr, contracts.bytecodesSupplierAbi, wallet);
     const block = await contract.publishingBlock(hash);
     if (block == BigInt(0)) {
-        const tx = await contract.publishBytecode(bytecode, { nonce });
+        const tx = await contract.publishEraBytecode(bytecode, { nonce });
         await tx.wait();
         return 1;
     }
