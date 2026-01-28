@@ -11,8 +11,7 @@ use zkstack_cli_common::forge::ForgeScriptArgs;
 use zksync_types::{Address, U256};
 
 use crate::abi::{
-    CHAINADMINOWNABLEABI_ABI as CHAIN_ADMIN_OWNABLE_ABI,
-    CHAINTYPEMANAGERUPGRADEFNABI_ABI as CHAIN_TYPE_MANAGER_UPGRADE_ABI,
+    ADMINABI_ABI as ADMIN_ABI, CHAINADMINOWNABLEABI_ABI as CHAIN_ADMIN_OWNABLE_ABI,
     DIAMONDCUTABI_ABI as DIAMOND_CUT_ABI,
 };
 
@@ -103,6 +102,10 @@ impl AdminCallBuilder {
         self.calls.extend(calls);
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.calls.is_empty()
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
@@ -158,22 +161,28 @@ impl AdminCallBuilder {
             .function("diamondCut")
             .expect("diamondCut ABI not found");
 
-        let upgrade_fn = CHAIN_TYPE_MANAGER_UPGRADE_ABI
+        let upgrade_fn = ADMIN_ABI
             .function("upgradeChainFromVersion")
             .expect("upgradeChainFromVersion ABI not found");
 
-        let decoded = diamond_cut_fn
-            .decode_input(diamond_cut_data.0.get(4..).unwrap_or(&diamond_cut_data.0))
-            .or_else(|_| diamond_cut_fn.decode_input(&diamond_cut_data.0))
-            .expect("invalid diamondCut calldata");
+        // Get the parameter type for DiamondCutData from the diamondCut function
+        let diamond_cut_param_type = diamond_cut_fn
+            .inputs
+            .get(0)
+            .expect("diamondCut function has no parameters")
+            .kind
+            .clone();
 
-        let cfg_tuple = decoded
+        // Decode the raw diamond_cut_data bytes directly as DiamondCutData struct
+        let diamond_cut_token = decode(&[diamond_cut_param_type], &diamond_cut_data.0)
+            .expect("Failed to decode diamond_cut_data")
             .into_iter()
             .next()
-            .expect("diamondCut expects 1 argument (tuple)");
+            .expect("Failed to extract DiamondCutData token");
 
+        // Admin.upgradeChainFromVersion expects: (oldProtocolVersion, DiamondCutData)
         let data = upgrade_fn
-            .encode_input(&[Token::Uint(U256::from(protocol_version)), cfg_tuple])
+            .encode_input(&[Token::Uint(U256::from(protocol_version)), diamond_cut_token])
             .expect("encode upgradeChainFromVersion failed");
 
         let description = "Executing upgrade:".to_string();

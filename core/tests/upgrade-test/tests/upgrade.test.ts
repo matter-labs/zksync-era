@@ -779,11 +779,7 @@ async function pauseMigrationsCalldata(
         chainAssetHandlerAddr = await l2BridgehubContract.chainAssetHandler();
     } else {
         // For L1, get the ChainAssetHandler address from L1 Bridgehub
-        const bridgehubContract = new ethers.Contract(
-            l1BridgehubAddr,
-            contracts.bridgehubAbi,
-            l1Provider
-        );
+        const bridgehubContract = new ethers.Contract(l1BridgehubAddr, contracts.bridgehubAbi, l1Provider);
         chainAssetHandlerAddr = await bridgehubContract.chainAssetHandler();
     }
 
