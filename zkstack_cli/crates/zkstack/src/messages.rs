@@ -108,6 +108,8 @@ pub(super) const MSG_CHAIN_CONFIGS_INITIALIZED: &str = "Chain configs were initi
 pub(super) const MSG_CHAIN_OWNERSHIP_TRANSFERRED: &str =
     "Chain ownership was transferred successfully";
 pub(super) const MSG_EVM_EMULATOR_ENABLED: &str = "EVM emulator enabled successfully";
+pub(super) const MSG_INTEROP_FEE_SET: &str = "Interop fee set successfully";
+pub(super) const MSG_SETTING_INTEROP_FEE: &str = "Setting interop fee...";
 pub(super) const MSG_CHAIN_REGISTERED: &str = "Chain registraion was successful";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =

@@ -28,6 +28,7 @@ mod defaults;
 pub mod enable_evm_emulator;
 pub mod external_node;
 mod messages;
+pub mod set_interop_fee;
 mod utils;
 
 #[derive(Parser, Debug)]

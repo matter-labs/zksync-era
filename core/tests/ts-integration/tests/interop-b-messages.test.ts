@@ -31,44 +31,33 @@ describe('Interop-B Messages behavior checks', () => {
         // SENDING A BASE TOKEN MESSAGE
         {
             const amount = ctx.getTransferAmount();
-            const balanceBefore = ctx.isSameBaseToken
-                ? await ctx.interop1Wallet.getBalance()
-                : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
+            const before = await ctx.captureInterop1BalanceSnapshot();
 
+            const msgValue = ctx.calculateMsgValue(1, amount);
             const tx = await ctx.interop1InteropCenter.sendMessage(recipient, '0x', await ctx.directCallAttrs(amount), {
-                value: ctx.isSameBaseToken ? amount : 0n
+                value: msgValue
             });
             const receipt = await tx.wait();
 
-            const balanceAfter = ctx.isSameBaseToken
-                ? await ctx.interop1Wallet.getBalance()
-                : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
-
-            if (ctx.isSameBaseToken) {
-                const feePaid = BigInt(receipt.gasUsed) * BigInt(receipt.gasPrice);
-                expect((balanceAfter + feePaid).toString()).toBe((balanceBefore - amount).toString());
-            } else {
-                expect((balanceAfter - balanceBefore).toString()).toBe((-amount).toString());
-            }
-
+            await ctx.assertInterop1BalanceChanges(receipt, before, { msgValue, baseTokenAmount: amount });
             messages.baseToken = { amount: amount.toString(), receipt };
         }
 
         // SENDING A NATIVE ERC20 TOKEN MESSAGE
         {
             const amount = await ctx.getAndApproveTokenTransferAmount();
-            const balanceBefore = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
+            const before = await ctx.captureInterop1BalanceSnapshot(ctx.tokenA.l2Address);
 
+            const msgValue = ctx.calculateMsgValue(1);
             const tx = await ctx.interop1InteropCenter.sendMessage(
                 assetRouterRecipient,
                 ctx.getTokenTransferSecondBridgeData(ctx.tokenA.assetId!, amount, ctx.interop2Recipient.address),
-                await ctx.indirectCallAttrs()
+                await ctx.indirectCallAttrs(),
+                { value: msgValue }
             );
             const receipt = await tx.wait();
 
-            const balanceAfter = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
-            expect((balanceAfter - balanceBefore).toString()).toBe((-amount).toString());
-
+            await ctx.assertInterop1BalanceChanges(receipt, before, { msgValue, tokenAmount: amount });
             messages.nativeERC20 = { amount: amount.toString(), receipt };
         }
 
@@ -77,38 +66,36 @@ describe('Interop-B Messages behavior checks', () => {
         // The case where chains have the same base token is already tested above: `SENDING A BASE TOKEN MESSAGE`
         if (!ctx.isSameBaseToken) {
             const amount = ctx.getTransferAmount();
-            const balanceBefore = await ctx.interop1Wallet.getBalance();
+            const before = await ctx.captureInterop1BalanceSnapshot();
 
+            const msgValue = ctx.interopFee + amount;
             const tx = await ctx.interop1InteropCenter.sendMessage(
                 assetRouterRecipient,
                 ctx.getTokenTransferSecondBridgeData(ctx.baseToken1.assetId!, amount, ctx.interop2Recipient.address),
                 await ctx.indirectCallAttrs(amount),
-                { value: amount }
+                { value: msgValue }
             );
             const receipt = await tx.wait();
 
-            const balanceAfter = await ctx.interop1Wallet.getBalance();
-            const feePaid = BigInt(receipt.gasUsed) * BigInt(receipt.gasPrice);
-            expect(balanceAfter + feePaid).toBe(balanceBefore - amount);
-
+            await ctx.assertInterop1BalanceChanges(receipt, before, { msgValue });
             messages.interop1BaseToken = { amount: amount.toString(), receipt };
         }
 
         // SENDING A BRIDGED ERC20 TOKEN MESSAGE
         {
             const amount = await ctx.getAndApproveBridgedTokenTransferAmount();
-            const balanceBefore = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.bridgedToken.l2Address!);
+            const before = await ctx.captureInterop1BalanceSnapshot(ctx.bridgedToken.l2Address);
 
+            const msgValue = ctx.calculateMsgValue(1);
             const tx = await ctx.interop1InteropCenter.sendMessage(
                 assetRouterRecipient,
                 ctx.getTokenTransferSecondBridgeData(ctx.bridgedToken.assetId!, amount, ctx.interop2Recipient.address),
-                await ctx.indirectCallAttrs()
+                await ctx.indirectCallAttrs(),
+                { value: msgValue }
             );
             const receipt = await tx.wait();
 
-            const balanceAfter = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.bridgedToken.l2Address!);
-            expect((balanceAfter - balanceBefore).toString()).toBe((-amount).toString());
-
+            await ctx.assertInterop1BalanceChanges(receipt, before, { msgValue, tokenAmount: amount });
             messages.bridgedERC20 = { amount: amount.toString(), receipt };
         }
 

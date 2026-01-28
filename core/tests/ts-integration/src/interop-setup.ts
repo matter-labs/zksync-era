@@ -47,6 +47,12 @@ export interface InteropCallStarter {
     callAttributes: string[];
 }
 
+type BalanceSnapshot = {
+    native: bigint;
+    baseToken2?: bigint;
+    token?: bigint;
+};
+
 export class InteropTestContext {
     public testMaster!: TestMaster;
     public mainAccount!: RetryableWallet;
@@ -78,6 +84,7 @@ export class InteropTestContext {
     public interop1InteropCenter!: zksync.Contract;
     public interop1NativeTokenVault!: zksync.Contract;
     public interop1TokenA!: zksync.Contract;
+    public interopFee!: bigint;
 
     // Interop2 (Second Chain) Variables
     public baseToken2!: Token;
@@ -380,6 +387,13 @@ export class InteropTestContext {
     }
 
     private async performSetup() {
+        const fileConfig = shouldLoadConfigFromFile();
+
+        // Set interop fee on Interop1
+        this.interopFee = ethers.parseUnits(Math.floor(Math.random() * 11).toString(), 'gwei'); // Random [0,10] gwei
+        const setInteropFeeCmd = `zkstack chain set-interop-fee --fee ${this.interopFee} --chain ${fileConfig.chain}`;
+        await utils.spawn(setInteropFeeCmd);
+
         const tokenADeploy = await deployContract(this.interop1Wallet, ArtifactMintableERC20, [
             this.tokenA.name,
             this.tokenA.symbol,
@@ -396,9 +410,7 @@ export class InteropTestContext {
             this.interop1Wallet
         );
 
-        const fileConfig = shouldLoadConfigFromFile();
         const migrationCmd = `zkstack chain gateway migrate-token-balances --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`;
-
         // Migration might sometimes fail, so we retry a few times.
         for (let attempt = 1; attempt <= 3; attempt++) {
             try {
@@ -419,7 +431,8 @@ export class InteropTestContext {
                 l2Address: this.tokenA.l2Address,
                 l2AddressSecondChain: this.tokenA.l2AddressSecondChain,
                 assetId: this.tokenA.assetId
-            }
+            },
+            interopFee: this.interopFee.toString()
         };
 
         this.loadState(newState);
@@ -437,6 +450,8 @@ export class InteropTestContext {
             ArtifactMintableERC20.abi,
             this.interop1Wallet
         );
+
+        this.interopFee = BigInt(state.interopFee);
     }
 
     async deinitialize() {
@@ -632,6 +647,9 @@ export class InteropTestContext {
         return transferAmount;
     }
 
+    /**
+     * Transfers a random amount of bridged tokens to the interop1 wallet and approves the transfer on Interop1.
+     */
     async getAndApproveBridgedTokenTransferAmount(): Promise<bigint> {
         const transferAmount = BigInt(Math.floor(Math.random() * 900) + 100);
 
@@ -652,5 +670,70 @@ export class InteropTestContext {
         ]);
 
         return transferAmount;
+    }
+
+    /**
+     * Calculates the message value needed for an interop transaction.
+     * Includes interop fees and optionally the base token amount if chains share the same base token.
+     */
+    calculateMsgValue(numCalls: number, baseTokenAmount: bigint = 0n): bigint {
+        const interopFeesTotal = this.interopFee * BigInt(numCalls);
+        const baseTokenIncluded = this.isSameBaseToken ? baseTokenAmount : 0n;
+        return interopFeesTotal + baseTokenIncluded;
+    }
+
+    /**
+     * Captures the current balance state of the interop1 wallet.
+     * Includes native balance, base token (if different), and optionally a custom token.
+     */
+    async captureInterop1BalanceSnapshot(tokenAddress?: string): Promise<BalanceSnapshot> {
+        const snapshot: any = {
+            native: await this.interop1Wallet.getBalance()
+        };
+
+        if (!this.isSameBaseToken) {
+            snapshot.baseToken2 = await this.getTokenBalance(
+                this.interop1Wallet,
+                this.baseToken2.l2AddressSecondChain!
+            );
+        }
+
+        if (tokenAddress) {
+            snapshot.token = await this.getTokenBalance(this.interop1Wallet, tokenAddress);
+        }
+
+        return snapshot;
+    }
+
+    /**
+     * Asserts that balance changes match expected values after a transaction.
+     */
+    async assertInterop1BalanceChanges(
+        receipt: ethers.TransactionReceipt,
+        beforeSnapshot: BalanceSnapshot,
+        expected: {
+            msgValue: bigint;
+            baseTokenAmount?: bigint;
+            tokenAmount?: bigint;
+        }
+    ) {
+        const feePaid = BigInt(receipt.gasUsed) * BigInt(receipt.gasPrice);
+        const afterNative = await this.interop1Wallet.getBalance();
+
+        expect(afterNative.toString()).toBe((beforeSnapshot.native - feePaid - expected.msgValue).toString());
+
+        if (!this.isSameBaseToken && expected.baseTokenAmount !== undefined) {
+            const afterBaseToken2 = await this.getTokenBalance(
+                this.interop1Wallet,
+                this.baseToken2.l2AddressSecondChain!
+            );
+            expect(afterBaseToken2.toString()).toBe((beforeSnapshot.baseToken2! - expected.baseTokenAmount).toString());
+        }
+
+        if (expected.tokenAmount !== undefined && beforeSnapshot.token !== undefined) {
+            const tokenAddress = this.tokenA.l2Address || this.bridgedToken.l2Address;
+            const afterToken = await this.getTokenBalance(this.interop1Wallet, tokenAddress);
+            expect(afterToken.toString()).toBe((beforeSnapshot.token - expected.tokenAmount).toString());
+        }
     }
 }
