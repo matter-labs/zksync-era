@@ -99,7 +99,7 @@ impl GenesisConfigPatch {
                 self.0.insert("evm_emulator_hash", data)?;
             }
             self.0.insert(
-                "prover.recursion_scheduler_level_vk_hash",
+                "prover.snark_wrapper_vk_hash",
                 l1_verifier.snark_wrapper_vk_hash,
             )?;
             if let Some(fflonk_vk_hash) = l1_verifier.fflonk_snark_wrapper_vk_hash {

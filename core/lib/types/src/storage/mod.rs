@@ -149,3 +149,32 @@ pub fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
         ),
     ]
 }
+
+/// The initial balance of the BaseTokenHolder contract (2^127 - 1).
+/// This value is used in L2BaseToken.totalSupply() calculation:
+/// totalSupply = INITIAL_BASE_TOKEN_HOLDER_BALANCE - balance[BASE_TOKEN_HOLDER_ADDRESS]
+pub const INITIAL_BASE_TOKEN_HOLDER_BALANCE: U256 = U256([
+    0xFFFFFFFFFFFFFFFF, // lower 64 bits all 1s
+    0x7FFFFFFFFFFFFFFF, // next 64 bits: 2^63 - 1 (since 2^127 - 1 = 2^64 * (2^63 - 1) + 2^64 - 1)
+    0,
+    0,
+]);
+
+/// Returns the storage log to initialize the BaseTokenHolder's balance in L2BaseToken.
+/// The `balance` mapping is at slot 0 in L2BaseToken contract.
+/// We set balance[BASE_TOKEN_HOLDER_ADDRESS] = INITIAL_BASE_TOKEN_HOLDER_BALANCE (2^127 - 1).
+pub fn get_base_token_holder_init_log() -> StorageLog {
+    let l2_base_token = AccountTreeId::new(L2_BASE_TOKEN_ADDRESS);
+
+    // For mapping(address => uint256) at slot 0, the storage slot is:
+    // keccak256(abi.encode(address, 0))
+    let balance_mapping_slot = H256::zero(); // mapping at slot 0
+    let key = get_address_mapping_key(&BASE_TOKEN_HOLDER_ADDRESS, balance_mapping_slot);
+
+    // Convert U256 to H256 for storage value
+    let mut value_bytes = [0u8; 32];
+    INITIAL_BASE_TOKEN_HOLDER_BALANCE.to_big_endian(&mut value_bytes);
+    let value = H256::from(value_bytes);
+
+    StorageLog::new_write_log(StorageKey::new(l2_base_token, key), value)
+}
