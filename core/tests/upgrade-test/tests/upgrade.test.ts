@@ -773,7 +773,7 @@ async function pauseMigrationsCalldata(
         // For gateway, get the ChainAssetHandler address from L2 Bridgehub
         const l2BridgehubContract = new ethers.Contract(
             L2_BRIDGEHUB_ADDRESS,
-            ['function chainAssetHandler() external view returns (address)'],
+            contracts.bridgehubAbi,
             gatewayInfo.gatewayProvider
         );
         chainAssetHandlerAddr = await l2BridgehubContract.chainAssetHandler();
@@ -781,13 +781,13 @@ async function pauseMigrationsCalldata(
         // For L1, get the ChainAssetHandler address from L1 Bridgehub
         const bridgehubContract = new ethers.Contract(
             l1BridgehubAddr,
-            ['function chainAssetHandler() external view returns (address)'],
+            contracts.bridgehubAbi,
             l1Provider
         );
         chainAssetHandlerAddr = await bridgehubContract.chainAssetHandler();
     }
 
-    const iface = new ethers.Interface(['function pauseMigration() external']);
+    const iface = contracts.chainAssetHandlerAbi;
 
     return prepareGovernanceCalldata(
         chainAssetHandlerAddr,

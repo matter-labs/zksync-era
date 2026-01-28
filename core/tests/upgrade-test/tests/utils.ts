@@ -42,6 +42,8 @@ export interface Contracts {
     counterBytecode: any;
     chainTypeManager: any;
     bytecodesSupplierAbi: any;
+    bridgehubAbi: any;
+    chainAssetHandlerAbi: any;
 }
 
 export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
@@ -74,6 +76,12 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             ),
             bytecodesSupplierAbi: new ethers.Interface(
                 require(`${CONTRACTS_FOLDER}/l1-contracts/out/BytecodesSupplier.sol/BytecodesSupplier.json`).abi
+            ),
+            bridgehubAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/IBridgehubBase.sol/IBridgehubBase.json`).abi
+            ),
+            chainAssetHandlerAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/IChainAssetHandler.sol/IChainAssetHandler.json`).abi
             )
         };
     } else {
@@ -106,6 +114,12 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             ),
             bytecodesSupplierAbi: new ethers.Interface(
                 require(`${L1_CONTRACTS_FOLDER}/upgrades/BytecodesSupplier.sol/BytecodesSupplier.json`).abi
+            ),
+            bridgehubAbi: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/core/bridgehub/IBridgehubBase.sol/IBridgehubBase.json`).abi
+            ),
+            chainAssetHandlerAbi: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/core/chain-asset-handler/IChainAssetHandler.sol/IChainAssetHandler.json`).abi
             )
         };
     }
