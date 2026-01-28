@@ -15,7 +15,7 @@ impl UpgradeVersion {
     pub const fn get_default_upgrade_description_path(&self) -> &'static str {
         match self {
             UpgradeVersion::V29InteropAFf => "./l1-contracts/script-out/v29-upgrade-ecosystem.toml",
-            UpgradeVersion::V31InteropB => "./l1-contracts/script-out/v31-upgrade-core.toml",
+            UpgradeVersion::V31InteropB => "./l1-contracts/script-out/v31-upgrade-ctm.toml",
         }
     }
 }

@@ -1,39 +1,26 @@
 use anyhow::Context;
-use ethers::{
-    abi::{encode, Token},
-    contract::BaseContract,
-    providers::Middleware,
-    utils::hex,
-};
+use ethers::{contract::BaseContract, types::Address};
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use xshell::{cmd, Shell};
-use zkstack_cli_common::{ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner};
+use xshell::Shell;
+use zkstack_cli_common::{forge::Forge, logger, spinner::Spinner};
 use zkstack_cli_config::{
     forge_interface::{
         script_params::{
             ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS,
-            V31_UPGRADE_CORE_CONTRACTS_PARAMS, V31_UPGRADE_CTM_CONTRACTS_PARAMS,
+            V31_UPGRADE_ECOSYSTEM_PARAMS,
         },
-        upgrade_ecosystem::{
-            input::{
-                EcosystemUpgradeInput, EcosystemUpgradeSpecificConfig,
-                GatewayStateTransitionConfig, GatewayUpgradeContractsConfig, V29UpgradeParams,
-                V31UpgradeParams,
-            },
-            output::EcosystemUpgradeOutput,
-        },
+        upgrade_ecosystem::output::EcosystemUpgradeOutput,
     },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
+    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfigWithBasePath},
+    CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
-use zkstack_cli_types::{ProverMode, VMOption};
-use zksync_basic_types::Address;
-use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
+use zkstack_cli_types::VMOption;
+use zksync_types::{SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
     abi::IFINALIZEUPGRADEABI_ABI,
-    admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls, AdminScriptMode},
+    admin_functions::{governance_execute_calls, AdminScriptMode},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
         types::UpgradeVersion,
@@ -42,8 +29,7 @@ use crate::{
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
-// TODO: make it non-constant
-pub const LOCAL_GATEWAY_CHAIN_NAME: &str = "gateway";
+// Removed: LOCAL_GATEWAY_CHAIN_NAME - no longer needed with env var approach
 
 pub async fn run(
     shell: &Shell,
@@ -142,112 +128,8 @@ async fn no_governance_prepare(
             .l1_rpc_url()?
     };
 
-    let current_contracts_config = ecosystem_config.get_contracts_config()?;
-    let bridgehub_proxy_address = current_contracts_config
-        .core_ecosystem_contracts
-        .bridgehub_proxy_addr;
-
-    let bridgehub_proxy_address_str = format!("{:#x}", bridgehub_proxy_address);
-
-    logger::info(format!(
-        "Executing: cast call {} \"messageRoot()(address)\" to get the current messageRoot address from BridgeHub.",
-        bridgehub_proxy_address_str
-    ));
-
-    // Execute the cast call command.
-    // The command is: cast call <BRIDGEHUB_ADDRESS> "messageRoot()(address)"
-    // This retrieves the address of the messageRoot contract associated with the BridgeHub.
-    let cast_output_stdout = cmd!(
-        shell,
-        "cast call {bridgehub_proxy_address_str} messageRoot()(address) -r {l1_rpc_url}"
-    )
-    .read()
-    .context("Failed to execute 'cast call' to retrieve messageRoot address from BridgeHub.")?;
-
-    // The output from `cast call` is typically the address followed by a newline.
-    // Trim whitespace and store it.
-    let message_root_address_from_cast = cast_output_stdout.trim().to_string();
-
-    if message_root_address_from_cast.is_empty()
-        || message_root_address_from_cast == "0x0000000000000000000000000000000000000000"
-    {
-        anyhow::bail!(
-            "Retrieved messageRoot address from BridgeHub is empty or zero: '{}'. This indicates an issue.",
-            message_root_address_from_cast
-        );
-    }
-
-    logger::info(format!(
-        "Successfully retrieved messageRoot address from BridgeHub: {}",
-        message_root_address_from_cast
-    ));
-
-    let initial_deployment_config = ecosystem_config.get_initial_deployment_config()?;
-
-    let ecosystem_upgrade_config_path = get_ecosystem_upgrade_params(upgrade_version)
-        .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option));
-
-    let ctm_upgrade_config_path = get_ctm_upgrade_params(upgrade_version)
-        .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option));
-
-    let gateway_upgrade_config = GatewayUpgradeContractsConfig {
-        gateway_state_transition: GatewayStateTransitionConfig {
-            chain_type_manager_proxy_addr: Address::zero(),
-            chain_type_manager_proxy_admin: Address::zero(),
-            rollup_da_manager: Address::zero(),
-            rollup_sl_da_validator: Address::zero(),
-        },
-        chain_id: 0,
-    };
-    if *upgrade_version != UpgradeVersion::V31InteropB {
-        let _gateway_upgrade_config = get_gateway_state_transition_config(ecosystem_config).await?;
-    }
-
-    let upgrade_specific_config = match upgrade_version {
-        UpgradeVersion::V29InteropAFf => {
-            let gateway_chain_config = get_local_gateway_chain_config(ecosystem_config)?;
-            let gateway_validator_timelock_addr = gateway_chain_config
-                .get_gateway_config()
-                .unwrap()
-                .validator_timelock_addr;
-            EcosystemUpgradeSpecificConfig::V29(V29UpgradeParams {
-                encoded_old_validator_timelocks: hex::encode(encode(&[Token::Array(vec![
-                    Token::Address(
-                        current_contracts_config
-                            .ctm(vm_option)
-                            .validator_timelock_addr,
-                    ),
-                ])])),
-                encoded_old_gateway_validator_timelocks: hex::encode(encode(&[Token::Array(
-                    vec![Token::Address(gateway_validator_timelock_addr)],
-                )])),
-            })
-        }
-        UpgradeVersion::V31InteropB => EcosystemUpgradeSpecificConfig::V31(V31UpgradeParams {
-            some_value_for_serialization: "".to_string(),
-        }),
-    };
-
-    let ecosystem_upgrade = EcosystemUpgradeInput::new(
-        &current_contracts_config,
-        &gateway_upgrade_config,
-        &initial_deployment_config,
-        ecosystem_config.era_chain_id,
-        // TODO NEED TO USE ERA DIAMOND PROXY
-        Address::zero(),
-        ecosystem_config.prover_version == ProverMode::NoProofs,
-        upgrade_specific_config,
-        vm_option,
-    );
-
-    logger::info(format!("ecosystem_upgrade: {:?}", ecosystem_upgrade));
-    logger::info(format!(
-        "ecosystem_upgrade_config_path: {:?}",
-        ecosystem_upgrade_config_path
-    ));
-
-    ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone())?;
-    ecosystem_upgrade.save(shell, ctm_upgrade_config_path.clone())?;
+    // Note: The forge script now reads configuration from environment variables
+    // instead of input TOML files, so we no longer need to create EcosystemUpgradeInput
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
@@ -287,16 +169,21 @@ async fn no_governance_prepare(
         serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
     };
 
+    logger::info("done! 1");
+
     let mut output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
             .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
 
+    logger::info("done! 2");
+
     // Add all the transaction hashes.
     for tx in broadcast_file.transactions {
         output.transactions.push(tx.hash);
     }
+    logger::info("done! 3");
 
     output.save_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -304,7 +191,7 @@ async fn no_governance_prepare(
 }
 
 async fn ecosystem_admin(
-    init_args: &EcosystemUpgradeArgsFinal,
+    _init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
@@ -318,30 +205,32 @@ async fn ecosystem_admin(
             .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
-    let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
-        url
-    } else {
-        ecosystem_config
-            .load_current_chain()?
-            .get_secrets_config()
-            .await?
-            .l1_rpc_url()?
-    };
+    // let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
+    //     url
+    // } else {
+    //     ecosystem_config
+    //         .load_current_chain()?
+    //         .get_secrets_config()
+    //         .await?
+    //         .l1_rpc_url()?
+    // };
 
-    // These are ABI-encoded
-    let ecosystem_admin_calls = previous_output.ecosystem_admin_calls;
+    // // These are ABI-encoded
 
-    ecosystem_admin_execute_calls(
-        shell,
-        // Note, that ecosystem admin and governor use the same wallet.
-        &ecosystem_config.get_wallets()?.governor,
-        ecosystem_config.get_contracts_config()?.l1.chain_admin_addr,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        ecosystem_admin_calls.server_notifier_upgrade.0,
-        &init_args.forge_args.clone(),
-        l1_rpc_url,
-    )
-    .await?;
+    // Note: ecosystem_admin calls are not currently used
+    // let ecosystem_admin_calls = previous_output.ecosystem_admin_calls
+
+    // ecosystem_admin_execute_calls(
+    //     shell,
+    //     // Note, that ecosystem admin and governor use the same wallet.
+    //     &ecosystem_config.get_wallets()?.governor,
+    //     ecosystem_config.get_contracts_config()?.l1.chain_admin_addr,
+    //     ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
+    //     ecosystem_admin_calls.server_notifier_upgrade.0,
+    //     &init_args.forge_args.clone(),
+    //     l1_rpc_url,
+    // )
+    // .await?;
     spinner.finish();
 
     Ok(())
@@ -451,17 +340,23 @@ fn update_contracts_config_from_output(
     output: &EcosystemUpgradeOutput,
     vm_option: VMOption,
 ) {
-    let ctm = match vm_option {
-        VMOption::EraVM => contracts_config.era_ctm.as_mut().unwrap(),
-        VMOption::ZKSyncOsVM => contracts_config.zksync_os_ctm.as_mut().unwrap(),
-    };
+    // Update the BytecodesSupplier address in the CTM config if it's present in the upgrade output
+    if let Some(ref state_transition) = output.state_transition {
+        if state_transition.bytecodes_supplier_addr != Address::zero() {
+            let ctm = match vm_option {
+                VMOption::EraVM => contracts_config.era_ctm.as_mut(),
+                VMOption::ZKSyncOsVM => contracts_config.zksync_os_ctm.as_mut(),
+            };
 
-    // This is force deployment data for creating new contracts, not really relevant here tbh,
-    ctm.force_deployments_data = Some(hex::encode(
-        &output.contracts_config.force_deployments_data.0,
-    ));
-    ctm.rollup_l1_da_validator_addr = output.deployed_addresses.rollup_l1_da_validator_addr;
-    ctm.no_da_validium_l1_validator_addr = output.deployed_addresses.validium_l1_da_validator_addr;
+            if let Some(ctm) = ctm {
+                ctm.l1_bytecodes_supplier_addr = state_transition.bytecodes_supplier_addr;
+                logger::info(format!(
+                    "Updated BytecodesSupplier address in CTM config to: {:?}",
+                    state_transition.bytecodes_supplier_addr
+                ));
+            }
+        }
+    }
 }
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
@@ -627,7 +522,7 @@ async fn no_governance_stage_2(
 fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScriptParams {
     match upgrade_version {
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
-        UpgradeVersion::V31InteropB => V31_UPGRADE_CORE_CONTRACTS_PARAMS,
+        UpgradeVersion::V31InteropB => V31_UPGRADE_ECOSYSTEM_PARAMS,
     }
 }
 

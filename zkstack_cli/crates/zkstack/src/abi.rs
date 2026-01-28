@@ -37,10 +37,15 @@ abigen!(
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
-// Using IAdmin for the diamondCut function
+abigen!(
+    AdminAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IAdmin.sol/IAdmin.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
 abigen!(
     DiamondCutAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IAdmin.sol/IAdmin.json",
+    "../../../contracts/l1-contracts/zkstack-out/IDiamondCut.sol/IDiamondCut.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 

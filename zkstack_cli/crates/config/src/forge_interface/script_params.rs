@@ -125,22 +125,17 @@ pub const V29_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/upgrade/v29/ChainUpgrade_v29.s.sol",
 };
 
-pub const V31_UPGRADE_CORE_CONTRACTS_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/v31-upgrade-core.toml",
-    output: "script-out/v31-upgrade-core.toml",
-    script_path: "deploy-scripts/upgrade/v31/EcosystemUpgrade_v31.s.sol",
-};
-
-pub const V31_UPGRADE_CTM_CONTRACTS_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/v31-upgrade-ctm.toml",
-    output: "script-out/v31-upgrade-ctm.toml",
-    script_path: "deploy-scripts/upgrade/v31/EcosystemUpgrade_v31.s.sol",
-};
 
 pub const V31_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/v31-upgrade-chain.toml",
+    input: "script-config/should-not-exists-3.toml",
     output: "script-out/v31-upgrade-chain.toml",
     script_path: "deploy-scripts/upgrade/v31/ChainUpgrade_v31.s.sol",
+};
+
+pub const V31_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/should-not-exists-0.toml",
+    output: "script-out/v31-upgrade-ecosystem.toml",
+    script_path: "deploy-scripts/upgrade/v31/EcosystemUpgrade_v31.s.sol",
 };
 
 pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
