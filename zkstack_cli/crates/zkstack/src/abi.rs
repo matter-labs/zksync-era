@@ -7,6 +7,12 @@ abigen!(
 );
 
 abigen!(
+    MessageRootAbi,
+    "../../../contracts/l1-contracts/zkstack-out/MessageRootBase.sol/MessageRootBase.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
     ZkChainAbi,
     "../../../contracts/l1-contracts/zkstack-out/IZKChain.sol/IZKChain.json",
     event_derives(serde::Deserialize, serde::Serialize)
@@ -141,8 +147,20 @@ abigen!(
 );
 
 abigen!(
+    IAssetTrackerBaseAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IAssetTrackerBase.sol/IAssetTrackerBase.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
     IL2AssetTrackerAbi,
     "../../../contracts/l1-contracts/zkstack-out/IL2AssetTracker.sol/IL2AssetTracker.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IGWAssetTrackerAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IGWAssetTracker.sol/IGWAssetTracker.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 

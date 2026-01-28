@@ -591,15 +591,10 @@ async function publishBytecode(
     nonce: number
 ): Promise<number> {
     const hash = zksync.utils.hashBytecode(bytecode);
-    const abi = [
-        'function publishBytecode(bytes calldata _bytecode) public',
-        'function publishingBlock(bytes32 _hash) public view returns (uint256)'
-    ];
-
-    const contract = new ethers.Contract(bytecodeSupplierAddr, abi, wallet);
+    const contract = new ethers.Contract(bytecodeSupplierAddr, contracts.bytecodesSupplierAbi, wallet);
     const block = await contract.publishingBlock(hash);
     if (block == BigInt(0)) {
-        const tx = await contract.publishBytecode(bytecode, { nonce });
+        const tx = await contract.publishEraBytecode(bytecode, { nonce });
         await tx.wait();
         return 1;
     }
@@ -778,7 +773,7 @@ async function pauseMigrationsCalldata(
         // For gateway, get the ChainAssetHandler address from L2 Bridgehub
         const l2BridgehubContract = new ethers.Contract(
             L2_BRIDGEHUB_ADDRESS,
-            ['function chainAssetHandler() external view returns (address)'],
+            contracts.bridgehubAbi,
             gatewayInfo.gatewayProvider
         );
         chainAssetHandlerAddr = await l2BridgehubContract.chainAssetHandler();
@@ -786,13 +781,13 @@ async function pauseMigrationsCalldata(
         // For L1, get the ChainAssetHandler address from L1 Bridgehub
         const bridgehubContract = new ethers.Contract(
             l1BridgehubAddr,
-            ['function chainAssetHandler() external view returns (address)'],
+            contracts.bridgehubAbi,
             l1Provider
         );
         chainAssetHandlerAddr = await bridgehubContract.chainAssetHandler();
     }
 
-    const iface = new ethers.Interface(['function pauseMigration() external']);
+    const iface = contracts.chainAssetHandlerAbi;
 
     return prepareGovernanceCalldata(
         chainAssetHandlerAddr,
