@@ -3,10 +3,12 @@
 use std::time::Instant;
 
 use test_casing::TestCases;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParams, GenesisParamsInitials};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
 use zksync_test_contracts::LoadnextContractExecutionParams;
-use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
+use zksync_types::{
+    get_nonce_key, settlement::SettlementLayer, L1BatchNumber, L2BlockNumber, StorageLog,
+};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::*;
@@ -99,7 +101,7 @@ async fn getting_nonce_for_account() {
     let test_address = Address::repeat_byte(1);
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     // Manually insert a nonce for the address.
@@ -204,7 +206,7 @@ async fn create_real_tx_sender_with_options(
 ) -> TxSender {
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut storage, &genesis_params)
+    insert_genesis_batch(&mut storage, &genesis_params.clone().into())
         .await
         .unwrap();
     drop(storage);
@@ -229,5 +231,7 @@ async fn create_real_tx_sender_with_options(
 
 async fn pending_block_args(tx_sender: &TxSender) -> BlockArgs {
     let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
-    BlockArgs::pending(&mut storage).await.unwrap()
+    BlockArgs::pending(&mut storage, SettlementLayer::for_tests())
+        .await
+        .unwrap()
 }

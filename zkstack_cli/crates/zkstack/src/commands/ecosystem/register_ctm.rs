@@ -1,4 +1,4 @@
-use ethers::{abi::parse_abi, contract::BaseContract};
+use ethers::contract::BaseContract;
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -13,6 +13,7 @@ use zkstack_cli_types::{L1Network, VMOption};
 use zksync_types::H160;
 
 use crate::{
+    abi::IREGISTERCTMABI_ABI,
     admin_functions::{AdminScriptOutput, AdminScriptOutputInner},
     commands::{
         chain::utils::display_admin_script_output,
@@ -23,8 +24,8 @@ use crate::{
 };
 
 lazy_static! {
-   static ref REGISTER_CTM_FUNCTIONS: BaseContract =
-        BaseContract::from(parse_abi(&["function registerCTM(address bridgehub, address chainTypeManagerProxy, bool shouldSend) public",]).unwrap(),);
+    static ref REGISTER_CTM_FUNCTIONS: BaseContract =
+        BaseContract::from(IREGISTERCTMABI_ABI.clone());
 }
 
 pub async fn run(args: RegisterCTMArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -101,11 +102,6 @@ pub async fn register_ctm_on_existing_bh(
         .with_ffi()
         .with_calldata(&calldata)
         .with_rpc_url(l1_rpc_url.to_string());
-
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
 
     if let Some(address) = sender {
         forge = forge.with_sender(address);

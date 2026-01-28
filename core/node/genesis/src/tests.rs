@@ -9,7 +9,7 @@ async fn running_genesis() {
     let mut conn = pool.connection().await.unwrap();
     conn.blocks_dal().delete_genesis().await.unwrap();
 
-    let params = GenesisParams::mock();
+    let params = GenesisParamsInitials::mock();
 
     insert_genesis_batch(&mut conn, &params).await.unwrap();
 
@@ -36,7 +36,8 @@ async fn running_genesis_with_big_chain_id() {
         l2_chain_id: L2ChainId::max(),
         ..mock_genesis_config()
     })
-    .unwrap();
+    .unwrap()
+    .into();
     insert_genesis_batch(&mut conn, &params).await.unwrap();
 
     assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
@@ -59,7 +60,8 @@ async fn running_genesis_with_non_latest_protocol_version() {
         }),
         ..mock_genesis_config()
     })
-    .unwrap();
+    .unwrap()
+    .into();
 
     insert_genesis_batch(&mut conn, &params).await.unwrap();
     assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());

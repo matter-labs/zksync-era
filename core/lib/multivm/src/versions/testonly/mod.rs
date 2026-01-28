@@ -21,9 +21,12 @@ use zksync_system_constants::{
 use zksync_types::{
     block::L2BlockHasher,
     bytecode::{pad_evm_bytecode, BytecodeHash},
+    commitment::{L2DACommitmentScheme, L2PubdataValidator},
     fee_model::BatchFeeInput,
     get_code_key, get_evm_code_hash_key, get_is_account_key, get_known_code_key, h256_to_address,
-    h256_to_u256, u256_to_h256,
+    h256_to_u256,
+    settlement::SettlementLayer,
+    u256_to_h256,
     utils::storage_key_for_eth_balance,
     web3, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
     U256,
@@ -196,11 +199,14 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
             max_virtual_blocks_to_create: 100,
             interop_roots: vec![],
         },
+        settlement_layer: SettlementLayer::for_tests(),
     }
 }
 
 pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
-    Rc::new(FullPubdataBuilder::new(Address::zero()))
+    Rc::new(FullPubdataBuilder::new(
+        L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+    ))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {

@@ -14,6 +14,7 @@ use zksync_proof_data_handler::{Locking, Processor};
 use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData},
     commitment::L1BatchCommitmentArtifacts,
+    settlement::SettlementLayer,
     L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
 };
 
@@ -97,6 +98,7 @@ impl TestContext {
                 evm_emulator: Some(H256::repeat_byte(43)),
             },
             ProtocolVersionId::latest(),
+            SettlementLayer::for_tests(),
         )
     }
 

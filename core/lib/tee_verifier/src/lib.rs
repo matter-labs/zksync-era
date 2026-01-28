@@ -310,6 +310,10 @@ mod tests {
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_prover_interface::inputs::VMRunWitnessInputData;
     use zksync_tee_prover_interface::inputs::TeeVerifierInput;
+    use zksync_types::{
+        commitment::{L2DACommitmentScheme, L2PubdataValidator},
+        settlement::SettlementLayer,
+    };
 
     use super::*;
 
@@ -344,6 +348,7 @@ mod tests {
                     max_virtual_blocks_to_create: 0,
                     interop_roots: vec![],
                 },
+                settlement_layer: SettlementLayer::for_tests(),
             },
             SystemEnv {
                 zk_porter_available: false,
@@ -364,7 +369,13 @@ mod tests {
                 default_validation_computational_gas_limit: 0,
                 chain_id: Default::default(),
             },
-            Default::default(),
+            PubdataParams::new(
+                L2PubdataValidator::CommitmentScheme(
+                    L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                ),
+                Default::default(),
+            )
+            .unwrap(),
         );
         let tvi = TeeVerifierInput::new(tvi);
         let serialized = bincode::serialize(&tvi).expect("Failed to serialize TeeVerifierInput.");

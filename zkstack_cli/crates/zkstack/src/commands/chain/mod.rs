@@ -13,6 +13,7 @@ use crate::commands::chain::{
     deploy_l2_contracts::Deploy2ContractsOption,
     genesis::GenesisCommand,
     init::ChainInitCommand,
+    manage_deposits::{ManageDepositsArgs, ManageDepositsOption},
 };
 
 mod accept_chain_ownership;
@@ -27,7 +28,9 @@ mod enable_evm_emulator;
 mod gateway;
 pub mod genesis;
 pub mod init;
+pub mod manage_deposits;
 pub mod register_chain;
+pub mod register_on_all_chains;
 mod set_da_validator_pair;
 mod set_da_validator_pair_calldata;
 mod set_pubdata_pricing_mode;
@@ -46,6 +49,8 @@ pub enum ChainCommands {
     Init(Box<ChainInitCommand>),
     /// Run server genesis
     Genesis(GenesisCommand),
+    /// Register a chain on all other chains
+    RegisterOnAllChains(ForgeScriptArgs),
     /// Register a new chain on L1 (executed by L1 governor).
     /// This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts,
     /// registers chain with BridgeHub and sets pending admin for DiamondProxy.
@@ -88,6 +93,11 @@ pub enum ChainCommands {
     EnableEvmEmulator(ForgeScriptArgs),
     /// Update pubdata pricing mode (used for Rollup -> Validium migration)
     SetPubdataPricingMode(SetPubdataPricingModeArgs),
+    /// Pause deposits before initiating a chain migration to gateway
+    #[command(alias = "pause-deposits")]
+    PauseDepositsBeforeInitiatingMigration(ManageDepositsArgs),
+    /// Manually unpause deposits early for better UX
+    UnpauseDeposits(ManageDepositsArgs),
     /// Update da validator pair (used for Rollup -> Validium migration)
     SetDAValidatorPair(SetDAValidatorPairArgs),
     #[command(subcommand, alias = "gw")]
@@ -100,6 +110,7 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::Init(args) => init::run(*args, shell).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         ChainCommands::Genesis(args) => genesis::run(args, shell).await,
+        ChainCommands::RegisterOnAllChains(args) => register_on_all_chains::run(args, shell).await,
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
         ChainCommands::DeployL2Contracts(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All).await
@@ -133,6 +144,12 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
         ChainCommands::SetPubdataPricingMode(args) => {
             set_pubdata_pricing_mode::run(args, shell).await
+        }
+        ChainCommands::PauseDepositsBeforeInitiatingMigration(args) => {
+            manage_deposits::run(args, shell, ManageDepositsOption::PauseDeposits).await
+        }
+        ChainCommands::UnpauseDeposits(args) => {
+            manage_deposits::run(args, shell, ManageDepositsOption::UnpauseDeposits).await
         }
         ChainCommands::SetDAValidatorPair(args) => set_da_validator_pair::run(args, shell).await,
         ChainCommands::Gateway(args) => gateway::run(shell, args).await,

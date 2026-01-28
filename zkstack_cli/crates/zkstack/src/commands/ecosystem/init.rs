@@ -131,10 +131,7 @@ async fn init_ecosystem(
         .await?;
 
         // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
-        if !init_args.vm_option.is_zksync_os()
-            && ecosystem_config.zksync_os_exist()
-            && init_args.dev
-        {
+        if !init_args.vm_option.is_zksync_os() && init_args.dev {
             rebuild_all_contracts(
                 shell,
                 &ecosystem_config.contracts_path_for_ctm(VMOption::ZKSyncOsVM),
@@ -331,6 +328,22 @@ async fn deploy_ecosystem(
         l1_rpc_url.clone(),
     )
     .await?;
+
+    if let Some(chain_asset_handler_addr) = contracts_config
+        .core_ecosystem_contracts
+        .chain_asset_handler_proxy_addr
+    {
+        accept_owner(
+            shell,
+            ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
+            contracts_config.l1.governance_addr,
+            &ecosystem_config.get_wallets()?.governor,
+            chain_asset_handler_addr,
+            &forge_args,
+            l1_rpc_url.clone(),
+        )
+        .await?;
+    }
 
     Ok(contracts_config)
 }
