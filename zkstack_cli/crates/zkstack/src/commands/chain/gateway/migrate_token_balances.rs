@@ -374,6 +374,7 @@ pub async fn migrate_token_balances_from_gateway(
     forge.run(shell)?;
 
     // Wait for all tokens to be migrated
+    println!("Waiting for all tokens to be migrated...");
     let tracker = Contract::new(
         L2_ASSET_TRACKER_ADDRESS,
         crate::abi::IASSETTRACKERBASEABI_ABI.clone(),
