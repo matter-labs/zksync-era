@@ -186,25 +186,21 @@ pub async fn get_zk_chain_on_chain_params(
     diamond_proxy_addr: Address,
 ) -> Result<ZkChainOnChainConfig, ContractCallError> {
     let abi = getters_facet_contract();
-    let l2_da_commitment_scheme: Token = CallFunctionArgs::new("getDAValidatorPair", ())
+    let token: Token = CallFunctionArgs::new("getDAValidatorPair", ())
         .for_contract(diamond_proxy_addr, &abi)
         .call(eth_client)
         .await?;
-    let l2_da_commitment_scheme =
-        if let Token::Tuple(l2_da_commitment_scheme) = l2_da_commitment_scheme {
-            if let [Token::Address(_), Token::Uint(l2_da_commitment_scheme)] =
-                l2_da_commitment_scheme.as_slice()
-            {
-                Some(
-                    L2DACommitmentScheme::try_from(l2_da_commitment_scheme.as_u64() as u8)
-                        .expect("wrong l2_da_commitment_scheme"),
-                )
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+
+    let l2_da_commitment_scheme = match token {
+        Token::Tuple(tuple) if tuple.len() == 2 => match tuple.as_slice() {
+            [Token::Address(_), Token::Uint(value)] if *value <= U256::from(u8::MAX) => Some(
+                L2DACommitmentScheme::try_from(value.as_u64() as u8)
+                    .expect("Wrong L2DACommitmentScheme"),
+            ),
+            _ => None,
+        },
+        _ => None,
+    };
 
     Ok(ZkChainOnChainConfig {
         l2_da_commitment_scheme,

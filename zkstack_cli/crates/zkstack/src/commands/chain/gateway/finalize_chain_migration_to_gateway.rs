@@ -34,6 +34,7 @@ use crate::{
     abi::GATEWAYUTILSABI_ABI,
     admin_functions::AdminScriptMode,
     commands::chain::{
+        args::init::da_configs::ValidiumTypeInternal,
         gateway::{
             gateway_common::{extract_and_wait_for_priority_ops, get_migration_transaction},
             migrate_from_gateway::{
@@ -63,6 +64,18 @@ pub struct FinalizeChainMigrationToGatewayArgs {
     pub deploy_paymaster: Option<bool>,
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub tx_status: Option<bool>,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// Gateway RPC URL. If not provided, will be read from gateway chain's general config.
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
+
+    /// Validium type for the chain. If not provided, will be read from chain's general config.
+    #[clap(long)]
+    pub validium_type: Option<ValidiumTypeInternal>,
 }
 
 lazy_static! {
@@ -83,6 +96,9 @@ impl FinalizeChainMigrationToGatewayArgs {
             gateway_chain_name: self.gateway_chain_name,
             deploy_paymaster,
             tx_status: self.tx_status.unwrap_or(true),
+            l1_rpc_url: self.l1_rpc_url,
+            gateway_rpc_url: self.gateway_rpc_url,
+            validium_type: self.validium_type,
         }
     }
 }
@@ -93,6 +109,9 @@ pub struct FinalizeChainMigrationToGatewayArgsFinal {
     pub gateway_chain_name: String,
     pub deploy_paymaster: bool,
     pub tx_status: bool,
+    pub l1_rpc_url: Option<String>,
+    pub gateway_rpc_url: Option<String>,
+    pub validium_type: Option<ValidiumTypeInternal>,
 }
 
 pub async fn run(args: FinalizeChainMigrationToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -131,14 +150,22 @@ pub async fn run_inner(
     chain_config: &ChainConfig,
     gateway_chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
-    let l1_rpc_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_rpc_url = match &args.l1_rpc_url {
+        Some(url) => url.clone(),
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
     let l1_provider = get_ethers_provider(&l1_rpc_url)?;
 
-    let general_config = gateway_chain_config.get_general_config().await?;
     let gateway_chain_id = gateway_chain_config.chain_id.as_u64();
-    let gw_rpc_url = general_config.l2_http_url()?;
-    let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
-    let gateway_zk_client = get_zk_client(&gw_rpc_url, chain_config.chain_id.as_u64())?;
+    let gateway_rpc_url = match &args.gateway_rpc_url {
+        Some(url) => url.clone(),
+        None => {
+            let general_config = gateway_chain_config.get_general_config().await?;
+            general_config.l2_http_url()?
+        }
+    };
+    let gateway_provider = get_ethers_provider(&gateway_rpc_url)?;
+    let gateway_zk_client = get_zk_client(&gateway_rpc_url, chain_config.chain_id.as_u64())?;
 
     let mut contracts_config = chain_config.get_contracts_config()?;
 
@@ -217,13 +244,21 @@ pub async fn run_inner(
         ecosystem_config,
         &mut contracts_config,
         &args.forge_args,
-        l1_rpc_url,
+        l1_rpc_url.clone(),
         args.deploy_paymaster,
+        args.validium_type.clone(),
     )
     .await?;
 
     // Set the DA validator pair on the Gateway
-    let context = get_migrate_to_gateway_context(chain_config, gateway_chain_config, true).await?;
+    let context = get_migrate_to_gateway_context(
+        chain_config,
+        gateway_chain_config,
+        true,
+        l1_rpc_url,
+        gateway_rpc_url,
+    )
+    .await?;
 
     let (_, l2_da_validator_commitment_scheme) =
         context.l1_zk_chain.get_da_validator_pair().await?;

@@ -209,13 +209,40 @@ describe('Migration from gateway test', function () {
         await waitForAllBatchesToBeExecuted();
 
         if (direction == 'TO') {
-            await utils.spawn(
-                `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
-            );
+            const maxRetries = 3;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    // We use utils.exec instead of utils.spawn to capture stdout/stderr
+                    await utils.exec(
+                        `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+                    );
+                    break;
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        console.error(`Gateway migration failed after ${maxRetries} attempts.`);
+                        throw error;
+                    }
+                    console.log(`Gateway migration failed (attempt ${i + 1}/${maxRetries}). Retrying...`);
+                }
+            }
         } else {
-            await utils.spawn(
-                `zkstack chain gateway migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
-            );
+            let migrationSucceeded = false;
+            for (let i = 0; i < 60; i++) {
+                try {
+                    await utils.spawn(
+                        `zkstack chain gateway migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+                    );
+                    migrationSucceeded = true;
+                    break;
+                } catch (e) {
+                    console.log(`Migration attempt ${i} failed with error: ${e}`);
+                    await utils.sleep(2);
+                }
+            }
+
+            if (!migrationSucceeded) {
+                throw new Error('Migration from gateway did not succeed after 60 attempts');
+            }
         }
         await mainNodeSpawner.mainNode?.waitForShutdown();
         // Node is already killed, so we simply start the new server

@@ -3,6 +3,8 @@ use std::{path::Path, sync::Arc};
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
+    abi::parse_abi,
+    contract::Contract,
     prelude::Http,
     providers::{Middleware, Provider},
 };
@@ -19,7 +21,7 @@ use super::{
     messages::message_for_gateway_migration_progress_state,
 };
 use crate::{
-    abi::{BridgehubAbi, ChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
+    abi::{BridgehubAbi, IChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
     admin_functions::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
         set_da_validator_pair_via_gateway, AdminScriptMode, AdminScriptOutput,
@@ -133,7 +135,7 @@ impl MigrateToGatewayConfig {
             );
         }
 
-        let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
+        let gw_ctm = IChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
         let gw_ctm_protocol_version = gw_ctm.protocol_version().await?;
         if gw_ctm_protocol_version != protocol_version {
             // The migration would fail anyway since CTM has checks to ensure that the protocol version is the same
@@ -240,28 +242,35 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         result.extend(da_validator_encoding_result.calls.into_iter());
     }
 
-    let is_validator_enabled =
-        if get_minor_protocol_version(context.protocol_version)?.is_pre_interop_fast_blocks() {
-            // In previous versions, we need to check if the validator is enabled
-            // context
-            //     .gw_validator_timelock
-            //     .validators(context.l2_chain_id.into(), context.validator)
-            //     .await?
-            false
-        } else {
-            context
-                .gw_validator_timelock
-                .has_role_for_chain_id(
-                    context.l2_chain_id.into(),
-                    context
-                        .gw_validator_timelock
-                        .committer_role()
-                        .call()
-                        .await?,
-                    context.validator,
-                )
-                .await?
-        };
+    let is_validator_enabled = if get_minor_protocol_version(context.protocol_version)?
+        .is_pre_interop_fast_blocks()
+    {
+        // In previous versions, we need to check if the validator is enabled
+        let legacy_validator_timelock = Contract::new(
+                context.gw_validator_timelock_addr,
+                parse_abi(&[
+                    "function validators(uint256 _chainId, address _validator) external view returns (bool)",
+                ])?,
+                context.gw_provider.clone(),
+            );
+        legacy_validator_timelock
+            .method::<_, bool>("validators", (context.l2_chain_id, context.validator))?
+            .call()
+            .await?
+    } else {
+        context
+            .gw_validator_timelock
+            .has_role_for_chain_id(
+                context.l2_chain_id.into(),
+                context
+                    .gw_validator_timelock
+                    .committer_role()
+                    .call()
+                    .await?,
+                context.validator,
+            )
+            .await?
+    };
 
     // 4. If validator is not yet present, please include.
     if !is_validator_enabled {
