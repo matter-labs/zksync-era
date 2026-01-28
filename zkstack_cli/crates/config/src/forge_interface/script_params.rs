@@ -125,7 +125,6 @@ pub const V29_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/upgrade/v29/ChainUpgrade_v29.s.sol",
 };
 
-
 pub const V31_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/should-not-exists-3.toml",
     output: "script-out/v31-upgrade-chain.toml",

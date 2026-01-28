@@ -243,10 +243,11 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     let is_validator_enabled =
         if get_minor_protocol_version(context.protocol_version)?.is_pre_interop_fast_blocks() {
             // In previous versions, we need to check if the validator is enabled
-            context
-                .gw_validator_timelock
-                .validators(context.l2_chain_id.into(), context.validator)
-                .await?
+            // context
+            //     .gw_validator_timelock
+            //     .validators(context.l2_chain_id.into(), context.validator)
+            //     .await?
+            false
         } else {
             context
                 .gw_validator_timelock

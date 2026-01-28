@@ -526,55 +526,55 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScript
     }
 }
 
-fn get_ctm_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScriptParams {
-    match upgrade_version {
-        UpgradeVersion::V31InteropB => V31_UPGRADE_CTM_CONTRACTS_PARAMS,
-        _ => panic!(
-            "Upgrade version {} is not supported for CTM upgrade",
-            upgrade_version
-        ),
-    }
-}
+// fn get_ctm_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScriptParams {
+//     match upgrade_version {
+//         UpgradeVersion::V31InteropB => V31_UPGRADE_CTM_CONTRACTS_PARAMS,
+//         _ => panic!(
+//             "Upgrade version {} is not supported for CTM upgrade",
+//             upgrade_version
+//         ),
+//     }
+// }
 
-const PROXY_ADMIN_SLOT: H256 = H256([
-    0xb5, 0x31, 0x27, 0x68, 0x4a, 0x56, 0x8b, 0x31, 0x73, 0xae, 0x13, 0xb9, 0xf8, 0xa6, 0x01, 0x6e,
-    0x24, 0x3e, 0x63, 0xb6, 0xe8, 0xee, 0x11, 0x78, 0xd6, 0xa7, 0x17, 0x85, 0x0b, 0x5d, 0x61, 0x03,
-]);
+// const PROXY_ADMIN_SLOT: H256 = H256([
+//     0xb5, 0x31, 0x27, 0x68, 0x4a, 0x56, 0x8b, 0x31, 0x73, 0xae, 0x13, 0xb9, 0xf8, 0xa6, 0x01, 0x6e,
+//     0x24, 0x3e, 0x63, 0xb6, 0xe8, 0xee, 0x11, 0x78, 0xd6, 0xa7, 0x17, 0x85, 0x0b, 0x5d, 0x61, 0x03,
+// ]);
 
-fn get_local_gateway_chain_config(
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<ChainConfig> {
-    let chain_config = ecosystem_config.load_chain(Some(LOCAL_GATEWAY_CHAIN_NAME.to_string()))?;
-    Ok(chain_config)
-}
+// fn get_local_gateway_chain_config(
+//     ecosystem_config: &EcosystemConfig,
+// ) -> anyhow::Result<ChainConfig> {
+//     let chain_config = ecosystem_config.load_chain(Some(LOCAL_GATEWAY_CHAIN_NAME.to_string()))?;
+//     Ok(chain_config)
+// }
 
-async fn get_gateway_state_transition_config(
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<GatewayUpgradeContractsConfig> {
-    // Firstly, we obtain the gateway config
-    let chain_config = get_local_gateway_chain_config(ecosystem_config)?;
-    let gw_config = chain_config.get_gateway_config()?;
-    let general_config = chain_config.get_general_config().await?;
+// async fn get_gateway_state_transition_config(
+//     ecosystem_config: &EcosystemConfig,
+// ) -> anyhow::Result<GatewayUpgradeContractsConfig> {
+//     // Firstly, we obtain the gateway config
+//     let chain_config = get_local_gateway_chain_config(ecosystem_config)?;
+//     let gw_config = chain_config.get_gateway_config()?;
+//     let general_config = chain_config.get_general_config().await?;
 
-    let provider = get_ethers_provider(&general_config.l2_http_url()?)?;
-    let proxy_admin_addr = provider
-        .get_storage_at(
-            gw_config.state_transition_proxy_addr,
-            PROXY_ADMIN_SLOT,
-            None,
-        )
-        .await?;
-    let proxy_admin_addr = h256_to_address(&proxy_admin_addr);
+//     let provider = get_ethers_provider(&general_config.l2_http_url()?)?;
+//     let proxy_admin_addr = provider
+//         .get_storage_at(
+//             gw_config.state_transition_proxy_addr,
+//             PROXY_ADMIN_SLOT,
+//             None,
+//         )
+//         .await?;
+//     let proxy_admin_addr = h256_to_address(&proxy_admin_addr);
 
-    let chain_id = chain_config.chain_id.as_u64();
+//     let chain_id = chain_config.chain_id.as_u64();
 
-    Ok(GatewayUpgradeContractsConfig {
-        gateway_state_transition: GatewayStateTransitionConfig {
-            chain_type_manager_proxy_addr: gw_config.state_transition_proxy_addr,
-            chain_type_manager_proxy_admin: proxy_admin_addr,
-            rollup_da_manager: gw_config.rollup_da_manager,
-            rollup_sl_da_validator: gw_config.relayed_sl_da_validator,
-        },
-        chain_id,
-    })
-}
+//     Ok(GatewayUpgradeContractsConfig {
+//         gateway_state_transition: GatewayStateTransitionConfig {
+//             chain_type_manager_proxy_addr: gw_config.state_transition_proxy_addr,
+//             chain_type_manager_proxy_admin: proxy_admin_addr,
+//             rollup_da_manager: gw_config.rollup_da_manager,
+//             rollup_sl_da_validator: gw_config.relayed_sl_da_validator,
+//         },
+//         chain_id,
+//     })
+// }

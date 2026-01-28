@@ -10,7 +10,7 @@ use zkstack_cli_config::{
 };
 
 use crate::{
-    abi::IDEPLOYPAYMASTERABI_ABI,
+    abi::DEPLOYPAYMASTERABI_ABI,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
@@ -48,7 +48,7 @@ pub async fn deploy_paymaster(
     let chain_id = chain_config.chain_id.as_u64();
 
     // Encode calldata for the run function
-    let deploy_paymaster_contract = BaseContract::from(IDEPLOYPAYMASTERABI_ABI.clone());
+    let deploy_paymaster_contract = BaseContract::from(DEPLOYPAYMASTERABI_ABI.clone());
     let calldata = deploy_paymaster_contract
         .encode("run", (bridgehub, chain_id))
         .unwrap();
