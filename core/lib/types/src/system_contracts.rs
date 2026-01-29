@@ -303,7 +303,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 51] = [
         ContractLanguage::Sol,
     ),
     (
-        "",
+        "../../l1-contracts/zkout/",
         "BaseTokenHolder",
         BASE_TOKEN_HOLDER_ADDRESS,
         ContractLanguage::Sol,
