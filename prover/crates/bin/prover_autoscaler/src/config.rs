@@ -80,6 +80,15 @@ pub struct ProverAutoscalerScalerConfig {
     /// Time window for including scale errors in Autoscaler calculations. Clusters will be sorted by number of the errors.
     #[config(default_t = 1 * TimeUnit::Hours)]
     pub scale_errors_duration: Duration,
+    /// Percentage (0-100) of pools with GCE out of resources errors to trigger aggressive mode.
+    /// 0 = disabled (default), 50 = trigger when 50% of ALL pools have resource errors.
+    /// When triggered, scaler adds missing pods to ALL pools simultaneously.
+    #[config(default_t = 0)]
+    pub aggressive_mode_threshold: usize,
+    /// Duration to stay in aggressive mode after successfully getting resources.
+    /// This cooldown prevents oscillation between modes.
+    #[config(default_t = 10 * TimeUnit::Minutes)]
+    pub aggressive_mode_cooldown: Duration,
     /// List of simple autoscaler targets.
     pub scaler_targets: Vec<ScalerTarget>,
     /// If dry-run enabled don't send any scale requests.
@@ -222,6 +231,8 @@ mod tests {
               apply_min_to_namespace: prover-blue
               long_pending_duration: 10m
               scale_errors_duration: 2h
+              aggressive_mode_threshold: 50
+              aggressive_mode_cooldown: 10m
               need_to_move_duration: 5m
               scaler_targets:
                 - queue_report_field: prover_jobs
@@ -307,5 +318,10 @@ mod tests {
             Duration::from_secs(600)
         );
         assert_eq!(scaler_config.scaler_targets.len(), 7);
+        assert_eq!(scaler_config.aggressive_mode_threshold, 50);
+        assert_eq!(
+            scaler_config.aggressive_mode_cooldown,
+            Duration::from_secs(600)
+        );
     }
 }

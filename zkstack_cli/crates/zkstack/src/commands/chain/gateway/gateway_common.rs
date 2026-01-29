@@ -50,8 +50,20 @@ impl MigrationDirection {
     }
 }
 
+#[derive(Debug, clap::Parser)]
+pub struct NotifyServerArgs {
+    /// All ethereum environment related arguments
+    #[clap(flatten)]
+    pub forge_args: ForgeScriptArgs,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+}
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum NotificationReceivedState {
+    NotAllBatchesCommitted,
     NotAllBatchesExecuted(U256, U256),
     UnconfirmedTxs(usize),
 }
@@ -70,6 +82,9 @@ impl std::fmt::Display for NotificationReceivedState {
                     f,
                     "There are some unconfirmed transactions: {unconfirmed_txs}"
                 )
+            }
+            NotificationReceivedState::NotAllBatchesCommitted => {
+                write!(f, "Not all batches have been committed yet")
             }
         }
     }
@@ -171,7 +186,7 @@ async fn get_batch_execution_status(
     let zk_chain_address = sl_bridgehub.get_zk_chain(U256::from(l2_chain_id)).await?;
     let zk_chain = ZkChainAbi::new(zk_chain_address, provider);
     let total_committed = zk_chain.get_total_batches_committed().await?;
-    let total_executed = zk_chain.get_total_batches_committed().await?;
+    let total_executed = zk_chain.get_total_batches_executed().await?;
 
     Ok((total_committed, total_executed))
 }
@@ -307,6 +322,12 @@ pub(crate) async fn get_gateway_migration_state(
                     total_batches_committed,
                     total_batches_executed,
                 ),
+            ));
+        }
+
+        if gateway_migration_status.wait_for_batches_to_be_committed {
+            return Ok(GatewayMigrationProgressState::NotificationReceived(
+                NotificationReceivedState::NotAllBatchesCommitted,
             ));
         }
     }
@@ -459,18 +480,21 @@ pub(crate) async fn await_for_tx_to_complete(
 }
 
 pub(crate) async fn notify_server(
-    args: ForgeScriptArgs,
+    args: NotifyServerArgs,
     shell: &Shell,
     direction: MigrationDirection,
 ) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
     let contracts = chain_config.get_contracts_config()?;
 
     let calls = get_notify_server_calls(
         shell,
-        &args,
+        &args.forge_args,
         &chain_config.path_to_foundry_scripts(),
         NotifyServerCallsArgs {
             l1_bridgehub_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
