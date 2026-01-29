@@ -1,5 +1,12 @@
 # Changelog
 
+## [24.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v24.0.0...prover-v24.1.0) (2026-01-27)
+
+
+### Features
+
+* **prover:** Add aggressive mode for prover_autoscaler ([#4605](https://github.com/matter-labs/zksync-era/issues/4605)) ([f5471a3](https://github.com/matter-labs/zksync-era/commit/f5471a3348a6c53280ee770b19bf98053a9db8b5))
+
 ## [24.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v23.2.0...prover-v24.0.0) (2026-01-21)
 
 
