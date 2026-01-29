@@ -9,7 +9,9 @@ import {
     GATEWAY_CHAIN_ID,
     L2_INTEROP_ROOT_STORAGE_ADDRESS,
     L2_BRIDGEHUB_ADDRESS,
-    ArtifactL2InteropRootStorage
+    ArtifactL2InteropRootStorage,
+    ArtifactIBridgehubBase,
+    ArtifactIGetters
 } from './constants';
 
 import { log } from 'console';
@@ -107,17 +109,9 @@ export async function waitUntilBlockExecutedOnGateway(
     gwWallet: zksync.Wallet,
     blockNumber: number
 ) {
-    const bridgehub = new ethers.Contract(
-        L2_BRIDGEHUB_ADDRESS,
-        ['function getZKChain(uint256) view returns (address)'],
-        gwWallet
-    );
-    const zkChainAddr = await bridgehub.getZKChain(await wallet.provider.getNetwork().then((net) => net.chainId));
-    const gettersFacet = new ethers.Contract(
-        zkChainAddr,
-        ['function getTotalBatchesExecuted() view returns (uint256)'],
-        gwWallet
-    );
+    const bridgehub = new ethers.Contract(L2_BRIDGEHUB_ADDRESS, ArtifactIBridgehubBase.abi, gwWallet);
+    const zkChainAddr = await bridgehub.getZKChain(await wallet.provider.getNetwork().then((net: any) => net.chainId));
+    const gettersFacet = new ethers.Contract(zkChainAddr, ArtifactIGetters.abi, gwWallet);
 
     let batchNumber = (await wallet.provider.getBlockDetails(blockNumber)).l1BatchNumber;
     let currentExecutedBatchNumber = 0;
