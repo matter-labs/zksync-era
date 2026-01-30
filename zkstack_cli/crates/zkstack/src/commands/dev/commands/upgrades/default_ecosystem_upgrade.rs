@@ -156,16 +156,54 @@ async fn no_governance_prepare(
 
     // TODO Get rid of BrodacastFile usage
     let broadcast_file: BroadcastFile = {
-        let file_content = std::fs::read_to_string(
+        // Extract script filename from the script path (e.g., "EcosystemUpgrade_v31.s.sol")
+        let upgrade_params = get_ecosystem_upgrade_params(upgrade_version);
+        let script_path = upgrade_params.script();
+        let script_filename = script_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .context("Failed to extract script filename from script path")?;
+
+        let broadcast_path = ecosystem_config
+            .path_to_foundry_scripts_for_ctm(vm_option)
+            .join(format!(
+                "broadcast/{}/{}/run-latest.json",
+                script_filename, l1_chain_id
+            ));
+
+        logger::info(format!(
+            "Reading broadcast file from: {}",
+            broadcast_path.display()
+        ));
+        logger::info(format!(
+            "Broadcast path exists: {}",
+            broadcast_path.exists()
+        ));
+        logger::info(format!("Script filename: {}", script_filename));
+        logger::info(format!("L1 chain ID: {}", l1_chain_id));
+        logger::info(format!(
+            "Base foundry path: {}",
             ecosystem_config
                 .path_to_foundry_scripts_for_ctm(vm_option)
-                .join(format!(
-                    "broadcast/EcosystemUpgrade_v31.s.sol/{}/run-latest.json",
-                    l1_chain_id
-                )),
-        )
-        .context("Failed to read broadcast file")?;
-        serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
+                .display()
+        ));
+
+        // Add a small delay to ensure file is fully written
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let file_content = std::fs::read_to_string(&broadcast_path).with_context(|| {
+            format!(
+                "Failed to read broadcast file at: {}",
+                broadcast_path.display()
+            )
+        })?;
+
+        serde_json::from_str(&file_content).with_context(|| {
+            format!(
+                "Failed to parse broadcast file at: {}",
+                broadcast_path.display()
+            )
+        })?
     };
 
     logger::info("done! 1");

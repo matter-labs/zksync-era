@@ -101,6 +101,7 @@ pub struct EcosystemUpgradeStateTransition {
     pub genesis_upgrade_addr: Address,
     pub getters_facet_addr: Address,
     pub mailbox_facet_addr: Address,
+    #[serde(alias = "chain_type_manager_implementation_addr")]
     pub state_transition_implementation_addr: Address,
     pub verifier_addr: Address,
     #[serde(default)]
