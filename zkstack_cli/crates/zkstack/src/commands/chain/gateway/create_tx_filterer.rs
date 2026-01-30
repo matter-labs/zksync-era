@@ -1,6 +1,8 @@
 use anyhow::Context;
+use clap::Parser;
 use ethers::contract::BaseContract;
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     config::global_config,
@@ -28,13 +30,28 @@ lazy_static! {
         BaseContract::from(DEPLOYGATEWAYTRANSACTIONFILTERERABI_ABI.clone());
 }
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+#[derive(Debug, Serialize, Deserialize, Parser)]
+pub struct CreateTxFiltererArgs {
+    /// All ethereum environment related arguments
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+}
+
+pub async fn run(args: CreateTxFiltererArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
     let mut chain_contracts_config = chain_config.get_contracts_config()?;
 
     let chain_deployer_wallet = chain_config
@@ -44,7 +61,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let output: GatewayTxFiltererOutput = deploy_gateway_tx_filterer(
         shell,
-        args.clone(),
+        args.forge_args.clone(),
         &chain_config,
         &chain_deployer_wallet,
         &chain_contracts_config,
@@ -54,7 +71,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     set_transaction_filterer(
         shell,
-        &args,
+        &args.forge_args,
         &chain_config.path_to_foundry_scripts(),
         AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
         chain_config.chain_id.as_u64(),
