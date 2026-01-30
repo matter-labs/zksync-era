@@ -65,7 +65,6 @@ services:
     entrypoint:
       [
       "/usr/bin/entrypoint.sh",
-      "--enable-consensus",
       ]
     restart: always
     depends_on:
@@ -74,7 +73,7 @@ services:
       generate-secrets:
         condition: service_completed_successfully
     ports:
-      - "0.0.0.0:3054:3054" # consensus public port
+      - "127.0.0.1:3054:3054" # consensus public port
       - "127.0.0.1:3060:3060"
       - "127.0.0.1:3061:3061"
       - "127.0.0.1:3081:3081"
@@ -106,11 +105,63 @@ services:
       EN_SNAPSHOTS_OBJECT_STORE_MODE: "GCSAnonymousReadOnly"
       RUST_LOG: "warn,zksync=info,zksync_core::metadata_calculator=debug,zksync_state=debug,zksync_utils=debug,zksync_web3_decl::client=error"
 
-      EN_CONSENSUS_CONFIG_PATH: "/configs/mainnet_consensus_config.yaml"
-      EN_CONSENSUS_SECRETS_PATH: "/configs/mainnet_consensus_secrets.yaml"
+      #EN_CONSENSUS_CONFIG_PATH: "/configs/mainnet_consensus_config.yaml"
+      #EN_CONSENSUS_SECRETS_PATH: "/configs/mainnet_consensus_secrets.yaml"
+      EN_DATABASE_STATEMENT_TIMEOUT_SEC: 3000 
+
+
+  gateway-external-node:
+    image: "matterlabs/external-node:v29.4.0"
+    entrypoint:
+      [
+      "/usr/bin/entrypoint.sh"
+      ]
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      generate-secrets:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:4054:3054" # consensus public port
+      - "127.0.0.1:4060:3060"
+      - "127.0.0.1:4061:3061"
+      - "127.0.0.1:4081:3081"
+      - "127.0.0.1:6000:5000"
+    volumes:
+      - rocksdb-gateway:/db
+      - ./configs:/configs
+    expose:
+      - 4322
+    environment:
+      DATABASE_URL: "postgres://postgres:notsecurepassword@postgres:5430/zksync_local_ext_gateway_node"
+      DATABASE_POOL_SIZE: 10
+
+      EN_HTTP_PORT: 3060
+      EN_WS_PORT: 3061
+      EN_HEALTHCHECK_PORT: 3081
+      EN_PROMETHEUS_PORT: 4322
+      EN_ETH_CLIENT_URL: https://ethereum-rpc.publicnode.com
+      # Set main node URL as gateway
+      EN_MAIN_NODE_URL: https://rpc.era-gateway-mainnet.zksync.dev
+      EN_GATEWAY_URL: https://rpc.era-gateway-mainnet.zksync.dev
+      EN_L1_CHAIN_ID: 1
+      # Gateway chain id
+      EN_L2_CHAIN_ID: 9075
+      EN_PRUNING_ENABLED: true
+
+      EN_STATE_CACHE_PATH: "./db/ext-node/state_keeper"
+      EN_MERKLE_TREE_PATH: "./db/ext-node/lightweight"
+      #EN_SNAPSHOTS_RECOVERY_ENABLED: "true"
+      #EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: "zksync-era-mainnet-external-node-snapshots"
+      #EN_SNAPSHOTS_OBJECT_STORE_MODE: "GCSAnonymousReadOnly"
+      RUST_LOG: "warn,zksync=info,zksync_core::metadata_calculator=debug,zksync_state=debug,zksync_utils=debug,zksync_web3_decl::client=error"
+
+      EN_DATABASE_STATEMENT_TIMEOUT_SEC: 3000 
 
 volumes:
   postgres: {}
   rocksdb: {}
+  rocksdb-gateway: {}
   prometheus-data: {}
   grafana-data: {}
