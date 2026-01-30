@@ -33,13 +33,22 @@ describe('Interop-B Messages behavior checks', () => {
             const amount = ctx.getTransferAmount();
             const before = await ctx.captureInterop1BalanceSnapshot();
 
-            const msgValue = ctx.calculateMsgValue(1, amount);
-            const tx = await ctx.interop1InteropCenter.sendMessage(recipient, '0x', await ctx.directCallAttrs(amount), {
-                value: msgValue
-            });
+            const msgValue = ctx.calculateMsgValue(1, amount, true);
+            const tx = await ctx.interop1InteropCenter.sendMessage(
+                recipient,
+                '0x',
+                await ctx.directCallAttrs(amount, true),
+                {
+                    value: msgValue
+                }
+            );
             const receipt = await tx.wait();
 
-            await ctx.assertInterop1BalanceChanges(receipt, before, { msgValue, baseTokenAmount: amount });
+            await ctx.assertInterop1BalanceChanges(receipt, before, {
+                msgValue,
+                baseTokenAmount: amount,
+                zkTokenAmount: ctx.fixedFee
+            });
             messages.baseToken = { amount: amount.toString(), receipt };
         }
 
@@ -68,16 +77,16 @@ describe('Interop-B Messages behavior checks', () => {
             const amount = ctx.getTransferAmount();
             const before = await ctx.captureInterop1BalanceSnapshot();
 
-            const msgValue = ctx.interopFee + amount;
+            const msgValue = amount;
             const tx = await ctx.interop1InteropCenter.sendMessage(
                 assetRouterRecipient,
                 ctx.getTokenTransferSecondBridgeData(ctx.baseToken1.assetId!, amount, ctx.interop2Recipient.address),
-                await ctx.indirectCallAttrs(amount),
+                await ctx.indirectCallAttrs(amount, true),
                 { value: msgValue }
             );
             const receipt = await tx.wait();
 
-            await ctx.assertInterop1BalanceChanges(receipt, before, { msgValue });
+            await ctx.assertInterop1BalanceChanges(receipt, before, { msgValue, zkTokenAmount: ctx.fixedFee });
             messages.interop1BaseToken = { amount: amount.toString(), receipt };
         }
 

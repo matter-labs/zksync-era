@@ -170,17 +170,18 @@ describe('Interop-B Bundles behavior checks', () => {
                     callAttributes: [ctx.interopCallValueAttr(baseAmount)]
                 }
             ];
-            const msgValue = ctx.calculateMsgValue(execCallStarters.length, baseAmount);
+            const msgValue = ctx.calculateMsgValue(execCallStarters.length, baseAmount, true);
             const receipt = await ctx.fromInterop1RequestInterop(
                 execCallStarters,
-                { executionAddress: ctx.interop2RichWallet.address },
+                { executionAddress: ctx.interop2RichWallet.address, useFixedFee: true },
                 { value: msgValue }
             );
 
             await ctx.assertInterop1BalanceChanges(receipt, before, {
                 msgValue,
                 baseTokenAmount: baseAmount,
-                tokenAmount
+                tokenAmount,
+                zkTokenAmount: ctx.fixedFee * BigInt(execCallStarters.length)
             });
             bundles.mixed = {
                 amounts: [baseAmount.toString(), tokenAmount.toString()],
