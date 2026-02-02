@@ -482,12 +482,12 @@ impl Aggregator {
 
         let mut priority_ops_proofs = vec![];
         for batch in &l1_batches {
-            let (priority_ops_in_batch) = storage
+            let priority_ops_in_batch = storage
                 .blocks_dal()
                 .get_batch_first_and_last_priority_op_id(batch.header.number)
                 .await
                 .unwrap()
-                .filter(|(first_id, last_id)| *first_id >= priority_tree_start_index);
+                .filter(|(first_id, _last_id)| *first_id >= priority_tree_start_index);
 
             let count = batch.header.l1_tx_count as usize;
             if let Some((first_priority_op_id_in_batch, last_priority_op_id_in_batch)) =
