@@ -2222,12 +2222,12 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn get_last_executed_priority_op_id(&mut self) -> DalResult<Option<usize>> {
-        let lat_executed_l1_batch = self
+        let last_executed_l1_batch = self
             .storage
             .blocks_dal()
             .get_number_of_last_l1_batch_with_tx(L1BatchAggregatedActionType::Execute)
             .await?;
-        let Some(lat_executed_l1_batch) = lat_executed_l1_batch else {
+        let Some(lat_executed_l1_batch) = last_executed_l1_batch else {
             return Ok(None);
         };
 

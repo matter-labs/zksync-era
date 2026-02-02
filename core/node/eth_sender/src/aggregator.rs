@@ -490,6 +490,9 @@ impl Aggregator {
                 .filter(|(first_id, _last_id)| *first_id >= priority_tree_start_index);
 
             let count = batch.header.l1_tx_count as usize;
+
+            // If there are priority operations in this batch. We have to prepare a merkle path for them.
+            // For being always deterministic we build the tree that includes ONLY transcations up to the current batch.
             if let Some((first_priority_op_id_in_batch, last_priority_op_id_in_batch)) =
                 priority_ops_in_batch
             {
