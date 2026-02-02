@@ -858,12 +858,12 @@ impl EthTxAggregator {
             // From V31 when migrating to or from gateway, we need to wait for all blocks to be executed,
             // so there is no restriction for prove and execute operations
             if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_))) {
-                if self
+                let waiting_for_interop_root_batches = self
                     .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
-                    .await?
-                {
-                    // For the migration from gateway to L1, we need to ensure all batches containing interop roots
-                    // get committed and executed. Once this happens, we can re-enable commit & precommit.
+                    .await?;
+                if !waiting_for_interop_root_batches {
+                    // For migration from gateway to L1, keep commits/precommits flowing
+                    // once interop-root batches are finalized.
                     op_restrictions.commit_restriction = None;
                     op_restrictions.precommit_restriction = None;
                 }

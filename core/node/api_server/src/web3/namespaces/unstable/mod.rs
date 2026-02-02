@@ -271,6 +271,28 @@ impl UnstableNamespace {
                 }
             }
         };
+        let has_unsealed_batch = connection
+            .blocks_dal()
+            .get_unsealed_l1_batch()
+            .await
+            .map_err(DalError::generalize)?
+            .is_some();
+        let last_sealed_batch = connection
+            .blocks_dal()
+            .get_sealed_l1_batch_number()
+            .await
+            .map_err(DalError::generalize)?;
+        let last_committed_batch = connection
+            .blocks_dal()
+            .get_number_of_last_l1_batch_committed_on_eth()
+            .await
+            .map_err(DalError::generalize)?;
+        let has_uncommitted_sealed_batches = matches!((last_sealed_batch, last_committed_batch), (Some(sealed), None) if sealed.0 > 0)
+            || matches!(
+                (last_sealed_batch, last_committed_batch),
+                (Some(sealed), Some(committed)) if sealed > committed
+            );
+
         let state = GatewayMigrationState::from_sl_and_notification(
             self.state
                 .api_config
@@ -287,7 +309,9 @@ impl UnstableNamespace {
                 .api_config
                 .settlement_layer
                 .settlement_layer_for_sending_txs(),
-            wait_for_batches_to_be_committed: !all_batches_with_interop_roots_committed,
+            wait_for_batches_to_be_committed: !all_batches_with_interop_roots_committed
+                || has_unsealed_batch
+                || has_uncommitted_sealed_batches,
         })
     }
 

@@ -11,7 +11,6 @@ import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 import { getEcosystemContracts } from 'utils/build/tokens';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
-import { waitForAllBatchesToBeExecuted } from 'highlevel-test-tools/src/wait-for-batches';
 
 async function logsPath(name: string): Promise<string> {
     return await logsTestPath(fileConfig.chain, 'logs/migration/', name);
@@ -192,16 +191,13 @@ describe('Migration from gateway test', function () {
     });
 
     step('Migrate to/from gateway', async () => {
-        await waitForAllBatchesToBeExecuted(fileConfig.chain!);
-
         if (direction == 'TO') {
             await utils.spawn(`zkstack chain gateway notify-about-to-gateway-update --chain ${fileConfig.chain}`);
         } else {
             await utils.spawn(`zkstack chain gateway notify-about-from-gateway-update --chain ${fileConfig.chain}`);
         }
         // Trying to send a transaction from the same address again
-        // TODO: Uncomment this and properly fix the test
-        //await checkedRandomTransfer(alice, 1n);
+        await checkedRandomTransfer(alice, 1n);
 
         // Theoretically, if L1 is really slow at this part, it could lead to a situation
         // where there is an inflight transaction before the migration is complete.
