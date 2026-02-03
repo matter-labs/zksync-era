@@ -25,5 +25,6 @@ tracing.workspace = true
 
 [dev-dependencies]
 zksync_contracts.workspace = true
+serde_json.workspace = true
 
 bincode.workspace = true

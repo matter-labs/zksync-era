@@ -15164,6 +15164,7 @@ dependencies = [
  "bincode",
  "once_cell",
  "serde",
+ "serde_json",
  "tracing",
  "zksync_contracts",
  "zksync_crypto_primitives",

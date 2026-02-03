@@ -17,7 +17,7 @@ use zksync_multivm::{
     },
     pubdata_builders::pubdata_params_to_builder,
     vm_latest::HistoryEnabled,
-    FastVmInstance,
+    FastVmInstance, LegacyVmInstance,
 };
 use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePaths};
 use zksync_tee_prover_interface::inputs::V1TeeVerifierInput;
@@ -87,7 +87,8 @@ impl Verify for V1TeeVerifierInput {
 
         let storage_snapshot = StorageSnapshot::new(storage, factory_deps);
         let storage_view = StorageView::new(storage_snapshot).to_rc_ptr();
-        let vm = FastVmInstance::fast(self.l1_batch_env, self.system_env.clone(), storage_view);
+        // let vm = FastVmInstance::fast(self.l1_batch_env, self.system_env.clone(), storage_view);
+        let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env.clone(), storage_view);
 
         let vm_out = execute_vm(
             self.l2_blocks_execution_data,
@@ -98,12 +99,12 @@ impl Verify for V1TeeVerifierInput {
 
         let block_output_with_proofs = get_bowp(self.merkle_paths)?;
 
-        // let instructions: Vec<TreeInstruction> =
-        //     generate_tree_instructions(enumeration_index, &block_output_with_proofs, vm_out)?;
+        let instructions: Vec<TreeInstruction> =
+            generate_tree_instructions(enumeration_index, &block_output_with_proofs, vm_out)?;
 
-        // block_output_with_proofs
-        //     .verify_proofs(&Blake2Hasher, old_root_hash, &instructions)
-        //     .context("Failed to verify_proofs {l1_batch_number} correctly!")?;
+        block_output_with_proofs
+            .verify_proofs(&Blake2Hasher, old_root_hash, &instructions)
+            .context("Failed to verify_proofs {l1_batch_number} correctly!")?;
 
         Ok(VerificationResult {
             value_hash: block_output_with_proofs.root_hash().unwrap(),
@@ -183,7 +184,8 @@ fn get_bowp(witness_input_merkle_paths: WitnessInputMerklePaths) -> Result<Block
 /// Executes the VM and returns `FinishedL1Batch` on success.
 fn execute_vm<S: ReadStorage>(
     l2_blocks_execution_data: Vec<L2BlockExecutionData>,
-    mut vm: FastVmInstance<S>,
+    // mut vm: FastVmInstance<S>,
+    mut vm: LegacyVmInstance<S, HistoryEnabled>,
     pubdata_params: PubdataParams,
     protocol_version: ProtocolVersionId,
 ) -> anyhow::Result<FinishedL1Batch> {
@@ -278,7 +280,11 @@ fn generate_tree_instructions(
         .collect::<Result<Vec<_>, _>>()
 }
 
-fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut FastVmInstance<S>) -> anyhow::Result<()> {
+fn execute_tx<S: ReadStorage>(
+    tx: &Transaction,
+    // vm: &mut FastVmInstance<S>,
+    vm: &mut LegacyVmInstance<S, HistoryEnabled>,
+) -> anyhow::Result<()> {
     // Attempt to run VM with bytecode compression on.
     vm.make_snapshot();
     if vm
@@ -370,5 +376,18 @@ mod tests {
             bincode::deserialize(&serialized).expect("Failed to deserialize TeeVerifierInput.");
 
         assert_eq!(tvi, deserialized);
+    }
+
+    #[test]
+    fn test_my_data() {
+        let bytes = include_str!(
+            "/home/popzxc/workspace/airbender/vm_setup/data_encoder/proof_input_local.json"
+        );
+        let tvi: TeeVerifierInput =
+            serde_json::from_str(bytes).expect("Failed to deserialize TeeVerifierInput.");
+        let TeeVerifierInput::V1(tvi) = tvi else {
+            panic!("Expected V1 TeeVerifierInput.");
+        };
+        let _res = tvi.verify().expect("Failed to verify TeeVerifierInput.");
     }
 }
