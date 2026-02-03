@@ -283,6 +283,7 @@ impl Aggregator {
     async fn get_or_init_tree(
         &mut self,
         priority_tree_start_index: usize,
+        priority_tree_last_executed_index: usize,
     ) -> &mut MiniMerkleTree<L1Tx> {
         if self.priority_merkle_tree.is_none() {
             // We unwrap here since it is only invoked during initialization
@@ -291,7 +292,10 @@ impl Aggregator {
             // We unwrap here since it is only invoked only once during initialization
             let priority_op_hashes = connection
                 .transactions_dal()
-                .get_l1_transactions_hashes(priority_tree_start_index)
+                .get_l1_transactions_hashes(
+                    priority_tree_start_index,
+                    priority_tree_last_executed_index,
+                )
                 .await
                 .unwrap();
             let priority_merkle_tree = MiniMerkleTree::<L1Tx>::from_hashes(
@@ -463,23 +467,37 @@ impl Aggregator {
             }));
         };
 
-        let priority_merkle_tree = self.get_or_init_tree(priority_tree_start_index).await;
+        // Initialize the priority ops merkle tree at the point it was left after the last executed batch.
+        // If it was the very first batch we use the provided start index and fill the tree from scratch.
+        let let_last_executed_priorty_op_id = storage
+            .blocks_dal()
+            .get_last_executed_priority_op_id()
+            .await
+            .unwrap()
+            .unwrap_or(priority_tree_start_index);
+
+        let priority_merkle_tree = self
+            .get_or_init_tree(priority_tree_start_index, let_last_executed_priorty_op_id)
+            .await;
 
         let mut priority_ops_proofs = vec![];
         for batch in &l1_batches {
-            let first_priority_op_id_option = storage
+            let priority_ops_in_batch = storage
                 .blocks_dal()
-                .get_batch_first_priority_op_id(batch.header.number)
+                .get_batch_first_and_last_priority_op_id(batch.header.number)
                 .await
                 .unwrap()
-                .filter(|id| *id >= priority_tree_start_index);
+                .filter(|(first_id, _last_id)| *first_id >= priority_tree_start_index);
 
             let count = batch.header.l1_tx_count as usize;
-            if let Some(first_priority_op_id_in_batch) = first_priority_op_id_option {
+            if let Some((first_priority_op_id_in_batch, last_priority_op_id_in_batch)) =
+                priority_ops_in_batch
+            {
                 let new_l1_tx_hashes = storage
                     .transactions_dal()
                     .get_l1_transactions_hashes(
                         priority_tree_start_index + priority_merkle_tree.length(),
+                        last_priority_op_id_in_batch,
                     )
                     .await
                     .unwrap();
