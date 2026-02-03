@@ -16,7 +16,7 @@ use zkstack_cli_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
-use zkstack_cli_types::{L1Network, ProverMode, VMOption};
+use zkstack_cli_types::{ProverMode, VMOption};
 
 use crate::{
     abi::IDEPLOYCTMABI_ABI,

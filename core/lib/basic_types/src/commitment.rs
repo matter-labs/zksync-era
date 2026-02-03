@@ -122,6 +122,7 @@ impl TryFrom<u8> for L2DACommitmentScheme {
             1 => Ok(L2DACommitmentScheme::EmptyNoDA),
             2 => Ok(L2DACommitmentScheme::PubdataKeccak256),
             3 => Ok(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+            4 => Ok(L2DACommitmentScheme::BlobsZksyncOS),
             _ => Err("Invalid L2DACommitmentScheme value"),
         }
     }

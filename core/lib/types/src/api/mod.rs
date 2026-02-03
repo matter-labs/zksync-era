@@ -250,7 +250,6 @@ impl<'de> Deserialize<'de> for InteropMode {
 
 /// A struct with the proof for the L2->L1 log in a specific block.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct L2ToL1LogProof {
     /// The merkle path for the leaf.
     pub proof: Vec<H256>,
@@ -583,15 +582,15 @@ impl From<zksync_basic_types::web3::Log> for Log {
 #[serde(rename_all = "camelCase")]
 pub struct L2ToL1Log {
     pub block_hash: Option<H256>,
-    pub block_number: U64,
+    pub block_number: Option<U64>,
     pub l1_batch_number: Option<U64>,
-    pub log_index: U256,
-    pub transaction_index: Index,
-    pub transaction_hash: H256,
-    pub transaction_log_index: U256,
+    pub log_index: Option<U256>,
+    pub transaction_index: Option<Index>,
+    pub transaction_hash: Option<H256>,
+    pub transaction_log_index: Option<U256>,
     pub tx_index_in_l1_batch: Option<U64>,
-    pub shard_id: U64,
-    pub is_service: bool,
+    pub shard_id: Option<U64>,
+    pub is_service: Option<bool>,
     pub sender: Address,
     pub key: H256,
     pub value: H256,
