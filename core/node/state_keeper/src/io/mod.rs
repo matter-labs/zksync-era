@@ -5,8 +5,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
-    protocol_upgrade::ProtocolUpgradeTx, Address, InteropRoot, L1BatchNumber, L2ChainId,
-    ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, settlement::SettlementLayer, Address, InteropRoot,
+    L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -127,6 +127,7 @@ pub struct L1BatchParams {
     pub pubdata_params: PubdataParams,
     /// Pubdata limit for the batch. It's set only if protocol version >= v29.
     pub pubdata_limit: Option<u64>,
+    pub settlement_layer: SettlementLayer,
 }
 
 #[derive(Debug)]
@@ -159,6 +160,7 @@ impl L1BatchParams {
             self.protocol_version,
             self.first_l2_block.virtual_blocks,
             chain_id,
+            self.settlement_layer,
             self.first_l2_block.interop_roots.clone(),
         );
 

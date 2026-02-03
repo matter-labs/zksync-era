@@ -17,7 +17,7 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
 
 zkstack chain create \
     --chain-name gateway \
-    --chain-id 505 \
+    --chain-id 506 \
     --prover-mode no-proofs \
     --wallet-creation localhost \
     --l1-batch-commit-data-generator-mode rollup \
@@ -53,7 +53,7 @@ cd .. && era-cacher/use-new-era.sh && cd zksync-working
 # `cd ..` and then `cd zksync-working`.
 # Sometimes, the console may not reflect the changes made to the codebase.
 
-zkstackup --local --cargo-features upgrades
+zkstackup --local
 zkstack dev contracts
 
 cd contracts

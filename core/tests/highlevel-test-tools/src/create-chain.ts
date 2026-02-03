@@ -99,7 +99,11 @@ export function getCustomTokenAddress(configPath: string = join(configsPath(), '
  * Supports four predefined chain types: consensus, validium, da_migration, custom_token
  * Returns the chain ID, configuration, and server handle
  */
-export async function createChainAndStartServer(chainType: ChainType, testSuiteName: string): Promise<TestChain> {
+export async function createChainAndStartServer(
+    chainType: ChainType,
+    testSuiteName: string,
+    migrateIfNeeded = true
+): Promise<TestChain> {
     // Default configuration
     const finalConfig: ChainConfig = {
         l1RpcUrl: 'http://127.0.0.1:8545',
@@ -226,7 +230,9 @@ export async function createChainAndStartServer(chainType: ChainType, testSuiteN
                     chainConfig.chainName,
                     '--validium-type',
                     'no-da',
-                    ...(process.env.USE_GATEWAY_CHAIN === 'WITH_GATEWAY' ? ['--skip-priority-txs'] : []),
+                    ...(process.env.USE_GATEWAY_CHAIN === 'WITH_GATEWAY' && migrateIfNeeded
+                        ? ['--skip-priority-txs', '--pause-deposits']
+                        : []),
                     '--verbose'
                 ],
                 chainConfig.chainName,
@@ -238,7 +244,9 @@ export async function createChainAndStartServer(chainType: ChainType, testSuiteN
         }
 
         // Step 3: Migrate to gateway if needed
-        await migrateToGatewayIfNeeded(chainConfig.chainName);
+        if (migrateIfNeeded) {
+            await migrateToGatewayIfNeeded(chainConfig.chainName);
+        }
 
         // Step 4: Start the server
         console.log(`🚀 Starting server for ${chainConfig.chainName}...`);

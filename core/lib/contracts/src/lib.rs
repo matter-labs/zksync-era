@@ -39,10 +39,11 @@ const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 const HARDHAT_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
 const FORGE_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
 
-const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
+const BRIDGEHUB_CONTRACT_FILE: (&str, &str) =
+    ("bridgehub", "IBridgehubBase.sol/IBridgehubBase.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
-    "ChainTypeManager.sol/ChainTypeManager.json",
+    "EraChainTypeManager.sol/EraChainTypeManager.json",
 );
 const BYTECODE_SUPPLIER_CONTRACT_FILE: (&str, &str) =
     ("upgrades", "BytecodesSupplier.sol/BytecodesSupplier.json");
@@ -82,7 +83,7 @@ const L2_WRAPPED_BASE_TOKEN_STORE: (&str, &str) = (
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "state-transition/verifiers",
-    "DualVerifier.sol/DualVerifier.json",
+    "EraDualVerifier.sol/EraDualVerifier.json",
 );
 
 const PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = ("", "ProofManagerV1.sol/ProofManagerV1.json");
@@ -271,7 +272,7 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_l1_zk_contract("MessageRoot")
+    load_l1_zk_contract("L2MessageRoot")
 }
 
 pub fn l2_asset_router() -> Contract {
@@ -653,6 +654,12 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
+    pub fn playground_medium_interop() -> Self {
+        let bootloader_bytecode: Vec<u8> = read_bootloader_code("playground_batch");
+        // kl todo once contracts are stabilized move to etc/multivm
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
     pub fn estimate_gas_pre_virtual_blocks() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
@@ -748,6 +755,11 @@ impl BaseSystemContracts {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_interop/fee_estimate.yul/Bootloader.zbin",
         );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn estimate_gas_medium_interop() -> Self {
+        let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 

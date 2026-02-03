@@ -591,15 +591,10 @@ async function publishBytecode(
     nonce: number
 ): Promise<number> {
     const hash = zksync.utils.hashBytecode(bytecode);
-    const abi = [
-        'function publishBytecode(bytes calldata _bytecode) public',
-        'function publishingBlock(bytes32 _hash) public view returns (uint256)'
-    ];
-
-    const contract = new ethers.Contract(bytecodeSupplierAddr, abi, wallet);
+    const contract = new ethers.Contract(bytecodeSupplierAddr, contracts.bytecodesSupplierAbi, wallet);
     const block = await contract.publishingBlock(hash);
     if (block == BigInt(0)) {
-        const tx = await contract.publishBytecode(bytecode, { nonce });
+        const tx = await contract.publishEraBytecode(bytecode, { nonce });
         await tx.wait();
         return 1;
     }
@@ -772,12 +767,26 @@ async function pauseMigrationsCalldata(
     gatewayInfo: GatewayInfo | null
 ) {
     const l1BridgehubAddr = await l2Provider.getBridgehubContractAddress();
-    const to = gatewayInfo ? L2_BRIDGEHUB_ADDRESS : l1BridgehubAddr;
 
-    const iface = new ethers.Interface(['function pauseMigration() external']);
+    let chainAssetHandlerAddr: string;
+    if (gatewayInfo) {
+        // For gateway, get the ChainAssetHandler address from L2 Bridgehub
+        const l2BridgehubContract = new ethers.Contract(
+            L2_BRIDGEHUB_ADDRESS,
+            contracts.bridgehubAbi,
+            gatewayInfo.gatewayProvider
+        );
+        chainAssetHandlerAddr = await l2BridgehubContract.chainAssetHandler();
+    } else {
+        // For L1, get the ChainAssetHandler address from L1 Bridgehub
+        const bridgehubContract = new ethers.Contract(l1BridgehubAddr, contracts.bridgehubAbi, l1Provider);
+        chainAssetHandlerAddr = await bridgehubContract.chainAssetHandler();
+    }
+
+    const iface = contracts.chainAssetHandlerAbi;
 
     return prepareGovernanceCalldata(
-        to,
+        chainAssetHandlerAddr,
         iface.encodeFunctionData('pauseMigration', []),
         l1BridgehubAddr,
         l1Provider,

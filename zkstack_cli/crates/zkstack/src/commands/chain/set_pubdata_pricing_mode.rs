@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use ethers::{abi::parse_abi, contract::BaseContract};
+use ethers::contract::BaseContract;
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -17,6 +17,7 @@ use zkstack_cli_config::{
 use zksync_basic_types::Address;
 
 use crate::{
+    abi::ADMINFUNCTIONSABI_ABI,
     commands::chain::args::set_pubdata_pricing_mode::SetPubdataPricingModeArgs,
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_PUBDATA_PRICING_MODE_UPDATED_TO,
@@ -26,12 +27,8 @@ use crate::{
 };
 
 lazy_static! {
-    static ref PUBDATA_PRICING_MODE_SETTER: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function setPubdataPricingMode(address chainAdmin, address target, uint8 pricingMode) public"
-        ])
-        .unwrap(),
-    );
+    static ref PUBDATA_PRICING_MODE_SETTER: BaseContract =
+        BaseContract::from(ADMINFUNCTIONSABI_ABI.clone());
 }
 
 pub async fn run(args: SetPubdataPricingModeArgs, shell: &Shell) -> anyhow::Result<()> {

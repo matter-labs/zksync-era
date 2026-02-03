@@ -28,7 +28,8 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         | MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles
-        | MultiVmSubversion::Interop => 63_800_000,
+        | MultiVmSubversion::Interop
+        | MultiVmSubversion::MediumInterop => 63_800_000,
     }
 }
 
@@ -74,7 +75,8 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
         MultiVmSubversion::Gateway
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles
-        | MultiVmSubversion::Interop => 64,
+        | MultiVmSubversion::Interop
+        | MultiVmSubversion::MediumInterop => 64,
     }
 }
 
@@ -149,11 +151,23 @@ pub(crate) const INTEROP_ROOT_SLOTS_SIZE: usize = 5;
 
 pub(crate) const INTEROP_ROOT_SLOTS: usize = (MAX_MSG_ROOTS_IN_BATCH + 1) * INTEROP_ROOT_SLOTS_SIZE;
 
+pub(crate) const fn get_settlement_layer_offset(subversion: MultiVmSubversion) -> usize {
+    // The additional slot comes from INTEROP_ROOT_ROLLING_HASH_SLOT.
+    get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS + 1
+}
+
 pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
     match subversion {
         // The additional slot comes from INTEROP_ROOT_ROLLING_HASH_SLOT.
         MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS + 1,
-        _ => get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS,
+        MultiVmSubversion::MediumInterop => get_settlement_layer_offset(subversion) + 1,
+        MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Gateway
+        | MultiVmSubversion::SmallBootloaderMemory
+        | MultiVmSubversion::IncreasedBootloaderMemory => {
+            get_tx_operator_l2_block_info_offset(subversion) + TX_OPERATOR_L2_BLOCK_INFO_SLOTS
+        }
     }
 }
 
@@ -172,12 +186,18 @@ pub(crate) const fn get_operator_provided_l1_messenger_pubdata_offset(
     subversion: MultiVmSubversion,
 ) -> usize {
     match subversion {
-        MultiVmSubversion::Interop => {
+        MultiVmSubversion::Interop | MultiVmSubversion::MediumInterop => {
             get_priority_txs_l1_data_offset(subversion)
                 + PRIORITY_TXS_L1_DATA_SLOTS
                 + TXS_STATUS_ROLLING_HASH_SLOTS
         }
-        _ => get_priority_txs_l1_data_offset(subversion) + PRIORITY_TXS_L1_DATA_SLOTS,
+        MultiVmSubversion::EvmEmulator
+        | MultiVmSubversion::EcPrecompiles
+        | MultiVmSubversion::Gateway
+        | MultiVmSubversion::SmallBootloaderMemory
+        | MultiVmSubversion::IncreasedBootloaderMemory => {
+            get_priority_txs_l1_data_offset(subversion) + PRIORITY_TXS_L1_DATA_SLOTS
+        }
     }
 }
 

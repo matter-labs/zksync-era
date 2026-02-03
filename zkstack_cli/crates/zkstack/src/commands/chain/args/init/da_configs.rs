@@ -31,6 +31,16 @@ pub enum ValidiumTypeInternal {
     EigenDA,
 }
 
+impl ValidiumTypeInternal {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ValidiumTypeInternal::NoDA => "NoDA",
+            ValidiumTypeInternal::Avail => "Avail",
+            ValidiumTypeInternal::EigenDA => "EigenDA",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumIter, Display, ValueEnum)]
 pub enum AvailClientTypeInternal {
     FullClient,

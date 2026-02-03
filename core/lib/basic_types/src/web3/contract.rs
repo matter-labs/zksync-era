@@ -20,12 +20,11 @@ pub trait Detokenize: Sized {
 
 impl<T: Tokenizable> Detokenize for T {
     fn from_tokens(mut tokens: Vec<ethabi::Token>) -> Result<Self, Error> {
-        if tokens.len() != 1 {
-            return Err(Error::InvalidOutputType(format!(
-                "expected array with 1 token, got {tokens:?}"
-            )));
+        if tokens.len() == 1 {
+            Self::from_token(tokens.pop().unwrap())
+        } else {
+            Self::from_token(ethabi::Token::Tuple(tokens))
         }
-        Self::from_token(tokens.pop().unwrap())
     }
 }
 

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use ethers::{
-    abi::{encode, parse_abi, Token},
+    abi::{encode, Token},
     contract::BaseContract,
     providers::Middleware,
     utils::hex,
@@ -11,27 +11,28 @@ use xshell::{cmd, Shell};
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::Forge, logger, spinner::Spinner};
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_ecosystem::input::GenesisInput,
         script_params::{
-            ForgeScriptParams, ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS,
-            V29_UPGRADE_ECOSYSTEM_PARAMS, ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+            ForgeScriptParams, FINALIZE_UPGRADE_SCRIPT_PARAMS, V29_UPGRADE_ECOSYSTEM_PARAMS,
+            V31_UPGRADE_CORE_CONTRACTS_PARAMS, V31_UPGRADE_CTM_CONTRACTS_PARAMS,
         },
         upgrade_ecosystem::{
             input::{
                 EcosystemUpgradeInput, EcosystemUpgradeSpecificConfig,
                 GatewayStateTransitionConfig, GatewayUpgradeContractsConfig, V29UpgradeParams,
+                V31UpgradeParams,
             },
             output::EcosystemUpgradeOutput,
         },
     },
     traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, CoreContractsConfig, EcosystemConfig, GenesisConfig, ZkStackConfig,
+    ChainConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{ProverMode, VMOption};
 use zksync_basic_types::Address;
 use zksync_types::{h256_to_address, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
+    abi::IFINALIZEUPGRADEABI_ABI,
     admin_functions::{ecosystem_admin_execute_calls, governance_execute_calls, AdminScriptMode},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
@@ -141,9 +142,6 @@ async fn no_governance_prepare(
             .l1_rpc_url()?
     };
 
-    let genesis_config_path = ecosystem_config.default_genesis_path(vm_option);
-    let default_genesis_config = GenesisConfig::read(shell, &genesis_config_path).await?;
-    let default_genesis_input = GenesisInput::new(&default_genesis_config, vm_option)?;
     let current_contracts_config = ecosystem_config.get_contracts_config()?;
     let bridgehub_proxy_address = current_contracts_config
         .core_ecosystem_contracts
@@ -189,18 +187,23 @@ async fn no_governance_prepare(
     let ecosystem_upgrade_config_path = get_ecosystem_upgrade_params(upgrade_version)
         .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option));
 
-    let mut new_genesis = default_genesis_input;
-    let mut new_version = new_genesis.protocol_version;
-    // This part is needed for v28 upgrades only.
-    if upgrade_version == &UpgradeVersion::V28_1Vk {
-        new_version.patch += 1;
-    }
-    new_genesis.protocol_version = new_version;
+    let ctm_upgrade_config_path = get_ctm_upgrade_params(upgrade_version)
+        .input(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option));
 
-    let gateway_upgrade_config = get_gateway_state_transition_config(ecosystem_config).await?;
+    let gateway_upgrade_config = GatewayUpgradeContractsConfig {
+        gateway_state_transition: GatewayStateTransitionConfig {
+            chain_type_manager_proxy_addr: Address::zero(),
+            chain_type_manager_proxy_admin: Address::zero(),
+            rollup_da_manager: Address::zero(),
+            rollup_sl_da_validator: Address::zero(),
+        },
+        chain_id: 0,
+    };
+    if *upgrade_version != UpgradeVersion::V31InteropB {
+        let _gateway_upgrade_config = get_gateway_state_transition_config(ecosystem_config).await?;
+    }
 
     let upgrade_specific_config = match upgrade_version {
-        UpgradeVersion::V28_1Vk => EcosystemUpgradeSpecificConfig::V28,
         UpgradeVersion::V29InteropAFf => {
             let gateway_chain_config = get_local_gateway_chain_config(ecosystem_config)?;
             let gateway_validator_timelock_addr = gateway_chain_config
@@ -220,11 +223,12 @@ async fn no_governance_prepare(
                 )])),
             })
         }
-        UpgradeVersion::V28_1VkEra => EcosystemUpgradeSpecificConfig::V28,
+        UpgradeVersion::V31InteropB => EcosystemUpgradeSpecificConfig::V31(V31UpgradeParams {
+            some_value_for_serialization: "".to_string(),
+        }),
     };
 
     let ecosystem_upgrade = EcosystemUpgradeInput::new(
-        &new_genesis,
         &current_contracts_config,
         &gateway_upgrade_config,
         &initial_deployment_config,
@@ -241,7 +245,9 @@ async fn no_governance_prepare(
         "ecosystem_upgrade_config_path: {:?}",
         ecosystem_upgrade_config_path
     ));
+
     ecosystem_upgrade.save(shell, ecosystem_upgrade_config_path.clone())?;
+    ecosystem_upgrade.save(shell, ctm_upgrade_config_path.clone())?;
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
@@ -273,7 +279,7 @@ async fn no_governance_prepare(
             ecosystem_config
                 .path_to_foundry_scripts_for_ctm(vm_option)
                 .join(format!(
-                    "broadcast/EcosystemUpgrade_v29.s.sol/{}/run-latest.json",
+                    "broadcast/EcosystemUpgrade_v31.s.sol/{}/run-latest.json",
                     l1_chain_id
                 )),
         )
@@ -499,13 +505,7 @@ async fn governance_stage_2(
 }
 
 lazy_static! {
-    static ref FINALIZE_UPGRADE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function initChains(address bridgehub, uint256[] chains) public",
-            "function initTokens(address l1NativeTokenVault, address[] tokens, uint256[] chains) public",
-        ])
-        .unwrap(),
-    );
+    static ref FINALIZE_UPGRADE: BaseContract = BaseContract::from(IFINALIZEUPGRADEABI_ABI.clone());
 }
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
@@ -626,9 +626,18 @@ async fn no_governance_stage_2(
 
 fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScriptParams {
     match upgrade_version {
-        UpgradeVersion::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
-        UpgradeVersion::V28_1VkEra => ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersion::V31InteropB => V31_UPGRADE_CORE_CONTRACTS_PARAMS,
+    }
+}
+
+fn get_ctm_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScriptParams {
+    match upgrade_version {
+        UpgradeVersion::V31InteropB => V31_UPGRADE_CTM_CONTRACTS_PARAMS,
+        _ => panic!(
+            "Upgrade version {} is not supported for CTM upgrade",
+            upgrade_version
+        ),
     }
 }
 

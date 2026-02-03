@@ -385,7 +385,7 @@ impl AccountTypesCache {
 mod tests {
     use assert_matches::assert_matches;
     use zksync_dal::{events_web3_dal::ContractDeploymentLog, ConnectionPool};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_test_contracts::{Account, TestContract, TxType};
     use zksync_types::{
         ethabi, utils::storage_key_for_eth_balance, Address, Execute, ExecuteTransactionCommon,
@@ -398,7 +398,7 @@ mod tests {
     };
 
     async fn prepare_storage(storage: &mut Connection<'_, Core>, rich_account: Address) {
-        insert_genesis_batch(storage, &GenesisParams::mock())
+        insert_genesis_batch(storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         let balance_key = storage_key_for_eth_balance(&rich_account);
@@ -618,7 +618,7 @@ mod tests {
 
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         StateBuilder::default()
@@ -738,7 +738,7 @@ mod tests {
         let mut alice = Account::random();
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         StateBuilder::default()
