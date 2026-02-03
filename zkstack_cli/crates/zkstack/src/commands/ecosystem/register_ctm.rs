@@ -103,6 +103,11 @@ pub async fn register_ctm_on_existing_bh(
         .with_calldata(&calldata)
         .with_rpc_url(l1_rpc_url.to_string());
 
+    if config.l1_network == L1Network::Localhost {
+        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
+        forge = forge.with_slow();
+    }
+
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {

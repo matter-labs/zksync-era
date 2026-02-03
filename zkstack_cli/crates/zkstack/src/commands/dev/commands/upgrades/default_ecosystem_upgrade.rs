@@ -137,6 +137,7 @@ async fn no_governance_prepare(
         )
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
+        .with_slow()
         .with_gas_limit(1_000_000_000_000)
         .with_broadcast();
 

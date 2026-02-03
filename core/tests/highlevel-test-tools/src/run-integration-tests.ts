@@ -137,3 +137,8 @@ export async function gatewayMigrationFromGatewayTest(chainName: string): Promis
     await initTestWallet(chainName);
     await runTest('gateway-migration', chainName, undefined, ['--from-gateway']);
 }
+
+export async function tokenBalanceMigrationTest(chainName: string): Promise<void> {
+    await initTestWallet(chainName);
+    await runTest('token-balance-migration', chainName, undefined);
+}

@@ -11,7 +11,8 @@ export {
     genesisRecoveryTest,
     snapshotsRecoveryTest,
     gatewayMigrationToGatewayTest,
-    gatewayMigrationFromGatewayTest
+    gatewayMigrationFromGatewayTest,
+    tokenBalanceMigrationTest
 } from './run-integration-tests';
 export { generateLoad } from './generate-load';
 export { getRpcUrl, queryJsonRpc, getL1BatchNumber, getL1BatchDetails } from './rpc-utils';
