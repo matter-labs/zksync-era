@@ -193,7 +193,7 @@ where
         .ok_or_else(|| ProviderError::CustomError("Log proof not found!".into()))?;
 
         Ok(FinalizeMigrationParams {
-            l2_batch_number: l2_to_l1_log.l1_batch_number.unwrap_or_default(),
+            l2_batch_number: proof.batch_number.0.into(),
             l2_message_index: proof.id.into(),
             l2_tx_number_in_block: l2_to_l1_log.tx_index_in_l1_batch.unwrap_or_default(),
             proof,

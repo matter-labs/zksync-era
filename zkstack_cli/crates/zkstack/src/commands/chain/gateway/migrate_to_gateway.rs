@@ -121,9 +121,9 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
-    let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
-    chain_secrets_config.set_gateway_rpc_url(context.gateway_rpc_url.clone())?;
-    chain_secrets_config.save().await?;
+    // let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
+    // chain_secrets_config.set_gateway_rpc_url(context.gateway_rpc_url.clone())?;
+    // chain_secrets_config.save().await?;
 
     let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 
@@ -180,6 +180,8 @@ pub(crate) async fn get_migrate_to_gateway_context(
         gateway_rpc_url,
         new_sl_da_validator: gateway_da_validator_address,
         validator: chain_secrets_config.operator.address,
+        prove_operator: chain_secrets_config.prove_operator.map(|o| o.address),
+        execute_operator: chain_secrets_config.execute_operator.map(|o| o.address),
         min_validator_balance: U256::from(10).pow(19.into()),
         refund_recipient: None,
     };

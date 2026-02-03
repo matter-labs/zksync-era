@@ -21,7 +21,7 @@ use zkstack_cli_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig,
 };
-use zkstack_cli_types::{L1Network, VMOption};
+use zkstack_cli_types::VMOption;
 
 use super::args::init::EcosystemInitArgsFinal;
 use crate::{

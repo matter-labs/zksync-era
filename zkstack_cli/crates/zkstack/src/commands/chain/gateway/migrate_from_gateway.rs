@@ -276,41 +276,46 @@ pub(crate) async fn check_whether_gw_transaction_is_finalized(
     hash: H256,
     transaction_type: GatewayTransactionType,
 ) -> anyhow::Result<bool> {
-    let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? else {
-        return Ok(false);
-    };
-
-    if receipt.l1_batch_number.is_none() {
-        return Ok(false);
-    }
-
-    let batch_number = receipt.l1_batch_number.unwrap();
+    // let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? else {
+    //     return Ok(false);
+    // };
+    //
+    // if receipt.l1_batch_number.is_none() {
+    //     return Ok(false);
+    // }
+    //
+    // let batch_number = receipt.l1_batch_number.unwrap();
 
     match transaction_type {
         GatewayTransactionType::Withdrawal => {
-            if gateway_provider
+            if let Err(e) = gateway_provider
                 .get_finalize_withdrawal_params(hash, 0)
                 .await
-                .is_err()
             {
+                println!("Error1: {e:?}");
                 return Ok(false);
             }
         }
         GatewayTransactionType::Migration => {
-            if gateway_provider
+            if let Err(e) = gateway_provider
                 .get_finalize_migration_params(hash, 0)
                 .await
-                .is_err()
             {
+                println!("Error2: {e:?}");
                 return Ok(false);
             }
         }
     }
+    Ok(true)
 
-    // TODO(PLA-1121): investigate why waiting for the tx proof is not enough.
-    // This is not expected behavior.
-    let gateway_contract = ZkChainAbi::new(gateway_diamond_proxy, l1_provider);
-    Ok(gateway_contract.get_total_batches_executed().await? >= U256::from(batch_number.as_u64()))
+    // // TODO(PLA-1121): investigate why waiting for the tx proof is not enough.
+    // // This is not expected behavior.
+    // let gateway_contract = ZkChainAbi::new(gateway_diamond_proxy, l1_provider);
+    // println!(
+    //     "GATEWAY_CONTRACT: {:?}",
+    //     gateway_contract.get_total_batches_executed().await?
+    // );
+    // Ok(gateway_contract.get_total_batches_executed().await? >= U256::from(batch_number.as_u64()))
 }
 
 async fn await_for_withdrawal_to_finalize(

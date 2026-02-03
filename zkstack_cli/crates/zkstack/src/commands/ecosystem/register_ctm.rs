@@ -9,7 +9,7 @@ use zkstack_cli_config::{
     forge_interface::script_params::REGISTER_CTM_SCRIPT_PARAMS, traits::ReadConfig,
     EcosystemConfig, ZkStackConfig,
 };
-use zkstack_cli_types::{L1Network, VMOption};
+use zkstack_cli_types::VMOption;
 use zksync_types::H160;
 
 use crate::{
