@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{bail, Context};
 use clap::Parser;
@@ -8,7 +8,7 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
     signers::Signer,
-    types::{BlockId, BlockNumber},
+    types::{BlockId, BlockNumber, Filter, H256 as EthersH256, U64},
     utils::{hex, keccak256},
 };
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -48,7 +48,7 @@ lazy_static! {
 }
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
-pub struct MigrateTokenBalancesArgs {
+pub struct InitiateTokenBalanceMigrationArgs {
     /// All ethereum environment related arguments
     #[clap(flatten)]
     #[serde(flatten)]
@@ -64,8 +64,94 @@ pub struct MigrateTokenBalancesArgs {
     pub to_gateway: Option<bool>,
 }
 
-// sma todo: this script should be broken down into multiple steps
-pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Result<()> {
+#[derive(Debug, Serialize, Deserialize, Parser)]
+pub struct FinalizeTokenBalanceMigrationArgs {
+    /// All ethereum environment related arguments
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
+
+    #[clap(long)]
+    pub gateway_chain_name: String,
+
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub to_gateway: Option<bool>,
+
+    /// Start block for reading migration initiation events
+    #[clap(long)]
+    pub from_block: Option<u64>,
+
+    /// End block for reading migration initiation events
+    #[clap(long)]
+    pub to_block: Option<u64>,
+}
+
+pub async fn run_initiate(
+    args: InitiateTokenBalanceMigrationArgs,
+    shell: &Shell,
+) -> anyhow::Result<()> {
+    let (wallet, _l1_bridgehub_addr, l2_chain_id, gw_chain_id, l1_url, l2_url, gw_rpc_url) =
+        load_migration_context(shell, args.gateway_chain_name).await?;
+
+    let to_gateway = args.to_gateway.unwrap_or(true);
+    logger::info(format!(
+        "Initiating the token balance migration {} the Gateway...",
+        if to_gateway { "to" } else { "from" }
+    ));
+
+    initiate_token_balance_migration(
+        shell,
+        args.skip_funding.unwrap_or(false),
+        to_gateway,
+        wallet,
+        l2_chain_id,
+        gw_chain_id,
+        l1_url.clone(),
+        gw_rpc_url.clone(),
+        l2_url.clone(),
+    )
+    .await?;
+
+    Ok(())
+}
+
+pub async fn run_finalize(
+    args: FinalizeTokenBalanceMigrationArgs,
+    shell: &Shell,
+) -> anyhow::Result<()> {
+    let (wallet, l1_bridgehub_addr, l2_chain_id, gw_chain_id, l1_url, l2_url, gw_rpc_url) =
+        load_migration_context(shell, args.gateway_chain_name).await?;
+
+    let to_gateway = args.to_gateway.unwrap_or(true);
+    logger::info(format!(
+        "Finalizing the token balance migration {} the Gateway...",
+        if to_gateway { "to" } else { "from" }
+    ));
+
+    finalize_token_balance_migration(
+        wallet,
+        l1_bridgehub_addr,
+        l2_chain_id,
+        gw_chain_id,
+        l1_url.clone(),
+        gw_rpc_url.clone(),
+        l2_url.clone(),
+        to_gateway,
+        args.from_block,
+        args.to_block,
+    )
+    .await?;
+
+    Ok(())
+}
+
+const LOOK_WAITING_TIME_MS: u64 = 1600;
+
+#[allow(clippy::too_many_arguments)]
+async fn load_migration_context(
+    shell: &Shell,
+    gateway_chain_name: String,
+) -> anyhow::Result<(Wallet, Address, u64, u64, String, String, String)> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
     let chain_name = global_config().chain_name.clone();
@@ -74,41 +160,17 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let gateway_chain_config = ecosystem_config
-        .load_chain(Some(args.gateway_chain_name.clone()))
+        .load_chain(Some(gateway_chain_name))
         .context("Gateway not present")?;
-    // let gateway_chain_id = gateway_chain_config.chain_id.as_u64();
-    // let gateway_gateway_config = gateway_chain_config
-    //     .get_gateway_config()
-    //     .context("Gateway config not present")?;
 
     let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l2_url = chain_config.get_general_config().await?.l2_http_url()?;
+    let gw_rpc_url = gateway_chain_config
+        .get_general_config()
+        .await?
+        .l2_http_url()?;
 
-    let general_chain_config = chain_config.get_general_config().await?;
-    let l2_url = general_chain_config.l2_http_url()?;
-
-    // let genesis_config = chain_config.get_genesis_config().await?;
-    // let gateway_contract_config = gateway_chain_config.get_contracts_config()?;
-
-    // let chain_contracts_config = chain_config.get_contracts_config().unwrap();
-
-    logger::info(format!(
-        "Migrating the token balances {} the Gateway...",
-        if args.to_gateway.unwrap_or(true) {
-            "to"
-        } else {
-            "from"
-        }
-    ));
-
-    let general_config = gateway_chain_config.get_general_config().await?;
-    let gw_rpc_url = general_config.l2_http_url()?;
-
-    // let chain_secrets_config = chain_config.get_wallets_config().unwrap();
-
-    migrate_token_balances_from_gateway(
-        shell,
-        args.skip_funding.unwrap_or(false),
-        args.to_gateway.unwrap_or(true),
+    Ok((
         ecosystem_config
             .get_wallets()?
             .deployer
@@ -119,24 +181,17 @@ pub async fn run(args: MigrateTokenBalancesArgs, shell: &Shell) -> anyhow::Resul
             .bridgehub_proxy_addr,
         chain_config.chain_id.as_u64(),
         gateway_chain_config.chain_id.as_u64(),
-        l1_url.clone(),
-        gw_rpc_url.clone(),
-        l2_url.clone(),
-    )
-    .await?;
-
-    Ok(())
+        l1_url,
+        l2_url,
+        gw_rpc_url,
+    ))
 }
 
-const LOOK_WAITING_TIME_MS: u64 = 1600;
-
-#[allow(clippy::too_many_arguments)]
-pub async fn migrate_token_balances_from_gateway(
+async fn initiate_token_balance_migration(
     shell: &Shell,
     skip_funding: bool,
     to_gateway: bool,
     wallet: Wallet,
-    l1_bridgehub_addr: Address,
     l2_chain_id: u64,
     gw_chain_id: u64,
     l1_rpc_url: String,
@@ -187,47 +242,10 @@ pub async fn migrate_token_balances_from_gateway(
     }
 
     let mut tx_hashes = Vec::new();
-    let mut asset_ids = Vec::new();
+    let asset_ids = get_asset_ids(&l2_rpc_url).await?;
+
     let l2_provider = Provider::<Http>::try_from(l2_rpc_url.as_str())?;
     let l2_chain_id = l2_provider.get_chainid().await?.as_u64();
-
-    let l2_signer = wallet
-        .private_key
-        .clone()
-        .unwrap()
-        .with_chain_id(l2_chain_id);
-    let l2_client = Arc::new(SignerMiddleware::new(l2_provider.clone(), l2_signer));
-
-    // Get bridged token count and asset IDs
-    let ntv = Contract::new(
-        L2_NATIVE_TOKEN_VAULT_ADDRESS,
-        L2_NTV_FUNCTIONS.abi().clone(),
-        l2_client.clone(),
-    );
-    let count: U256 = ntv
-        .method::<_, U256>("bridgedTokensCount", ())?
-        .call()
-        .await?;
-
-    for i in 0..count.as_u64() {
-        asset_ids.push(
-            ntv.method::<_, [u8; 32]>("bridgedTokens", U256::from(i))?
-                .call()
-                .await?,
-        );
-    }
-
-    // Add base token asset ID
-    let router = Contract::new(
-        L2_ASSET_ROUTER_ADDRESS,
-        L2_ASSET_ROUTER_FUNCTIONS.abi().clone(),
-        Arc::new(l2_provider),
-    );
-    let base_token_asset_id = router
-        .method::<_, [u8; 32]>("BASE_TOKEN_ASSET_ID", ())?
-        .call()
-        .await?;
-    asset_ids.push(base_token_asset_id);
 
     // Migrate each token
     let (tracker_addr, tracker_abi) = if to_gateway {
@@ -313,12 +331,49 @@ pub async fn migrate_token_balances_from_gateway(
     }
 
     println!("Token migration started");
+    if tx_hashes.is_empty() {
+        println!("No migration transactions were sent.");
+    }
 
-    let (migration_rpc_url, source_chain_id) = if to_gateway {
-        (l2_rpc_url.as_str(), l2_chain_id)
+    Ok(())
+}
+
+async fn finalize_token_balance_migration(
+    wallet: Wallet,
+    l1_bridgehub_addr: Address,
+    l2_chain_id: u64,
+    gw_chain_id: u64,
+    l1_rpc_url: String,
+    gw_rpc_url: String,
+    l2_rpc_url: String,
+    to_gateway: bool,
+    from_block: Option<u64>,
+    to_block: Option<u64>,
+) -> anyhow::Result<()> {
+    let (tracker_addr, event_signature, migration_rpc_url, source_chain_id) = if to_gateway {
+        (
+            L2_ASSET_TRACKER_ADDRESS,
+            "L1ToGatewayMigrationInitiated(bytes32,uint256,uint256)",
+            l2_rpc_url.as_str(),
+            l2_chain_id,
+        )
     } else {
-        (gw_rpc_url.as_str(), gw_chain_id)
+        (
+            GW_ASSET_TRACKER_ADDRESS,
+            "GatewayToL1MigrationInitiated(bytes32,uint256)",
+            gw_rpc_url.as_str(),
+            gw_chain_id,
+        )
     };
+
+    let (asset_ids, tx_hashes) = fetch_migration_events(
+        migration_rpc_url,
+        tracker_addr,
+        event_signature,
+        from_block,
+        to_block,
+    )
+    .await?;
 
     let finalize_params = wait_for_migration_ready(
         l1_rpc_url.clone(),
@@ -487,6 +542,14 @@ pub async fn migrate_token_balances_from_gateway(
 
     // Wait for all tokens to be migrated
     println!("Waiting for all tokens to be migrated...");
+    let l2_provider = Provider::<Http>::try_from(l2_rpc_url.as_str())?;
+    let l2_chain_id = l2_provider.get_chainid().await?.as_u64();
+    let l2_signer = wallet
+        .private_key
+        .clone()
+        .unwrap()
+        .with_chain_id(l2_chain_id);
+    let l2_client = Arc::new(SignerMiddleware::new(l2_provider.clone(), l2_signer));
     let tracker = Contract::new(
         L2_ASSET_TRACKER_ADDRESS,
         crate::abi::IASSETTRACKERBASEABI_ABI.clone(),
@@ -508,6 +571,127 @@ pub async fn migrate_token_balances_from_gateway(
     println!("Token migration finished");
 
     Ok(())
+}
+
+async fn get_asset_ids(l2_rpc_url: &str) -> anyhow::Result<Vec<[u8; 32]>> {
+    let mut asset_ids = Vec::new();
+    let l2_provider = Provider::<Http>::try_from(l2_rpc_url)?;
+
+    let ntv = Contract::new(
+        L2_NATIVE_TOKEN_VAULT_ADDRESS,
+        L2_NTV_FUNCTIONS.abi().clone(),
+        Arc::new(l2_provider.clone()),
+    );
+    let count: U256 = ntv
+        .method::<_, U256>("bridgedTokensCount", ())?
+        .call()
+        .await?;
+
+    for i in 0..count.as_u64() {
+        asset_ids.push(
+            ntv.method::<_, [u8; 32]>("bridgedTokens", U256::from(i))?
+                .call()
+                .await?,
+        );
+    }
+
+    let router = Contract::new(
+        L2_ASSET_ROUTER_ADDRESS,
+        L2_ASSET_ROUTER_FUNCTIONS.abi().clone(),
+        Arc::new(l2_provider),
+    );
+    let base_token_asset_id = router
+        .method::<_, [u8; 32]>("BASE_TOKEN_ASSET_ID", ())?
+        .call()
+        .await?;
+    asset_ids.push(base_token_asset_id);
+
+    Ok(asset_ids)
+}
+
+async fn fetch_migration_events(
+    rpc_url: &str,
+    tracker_addr: Address,
+    event_signature: &str,
+    from_block: Option<u64>,
+    to_block: Option<u64>,
+) -> anyhow::Result<(Vec<[u8; 32]>, Vec<H256>)> {
+    let provider = Provider::<Http>::try_from(rpc_url)?;
+    let event_topic = EthersH256::from_slice(&keccak256(event_signature));
+
+    let mut logs = Vec::new();
+    let mut attempts = 0u32;
+    let max_attempts = 10u32;
+    while attempts < max_attempts {
+        let mut filter = Filter::new().address(tracker_addr).topic0(event_topic);
+
+        let resolved_from = from_block.unwrap_or(0);
+        let resolved_to = match to_block {
+            Some(to_block) => BlockNumber::Number(U64::from(to_block)),
+            None => BlockNumber::Latest,
+        };
+
+        filter = filter.from_block(BlockNumber::Number(U64::from(resolved_from)));
+        filter = filter.to_block(resolved_to);
+
+        logs = provider.get_logs(&filter).await?;
+        if !logs.is_empty() {
+            break;
+        }
+
+        attempts += 1;
+        tokio::time::sleep(std::time::Duration::from_millis(LOOK_WAITING_TIME_MS)).await;
+    }
+    let mut latest_logs: HashMap<EthersH256, (u64, u64, H256, [u8; 32])> = HashMap::new();
+
+    for log in logs {
+        let Some(asset_topic) = log.topics.get(1).copied() else {
+            continue;
+        };
+        let Some(tx_hash) = log.transaction_hash else {
+            continue;
+        };
+        let block_number = log.block_number.map(|b| b.as_u64()).unwrap_or(0);
+        let log_index = log.log_index.map(|i| i.as_u64()).unwrap_or(0);
+
+        match latest_logs.get(&asset_topic) {
+            Some((prev_block, _, _, _)) if *prev_block > block_number => continue,
+            Some((prev_block, prev_index, _, _))
+                if *prev_block == block_number && *prev_index >= log_index =>
+            {
+                continue
+            }
+            _ => {
+                let asset_id = asset_topic.as_bytes();
+                let mut asset_bytes = [0u8; 32];
+                asset_bytes.copy_from_slice(asset_id);
+                latest_logs.insert(
+                    asset_topic,
+                    (
+                        block_number,
+                        log_index,
+                        H256::from_slice(tx_hash.as_bytes()),
+                        asset_bytes,
+                    ),
+                );
+            }
+        }
+    }
+
+    if latest_logs.is_empty() {
+        logger::info("No migration events found; skipping L1 finalize calls.");
+        return Ok((Vec::new(), Vec::new()));
+    }
+
+    let mut entries: Vec<([u8; 32], H256)> = latest_logs
+        .values()
+        .map(|(_, _, tx_hash, asset_id)| (*asset_id, *tx_hash))
+        .collect();
+    entries.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+    let (asset_ids, tx_hashes): (Vec<[u8; 32]>, Vec<H256>) = entries.into_iter().unzip();
+
+    Ok((asset_ids, tx_hashes))
 }
 
 async fn wait_for_migration_ready(
