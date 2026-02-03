@@ -60,6 +60,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     logger::info("Migrating the chain to the Gateway...");
 
+    let l1_rpc_url_specified = args.l1_rpc_url.is_some();
     let l1_rpc_url = match args.l1_rpc_url {
         Some(url) => url,
         None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
@@ -121,9 +122,11 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
-    let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
-    chain_secrets_config.set_gateway_rpc_url(context.gateway_rpc_url.clone())?;
-    chain_secrets_config.save().await?;
+    if !l1_rpc_url_specified {
+        let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
+        chain_secrets_config.set_gateway_rpc_url(context.gateway_rpc_url.clone())?;
+        chain_secrets_config.save().await?;
+    }
 
     let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 

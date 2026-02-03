@@ -276,9 +276,12 @@ pub(crate) async fn check_whether_gw_transaction_is_finalized(
     hash: H256,
     transaction_type: GatewayTransactionType,
 ) -> anyhow::Result<bool> {
+    println!("here2");
+    println!("{:?}", hash);
     let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? else {
         return Ok(false);
     };
+    println!("here2");
 
     if receipt.l1_batch_number.is_none() {
         return Ok(false);

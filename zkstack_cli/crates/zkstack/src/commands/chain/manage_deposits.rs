@@ -22,10 +22,13 @@ pub struct ManageDepositsArgs {
     pub forge_args: ForgeScriptArgs,
     #[clap(long, default_value_t = false)]
     pub only_save_calldata: bool,
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
 }
 
 pub async fn run(
-    _args: ManageDepositsArgs,
+    args: ManageDepositsArgs,
     shell: &Shell,
     option: ManageDepositsOption,
 ) -> anyhow::Result<()> {
@@ -34,10 +37,12 @@ pub async fn run(
 
     let contracts_config = chain_config.get_contracts_config()?;
     let bridgehub_address = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
-    let secrets = chain_config.get_secrets_config().await?;
-    let l1_rpc_url = secrets.l1_rpc_url()?;
+    let l1_rpc_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
 
-    let mode = if _args.only_save_calldata {
+    let mode = if args.only_save_calldata {
         AdminScriptMode::OnlySave
     } else {
         AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor)
@@ -70,7 +75,7 @@ pub async fn run(
         }
     };
 
-    if _args.only_save_calldata {
+    if args.only_save_calldata {
         display_admin_script_output(result);
     }
 

@@ -122,6 +122,7 @@ impl TryFrom<u8> for L2DACommitmentScheme {
             1 => Ok(L2DACommitmentScheme::EmptyNoDA),
             2 => Ok(L2DACommitmentScheme::PubdataKeccak256),
             3 => Ok(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+            4 => Ok(L2DACommitmentScheme::BlobsZksyncOS),
             _ => Err("Invalid L2DACommitmentScheme value"),
         }
     }
@@ -136,6 +137,7 @@ impl FromStr for L2DACommitmentScheme {
             "EmptyNoDA" => Ok(Self::EmptyNoDA),
             "PubdataKeccak256" => Ok(Self::PubdataKeccak256),
             "BlobsAndPubdataKeccak256" => Ok(Self::BlobsAndPubdataKeccak256),
+            "BlobsZksyncOS" => Ok(Self::BlobsZksyncOS),
             _ => Err("Incorrect L2 DA commitment scheme; expected one of `None`, `EmptyNoDA`, `PubdataKeccak256`, `BlobsAndPubdataKeccak256`"),
         }
     }
