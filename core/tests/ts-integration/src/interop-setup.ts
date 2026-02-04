@@ -396,19 +396,12 @@ export class InteropTestContext {
             this.interop1Wallet
         );
 
+        // Migrate token balances to Gateway
         const fileConfig = shouldLoadConfigFromFile();
-        const migrationCmd = `zkstack chain gateway migrate-token-balances --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`;
-
-        // Migration might sometimes fail, so we retry a few times.
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                await utils.spawn(migrationCmd);
-                break;
-            } catch (e) {
-                if (attempt === 3) throw e;
-                await utils.sleep(2 * attempt);
-            }
-        }
+        const initiateCmd = `zkstack chain gateway initiate-token-balance-migration --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`;
+        await utils.spawn(initiateCmd);
+        const finalizeCmd = `zkstack chain gateway finalize-token-balance-migration --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`;
+        await utils.spawn(finalizeCmd);
 
         // Save State
         const newState = {
