@@ -52,6 +52,47 @@ interface Call {
     data: BytesLike;
 }
 
+/**
+ * TypeScript interface matching the Solidity L2CanonicalTransaction struct from Messaging.sol.
+ * Field names must match exactly for ethers.js to encode correctly.
+ */
+interface L2CanonicalTransaction {
+    txType: BigNumberish;
+    from: BigNumberish;
+    to: BigNumberish;
+    gasLimit: BigNumberish;
+    gasPerPubdataByteLimit: BigNumberish;
+    maxFeePerGas: BigNumberish;
+    maxPriorityFeePerGas: BigNumberish;
+    paymaster: BigNumberish;
+    nonce: BigNumberish;
+    value: BigNumberish;
+    reserved: [BigNumberish, BigNumberish, BigNumberish, BigNumberish];
+    data: BytesLike;
+    signature: BytesLike;
+    factoryDeps: BigNumberish[];
+    paymasterInput: BytesLike;
+    reservedDynamic: BytesLike;
+}
+
+/**
+ * TypeScript interface matching the Solidity ProposedUpgrade struct from BaseZkSyncUpgrade.sol.
+ * Field names must match exactly for ethers.js to encode correctly.
+ *
+ * The DefaultUpgradeAbi import from zkstack-out ensures that if the Solidity struct changes,
+ * ethers.js will fail at runtime with a clear mismatch error.
+ */
+interface ProposedUpgrade {
+    l2ProtocolUpgradeTx: L2CanonicalTransaction;
+    bootloaderHash: BytesLike;
+    defaultAccountHash: BytesLike;
+    evmEmulatorHash: BytesLike;
+    l1ContractsUpgradeCalldata: BytesLike;
+    postUpgradeCalldata: BytesLike;
+    upgradeTimestamp: BigNumberish;
+    newProtocolVersion: BigNumberish;
+}
+
 describe('Upgrade test', function () {
     // Utility wallets for facilitating testing
     let tester: Tester;
@@ -650,26 +691,9 @@ async function prepareUpgradeCalldata(
     l2Provider: zksync.Provider,
     upgradeAddress: string,
     params: {
-        l2ProtocolUpgradeTx: {
-            txType: BigNumberish;
-            from: BigNumberish;
-            to: BigNumberish;
-            gasLimit: BigNumberish;
-            gasPerPubdataByteLimit: BigNumberish;
-            maxFeePerGas: BigNumberish;
-            maxPriorityFeePerGas: BigNumberish;
-            paymaster: BigNumberish;
-            nonce?: BigNumberish;
-            value: BigNumberish;
-            reserved: [BigNumberish, BigNumberish, BigNumberish, BigNumberish];
-            data: BytesLike;
-            signature: BytesLike;
-            factoryDeps: BigNumberish[];
-            paymasterInput: BytesLike;
-            reservedDynamic: BytesLike;
-        };
+        l2ProtocolUpgradeTx: Omit<L2CanonicalTransaction, 'nonce'> & { nonce?: BigNumberish };
         bootloaderHash?: BytesLike;
-        defaultAAHash?: BytesLike;
+        defaultAccountHash?: BytesLike;
         evmEmulatorHash?: BytesLike;
         l1ContractsUpgradeCalldata?: BytesLike;
         postUpgradeCalldata?: BytesLike;
@@ -692,20 +716,24 @@ async function prepareUpgradeCalldata(
 
     const oldProtocolVersion = Number(await settlementLayerDiamondProxy.getProtocolVersion());
     const newProtocolVersion = addToProtocolVersion(oldProtocolVersion, 1, 1);
+    const verifierAddress = await settlementLayerDiamondProxy.getVerifier();
 
     params.l2ProtocolUpgradeTx.nonce ??= BigInt(unpackNumberSemVer(newProtocolVersion)[1]);
-    const upgradeInitData = contracts.l1DefaultUpgradeAbi.encodeFunctionData('upgrade', [
-        [
-            params.l2ProtocolUpgradeTx,
-            params.bootloaderHash ?? ethers.ZeroHash,
-            params.defaultAAHash ?? ethers.ZeroHash,
-            params.evmEmulatorHash ?? ethers.ZeroHash,
-            params.l1ContractsUpgradeCalldata ?? '0x',
-            params.postUpgradeCalldata ?? '0x',
-            params.upgradeTimestamp,
-            newProtocolVersion
-        ]
-    ]);
+
+    // Construct ProposedUpgrade struct using named fields to match the Solidity struct.
+    // This ensures TypeScript and ethers.js will catch any field name mismatches.
+    const proposedUpgrade: ProposedUpgrade = {
+        l2ProtocolUpgradeTx: params.l2ProtocolUpgradeTx as L2CanonicalTransaction,
+        bootloaderHash: params.bootloaderHash ?? ethers.ZeroHash,
+        defaultAccountHash: params.defaultAccountHash ?? ethers.ZeroHash,
+        evmEmulatorHash: params.evmEmulatorHash ?? ethers.ZeroHash,
+        l1ContractsUpgradeCalldata: params.l1ContractsUpgradeCalldata ?? '0x',
+        postUpgradeCalldata: params.postUpgradeCalldata ?? '0x',
+        upgradeTimestamp: params.upgradeTimestamp,
+        newProtocolVersion: newProtocolVersion
+    };
+
+    const upgradeInitData = contracts.l1DefaultUpgradeAbi.encodeFunctionData('upgrade', [proposedUpgrade]);
 
     // Prepare the diamond cut data
     const upgradeParam = {
@@ -720,7 +748,8 @@ async function prepareUpgradeCalldata(
         oldProtocolVersion,
         // The protocol version will not have any deadline in this upgrade
         ethers.MaxUint256,
-        newProtocolVersion
+        newProtocolVersion,
+        verifierAddress
     ]);
 
     // Execute this upgrade on a specific chain under this STM.
