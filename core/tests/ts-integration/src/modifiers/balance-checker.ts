@@ -275,33 +275,26 @@ function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refund
     refundRecipient = refundRecipient ?? receipt.from;
 
     const mintTopic = ethers.keccak256(ethers.toUtf8Bytes('Mint(address,uint256)'));
+    const formattedRefundRecipient = ethers.hexlify(ethers.zeroPadValue(refundRecipient, 32));
 
+    // Find Mint events to the refund recipient. The bootloader may emit multiple Mint events
+    // during L1->L2 transactions (e.g., to the bootloader itself), so we specifically look for
+    // Mints to the expected refund recipient rather than assuming it's the last Mint.
     const refundLogs = receipt.logs.filter((log) => {
-        return log.topics.length == 2 && log.topics[0] == mintTopic;
+        return (
+            log.topics.length == 2 &&
+            log.topics[0] == mintTopic &&
+            log.topics[1].toLowerCase() === formattedRefundRecipient.toLowerCase()
+        );
     });
 
     if (refundLogs.length === 0) {
-        throw {
-            message: `No refund log was found in the following transaction receipt`,
-            receipt
-        };
+        // No refund to this recipient - this is valid (e.g., all gas was consumed)
+        return 0n;
     }
 
-    // Note, that it is important that the refund log is the last log in the receipt, because
-    // there are multiple `Mint` events during a single L1->L2 transaction, so this one covers the
-    // final refund.
-    const refundLog = refundLogs[refundLogs.length - 1];
-
-    const formattedRefundRecipient = ethers.hexlify(ethers.zeroPadValue(refundRecipient, 32));
-
-    if (refundLog.topics[1].toLowerCase() !== formattedRefundRecipient.toLowerCase()) {
-        throw {
-            message: `The last ETH minted is not the refund recipient in the following transaction receipt`,
-            receipt
-        };
-    }
-
-    return BigInt(refundLog.data);
+    // Sum all refunds to this recipient (in case there are multiple)
+    return refundLogs.reduce((total, log) => total + BigInt(log.data), 0n);
 }
 
 /**
