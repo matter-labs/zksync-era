@@ -671,12 +671,6 @@ async function prepareUpgradeCalldata(
         bootloaderHash?: BytesLike;
         defaultAAHash?: BytesLike;
         evmEmulatorHash?: BytesLike;
-        verifier?: string;
-        verifierParams?: {
-            recursionNodeLevelVkHash: BytesLike;
-            recursionLeafLevelVkHash: BytesLike;
-            recursionCircuitsSetVksHash: BytesLike;
-        };
         l1ContractsUpgradeCalldata?: BytesLike;
         postUpgradeCalldata?: BytesLike;
         upgradeTimestamp: BigNumberish;
@@ -706,8 +700,6 @@ async function prepareUpgradeCalldata(
             params.bootloaderHash ?? ethers.ZeroHash,
             params.defaultAAHash ?? ethers.ZeroHash,
             params.evmEmulatorHash ?? ethers.ZeroHash,
-            params.verifier ?? ethers.ZeroAddress,
-            params.verifierParams ?? [ethers.ZeroHash, ethers.ZeroHash, ethers.ZeroHash],
             params.l1ContractsUpgradeCalldata ?? '0x',
             params.postUpgradeCalldata ?? '0x',
             params.upgradeTimestamp,
