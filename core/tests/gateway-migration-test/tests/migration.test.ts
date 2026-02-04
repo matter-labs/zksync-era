@@ -11,6 +11,7 @@ import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 import { getEcosystemContracts } from 'utils/build/tokens';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
+import { waitForAllBatchesToBeExecuted } from 'highlevel-test-tools/src/wait-for-batches';
 
 async function logsPath(name: string): Promise<string> {
     return await logsTestPath(fileConfig.chain, 'logs/migration/', name);
@@ -203,6 +204,7 @@ describe('Migration from gateway test', function () {
         // where there is an inflight transaction before the migration is complete.
         // If you encounter an error, such as a failed transaction, after the migration,
         // this area might be worth revisiting to wait for unconfirmed transactions on the server.
+        await waitForAllBatchesToBeExecuted(fileConfig.chain!);
 
         if (direction == 'TO') {
             const maxRetries = 3;
