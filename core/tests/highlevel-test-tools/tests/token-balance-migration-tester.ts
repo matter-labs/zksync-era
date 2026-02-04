@@ -4,6 +4,7 @@ import * as utils from 'utils';
 import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 import path from 'path';
+import { expect } from 'vitest';
 import { loadConfig, loadEcosystemConfig } from 'utils/build/file-configs';
 import { sleep } from 'zksync-ethers/build/utils';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
@@ -18,10 +19,33 @@ import { executeCommand, migrateToGatewayIfNeeded, startServer } from '../src';
 import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
 
-export const RICH_WALLET_L1_BALANCE = ethers.parseEther('10.0');
-export const RICH_WALLET_L2_BALANCE = RICH_WALLET_L1_BALANCE;
+export const RICH_WALLET_L2_BALANCE = ethers.parseEther('10.0');
+export const TOKEN_MINT_AMOUNT = ethers.parseEther('100.0');
+const MAX_WITHDRAW_AMOUNT = ethers.parseEther('10.0');
 const TEST_SUITE_NAME = 'Token Balance Migration Test';
 const pathToHome = path.join(__dirname, '../../../..');
+
+export async function expectRevertWithSelector(
+    action: Promise<unknown>,
+    selector: string,
+    failureMessage = 'Expected transaction to revert with selector'
+): Promise<void> {
+    try {
+        await action;
+        expect.fail(`${failureMessage} ${selector}`);
+    } catch (err) {
+        const errorText = [
+            (err as any)?.data,
+            (err as any)?.error?.data,
+            (err as any)?.info?.error?.data,
+            (err as any)?.shortMessage,
+            (err as any)?.message
+        ]
+            .filter(Boolean)
+            .join(' ');
+        expect(errorText).toContain(selector);
+    }
+}
 
 function readArtifact(contractName: string, outFolder: string = 'out', fileName: string = contractName) {
     return JSON.parse(
@@ -38,9 +62,6 @@ const ERC20_EVM_BYTECODE = ERC20_EVM_ARTIFACT.bytecode.object;
 const ERC20_ABI = ERC20_EVM_ARTIFACT.abi;
 
 const ERC20_ZKEVM_BYTECODE = readArtifact('TestnetERC20Token', 'zkout').bytecode.object;
-
-const AMOUNT_FLOOR = ethers.parseEther('0.01');
-const AMOUNT_CEILING = ethers.parseEther('1');
 
 type AssetTrackerLocation = 'L1AT' | 'L1AT_GW' | 'GWAT';
 const ASSET_TRACKERS: readonly AssetTrackerLocation[] = ['L1AT', 'L1AT_GW', 'GWAT'] as const;
@@ -274,7 +295,7 @@ export class ChainHandler {
             'gateway_migration'
         );
         // We can now reliably migrate from gateway
-        await this.stopServer();
+        removeErrorListeners(this.inner.mainNode.process!);
         await executeCommand(
             'zkstack',
             [
@@ -293,15 +314,15 @@ export class ChainHandler {
         await this.startServer();
     }
 
-    async migrateTokenBalancesToGateway() {
+    async initiateTokenBalanceMigration(direction: 'to-gateway' | 'from-gateway') {
         await executeCommand(
             'zkstack',
             [
                 'chain',
                 'gateway',
-                'migrate-token-balances',
+                'initiate-token-balance-migration',
                 '--to-gateway',
-                'true',
+                String(direction === 'to-gateway'),
                 '--gateway-chain-name',
                 'gateway',
                 '--chain',
@@ -312,15 +333,15 @@ export class ChainHandler {
         );
     }
 
-    async migrateTokenBalancesToL1() {
+    async finalizeTokenBalanceMigration(direction: 'to-gateway' | 'from-gateway') {
         await executeCommand(
             'zkstack',
             [
                 'chain',
                 'gateway',
-                'migrate-token-balances',
+                'finalize-token-balance-migration',
                 '--to-gateway',
-                'false',
+                String(direction === 'to-gateway'),
                 '--gateway-chain-name',
                 'gateway',
                 '--chain',
@@ -451,11 +472,10 @@ export class ERC20Handler {
         return assetId;
     }
 
-    async deposit(chainHandler: ChainHandler, amount?: bigint): Promise<bigint> {
-        const depositAmount = amount ?? getRandomDepositAmount();
+    async deposit(chainHandler: ChainHandler, amount?: bigint) {
         const depositTx = await this.wallet.deposit({
             token: await this.l1Contract!.getAddress(),
-            amount: depositAmount,
+            amount: TOKEN_MINT_AMOUNT,
             approveERC20: true,
             approveBaseERC20: true
         });
@@ -465,16 +485,10 @@ export class ERC20Handler {
         await waitForBalanceNonZero(this.l2Contract!, this.wallet);
 
         const assetId = await this.assetId(chainHandler);
-        chainHandler.chainBalances[assetId] = (chainHandler.chainBalances[assetId] ?? 0n) + depositAmount;
-
-        return depositAmount;
+        chainHandler.chainBalances[assetId] = (chainHandler.chainBalances[assetId] ?? 0n) + TOKEN_MINT_AMOUNT;
     }
 
-    async withdraw(
-        chainHandler: ChainHandler,
-        decreaseChainBalance = true,
-        amount?: bigint
-    ): Promise<WithdrawalHandler> {
+    async withdraw(chainHandler: ChainHandler, amount?: bigint): Promise<WithdrawalHandler> {
         const withdrawAmount = amount ?? getRandomWithdrawAmount();
 
         if ((await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < withdrawAmount) {
@@ -489,10 +503,6 @@ export class ERC20Handler {
         await withdrawTx.wait();
 
         const assetId = await this.assetId(chainHandler);
-        if (decreaseChainBalance) {
-            if (this.isL2Token) chainHandler.chainBalances[assetId] = ethers.MaxUint256;
-            chainHandler.chainBalances[assetId] -= withdrawAmount;
-        }
 
         return new WithdrawalHandler(withdrawTx.hash, this.wallet.provider, withdrawAmount);
     }
@@ -543,13 +553,12 @@ export class ERC20Handler {
         const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
         await newToken.waitForDeployment();
         const l1Contract = new ethers.Contract(await newToken.getAddress(), ERC20_ABI, l1Wallet);
-        await (await l1Contract.mint(l1Wallet.address, RICH_WALLET_L1_BALANCE)).wait();
+        await (await l1Contract.mint(l1Wallet.address, TOKEN_MINT_AMOUNT)).wait();
 
         return new ERC20Handler(wallet, l1Contract, undefined);
     }
 
-    static async deployTokenOnL2(chainHandler: ChainHandler, _mintAmount?: bigint) {
-        const mintAmount = _mintAmount ?? getRandomDepositAmount();
+    static async deployTokenOnL2(chainHandler: ChainHandler) {
         const factory = new zksync.ContractFactory(
             ERC20_ABI,
             ERC20_ZKEVM_BYTECODE,
@@ -561,7 +570,7 @@ export class ERC20Handler {
         const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
         await newToken.waitForDeployment();
         const l2Contract = new zksync.Contract(await newToken.getAddress(), ERC20_ABI, chainHandler.l2RichWallet);
-        await (await l2Contract.mint(chainHandler.l2RichWallet.address, mintAmount)).wait();
+        await (await l2Contract.mint(chainHandler.l2RichWallet.address, TOKEN_MINT_AMOUNT)).wait();
 
         await (await chainHandler.l2Ntv.registerToken(await l2Contract.getAddress())).wait();
 
@@ -603,12 +612,8 @@ export class WithdrawalHandler {
     }
 }
 
-function getRandomDepositAmount(): bigint {
-    return AMOUNT_FLOOR + BigInt(Math.floor(Math.random() * Number(AMOUNT_CEILING - AMOUNT_FLOOR + 1n)));
-}
-
 function getRandomWithdrawAmount(): bigint {
-    return 1n + BigInt(Math.floor(Math.random() * Number(AMOUNT_FLOOR / 2n - 1n)));
+    return BigInt(Math.floor(Math.random() * Number(MAX_WITHDRAW_AMOUNT)));
 }
 
 async function waitForBalanceNonZero(contract: ethers.Contract | zksync.Contract, wallet: zksync.Wallet) {
