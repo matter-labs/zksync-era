@@ -76,6 +76,15 @@ interface L2CanonicalTransaction {
 }
 
 /**
+ * TypeScript interface matching the Solidity VerifierParams struct from IVerifier.sol.
+ */
+interface VerifierParams {
+    recursionNodeLevelVkHash: BytesLike;
+    recursionLeafLevelVkHash: BytesLike;
+    recursionCircuitsSetVksHash: BytesLike;
+}
+
+/**
  * TypeScript interface matching the Solidity ProposedUpgrade struct from BaseZkSyncUpgrade.sol.
  * Field names must match exactly for ethers.js to encode correctly.
  *
@@ -87,6 +96,8 @@ interface ProposedUpgrade {
     bootloaderHash: BytesLike;
     defaultAccountHash: BytesLike;
     evmEmulatorHash: BytesLike;
+    verifier: string;
+    verifierParams: VerifierParams;
     l1ContractsUpgradeCalldata: BytesLike;
     postUpgradeCalldata: BytesLike;
     upgradeTimestamp: BigNumberish;
@@ -722,11 +733,18 @@ async function prepareUpgradeCalldata(
 
     // Construct ProposedUpgrade struct using named fields to match the Solidity struct.
     // This ensures TypeScript and ethers.js will catch any field name mismatches.
+    // Note: verifier and verifierParams are set to zero - the verifier is now set via setNewVersionUpgrade on CTM.
     const proposedUpgrade: ProposedUpgrade = {
         l2ProtocolUpgradeTx: params.l2ProtocolUpgradeTx as L2CanonicalTransaction,
         bootloaderHash: params.bootloaderHash ?? ethers.ZeroHash,
         defaultAccountHash: params.defaultAccountHash ?? ethers.ZeroHash,
         evmEmulatorHash: params.evmEmulatorHash ?? ethers.ZeroHash,
+        verifier: ethers.ZeroAddress,
+        verifierParams: {
+            recursionNodeLevelVkHash: ethers.ZeroHash,
+            recursionLeafLevelVkHash: ethers.ZeroHash,
+            recursionCircuitsSetVksHash: ethers.ZeroHash
+        },
         l1ContractsUpgradeCalldata: params.l1ContractsUpgradeCalldata ?? '0x',
         postUpgradeCalldata: params.postUpgradeCalldata ?? '0x',
         upgradeTimestamp: params.upgradeTimestamp,
