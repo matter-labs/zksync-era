@@ -360,16 +360,18 @@ async fn finalize_token_balance_migration(
     } else {
         (
             GW_ASSET_TRACKER_ADDRESS,
-            "GatewayToL1MigrationInitiated(bytes32,uint256)",
+            "GatewayToL1MigrationInitiated(bytes32,uint256,uint256)",
             gw_rpc_url.as_str(),
             gw_chain_id,
         )
     };
+    let expected_data_chain_id = l2_chain_id;
 
-    let (asset_ids, tx_hashes) = fetch_migration_events(
+    let (_log_asset_ids, tx_hashes) = fetch_migration_events(
         migration_rpc_url,
         tracker_addr,
         event_signature,
+        if to_gateway { None } else { Some(l2_chain_id) },
         from_block,
         to_block,
     )
@@ -384,6 +386,7 @@ async fn finalize_token_balance_migration(
     )
     .await?;
 
+    let mut migrated_asset_ids = Vec::new();
     if finalize_params.is_empty() {
         logger::info("No migration params found; skipping L1 finalize calls.");
     } else {
@@ -455,6 +458,13 @@ async fn finalize_token_balance_migration(
 
             let (data_chain_id, asset_id, selector) =
                 decode_token_balance_migration_message(&params.message.0)?;
+            if data_chain_id.as_u64() != expected_data_chain_id {
+                println!(
+                    "Skipping tx hash from different chain: 0x{}",
+                    hex::encode(tx_hash)
+                );
+                continue;
+            }
             if selector != expected_selector {
                 println!(
                     "Unexpected function selector for tx hash: 0x{}",
@@ -495,6 +505,7 @@ async fn finalize_token_balance_migration(
 
             match call_result {
                 Ok(mut call) => {
+                    migrated_asset_ids.push(asset_id);
                     let gas_estimate = call
                         .estimate_gas()
                         .await
@@ -555,7 +566,7 @@ async fn finalize_token_balance_migration(
         crate::abi::IASSETTRACKERBASEABI_ABI.clone(),
         l2_client.clone(),
     );
-    for asset_id in asset_ids.iter().copied() {
+    for asset_id in migrated_asset_ids.iter().copied() {
         loop {
             let asset_is_migrated = tracker
                 .method::<_, bool>("tokenMigratedThisChain", asset_id)?
@@ -613,6 +624,7 @@ async fn fetch_migration_events(
     rpc_url: &str,
     tracker_addr: Address,
     event_signature: &str,
+    chain_id_topic: Option<u64>,
     from_block: Option<u64>,
     to_block: Option<u64>,
 ) -> anyhow::Result<(Vec<[u8; 32]>, Vec<H256>)> {
@@ -623,17 +635,18 @@ async fn fetch_migration_events(
     let mut attempts = 0u32;
     let max_attempts = 10u32;
     while attempts < max_attempts {
-        let mut filter = Filter::new().address(tracker_addr).topic0(event_topic);
-
         let resolved_from = from_block.unwrap_or(0);
         let resolved_to = match to_block {
             Some(to_block) => BlockNumber::Number(U64::from(to_block)),
             None => BlockNumber::Latest,
         };
 
+        let mut filter = Filter::new().address(tracker_addr).topic0(event_topic);
         filter = filter.from_block(BlockNumber::Number(U64::from(resolved_from)));
         filter = filter.to_block(resolved_to);
-
+        if let Some(chain_id) = chain_id_topic {
+            filter = filter.topic2(EthersH256::from_low_u64_be(chain_id));
+        }
         logs = provider.get_logs(&filter).await?;
         if !logs.is_empty() {
             break;
