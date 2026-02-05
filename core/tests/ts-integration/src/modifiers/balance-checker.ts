@@ -276,12 +276,38 @@ function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refund
 
     const mintTopic = ethers.keccak256(ethers.toUtf8Bytes('Mint(address,uint256)'));
     const formattedRefundRecipient = ethers.hexlify(ethers.zeroPadValue(refundRecipient, 32));
+    const bootloaderAddress = '0x0000000000000000000000000000000000008001';
+    const formattedBootloader = ethers.hexlify(ethers.zeroPadValue(bootloaderAddress, 32));
 
-    // Find Mint events to the refund recipient. The bootloader may emit multiple Mint events
-    // during L1->L2 transactions (e.g., to the bootloader itself), so we specifically look for
-    // Mints to the expected refund recipient rather than assuming it's the last Mint.
-    const refundLogs = receipt.logs.filter((log) => {
+    // With the new bootloader behavior, there may be multiple Mint events:
+    // 1. toMint (deposit) to `from` - BEFORE operator fee mint
+    // 2. payToOperator to bootloader - operator fee
+    // 3. toRefundRecipient (gas refund) to refund recipient - AFTER operator fee mint
+    //
+    // For failed transactions:
+    // 1. (toMint reverted)
+    // 2. payToOperator to bootloader
+    // 3. toRefundRecipient (full deposit - gas) to refund recipient
+    //
+    // We only want to subtract the gas refund (mints AFTER the bootloader mint),
+    // not the deposit (mints BEFORE the bootloader mint).
+
+    // Find the bootloader mint (operator fee) - this separates deposit from refund
+    const bootloaderMintIndex = receipt.logs.findIndex((log) => {
         return (
+            log.topics.length == 2 &&
+            log.topics[0] == mintTopic &&
+            log.topics[1].toLowerCase() === formattedBootloader.toLowerCase()
+        );
+    });
+
+    // Find Mint events to the refund recipient AFTER the bootloader mint
+    const refundLogs = receipt.logs.filter((log, index) => {
+        // Only consider mints after the bootloader mint (these are gas refunds)
+        // If no bootloader mint found, fall back to considering all mints as refunds
+        const isAfterBootloaderMint = bootloaderMintIndex === -1 || index > bootloaderMintIndex;
+        return (
+            isAfterBootloaderMint &&
             log.topics.length == 2 &&
             log.topics[0] == mintTopic &&
             log.topics[1].toLowerCase() === formattedRefundRecipient.toLowerCase()
@@ -289,11 +315,11 @@ function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refund
     });
 
     if (refundLogs.length === 0) {
-        // No refund to this recipient - this is valid (e.g., all gas was consumed)
+        // No refund after bootloader mint - this is valid (e.g., all gas was consumed)
         return 0n;
     }
 
-    // Sum all refunds to this recipient (in case there are multiple)
+    // Sum all refunds to this recipient (in case there are multiple after bootloader mint)
     return refundLogs.reduce((total, log) => total + BigInt(log.data), 0n);
 }
 
