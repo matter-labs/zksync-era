@@ -41,7 +41,7 @@ if (shouldSkip) {
 /// - Never migrated the balance to GW (but the token is bridged for the first time). No migration should be needed at all.
 /// After the chain migrates from GW, we need to test that all the tokens can be withdrawn in sufficient amounts to move
 /// the entire balance to L1. It should not be possible to finalize all old interops.
-(shouldSkip ? describe.skip : describe)('Token balance migration TO GW tests', function () {
+(shouldSkip ? describe.skip : describe)('Token balance migration tests', function () {
     let chainHandler: ChainHandler;
     let customTokenChainHandler: ChainHandler;
 
