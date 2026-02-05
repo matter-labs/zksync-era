@@ -20,8 +20,8 @@ import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
 
 export const RICH_WALLET_L2_BALANCE = ethers.parseEther('10.0');
-export const TOKEN_MINT_AMOUNT = ethers.parseEther('100.0');
-const MAX_WITHDRAW_AMOUNT = ethers.parseEther('10.0');
+export const TOKEN_MINT_AMOUNT = ethers.parseEther('1.0');
+const MAX_WITHDRAW_AMOUNT = ethers.parseEther('0.1');
 const TEST_SUITE_NAME = 'Token Balance Migration Test';
 const pathToHome = path.join(__dirname, '../../../..');
 
@@ -191,19 +191,39 @@ export class ChainHandler {
             migrations?: Record<AssetTrackerLocation, bigint>;
         }
     ): Promise<boolean> {
+        const failures: string[] = [];
+        const recordFailure = (where: AssetTrackerLocation, err: unknown) => {
+            const reason = err instanceof Error ? err.message : String(err);
+            failures.push(`[${where}] ${reason}`);
+        };
+
         for (const where of ASSET_TRACKERS) {
             const expected = balances?.[where];
-            if (expected !== undefined) {
-                await this.assertChainBalance(assetId, where, expected);
-            } else {
-                await this.assertChainBalance(assetId, where);
+            try {
+                if (expected !== undefined) {
+                    await this.assertChainBalance(assetId, where, expected);
+                } else {
+                    await this.assertChainBalance(assetId, where);
+                }
+            } catch (err) {
+                recordFailure(where, err);
             }
         }
 
         if (migrations) {
             for (const where of ASSET_TRACKERS) {
-                await this.assertAssetMigrationNumber(assetId, where, migrations[where]);
+                try {
+                    await this.assertAssetMigrationNumber(assetId, where, migrations[where]);
+                } catch (err) {
+                    recordFailure(where, err);
+                }
             }
+        }
+
+        if (failures.length > 0) {
+            const message = `Asset tracker assertion failures:\n${failures.map((f) => `- ${f}`).join('\n')}`;
+            console.error(message);
+            throw new Error(message);
         }
 
         return true;
@@ -211,7 +231,6 @@ export class ChainHandler {
 
     async stopServer() {
         await this.inner.mainNode.kill();
-        await this.waitForShutdown();
     }
 
     async startServer() {
@@ -447,17 +466,20 @@ export class ERC20Handler {
     public l1Contract: ethers.Contract | undefined;
     public l2Contract: zksync.Contract | undefined;
     public isL2Token: boolean;
+    public isBaseToken: boolean;
     cachedAssetId: string | null = null;
 
     constructor(
         wallet: zksync.Wallet,
         l1Contract: ethers.Contract | undefined,
-        l2Contract: zksync.Contract | undefined
+        l2Contract: zksync.Contract | undefined,
+        isBaseToken = false
     ) {
         this.wallet = wallet;
         this.l1Contract = l1Contract;
         this.l2Contract = l2Contract;
         this.isL2Token = !!l2Contract;
+        this.isBaseToken = isBaseToken;
     }
 
     async assetId(chainHandler: ChainHandler): Promise<string> {
@@ -473,7 +495,7 @@ export class ERC20Handler {
         return assetId;
     }
 
-    async deposit(chainHandler: ChainHandler, amount?: bigint) {
+    async deposit(chainHandler: ChainHandler) {
         const depositTx = await this.wallet.deposit({
             token: await this.l1Contract!.getAddress(),
             amount: TOKEN_MINT_AMOUNT,
@@ -489,21 +511,34 @@ export class ERC20Handler {
         chainHandler.chainBalances[assetId] = (chainHandler.chainBalances[assetId] ?? 0n) + TOKEN_MINT_AMOUNT;
     }
 
-    async withdraw(chainHandler: ChainHandler, amount?: bigint): Promise<WithdrawalHandler> {
+    async withdraw(amount?: bigint): Promise<WithdrawalHandler> {
         const withdrawAmount = amount ?? getRandomWithdrawAmount();
 
-        if ((await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < withdrawAmount) {
+        let isETHBaseToken = false;
+        let token;
+        if (this.isBaseToken) {
+            const baseToken = await this.wallet.provider.getBaseTokenContractAddress();
+            isETHBaseToken = zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
+            token = isETHBaseToken
+                ? zksync.utils.ETH_ADDRESS
+                : await this.wallet.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
+        } else {
+            token = await this.l2Contract!.getAddress();
+        }
+
+        if (
+            !isETHBaseToken &&
+            (await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < withdrawAmount
+        ) {
             await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 0)).wait();
             await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, withdrawAmount)).wait();
         }
 
         const withdrawTx = await this.wallet.withdraw({
-            token: await this.l2Contract!.getAddress(),
+            token,
             amount: withdrawAmount
         });
         await withdrawTx.wait();
-
-        const assetId = await this.assetId(chainHandler);
 
         return new WithdrawalHandler(withdrawTx.hash, this.wallet.provider, withdrawAmount);
     }
@@ -540,7 +575,7 @@ export class ERC20Handler {
         // L2-B wallet must hold some balance of the L2-B token on L1
         const balance = await secondChainWallet.getBalanceL1(await l1Contract.getAddress());
         if (balance === 0n) throw new Error('L2-B wallet must hold some balance of the L2-B token on L1');
-        // We need to provide the chain rich wallet with some balance of the L2-B token on L1, to
+        // Transfer the L2-B token balance on L1 to the target wallet.
         const l1Erc20 = new ethers.Contract(await l1Contract.getAddress(), ERC20_ABI, secondChainWallet.ethWallet());
         await (await l1Erc20.transfer(wallet.address, balance)).wait();
         return new ERC20Handler(wallet, l1Contract, undefined);
@@ -636,6 +671,13 @@ async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: numbe
             if (printedBlockNumber < block.number) {
                 printedBlockNumber = block.number;
             }
+            // We make repeated transactions to force the L2 to update.
+            await (
+                await wallet.transfer({
+                    to: wallet.address,
+                    amount: 1
+                })
+            ).wait();
             await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
     }
