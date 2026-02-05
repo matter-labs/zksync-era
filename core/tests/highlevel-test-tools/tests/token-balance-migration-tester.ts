@@ -198,6 +198,9 @@ export class ChainHandler {
         };
 
         for (const where of ASSET_TRACKERS) {
+            // Since we have several chains settling on the same gateway in parallel, accounting
+            // for the base token on L1AT_GW can be very tricky, so we just skip it.
+            if (where === 'L1AT_GW' && assetId === this.baseTokenAssetId) continue;
             const expected = balances?.[where];
             try {
                 if (expected !== undefined) {
