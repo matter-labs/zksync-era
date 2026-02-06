@@ -215,6 +215,6 @@ async function waitForMigrationReadyForFinalize(chainName: string): Promise<void
         }
 
         console.log(`⏳ Migration not ready to finalize for ${chainName}, retrying...`);
-        await utils.sleep(2);
+        await utils.sleep(5);
     }
 }
