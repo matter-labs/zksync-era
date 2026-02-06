@@ -204,7 +204,7 @@ describe('Migration from gateway test', function () {
         // where there is an inflight transaction before the migration is complete.
         // If you encounter an error, such as a failed transaction, after the migration,
         // this area might be worth revisiting to wait for unconfirmed transactions on the server.
-        await waitForAllBatchesToBeExecuted(fileConfig.chain!);
+        //await waitForAllBatchesToBeExecuted(fileConfig.chain!);
 
         if (direction == 'TO') {
             const maxRetries = 3;

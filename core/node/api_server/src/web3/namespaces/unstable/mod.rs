@@ -250,49 +250,40 @@ impl UnstableNamespace {
             .await
             .map_err(DalError::generalize)?;
 
-        let all_batches_with_interop_roots_committed = match connection
-            .interop_root_dal()
-            .get_latest_processed_interop_root_l1_batch_number()
+        // If the state keeper has an unsealed batch, we must wait for it to be committed.
+        let has_pending_batch = connection
+            .blocks_dal()
+            .pending_batch_exists()
             .await
-            .map_err(DalError::generalize)?
-        {
-            None => true,
-            Some(latest_processed_l1_batch_number) => {
-                match connection
-                    .eth_sender_dal()
-                    .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                        L1BatchNumber::from(latest_processed_l1_batch_number),
-                        L1BatchAggregatedActionType::Commit,
-                    )
-                    .await
-                {
-                    Some(tx) => tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized,
-                    None => false,
+            .map_err(DalError::generalize)?;
+
+        let all_batches_committed = if has_pending_batch {
+            // State keeper has an open batch that hasn't been sealed yet.
+            // We must wait for it to be sealed and committed before migration.
+            false
+        } else {
+            match connection
+                .blocks_dal()
+                .get_sealed_l1_batch_number()
+                .await
+                .map_err(DalError::generalize)?
+            {
+                None => true,
+                Some(latest_sealed_l1_batch) => {
+                    match connection
+                        .eth_sender_dal()
+                        .get_last_sent_successfully_eth_tx_by_batch_and_op(
+                            latest_sealed_l1_batch,
+                            L1BatchAggregatedActionType::Commit,
+                        )
+                        .await
+                    {
+                        Some(tx) => tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized,
+                        None => false,
+                    }
                 }
             }
         };
-        let has_unsealed_batch = connection
-            .blocks_dal()
-            .get_unsealed_l1_batch()
-            .await
-            .map_err(DalError::generalize)?
-            .is_some();
-        let last_sealed_batch = connection
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .map_err(DalError::generalize)?;
-        let last_committed_batch = connection
-            .blocks_dal()
-            .get_number_of_last_l1_batch_committed_on_eth()
-            .await
-            .map_err(DalError::generalize)?;
-        let has_uncommitted_sealed_batches = matches!((last_sealed_batch, last_committed_batch), (Some(sealed), None) if sealed.0 > 0)
-            || matches!(
-                (last_sealed_batch, last_committed_batch),
-                (Some(sealed), Some(committed)) if sealed > committed
-            );
-
         let state = GatewayMigrationState::from_sl_and_notification(
             self.state
                 .api_config
@@ -309,9 +300,7 @@ impl UnstableNamespace {
                 .api_config
                 .settlement_layer
                 .settlement_layer_for_sending_txs(),
-            wait_for_batches_to_be_committed: !all_batches_with_interop_roots_committed
-                || has_unsealed_batch
-                || has_uncommitted_sealed_batches,
+            wait_for_batches_to_be_committed: !all_batches_committed,
         })
     }
 

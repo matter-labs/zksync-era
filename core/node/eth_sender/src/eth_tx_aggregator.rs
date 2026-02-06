@@ -34,7 +34,7 @@ use zksync_types::{
     server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, BlockId, BlockNumber, CallRequest},
-    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
+    Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 use super::aggregated_operations::{
@@ -858,12 +858,12 @@ impl EthTxAggregator {
             // From V31 when migrating to or from gateway, we need to wait for all blocks to be executed,
             // so there is no restriction for prove and execute operations
             if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_))) {
-                let waiting_for_interop_root_batches = self
-                    .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
-                    .await?;
-                if !waiting_for_interop_root_batches {
+                if self
+                    .is_waiting_for_batches_with_current_settlement_layer_to_be_committed(storage)
+                    .await?
+                {
                     // For migration from gateway to L1, keep commits/precommits flowing
-                    // once interop-root batches are finalized.
+                    // once old settlement layer batches are finalized.
                     op_restrictions.commit_restriction = None;
                     op_restrictions.precommit_restriction = None;
                 }
@@ -1380,23 +1380,28 @@ impl EthTxAggregator {
         GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
     }
 
-    async fn is_waiting_for_batches_with_interop_roots_to_be_committed(
+    /// Returns `true` if there are pending or sealed L1 batches not yet committed on the
+    /// current settlement layer. Used to block gateway migration until all batches are finalized.
+    async fn is_waiting_for_batches_with_current_settlement_layer_to_be_committed(
         &self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<bool, EthSenderError> {
-        let latest_processed_l1_batch_number = storage
-            .interop_root_dal()
-            .get_latest_processed_interop_root_l1_batch_number()
-            .await?;
-
-        if latest_processed_l1_batch_number.is_none() {
-            return Ok(false);
+        // If the state keeper has an open (unsealed) batch, it will eventually be sealed
+        // and need to be committed on the current settlement layer.
+        if storage.blocks_dal().pending_batch_exists().await? {
+            return Ok(true);
         }
+
+        let Some(latest_sealed_l1_batch) =
+            storage.blocks_dal().get_sealed_l1_batch_number().await?
+        else {
+            return Ok(false);
+        };
 
         let last_sent_successfully_eth_tx = storage
             .eth_sender_dal()
             .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                L1BatchNumber::from(latest_processed_l1_batch_number.unwrap()),
+                latest_sealed_l1_batch,
                 L1BatchAggregatedActionType::Commit,
             )
             .await;
