@@ -1,6 +1,5 @@
 import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
-import { startServer } from './start-server';
 
 /**
  * Global mutex for gateway migration to prevent concurrent migrations
@@ -30,33 +29,30 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
         console.log(`✅ Mutex acquired for gateway migration of ${chainName}`);
 
         try {
-            const maxRetries = 3;
-            for (let i = 0; i < maxRetries; i++) {
-                try {
-                    await executeCommand(
-                        'zkstack',
-                        [
-                            'chain',
-                            'gateway',
-                            'migrate-to-gateway',
-                            '--chain',
-                            chainName,
-                            '--gateway-chain-name',
-                            'gateway'
-                        ],
-                        chainName,
-                        'gateway_migration'
-                    );
-                    break;
-                } catch (error) {
-                    if (i === maxRetries - 1) {
-                        console.error(`❌ Gateway migration failed after ${maxRetries} attempts.`);
-                        throw error;
-                    }
-                    console.log(`⚠️ Gateway migration failed (attempt ${i + 1}/${maxRetries}). Retrying...`);
-                }
-            }
+            await executeCommand(
+                'zkstack',
+                ['chain', 'gateway', 'migrate-to-gateway', '--chain', chainName, '--gateway-chain-name', 'gateway'],
+                chainName,
+                'gateway_migration'
+            );
 
+            console.log(`✅ Successfully migrated chain ${chainName} to gateway`);
+        } finally {
+            // Always release the mutex
+            gatewayMutex.release();
+        }
+    } catch (error) {
+        console.error(`❌ Failed to migrate chain ${chainName} to gateway:`, error);
+        throw error;
+    }
+
+    try {
+        // Acquire mutex for finalizing gateway migration
+        console.log(`🔒 Acquiring mutex for finalizing gateway migration of ${chainName}...`);
+        await gatewayMutex.acquire();
+        console.log(`✅ Mutex acquired for finalizing gateway migration of ${chainName}`);
+
+        try {
             await executeCommand(
                 'zkstack',
                 [
@@ -73,13 +69,13 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
                 'gateway_migration'
             );
 
-            console.log(`✅ Successfully migrated chain ${chainName} to gateway`);
+            console.log(`✅ Successfully finalized migration of chain ${chainName} to gateway`);
         } finally {
             // Always release the mutex
             gatewayMutex.release();
         }
     } catch (error) {
-        console.error(`❌ Failed to migrate chain ${chainName} to gateway:`, error);
+        console.error(`❌ Failed to finalize migration of chain ${chainName} to gateway:`, error);
         throw error;
     }
 }
