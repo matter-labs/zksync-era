@@ -522,15 +522,21 @@ export class ERC20Handler {
         if (this.isBaseToken) {
             const baseToken = await this.wallet.provider.getBaseTokenContractAddress();
             isETHBaseToken = zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
-            token = isETHBaseToken
-                ? zksync.utils.ETH_ADDRESS
-                : await this.wallet.l2TokenAddress(zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
+            if (isETHBaseToken) {
+                token = zksync.utils.ETH_ADDRESS;
+            } else {
+                const l2BaseTokenAddress = zksync.utils.L2_BASE_TOKEN_ADDRESS;
+                token = l2BaseTokenAddress;
+                if (!this.l2Contract || (await this.l2Contract.getAddress()) !== l2BaseTokenAddress) {
+                    this.l2Contract = new zksync.Contract(l2BaseTokenAddress, ERC20_ABI, this.wallet);
+                }
+            }
         } else {
             token = await this.l2Contract!.getAddress();
         }
 
         if (
-            !isETHBaseToken &&
+            !this.isBaseToken &&
             (await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < withdrawAmount
         ) {
             await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 0)).wait();
