@@ -1,5 +1,12 @@
 # Changelog
 
+## [29.10.0](https://github.com/matter-labs/zksync-era/compare/core-v29.9.0...core-v29.10.0) (2026-02-06)
+
+
+### Features
+
+* Expose TEE jobs without having to lock them ([#4646](https://github.com/matter-labs/zksync-era/issues/4646)) ([fdaeec3](https://github.com/matter-labs/zksync-era/commit/fdaeec3870ef5c52065aa492cfa96713b42c6756))
+
 ## [29.9.0](https://github.com/matter-labs/zksync-era/compare/core-v29.8.0...core-v29.9.0) (2026-02-02)
 
 
