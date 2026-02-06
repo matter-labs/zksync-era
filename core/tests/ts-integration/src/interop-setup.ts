@@ -4,16 +4,15 @@ import * as path from 'path';
 import { TestMaster } from './test-master';
 import { Token } from './types';
 import * as utils from 'utils';
+import { shouldLoadConfigFromFile } from 'utils/build/file-configs';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { encodeNTVAssetId } from 'zksync-ethers/build/utils';
 
 import { RetryableWallet } from './retry-provider';
 import {
     scaledGasPrice,
     deployContract,
-    readContract,
     waitUntilBlockFinalized,
     waitForInteropRootNonZero,
     getGWBlockNumber,
@@ -28,7 +27,6 @@ import {
     L2_INTEROP_HANDLER_ADDRESS,
     L2_INTEROP_CENTER_ADDRESS,
     ETH_ADDRESS_IN_CONTRACTS,
-    ARTIFACTS_PATH,
     ArtifactInteropCenter,
     ArtifactInteropHandler,
     ArtifactNativeTokenVault,
@@ -382,50 +380,28 @@ export class InteropTestContext {
     }
 
     private async performSetup() {
-        const l1TokenArtifact = readContract(ARTIFACTS_PATH, 'TestnetERC20Token');
-        const l1TokenBytecode = l1TokenArtifact.bytecode.object ?? l1TokenArtifact.bytecode;
-        const l1TokenFactory = new ethers.ContractFactory(
-            l1TokenArtifact.abi,
-            l1TokenBytecode,
-            this.interop1RichWallet.ethWallet()
-        );
-        const l1TokenDeploy = await l1TokenFactory.deploy(
+        const tokenADeploy = await deployContract(this.interop1Wallet, ArtifactMintableERC20, [
             this.tokenA.name,
             this.tokenA.symbol,
-            Number(this.tokenA.decimals)
-        );
-        await l1TokenDeploy.waitForDeployment();
-        const l1Token = new ethers.Contract(
-            await l1TokenDeploy.getAddress(),
-            l1TokenArtifact.abi,
-            this.interop1RichWallet.ethWallet()
-        );
-        this.tokenA.l1Address = await l1Token.getAddress();
+            this.tokenA.decimals
+        ]);
+        this.tokenA.l2Address = await tokenADeploy.getAddress();
 
-        const initialL1Amount = ethers.parseEther('1000');
-        await (await l1Token.mint(this.interop1RichWallet.address, initialL1Amount)).wait();
-        await (
-            await this.interop1RichWallet.deposit({
-                token: this.tokenA.l1Address,
-                amount: initialL1Amount,
-                to: this.interop1Wallet.address,
-                approveERC20: true,
-                approveBaseERC20: true
-            })
-        ).wait();
-
-        const l1ChainId = (await this.l1Provider.getNetwork()).chainId;
-        this.tokenA.assetId = encodeNTVAssetId(l1ChainId, this.tokenA.l1Address);
-        while (true) {
-            this.tokenA.l2Address = await this.interop1NativeTokenVault.tokenAddress(this.tokenA.assetId);
-            if (this.tokenA.l2Address !== ethers.ZeroAddress) break;
-            await utils.sleep(1);
-        }
+        // Register tokens on Interop1
+        await (await this.interop1NativeTokenVault.registerToken(this.tokenA.l2Address)).wait();
+        this.tokenA.assetId = await this.interop1NativeTokenVault.assetId(this.tokenA.l2Address);
         this.interop1TokenA = new zksync.Contract(
             this.tokenA.l2Address,
             ArtifactMintableERC20.abi,
             this.interop1Wallet
         );
+
+        // Migrate token balances to Gateway
+        const fileConfig = shouldLoadConfigFromFile();
+        const initiateCmd = `zkstack chain gateway initiate-token-balance-migration --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`;
+        await utils.spawn(initiateCmd);
+        const finalizeCmd = `zkstack chain gateway finalize-token-balance-migration --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`;
+        await utils.spawn(finalizeCmd);
 
         // Save State
         const newState = {
@@ -627,13 +603,17 @@ export class InteropTestContext {
     }
 
     /**
-     * Approves a random amount of test tokens and returns the amount.
+     * Approves and mints a random amount of test tokens and returns the amount.
      */
     async getAndApproveTokenTransferAmount(): Promise<bigint> {
         const transferAmount = BigInt(Math.floor(Math.random() * 900) + 100);
 
-        // Approve token transfer on Interop1
-        await (await this.interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait();
+        await Promise.all([
+            // Approve token transfer on Interop1
+            (await this.interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
+            // Mint tokens for the test wallet on Interop1 for the transfer
+            (await this.interop1TokenA.mint(this.interop1Wallet.address, transferAmount)).wait()
+        ]);
 
         return transferAmount;
     }
