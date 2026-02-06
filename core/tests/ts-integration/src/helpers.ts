@@ -184,6 +184,20 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
     }
 }
 
+export async function waitForPriorityOp(wallet: zksync.Wallet, l1Receipt: ethers.TransactionReceipt) {
+    const mainContractAddress = await wallet.provider.getMainContractAddress();
+    const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, mainContractAddress);
+    let l2Receipt: ethers.TransactionReceipt | null = null;
+    while (!l2Receipt) {
+        l2Receipt = await wallet.provider.getTransactionReceipt(l2Hash);
+        if (!l2Receipt) {
+            await zksync.utils.sleep(wallet.provider.pollingInterval);
+        }
+    }
+    await waitUntilBlockFinalized(wallet, l2Receipt.blockNumber);
+    return l2Receipt;
+}
+
 export async function waitForInteropRootNonZero(
     provider: zksync.Provider,
     wallet: zksync.Wallet,
