@@ -131,8 +131,10 @@ zkstack server --ignore-prerequisites --chain $SECOND_CHAIN_NAME &> ./zruns/$SEC
 zkstack server wait --ignore-prerequisites --verbose --chain era
 zkstack server wait --ignore-prerequisites --verbose --chain $SECOND_CHAIN_NAME
 
-zkstack chain gateway migrate-token-balances --to-gateway --chain era --gateway-chain-name gateway
-zkstack chain gateway migrate-token-balances --to-gateway --chain $SECOND_CHAIN_NAME --gateway-chain-name gateway
+zkstack chain gateway initiate-token-balance-migration --to-gateway --chain era --gateway-chain-name gateway
+zkstack chain gateway initiate-token-balance-migration --to-gateway --chain $SECOND_CHAIN_NAME --gateway-chain-name gateway
+zkstack chain gateway finalize-token-balance-migration --to-gateway --chain era --gateway-chain-name gateway
+zkstack chain gateway finalize-token-balance-migration --to-gateway --chain $SECOND_CHAIN_NAME --gateway-chain-name gateway
 
 
 zkstack dev init-test-wallet --chain era
