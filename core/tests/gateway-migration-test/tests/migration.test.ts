@@ -182,7 +182,10 @@ describe('Migration from gateway test', function () {
     });
 
     step('Pause deposits before initiating migration', async () => {
-        await utils.spawn(`zkstack chain pause-deposits --chain ${fileConfig.chain}`);
+        await zkstackExecWithMutex(
+            `zkstack chain pause-deposits --chain ${fileConfig.chain}`,
+            'pausing deposits before initiating migration'
+        );
 
         // Wait until the priority queue is empty
         let tryCount = 0;
@@ -195,10 +198,17 @@ describe('Migration from gateway test', function () {
 
     step('Migrate to/from gateway', async () => {
         if (direction == 'TO') {
-            await utils.spawn(`zkstack chain gateway notify-about-to-gateway-update --chain ${fileConfig.chain}`);
+            await zkstackExecWithMutex(
+                `zkstack chain gateway notify-about-to-gateway-update --chain ${fileConfig.chain}`,
+                'notifying about to gateway update'
+            );
         } else {
-            await utils.spawn(`zkstack chain gateway notify-about-from-gateway-update --chain ${fileConfig.chain}`);
+            await zkstackExecWithMutex(
+                `zkstack chain gateway notify-about-from-gateway-update --chain ${fileConfig.chain}`,
+                'notifying about from gateway update'
+            );
         }
+
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, 1n);
 
@@ -209,50 +219,18 @@ describe('Migration from gateway test', function () {
         await waitForAllBatchesToBeExecuted(fileConfig.chain!);
 
         if (direction == 'TO') {
-            try {
-                // Acquire mutex for gateway migration
-                console.log(`🔒 Acquiring mutex for gateway migration of ${fileConfig.chain}...`);
-                await migrationMutex.acquire();
-                console.log(`✅ Mutex acquired for gateway migration of ${fileConfig.chain}`);
-
-                try {
-                    await utils.exec(
-                        `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
-                    );
-
-                    console.log(`✅ Successfully migrated chain ${fileConfig.chain} to gateway`);
-                } finally {
-                    // Always release the mutex
-                    migrationMutex.release();
-                }
-            } catch (e) {
-                console.error(`❌ Failed to migrate chain ${fileConfig.chain} to gateway:`, e);
-                throw e;
-            }
+            await zkstackExecWithMutex(
+                `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`,
+                'gateway migration'
+            );
 
             // Wait until the migration is ready to finalize without holding the mutex.
             await waitForMigrationReadyForFinalize(fileConfig.chain!);
 
-            try {
-                // Acquire mutex for finalizing gateway migration
-                console.log(`🔒 Acquiring mutex for finalizing gateway migration of ${fileConfig.chain}...`);
-                await migrationMutex.acquire();
-                console.log(`✅ Mutex acquired for finalizing gateway migration of ${fileConfig.chain}`);
-
-                try {
-                    await utils.exec(
-                        `zkstack chain gateway finalize-chain-migration-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain} --deploy-paymaster`
-                    );
-
-                    console.log(`✅ Successfully finalized migration of chain ${fileConfig.chain} to gateway`);
-                } finally {
-                    // Always release the mutex
-                    migrationMutex.release();
-                }
-            } catch (e) {
-                console.error(`❌ Failed to finalize migration of chain ${fileConfig.chain} to gateway:`, e);
-                throw e;
-            }
+            await zkstackExecWithMutex(
+                `zkstack chain gateway finalize-chain-migration-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain} --deploy-paymaster`,
+                'finalizing gateway migration'
+            );
         } else {
             let migrationSucceeded = false;
             let tryCount = 0;
@@ -376,12 +354,16 @@ describe('Migration from gateway test', function () {
     // TODO: When support is restored in future versions, remove this negative test.
     step('Migrating back to gateway fails', async () => {
         // Pause deposits before trying migration back to gateway
-        await utils.spawn(`zkstack chain pause-deposits --chain ${fileConfig.chain}`);
+        await zkstackExecWithMutex(
+            `zkstack chain pause-deposits --chain ${fileConfig.chain}`,
+            'pausing deposits before migrating back to gateway'
+        );
 
         try {
             // We use utils.exec instead of utils.spawn to capture stdout/stderr for assertion
-            await utils.exec(
-                `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+            await zkstackExecWithMutex(
+                `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`,
+                'migrating back to gateway'
             );
             expect.fail('Migrating back to gateway should have failed');
         } catch (e: any) {
@@ -402,22 +384,6 @@ describe('Migration from gateway test', function () {
             return await l1MainContract.getPriorityQueueSize();
         } else {
             return await chainGatewayContract.getPriorityQueueSize();
-        }
-    }
-
-    async function getTotalBatchesCommitted() {
-        if (direction == 'TO') {
-            return await l1MainContract.getTotalBatchesCommitted();
-        } else {
-            return await chainGatewayContract.getTotalBatchesCommitted();
-        }
-    }
-
-    async function getTotalBatchesExecuted() {
-        if (direction == 'TO') {
-            return await l1MainContract.getTotalBatchesExecuted();
-        } else {
-            return await chainGatewayContract.getTotalBatchesExecuted();
         }
     }
 });
@@ -462,6 +428,27 @@ async function mintToAddress(
     const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
     const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, ethersWallet);
     await (await l1Erc20Contract.mint(addressToMintTo, amountToMint)).wait();
+}
+
+async function zkstackExecWithMutex(command: string, name: string) {
+    try {
+        // Acquire mutex for zkstack exec
+        console.log(`🔒 Acquiring mutex for ${name} of ${fileConfig.chain}...`);
+        await migrationMutex.acquire();
+        console.log(`✅ Mutex acquired for ${name} of ${fileConfig.chain}`);
+
+        try {
+            await utils.exec(command);
+
+            console.log(`✅ Successfully executed ${name} for chain ${fileConfig.chain}`);
+        } finally {
+            // Always release the mutex
+            migrationMutex.release();
+        }
+    } catch (e) {
+        console.error(`❌ Failed to execute ${name} for chain ${fileConfig.chain}:`, e);
+        throw e;
+    }
 }
 
 export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo | null {
