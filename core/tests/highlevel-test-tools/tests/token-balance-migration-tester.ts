@@ -435,14 +435,13 @@ export class ChainHandler {
         const actualBalance = await contract!.chainBalance(chainId, assetId);
 
         if (assetId === this.baseTokenAssetId && (where === 'GWAT' || where === 'L1AT')) {
-            return true;
             // Here we have to account for some balance drift from the migrate_token_balances.rs script
-            // const tolerance = ethers.parseEther('0.0015');
-            // const diff = actualBalance > balance ? actualBalance - balance : balance - actualBalance;
-            // if (diff > tolerance) {
-            //     throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
-            // }
-            // return true;
+            const tolerance = ethers.parseEther('0.0015');
+            const diff = actualBalance > balance ? actualBalance - balance : balance - actualBalance;
+            if (diff > tolerance) {
+                throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
+            }
+            return true;
         }
 
         if (actualBalance !== balance) {
