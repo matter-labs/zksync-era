@@ -11,7 +11,8 @@ import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 import { getEcosystemContracts } from 'utils/build/tokens';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
-import { waitForAllBatchesToBeExecuted } from 'highlevel-test-tools/src';
+import { waitForAllBatchesToBeExecuted, waitForMigrationReadyForFinalize } from 'highlevel-test-tools/src';
+import { FileMutex } from 'highlevel-test-tools/src/file-mutex';
 
 async function logsPath(name: string): Promise<string> {
     return await logsTestPath(fileConfig.chain, 'logs/migration/', name);
@@ -25,6 +26,7 @@ const ZK_CHAIN_INTERFACE = JSON.parse(
 ).abi;
 
 const depositAmount = ethers.parseEther('0.001');
+const migrationMutex = new FileMutex();
 
 interface GatewayInfo {
     gatewayChainId: string;
@@ -207,33 +209,72 @@ describe('Migration from gateway test', function () {
         await waitForAllBatchesToBeExecuted(fileConfig.chain!);
 
         if (direction == 'TO') {
-            const maxRetries = 3;
-            for (let i = 0; i < maxRetries; i++) {
+            try {
+                // Acquire mutex for gateway migration
+                console.log(`🔒 Acquiring mutex for gateway migration of ${fileConfig.chain}...`);
+                await migrationMutex.acquire();
+                console.log(`✅ Mutex acquired for gateway migration of ${fileConfig.chain}`);
+
                 try {
-                    // We use utils.exec instead of utils.spawn to capture stdout/stderr
                     await utils.exec(
                         `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
                     );
-                    break;
-                } catch (error) {
-                    if (i === maxRetries - 1) {
-                        console.error(`Gateway migration failed after ${maxRetries} attempts.`);
-                        throw error;
-                    }
-                    console.log(`Gateway migration failed (attempt ${i + 1}/${maxRetries}). Retrying...`);
+
+                    console.log(`✅ Successfully migrated chain ${fileConfig.chain} to gateway`);
+                } finally {
+                    // Always release the mutex
+                    migrationMutex.release();
                 }
+            } catch (e) {
+                console.error(`❌ Failed to migrate chain ${fileConfig.chain} to gateway:`, e);
+                throw e;
+            }
+
+            // Wait until the migration is ready to finalize without holding the mutex.
+            await waitForMigrationReadyForFinalize(fileConfig.chain!);
+
+            try {
+                // Acquire mutex for finalizing gateway migration
+                console.log(`🔒 Acquiring mutex for finalizing gateway migration of ${fileConfig.chain}...`);
+                await migrationMutex.acquire();
+                console.log(`✅ Mutex acquired for finalizing gateway migration of ${fileConfig.chain}`);
+
+                try {
+                    await utils.exec(
+                        `zkstack chain gateway finalize-chain-migration-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain} --deploy-paymaster`
+                    );
+
+                    console.log(`✅ Successfully finalized migration of chain ${fileConfig.chain} to gateway`);
+                } finally {
+                    // Always release the mutex
+                    migrationMutex.release();
+                }
+            } catch (e) {
+                console.error(`❌ Failed to finalize migration of chain ${fileConfig.chain} to gateway:`, e);
+                throw e;
             }
         } else {
             let migrationSucceeded = false;
-            for (let i = 0; i < 100; i++) {
+            let tryCount = 0;
+            while (!migrationSucceeded && tryCount < 60) {
                 try {
-                    await utils.spawn(
-                        `zkstack chain gateway migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
-                    );
-                    migrationSucceeded = true;
-                    break;
+                    // Acquire mutex for migration attempt
+                    console.log(`🔒 Acquiring mutex for migration attempt ${tryCount}...`);
+                    await migrationMutex.acquire();
+                    console.log(`✅ Mutex acquired for migration attempt ${tryCount}`);
+
+                    try {
+                        await utils.spawn(
+                            `zkstack chain gateway migrate-from-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`
+                        );
+                        migrationSucceeded = true;
+                    } finally {
+                        // Always release the mutex
+                        migrationMutex.release();
+                    }
                 } catch (e) {
-                    console.log(`Migration attempt ${i} failed with error: ${e}`);
+                    console.log(`Migration attempt ${tryCount} failed with error: ${e}`);
+                    tryCount++;
                     await utils.sleep(2);
                 }
             }

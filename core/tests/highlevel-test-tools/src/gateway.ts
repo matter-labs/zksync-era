@@ -207,7 +207,7 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
     return totalExecuted >= batchNumber;
 }
 
-async function waitForMigrationReadyForFinalize(chainName: string): Promise<void> {
+export async function waitForMigrationReadyForFinalize(chainName: string): Promise<void> {
     while (true) {
         if (await isMigrationReadyForFinalize(chainName)) {
             console.log(`✅ Migration is ready to finalize for ${chainName}`);
