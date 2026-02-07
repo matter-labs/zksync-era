@@ -15,10 +15,11 @@ import {
     GW_ASSET_TRACKER_ADDRESS,
     GATEWAY_CHAIN_ID
 } from 'utils/src/constants';
-import { executeCommand, migrateToGatewayIfNeeded, startServer } from '../src';
+import { executeCommand, FileMutex, migrateToGatewayIfNeeded, startServer } from '../src';
 import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
 
+const tbmMutex = new FileMutex();
 export const RICH_WALLET_L2_BALANCE = ethers.parseEther('10.0');
 export const TOKEN_MINT_AMOUNT = ethers.parseEther('1.0');
 const MAX_WITHDRAW_AMOUNT = ethers.parseEther('0.1');
@@ -265,10 +266,9 @@ export class ChainHandler {
 
     async migrateToGateway() {
         // Pause deposits before initiating migration
-        await executeCommand(
-            'zkstack',
+        await this.zkstackExecWithMutex(
             ['chain', 'pause-deposits', '--chain', this.inner.chainName],
-            this.inner.chainName,
+            'pausing deposits before initiating migration',
             'gateway_migration'
         );
         // Wait for priority queue to be empty
@@ -299,10 +299,9 @@ export class ChainHandler {
 
     async migrateFromGateway() {
         // Pause deposits before initiating migration
-        await executeCommand(
-            'zkstack',
+        await this.zkstackExecWithMutex(
             ['chain', 'pause-deposits', '--chain', this.inner.chainName],
-            this.inner.chainName,
+            'pausing deposits before initiating migration',
             'gateway_migration'
         );
         // Wait for priority queue to be empty
@@ -310,16 +309,14 @@ export class ChainHandler {
         // Wait for all batches to be executed
         await this.inner.waitForAllBatchesToBeExecuted();
         // Notify server
-        await executeCommand(
-            'zkstack',
+        await this.zkstackExecWithMutex(
             ['chain', 'gateway', 'notify-about-from-gateway-update', '--chain', this.inner.chainName],
-            this.inner.chainName,
+            'notifying about from gateway update',
             'gateway_migration'
         );
         // We can now reliably migrate from gateway
         removeErrorListeners(this.inner.mainNode.process!);
-        await executeCommand(
-            'zkstack',
+        await this.zkstackExecWithMutex(
             [
                 'chain',
                 'gateway',
@@ -329,7 +326,7 @@ export class ChainHandler {
                 '--chain',
                 this.inner.chainName
             ],
-            this.inner.chainName,
+            'migrating from gateway',
             'gateway_migration'
         );
         await this.waitForShutdown();
@@ -397,6 +394,27 @@ export class ChainHandler {
         await initTestWallet(testChain.chainName);
 
         return new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
+    }
+
+    private async zkstackExecWithMutex(command: string[], name: string, logFileName: string) {
+        try {
+            // Acquire mutex for zkstack exec
+            console.log(`🔒 Acquiring mutex for ${name} of ${this.inner.chainName}...`);
+            await tbmMutex.acquire();
+            console.log(`✅ Mutex acquired for ${name} of ${this.inner.chainName}`);
+
+            try {
+                await executeCommand('zkstack', command, this.inner.chainName, logFileName);
+
+                console.log(`✅ Successfully executed ${name} for chain ${this.inner.chainName}`);
+            } finally {
+                // Always release the mutex
+                tbmMutex.release();
+            }
+        } catch (e) {
+            console.error(`❌ Failed to execute ${name} for chain ${this.inner.chainName}:`, e);
+            throw e;
+        }
     }
 
     private async assertChainBalance(
