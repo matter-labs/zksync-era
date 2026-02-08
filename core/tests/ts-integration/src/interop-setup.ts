@@ -332,6 +332,7 @@ export class InteropTestContext {
 
                     const state = JSON.parse(fs.readFileSync(SHARED_STATE_FILE, 'utf-8'));
                     this.loadState(state);
+                    await this.fundInterop1TokenAForSuite();
                     return;
                 } catch (e) {
                     // File might be half-written, continue waiting
@@ -402,18 +403,6 @@ export class InteropTestContext {
         );
         this.tokenA.l1Address = await l1Token.getAddress();
 
-        const initialL1Amount = ethers.parseEther('1000');
-        await (await l1Token.mint(this.interop1RichWallet.address, initialL1Amount)).wait();
-        await (
-            await this.interop1RichWallet.deposit({
-                token: this.tokenA.l1Address,
-                amount: initialL1Amount,
-                to: this.interop1Wallet.address,
-                approveERC20: true,
-                approveBaseERC20: true
-            })
-        ).wait();
-
         const l1ChainId = (await this.l1Provider.getNetwork()).chainId;
         this.tokenA.assetId = encodeNTVAssetId(l1ChainId, this.tokenA.l1Address);
         while (true) {
@@ -426,6 +415,7 @@ export class InteropTestContext {
             ArtifactMintableERC20.abi,
             this.interop1Wallet
         );
+        await this.fundInterop1TokenAForSuite();
 
         // Save State
         const newState = {
@@ -454,6 +444,25 @@ export class InteropTestContext {
             ArtifactMintableERC20.abi,
             this.interop1Wallet
         );
+    }
+
+    private async fundInterop1TokenAForSuite(amount: bigint = ethers.parseEther('1000')) {
+        const l1TokenArtifact = readContract(ARTIFACTS_PATH, 'TestnetERC20Token');
+        const l1Token = new ethers.Contract(
+            this.tokenA.l1Address,
+            l1TokenArtifact.abi,
+            this.interop1RichWallet.ethWallet()
+        );
+        await (await l1Token.mint(this.interop1RichWallet.address, amount)).wait();
+        await (
+            await this.interop1RichWallet.deposit({
+                token: this.tokenA.l1Address,
+                amount,
+                to: this.interop1Wallet.address,
+                approveERC20: true,
+                approveBaseERC20: true
+            })
+        ).wait();
     }
 
     async deinitialize() {
