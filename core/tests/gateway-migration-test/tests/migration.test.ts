@@ -193,7 +193,6 @@ describe('Migration from gateway test', function () {
             tryCount += 1;
             await utils.sleep(1);
         }
-        console.error('tryCount', tryCount);
     });
 
     step('Migrate to/from gateway', async () => {
@@ -358,6 +357,13 @@ describe('Migration from gateway test', function () {
             `zkstack chain pause-deposits --chain ${fileConfig.chain}`,
             'pausing deposits before migrating back to gateway'
         );
+
+        // Wait until the priority queue is empty
+        let tryCount = 0;
+        while ((await getPriorityQueueSize()) > 0 && tryCount < 100) {
+            tryCount += 1;
+            await utils.sleep(1);
+        }
 
         try {
             // We use utils.exec instead of utils.spawn to capture stdout/stderr for assertion
