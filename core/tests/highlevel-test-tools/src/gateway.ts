@@ -209,12 +209,16 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
 
 export async function waitForMigrationReadyForFinalize(chainName: string): Promise<void> {
     while (true) {
-        if (await isMigrationReadyForFinalize(chainName)) {
-            console.log(`✅ Migration is ready to finalize for ${chainName}`);
-            return;
-        }
+        try {
+            if (await isMigrationReadyForFinalize(chainName)) {
+                console.log(`✅ Migration is ready to finalize for ${chainName}`);
+                return;
+            }
 
-        console.log(`⏳ Migration not ready to finalize for ${chainName}, retrying...`);
+            console.log(`⏳ Migration not ready to finalize for ${chainName}, retrying...`);
+        } catch (error) {
+            console.warn(`⚠️ Failed to check migration readiness for ${chainName}: ${error}`);
+        }
         await utils.sleep(5);
     }
 }
