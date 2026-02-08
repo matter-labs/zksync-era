@@ -297,7 +297,10 @@ describe('Migration from gateway test', function () {
         const chainId = (await tester.syncWallet.provider!.getNetwork()).chainId;
         const migrationNumberL1 = await ecosystemContracts.assetTracker.assetMigrationNumber(chainId, assetId);
 
-        await utils.spawn(`zkstack dev init-test-wallet --chain gateway`);
+        await zkstackExecWithMutex(
+            `zkstack dev init-test-wallet --chain gateway`,
+            'initializing test wallet for gateway'
+        );
 
         const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
         const gatewayEcosystemContracts = await getEcosystemContracts(
