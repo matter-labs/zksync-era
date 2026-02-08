@@ -19,7 +19,7 @@ export class FileMutex {
     }
 
     async acquire(): Promise<void> {
-        const maxRetries = 600 * 10; // 10 minutes with 100ms intervals
+        const maxRetries = 600 * 12; // 12 minutes with 100ms intervals
         const retryDelay = 100; // 100ms
 
         for (let i = 0; i < maxRetries; i++) {
