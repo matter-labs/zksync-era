@@ -23,10 +23,7 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     commitment::{L1BatchWithMetadata, L2DACommitmentScheme, SerializeCommitment},
-    eth_sender::{
-        EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxBlobSidecarV2, EthTxFinalityStatus,
-        SidecarBlobV1,
-    },
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxBlobSidecarV2, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
@@ -1380,39 +1377,21 @@ impl EthTxAggregator {
         GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
     }
 
-    /// Returns `true` if there are pending or sealed L1 batches not yet committed on the
-    /// current settlement layer. Used to block gateway migration until all batches are finalized.
+    /// Returns `true` if there are batches on the current settlement layer not yet committed.
+    /// Used to block gateway migration until all batches are finalized.
     async fn is_waiting_for_batches_with_current_settlement_layer_to_be_committed(
         &self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<bool, EthSenderError> {
-        // If the state keeper has an open (unsealed) batch, it will eventually be sealed
-        // and need to be committed on the current settlement layer.
-        if storage.blocks_dal().pending_batch_exists().await? {
-            return Ok(true);
-        }
+        let settlement_layer = self
+            .settlement_layer
+            .expect("settlement layer should be known");
+        let has_uncommitted_batches = storage
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await?;
 
-        let Some(latest_sealed_l1_batch) =
-            storage.blocks_dal().get_sealed_l1_batch_number().await?
-        else {
-            return Ok(false);
-        };
-
-        let last_sent_successfully_eth_tx = storage
-            .eth_sender_dal()
-            .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                latest_sealed_l1_batch,
-                L1BatchAggregatedActionType::Commit,
-            )
-            .await;
-
-        if last_sent_successfully_eth_tx
-            .is_some_and(|tx| tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized)
-        {
-            return Ok(false);
-        }
-
-        Ok(true)
+        Ok(has_uncommitted_batches)
     }
 }
 
