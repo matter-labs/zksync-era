@@ -110,6 +110,11 @@ pub async fn check_chain_readiness(
 
         verify_next_batch_new_version(batches_committed, &l2_client, upgrade_versions).await?;
         verify_next_batch_new_version(batches_verified, &l2_client, upgrade_versions).await?;
+
+        if matches!(upgrade_versions, UpgradeVersion::V29InteropAFf) {
+            let batches_executed = zkchain.get_total_batches_executed().await?.as_u32();
+            verify_next_batch_new_version(batches_executed, &l2_client, upgrade_versions).await?;
+        }
     } else {
         // L1
         let diamond_proxy_addr = l2_client.get_main_l1_contract().await?;
@@ -120,6 +125,11 @@ pub async fn check_chain_readiness(
 
         verify_next_batch_new_version(batches_committed, &l2_client, upgrade_versions).await?;
         verify_next_batch_new_version(batches_verified, &l2_client, upgrade_versions).await?;
+
+        if matches!(upgrade_versions, UpgradeVersion::V29InteropAFf) {
+            let batches_executed = zkchain.get_total_batches_executed().await?.as_u32();
+            verify_next_batch_new_version(batches_executed, &l2_client, upgrade_versions).await?;
+        }
     }
 
     Ok(())
