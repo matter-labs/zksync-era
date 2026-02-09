@@ -3070,7 +3070,6 @@ name = "circuit_sequencer_api"
 version = "0.153.6"
 dependencies = [
  "derivative",
- "rayon",
  "serde",
  "zk_evm",
 ]
@@ -4897,7 +4896,9 @@ dependencies = [
  "num-derive 0.2.5",
  "num-integer",
  "num-traits",
- "rand 0.4.6",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rand_xorshift 0.3.0",
  "serde",
  "sha2 0.9.9",
  "sha3 0.9.1",
@@ -8210,7 +8211,7 @@ dependencies = [
  "num-traits",
  "rand 0.9.1",
  "rand_chacha 0.9.0",
- "rand_xorshift",
+ "rand_xorshift 0.4.0",
  "regex-syntax 0.8.5",
  "rusty-fork",
  "tempfile",
@@ -8630,6 +8631,15 @@ dependencies = [
 
 [[package]]
 name = "rand_xorshift"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
+dependencies = [
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand_xorshift"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "513962919efc330f829edb2535844d1b912b0fbe2ca165d613e4e8788bb05a5a"
@@ -8913,7 +8923,9 @@ dependencies = [
  "num-integer",
  "num-iter",
  "num-traits",
- "rand 0.4.6",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rand_xorshift 0.3.0",
  "serde",
  "sha3 0.9.1",
  "smallvec",
@@ -10459,7 +10471,7 @@ name = "snark_wrapper"
 version = "0.32.7"
 dependencies = [
  "derivative",
- "rand 0.4.6",
+ "rand 0.8.5",
  "rescue_poseidon",
  "serde",
 ]
@@ -13088,7 +13100,6 @@ dependencies = [
  "lazy_static",
  "num",
  "serde",
- "serde_json",
  "static_assertions",
  "zk_evm_abstractions",
 ]
@@ -13099,6 +13110,7 @@ version = "0.153.6"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
+ "seq-macro",
  "serde",
  "static_assertions",
  "zkevm_opcode_defs 0.153.6",
@@ -13313,7 +13325,9 @@ dependencies = [
  "hex",
  "lazy_static",
  "num_cpus",
- "rand 0.4.6",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rand_xorshift 0.3.0",
  "serde",
  "smallvec",
  "tiny-keccak 1.5.0",
@@ -14121,6 +14135,7 @@ dependencies = [
  "byteorder",
  "hex",
  "rand 0.8.5",
+ "rand_xorshift 0.3.0",
  "serde",
  "zksync_ff_derive 0.32.7",
 ]
@@ -14723,6 +14738,7 @@ dependencies = [
  "byteorder",
  "cfg-if",
  "rand 0.8.5",
+ "rand_xorshift 0.3.0",
  "serde",
  "zksync_ff 0.32.7",
 ]

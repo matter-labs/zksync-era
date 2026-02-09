@@ -98,7 +98,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             gas_remaining_after,
             pubdata_published,
             logs.total_log_queries_count,
-            circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
+            // circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
         );
         let result = tx_tracer.result_tracer.into_result();
         let factory_deps_marked_as_known = VmEvent::extract_bytecodes_marked_as_known(&logs.events);

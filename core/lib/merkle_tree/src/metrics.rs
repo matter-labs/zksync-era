@@ -128,7 +128,7 @@ impl fmt::Debug for TreeUpdaterStats {
             .field("new_internal_nodes", &self.new_internal_nodes)
             .field("moved_leaves", &self.moved_leaves)
             .field("updated_leaves", &self.updated_leaves)
-            .field("avg_leaf_level", &self.avg_leaf_level())
+            // .field("avg_leaf_level", &self.avg_leaf_level())
             .field("max_leaf_level", &self.max_leaf_level)
             .field("key_reads", &self.key_reads)
             .field("missing_key_reads", &self.missing_key_reads)
@@ -145,15 +145,15 @@ impl TreeUpdaterStats {
         self.max_leaf_level = self.max_leaf_level.max(leaf_level);
     }
 
-    #[allow(clippy::cast_precision_loss)] // Acceptable for metrics
-    fn avg_leaf_level(&self) -> f64 {
-        let touched_leaves = self.new_leaves + self.moved_leaves;
-        if touched_leaves > 0 {
-            self.leaf_level_sum as f64 / touched_leaves as f64
-        } else {
-            0.0
-        }
-    }
+    // #[allow(clippy::cast_precision_loss)] // Acceptable for metrics
+    // fn avg_leaf_level(&self) -> f64 {
+    //     let touched_leaves = self.new_leaves + self.moved_leaves;
+    //     if touched_leaves > 0 {
+    //         self.leaf_level_sum as f64 / touched_leaves as f64
+    //     } else {
+    //         0.0
+    //     }
+    // }
 
     // pub(crate) fn report(self) {
     //     let metrics = &TREE_UPDATE_METRICS;

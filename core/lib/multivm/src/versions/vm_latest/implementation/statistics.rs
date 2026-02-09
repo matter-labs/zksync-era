@@ -21,7 +21,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         gas_remaining_after: u32,
         pubdata_published: u32,
         total_log_queries_count: usize,
-        circuit_statistic: CircuitStatistic,
+        // circuit_statistic: CircuitStatistic,
     ) -> VmExecutionStatistics {
         let computational_gas_used = self.calculate_computational_gas_used(gas_remaining_before);
         VmExecutionStatistics {
@@ -35,7 +35,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             computational_gas_used,
             total_log_queries: total_log_queries_count,
             pubdata_published,
-            circuit_statistic,
+            // circuit_statistic,
         }
     }
 

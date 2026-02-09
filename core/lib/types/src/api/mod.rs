@@ -19,9 +19,11 @@ use crate::{
     debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
     eth_sender::EthTxFinalityStatus,
     protocol_version::L1VerifierConfig,
-    server_notification::{GatewayMigrationNotification, GatewayMigrationState},
+    // server_notification::{GatewayMigrationNotification, GatewayMigrationState},
     tee_types::TeeType,
-    Address, L2BlockNumber, ProtocolVersionId,
+    Address,
+    L2BlockNumber,
+    ProtocolVersionId,
 };
 
 pub mod en;
@@ -1077,16 +1079,16 @@ pub struct TransactionExecutionInfo {
     pub execution_info: Value,
 }
 
-/// The fee history type returned from `eth_feeHistory` call.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FeeHistory {
-    #[serde(flatten)]
-    pub inner: zksync_basic_types::web3::FeeHistory,
-    /// An array of effective pubdata prices. Note, that this field is L2-specific and only provided by L2 nodes.
-    #[serde(default)]
-    pub l2_pubdata_price: Vec<U256>,
-}
+// /// The fee history type returned from `eth_feeHistory` call.
+// #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+// #[serde(rename_all = "camelCase")]
+// pub struct FeeHistory {
+//     #[serde(flatten)]
+//     pub inner: zksync_basic_types::web3::FeeHistory,
+//     /// An array of effective pubdata prices. Note, that this field is L2-specific and only provided by L2 nodes.
+//     #[serde(default)]
+//     pub l2_pubdata_price: Vec<U256>,
+// }
 
 /// The data availability details type. Used exclusively in Validiums.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -1109,8 +1111,8 @@ pub struct L1ToL2TxsStatus {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GatewayMigrationStatus {
-    pub latest_notification: Option<GatewayMigrationNotification>,
-    pub state: GatewayMigrationState,
+    // pub latest_notification: Option<GatewayMigrationNotification>,
+    // pub state: GatewayMigrationState,
     pub settlement_layer: Option<SettlementLayer>,
     pub wait_for_batches_to_be_committed: bool,
 }

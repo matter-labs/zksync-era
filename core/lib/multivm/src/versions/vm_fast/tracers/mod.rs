@@ -35,9 +35,9 @@ impl<Tr: Tracer, Val: ValidationTracer> WithBuiltinTracers<Tr, Val> {
         }
     }
 
-    pub(super) fn circuit_statistic(&self) -> CircuitStatistic {
-        self.circuits.circuit_statistic()
-    }
+    // pub(super) fn circuit_statistic(&self) -> CircuitStatistic {
+    //     self.circuits.circuit_statistic()
+    // }
 }
 
 #[cfg(test)]

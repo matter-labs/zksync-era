@@ -198,11 +198,11 @@ impl CheckDivergence for VmExecutionResultAndLogs {
         let shadow_logs = UniqueStorageLogs::new(&other.logs.storage_logs);
         errors.check_match("logs.storage_logs", &main_logs, &shadow_logs);
         errors.check_match("refunds", &self.refunds, &other.refunds);
-        errors.check_match(
-            "statistics.circuit_statistic",
-            &self.statistics.circuit_statistic,
-            &other.statistics.circuit_statistic,
-        );
+        // errors.check_match(
+        //     "statistics.circuit_statistic",
+        //     &self.statistics.circuit_statistic,
+        //     &other.statistics.circuit_statistic,
+        // );
         errors.check_match(
             "statistics.pubdata_published",
             &self.statistics.pubdata_published,
@@ -673,8 +673,8 @@ impl DivergenceErrors {
     }
 }
 
-// The new VM doesn't support read logs yet, doesn't order logs by access and deduplicates them
-// inside the VM, hence this auxiliary struct.
+// The fast VM may include read logs and doesn't order logs by access, so we compare only
+// writes and deduplicate them here for stable comparisons.
 #[derive(PartialEq)]
 struct UniqueStorageLogs(BTreeMap<StorageKey, StorageLogWithPreviousValue>);
 

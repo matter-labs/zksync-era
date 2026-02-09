@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt, mem, rc::Rc};
 
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zk_evm_1_5_2::{
     aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
 };
@@ -15,7 +16,7 @@ use zksync_vm2::{
 };
 
 use super::{
-    bytecode::compress_bytecodes,
+    bytecode::compress_bytecodes_with_hashes,
     tracers::{ValidationTracer, WithBuiltinTracers},
     world::World,
 };
@@ -252,6 +253,17 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
         }
     }
 
+    pub(crate) fn insert_bytecodes_with_hashes<'a>(
+        &mut self,
+        bytecodes: impl IntoIterator<Item = (H256, &'a [u8])>,
+    ) {
+        for (hash, code) in bytecodes {
+            self.world
+                .bytecode_cache
+                .insert(h256_to_u256(hash), code.into());
+        }
+    }
+
     pub(crate) fn push_transaction_inner(
         &mut self,
         tx: Transaction,
@@ -266,13 +278,18 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
         let tx = TransactionData::new(tx, use_evm_emulator);
         let overhead = tx.overhead_gas();
 
-        self.insert_bytecodes(tx.factory_deps.iter().map(|dep| &dep[..]));
+        self.insert_bytecodes_with_hashes(
+            tx.factory_deps_hashes
+                .iter()
+                .copied()
+                .zip(tx.factory_deps.iter().map(Vec::as_slice)),
+        );
 
         let compressed_bytecodes = if is_l1_tx_type(tx.tx_type) || !with_compression {
             // L1 transactions do not need compression
             vec![]
         } else {
-            compress_bytecodes(&tx.factory_deps, |hash| {
+            compress_bytecodes_with_hashes(&tx.factory_deps, &tx.factory_deps_hashes, |hash| {
                 self.inner
                     .world_diff()
                     .get_storage_state()
@@ -364,14 +381,14 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
 
         CurrentExecutionState {
             events,
-            deduplicated_storage_logs: world_diff
-                .get_storage_changes()
-                .map(|((address, key), change)| StorageLog {
-                    key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                    value: u256_to_h256(change.after),
-                    kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
-                })
-                .collect(),
+            deduplicated_storage_logs: {
+                let (_, deduped_storage_log_queries) =
+                    sort_storage_access_queries(world_diff.storage_log_queries().iter().copied());
+                deduped_storage_log_queries
+                    .into_iter()
+                    .map(|log_query| StorageLog::from_log_query(&log_query.glue_into()))
+                    .collect()
+            },
             used_contract_hashes: self.decommitted_hashes().collect(),
             system_logs: vm.l2_to_l1_logs().map(GlueInto::glue_into).collect(),
             user_l2_to_l1_logs,
@@ -641,10 +658,10 @@ where
 
                 VmHook::PaymasterValidationEntered => { /* unused */ }
                 VmHook::DebugLog => {
-                    let (log, log_arg) = self.get_debug_log();
-                    let last_tx = self.bootloader_state.last_l2_block().txs.last();
-                    let tx_hash = last_tx.map(|tx| tx.hash);
-                    tracing::trace!(tx = ?tx_hash, "{log}: {log_arg}");
+                    // let (log, log_arg) = self.get_debug_log();
+                    // let last_tx = self.bootloader_state.last_l2_block().txs.last();
+                    // let tx_hash = last_tx.map(|tx| tx.hash);
+                    // tracing::trace!(tx = ?tx_hash, "{log}: {log_arg}");
                 }
                 VmHook::DebugReturnData | VmHook::NearCallCatch => {
                     // These hooks are for debug purposes only
@@ -685,7 +702,7 @@ where
             track_refunds,
             pubdata_builder,
         );
-        let circuit_statistic = full_tracer.circuit_statistic();
+        // let circuit_statistic = full_tracer.circuit_statistic();
         *tracer = (full_tracer.external, full_tracer.validation);
 
         let ignore_world_diff =
@@ -759,7 +776,7 @@ where
                 gas_remaining,
                 computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
                 pubdata_published: result.pubdata_published,
-                circuit_statistic,
+                // circuit_statistic,
                 contracts_used: 0,
                 cycles_used: 0,
                 total_log_queries: 0,

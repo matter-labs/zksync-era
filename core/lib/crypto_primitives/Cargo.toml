@@ -22,3 +22,5 @@ serde.workspace = true
 hex.workspace = true
 anyhow.workspace = true
 rand.workspace = true
+
+# zksync_os_crypto = { package = "crypto", path = "../../../../zksync-os/crypto"}

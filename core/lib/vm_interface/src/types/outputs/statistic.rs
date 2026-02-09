@@ -61,26 +61,26 @@ impl CircuitStatistic {
             + self.ecpairing as usize
     }
 
-    /// Adds numbers.
-    pub fn total_f32(&self) -> f32 {
-        self.main_vm
-            + self.ram_permutation
-            + self.storage_application
-            + self.storage_sorter
-            + self.code_decommitter
-            + self.code_decommitter_sorter
-            + self.log_demuxer
-            + self.events_sorter
-            + self.keccak256
-            + self.ecrecover
-            + self.sha256
-            + self.secp256k1_verify
-            + self.transient_storage_checker
-            + self.modexp
-            + self.ecadd
-            + self.ecmul
-            + self.ecpairing
-    }
+    // /// Adds numbers.
+    // pub fn total_f32(&self) -> f32 {
+    //     self.main_vm
+    //         + self.ram_permutation
+    //         + self.storage_application
+    //         + self.storage_sorter
+    //         + self.code_decommitter
+    //         + self.code_decommitter_sorter
+    //         + self.log_demuxer
+    //         + self.events_sorter
+    //         + self.keccak256
+    //         + self.ecrecover
+    //         + self.sha256
+    //         + self.secp256k1_verify
+    //         + self.transient_storage_checker
+    //         + self.modexp
+    //         + self.ecadd
+    //         + self.ecmul
+    //         + self.ecpairing
+    // }
 }
 
 impl ops::Add for CircuitStatistic {
@@ -126,7 +126,7 @@ pub struct VmExecutionStatistics {
     /// Number of log queries produced by the VM during the tx execution.
     pub total_log_queries: usize,
     pub pubdata_published: u32,
-    pub circuit_statistic: CircuitStatistic,
+    // pub circuit_statistic: CircuitStatistic,
 }
 
 /// Oracle metrics reported by legacy VMs.
@@ -216,7 +216,7 @@ pub struct VmExecutionMetrics {
     pub cycles_used: u32,
     pub computational_gas_used: u32,
     pub pubdata_published: u32,
-    pub circuit_statistic: CircuitStatistic,
+    // pub circuit_statistic: CircuitStatistic,
 }
 
 impl VmExecutionMetrics {
@@ -250,7 +250,7 @@ impl ops::Add for VmExecutionMetrics {
             cycles_used: self.cycles_used + other.cycles_used,
             computational_gas_used: self.computational_gas_used + other.computational_gas_used,
             pubdata_published: self.pubdata_published + other.pubdata_published,
-            circuit_statistic: self.circuit_statistic + other.circuit_statistic,
+            // circuit_statistic: self.circuit_statistic + other.circuit_statistic,
         }
     }
 }

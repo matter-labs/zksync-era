@@ -70,7 +70,7 @@ pub(super) mod rollbacks;
 pub(super) mod secp256r1;
 pub(super) mod simple_execution;
 pub(super) mod storage;
-mod tester;
+pub(crate) mod tester;
 pub(super) mod tracing_execution_error;
 pub(super) mod transfer;
 pub(super) mod upgrade;
@@ -78,7 +78,7 @@ pub(super) mod upgrade;
 static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
-fn get_empty_storage() -> InMemoryStorage {
+pub(crate) fn get_empty_storage() -> InMemoryStorage {
     InMemoryStorage::with_system_contracts()
 }
 

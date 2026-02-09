@@ -28,15 +28,33 @@ impl<S: ReadStorage, Tr, Val> Vm<S, Tr, Val> {
 
 pub(crate) fn compress_bytecodes(
     bytecodes: &[Vec<u8>],
+    is_bytecode_known: impl FnMut(H256) -> bool,
+) -> Vec<CompressedBytecodeInfo> {
+    let bytecode_hashes: Vec<_> = bytecodes
+        .iter()
+        .map(|dep| BytecodeHash::for_bytecode(dep).value())
+        .collect();
+    compress_bytecodes_with_hashes(bytecodes, &bytecode_hashes, is_bytecode_known)
+}
+
+pub(crate) fn compress_bytecodes_with_hashes(
+    bytecodes: &[Vec<u8>],
+    bytecode_hashes: &[H256],
     mut is_bytecode_known: impl FnMut(H256) -> bool,
 ) -> Vec<CompressedBytecodeInfo> {
+    assert_eq!(
+        bytecodes.len(),
+        bytecode_hashes.len(),
+        "bytecode hashes must match bytecodes"
+    );
     bytecodes
         .iter()
+        .zip(bytecode_hashes.iter().copied())
         .enumerate()
-        .sorted_by_key(|(_idx, dep)| *dep)
-        .dedup_by(|x, y| x.1 == y.1)
-        .filter(|(_idx, dep)| !is_bytecode_known(BytecodeHash::for_bytecode(dep).value()))
+        .sorted_by_key(|(_idx, (dep, _hash))| *dep)
+        .dedup_by(|(_, (left_dep, _)), (_, (right_dep, _))| left_dep == right_dep)
+        .filter(|(_idx, (_dep, hash))| !is_bytecode_known(*hash))
         .sorted_by_key(|(idx, _dep)| *idx)
-        .filter_map(|(_idx, dep)| bytecode::compress(dep.clone()).ok())
+        .filter_map(|(_idx, (dep, _hash))| bytecode::compress(dep.clone()).ok())
         .collect()
 }

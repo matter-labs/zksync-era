@@ -69,16 +69,16 @@ impl BatchFeeInput {
             })
     }
 
-    pub fn scale_fair_l2_gas_price(&self, scale_factor: f64) -> BatchFeeInput {
-        match self {
-            BatchFeeInput::L1Pegged(input) => {
-                BatchFeeInput::L1Pegged(input.scale_fair_l2_gas_price(scale_factor))
-            }
-            BatchFeeInput::PubdataIndependent(input) => {
-                BatchFeeInput::PubdataIndependent(input.scale_fair_l2_gas_price(scale_factor))
-            }
-        }
-    }
+    // pub fn scale_fair_l2_gas_price(&self, scale_factor: f64) -> BatchFeeInput {
+    //     match self {
+    //         BatchFeeInput::L1Pegged(input) => {
+    //             BatchFeeInput::L1Pegged(input.scale_fair_l2_gas_price(scale_factor))
+    //         }
+    //         BatchFeeInput::PubdataIndependent(input) => {
+    //             BatchFeeInput::PubdataIndependent(input.scale_fair_l2_gas_price(scale_factor))
+    //         }
+    //     }
+    // }
 }
 
 impl Default for BatchFeeInput {
@@ -183,12 +183,12 @@ pub struct L1PeggedBatchFeeModelInput {
 }
 
 impl L1PeggedBatchFeeModelInput {
-    pub fn scale_fair_l2_gas_price(&self, scale_factor: f64) -> L1PeggedBatchFeeModelInput {
-        L1PeggedBatchFeeModelInput {
-            l1_gas_price: self.l1_gas_price,
-            fair_l2_gas_price: (self.fair_l2_gas_price as f64 * scale_factor) as u64,
-        }
-    }
+    // pub fn scale_fair_l2_gas_price(&self, scale_factor: f64) -> L1PeggedBatchFeeModelInput {
+    //     L1PeggedBatchFeeModelInput {
+    //         l1_gas_price: self.l1_gas_price,
+    //         fair_l2_gas_price: (self.fair_l2_gas_price as f64 * scale_factor) as u64,
+    //     }
+    // }
 }
 
 /// Pubdata price may be independent from L1 gas price.
@@ -203,161 +203,161 @@ pub struct PubdataIndependentBatchFeeModelInput {
 }
 
 impl PubdataIndependentBatchFeeModelInput {
-    /// Scales the fair L2 gas price. This method shouldn't be used anywhere outside API.
-    pub fn scale_fair_l2_gas_price(
-        self,
-        scale_factor: f64,
-    ) -> PubdataIndependentBatchFeeModelInput {
-        clip_batch_fee_model_input_v2(PubdataIndependentBatchFeeModelInput {
-            fair_l2_gas_price: (self.fair_l2_gas_price as f64 * scale_factor) as u64,
-            fair_pubdata_price: self.fair_pubdata_price,
-            l1_gas_price: self.l1_gas_price,
-        })
-    }
+    // /// Scales the fair L2 gas price. This method shouldn't be used anywhere outside API.
+    // pub fn scale_fair_l2_gas_price(
+    //     self,
+    //     scale_factor: f64,
+    // ) -> PubdataIndependentBatchFeeModelInput {
+    //     clip_batch_fee_model_input_v2(PubdataIndependentBatchFeeModelInput {
+    //         fair_l2_gas_price: (self.fair_l2_gas_price as f64 * scale_factor) as u64,
+    //         fair_pubdata_price: self.fair_pubdata_price,
+    //         l1_gas_price: self.l1_gas_price,
+    //     })
+    // }
 }
 
-/// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
-/// - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
-///   Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
-///   processing the batch on L1.
-/// - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
-///   The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
-///   processing the batch on L1.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum FeeModelConfig {
-    V1(FeeModelConfigV1),
-    V2(FeeModelConfigV2),
-}
+// /// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
+// /// - `V1`, the first model that was used in ZKsync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
+// ///   Also, the fair L2 gas price is expected to only include the proving/computation price for the operator and not the costs that come from
+// ///   processing the batch on L1.
+// /// - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
+// ///   The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
+// ///   processing the batch on L1.
+// #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+// pub enum FeeModelConfig {
+//     V1(FeeModelConfigV1),
+//     V2(FeeModelConfigV2),
+// }
 
-/// Config params for the first version of the fee model.
-///
-/// Here, the pubdata price is pegged to the L1 gas price and neither fair L2 gas price
-/// nor the pubdata price include the overhead for closing the batch.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct FeeModelConfigV1 {
-    /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
-    /// as potentially premium for congestion.
-    /// Unlike the `V2`, this price will be directly used as the `fair_l2_gas_price` in the bootloader.
-    pub minimal_l2_gas_price: u64,
-}
+// /// Config params for the first version of the fee model.
+// ///
+// /// Here, the pubdata price is pegged to the L1 gas price and neither fair L2 gas price
+// /// nor the pubdata price include the overhead for closing the batch.
+// #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+// pub struct FeeModelConfigV1 {
+//     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
+//     /// as potentially premium for congestion.
+//     /// Unlike the `V2`, this price will be directly used as the `fair_l2_gas_price` in the bootloader.
+//     pub minimal_l2_gas_price: u64,
+// }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct FeeModelConfigV2 {
-    /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
-    /// as potentially premium for congestion.
-    pub minimal_l2_gas_price: u64,
-    /// The constant that represents the possibility that a batch can be sealed because of overuse of computation resources.
-    /// It has range from 0 to 1. If it is 0, the compute will not depend on the cost for closing the batch.
-    /// If it is 1, the gas limit per batch will have to cover the entire cost of closing the batch.
-    pub compute_overhead_part: f64,
-    /// The constant that represents the possibility that a batch can be sealed because of overuse of pubdata.
-    /// It has range from 0 to 1. If it is 0, the pubdata will not depend on the cost for closing the batch.
-    /// If it is 1, the pubdata limit per batch will have to cover the entire cost of closing the batch.
-    pub pubdata_overhead_part: f64,
-    /// The constant amount of L1 gas that is used as the overhead for the batch. It includes the price for batch verification, etc.
-    pub batch_overhead_l1_gas: u64,
-    /// The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.
-    pub max_gas_per_batch: u64,
-    /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
-    pub max_pubdata_per_batch: u64,
-}
+// #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+// pub struct FeeModelConfigV2 {
+//     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
+//     /// as potentially premium for congestion.
+//     pub minimal_l2_gas_price: u64,
+//     /// The constant that represents the possibility that a batch can be sealed because of overuse of computation resources.
+//     /// It has range from 0 to 1. If it is 0, the compute will not depend on the cost for closing the batch.
+//     /// If it is 1, the gas limit per batch will have to cover the entire cost of closing the batch.
+//     pub compute_overhead_part: f64,
+//     /// The constant that represents the possibility that a batch can be sealed because of overuse of pubdata.
+//     /// It has range from 0 to 1. If it is 0, the pubdata will not depend on the cost for closing the batch.
+//     /// If it is 1, the pubdata limit per batch will have to cover the entire cost of closing the batch.
+//     pub pubdata_overhead_part: f64,
+//     /// The constant amount of L1 gas that is used as the overhead for the batch. It includes the price for batch verification, etc.
+//     pub batch_overhead_l1_gas: u64,
+//     /// The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.
+//     pub max_gas_per_batch: u64,
+//     /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
+//     pub max_pubdata_per_batch: u64,
+// }
 
-impl Default for FeeModelConfig {
-    /// Config with all zeroes is not a valid config (since for instance having 0 max gas per batch may incur division by zero),
-    /// so we implement a sensible default config here.
-    fn default() -> Self {
-        Self::V1(FeeModelConfigV1 {
-            minimal_l2_gas_price: 100_000_000,
-        })
-    }
-}
+// impl Default for FeeModelConfig {
+//     /// Config with all zeroes is not a valid config (since for instance having 0 max gas per batch may incur division by zero),
+//     /// so we implement a sensible default config here.
+//     fn default() -> Self {
+//         Self::V1(FeeModelConfigV1 {
+//             minimal_l2_gas_price: 100_000_000,
+//         })
+//     }
+// }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct FeeParamsV1 {
-    pub config: FeeModelConfigV1,
-    pub l1_gas_price: u64,
-}
+// #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+// pub struct FeeParamsV1 {
+//     pub config: FeeModelConfigV1,
+//     pub l1_gas_price: u64,
+// }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct FeeParamsV2 {
-    config: FeeModelConfigV2,
-    l1_gas_price: u64,
-    l1_pubdata_price: u64,
-    conversion_ratio: BaseTokenConversionRatio,
-}
+// #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+// pub struct FeeParamsV2 {
+//     config: FeeModelConfigV2,
+//     l1_gas_price: u64,
+//     l1_pubdata_price: u64,
+//     conversion_ratio: BaseTokenConversionRatio,
+// }
 
-impl FeeParamsV2 {
-    pub fn new(
-        config: FeeModelConfigV2,
-        l1_gas_price: u64,
-        l1_pubdata_price: u64,
-        conversion_ratio: BaseTokenConversionRatio,
-    ) -> Self {
-        Self {
-            config,
-            l1_gas_price,
-            l1_pubdata_price,
-            conversion_ratio,
-        }
-    }
+// impl FeeParamsV2 {
+//     pub fn new(
+//         config: FeeModelConfigV2,
+//         l1_gas_price: u64,
+//         l1_pubdata_price: u64,
+//         conversion_ratio: BaseTokenConversionRatio,
+//     ) -> Self {
+//         Self {
+//             config,
+//             l1_gas_price,
+//             l1_pubdata_price,
+//             conversion_ratio,
+//         }
+//     }
 
-    /// Returns the fee model config with the minimal L2 gas price denominated in the chain's base token (WEI or equivalent).
-    pub fn config(&self) -> FeeModelConfigV2 {
-        FeeModelConfigV2 {
-            minimal_l2_gas_price: self.convert_l1_to_base_token(
-                self.config.minimal_l2_gas_price,
-                self.conversion_ratio.l1_conversion_ratio(),
-            ),
-            ..self.config
-        }
-    }
+//     /// Returns the fee model config with the minimal L2 gas price denominated in the chain's base token (WEI or equivalent).
+//     pub fn config(&self) -> FeeModelConfigV2 {
+//         FeeModelConfigV2 {
+//             minimal_l2_gas_price: self.convert_l1_to_base_token(
+//                 self.config.minimal_l2_gas_price,
+//                 self.conversion_ratio.l1_conversion_ratio(),
+//             ),
+//             ..self.config
+//         }
+//     }
 
-    /// Returns the l1 gas price denominated in the chain's base token (WEI or equivalent).
-    pub fn l1_gas_price(&self) -> u64 {
-        self.convert_l1_to_base_token(
-            self.l1_gas_price,
-            self.conversion_ratio.sl_conversion_ratio(),
-        )
-    }
+//     /// Returns the l1 gas price denominated in the chain's base token (WEI or equivalent).
+//     pub fn l1_gas_price(&self) -> u64 {
+//         self.convert_l1_to_base_token(
+//             self.l1_gas_price,
+//             self.conversion_ratio.sl_conversion_ratio(),
+//         )
+//     }
 
-    /// Returns the l1 pubdata price denominated in the chain's base token (WEI or equivalent).
-    pub fn l1_pubdata_price(&self) -> u64 {
-        self.convert_l1_to_base_token(
-            self.l1_pubdata_price,
-            self.conversion_ratio.sl_conversion_ratio(),
-        )
-    }
+//     /// Returns the l1 pubdata price denominated in the chain's base token (WEI or equivalent).
+//     pub fn l1_pubdata_price(&self) -> u64 {
+//         self.convert_l1_to_base_token(
+//             self.l1_pubdata_price,
+//             self.conversion_ratio.sl_conversion_ratio(),
+//         )
+//     }
 
-    /// Converts the fee param to the base token.
-    fn convert_l1_to_base_token(
-        &self,
-        price_in_wei: u64,
-        conversion_ratio: ConversionRatio,
-    ) -> u64 {
-        let converted_price = u128::from(price_in_wei)
-            * u128::from(conversion_ratio.numerator.get())
-            / u128::from(conversion_ratio.denominator.get());
+//     /// Converts the fee param to the base token.
+//     fn convert_l1_to_base_token(
+//         &self,
+//         price_in_wei: u64,
+//         conversion_ratio: ConversionRatio,
+//     ) -> u64 {
+//         let converted_price = u128::from(price_in_wei)
+//             * u128::from(conversion_ratio.numerator.get())
+//             / u128::from(conversion_ratio.denominator.get());
 
-        // Match on the converted price to ensure it can be represented as a u64
-        match converted_price.try_into() {
-            Ok(converted_price) => converted_price,
-            Err(_) => {
-                if converted_price > u128::from(u64::MAX) {
-                    tracing::warn!(
-                        "Conversion to base token price failed: converted price is too large: {}. Using u64::MAX instead.",
-                        converted_price
-                    );
-                } else {
-                    panic!(
-                        "Conversion to base token price failed: converted price is not a valid u64: {}",
-                        converted_price
-                    );
-                }
-                u64::MAX
-            }
-        }
-    }
-}
+//         // Match on the converted price to ensure it can be represented as a u64
+//         match converted_price.try_into() {
+//             Ok(converted_price) => converted_price,
+//             Err(_) => {
+//                 if converted_price > u128::from(u64::MAX) {
+//                     tracing::warn!(
+//                         "Conversion to base token price failed: converted price is too large: {}. Using u64::MAX instead.",
+//                         converted_price
+//                     );
+//                 } else {
+//                     panic!(
+//                         "Conversion to base token price failed: converted price is not a valid u64: {}",
+//                         converted_price
+//                     );
+//                 }
+//                 u64::MAX
+//             }
+//         }
+//     }
+// }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct ConversionRatio {
@@ -427,123 +427,123 @@ impl Default for BaseTokenConversionRatio {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum FeeParams {
-    V1(FeeParamsV1),
-    V2(FeeParamsV2),
-}
+// #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+// pub enum FeeParams {
+//     V1(FeeParamsV1),
+//     V2(FeeParamsV2),
+// }
 
-impl FeeParams {
-    // Sometimes for temporary usage or tests a "sensible" default, i.e. the one consisting of non-zero values is needed.
-    pub fn sensible_v1_default() -> Self {
-        Self::V1(FeeParamsV1 {
-            config: FeeModelConfigV1 {
-                minimal_l2_gas_price: 100_000_000,
-            },
-            l1_gas_price: 1_000_000_000,
-        })
-    }
+// impl FeeParams {
+//     // Sometimes for temporary usage or tests a "sensible" default, i.e. the one consisting of non-zero values is needed.
+//     pub fn sensible_v1_default() -> Self {
+//         Self::V1(FeeParamsV1 {
+//             config: FeeModelConfigV1 {
+//                 minimal_l2_gas_price: 100_000_000,
+//             },
+//             l1_gas_price: 1_000_000_000,
+//         })
+//     }
 
-    /// Provides scaled [`BatchFeeInput`] based on these parameters.
-    pub fn scale(
-        self,
-        l1_gas_price_scale_factor: f64,
-        l1_pubdata_price_scale_factor: f64,
-    ) -> BatchFeeInput {
-        match self {
-            Self::V1(params) => BatchFeeInput::L1Pegged(compute_batch_fee_model_input_v1(
-                params,
-                l1_gas_price_scale_factor,
-            )),
-            Self::V2(params) => BatchFeeInput::PubdataIndependent(clip_batch_fee_model_input_v2(
-                compute_batch_fee_model_input_v2(
-                    params,
-                    l1_gas_price_scale_factor,
-                    l1_pubdata_price_scale_factor,
-                ),
-            )),
-        }
-    }
-}
+//     /// Provides scaled [`BatchFeeInput`] based on these parameters.
+//     pub fn scale(
+//         self,
+//         l1_gas_price_scale_factor: f64,
+//         l1_pubdata_price_scale_factor: f64,
+//     ) -> BatchFeeInput {
+//         match self {
+//             Self::V1(params) => BatchFeeInput::L1Pegged(compute_batch_fee_model_input_v1(
+//                 params,
+//                 l1_gas_price_scale_factor,
+//             )),
+//             Self::V2(params) => BatchFeeInput::PubdataIndependent(clip_batch_fee_model_input_v2(
+//                 compute_batch_fee_model_input_v2(
+//                     params,
+//                     l1_gas_price_scale_factor,
+//                     l1_pubdata_price_scale_factor,
+//                 ),
+//             )),
+//         }
+//     }
+// }
 
-/// Calculates the batch fee input based on the main node parameters.
-/// This function uses the `V1` fee model, i.e. where the pubdata price does not include the proving costs.
-fn compute_batch_fee_model_input_v1(
-    params: FeeParamsV1,
-    l1_gas_price_scale_factor: f64,
-) -> L1PeggedBatchFeeModelInput {
-    let l1_gas_price = (params.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
+// /// Calculates the batch fee input based on the main node parameters.
+// /// This function uses the `V1` fee model, i.e. where the pubdata price does not include the proving costs.
+// fn compute_batch_fee_model_input_v1(
+//     params: FeeParamsV1,
+//     l1_gas_price_scale_factor: f64,
+// ) -> L1PeggedBatchFeeModelInput {
+//     let l1_gas_price = (params.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
 
-    L1PeggedBatchFeeModelInput {
-        l1_gas_price,
-        fair_l2_gas_price: params.config.minimal_l2_gas_price,
-    }
-}
+//     L1PeggedBatchFeeModelInput {
+//         l1_gas_price,
+//         fair_l2_gas_price: params.config.minimal_l2_gas_price,
+//     }
+// }
 
-/// Calculates the batch fee input based on the main node parameters.
-/// This function uses the `V2` fee model, i.e. where the pubdata price does not include the proving costs.
-fn compute_batch_fee_model_input_v2(
-    params: FeeParamsV2,
-    l1_gas_price_scale_factor: f64,
-    l1_pubdata_price_scale_factor: f64,
-) -> PubdataIndependentBatchFeeModelInput {
-    let config = params.config();
-    let l1_gas_price = params.l1_gas_price();
-    let l1_pubdata_price = params.l1_pubdata_price();
+// /// Calculates the batch fee input based on the main node parameters.
+// /// This function uses the `V2` fee model, i.e. where the pubdata price does not include the proving costs.
+// fn compute_batch_fee_model_input_v2(
+//     params: FeeParamsV2,
+//     l1_gas_price_scale_factor: f64,
+//     l1_pubdata_price_scale_factor: f64,
+// ) -> PubdataIndependentBatchFeeModelInput {
+//     let config = params.config();
+//     let l1_gas_price = params.l1_gas_price();
+//     let l1_pubdata_price = params.l1_pubdata_price();
 
-    let FeeModelConfigV2 {
-        minimal_l2_gas_price,
-        compute_overhead_part,
-        pubdata_overhead_part,
-        batch_overhead_l1_gas,
-        max_gas_per_batch,
-        max_pubdata_per_batch,
-    } = config;
+//     let FeeModelConfigV2 {
+//         minimal_l2_gas_price,
+//         compute_overhead_part,
+//         pubdata_overhead_part,
+//         batch_overhead_l1_gas,
+//         max_gas_per_batch,
+//         max_pubdata_per_batch,
+//     } = config;
 
-    // Firstly, we scale the gas price and pubdata price in case it is needed.
-    let l1_gas_price = (l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
-    let l1_pubdata_price = (l1_pubdata_price as f64 * l1_pubdata_price_scale_factor) as u64;
+//     // Firstly, we scale the gas price and pubdata price in case it is needed.
+//     let l1_gas_price = (l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
+//     let l1_pubdata_price = (l1_pubdata_price as f64 * l1_pubdata_price_scale_factor) as u64;
 
-    // While the final results of the calculations are not expected to have any overflows, the intermediate computations
-    // might, so we use U256 for them.
-    let l1_batch_overhead_wei = U256::from(l1_gas_price) * U256::from(batch_overhead_l1_gas);
+//     // While the final results of the calculations are not expected to have any overflows, the intermediate computations
+//     // might, so we use U256 for them.
+//     let l1_batch_overhead_wei = U256::from(l1_gas_price) * U256::from(batch_overhead_l1_gas);
 
-    let fair_l2_gas_price = {
-        // Firstly, we calculate which part of the overall overhead each unit of L2 gas should cover.
-        let l1_batch_overhead_per_gas =
-            ceil_div_u256(l1_batch_overhead_wei, U256::from(max_gas_per_batch));
+//     let fair_l2_gas_price = {
+//         // Firstly, we calculate which part of the overall overhead each unit of L2 gas should cover.
+//         let l1_batch_overhead_per_gas =
+//             ceil_div_u256(l1_batch_overhead_wei, U256::from(max_gas_per_batch));
 
-        // Then, we multiply by the `compute_overhead_part` to get the overhead for the computation for each gas.
-        // Also, this means that if we almost never close batches because of compute, the `compute_overhead_part` should be zero and so
-        // it is possible that the computation costs include for no overhead.
-        let gas_overhead_wei =
-            (l1_batch_overhead_per_gas.as_u64() as f64 * compute_overhead_part) as u64;
+//         // Then, we multiply by the `compute_overhead_part` to get the overhead for the computation for each gas.
+//         // Also, this means that if we almost never close batches because of compute, the `compute_overhead_part` should be zero and so
+//         // it is possible that the computation costs include for no overhead.
+//         let gas_overhead_wei =
+//             (l1_batch_overhead_per_gas.as_u64() as f64 * compute_overhead_part) as u64;
 
-        // We sum up the minimal L2 gas price (i.e. the raw prover/compute cost of a single L2 gas) and the overhead for batch being closed.
-        minimal_l2_gas_price + gas_overhead_wei
-    };
+//         // We sum up the minimal L2 gas price (i.e. the raw prover/compute cost of a single L2 gas) and the overhead for batch being closed.
+//         minimal_l2_gas_price + gas_overhead_wei
+//     };
 
-    let fair_pubdata_price = {
-        // Firstly, we calculate which part of the overall overhead each pubdata byte should cover.
-        let l1_batch_overhead_per_pubdata =
-            ceil_div_u256(l1_batch_overhead_wei, U256::from(max_pubdata_per_batch));
+//     let fair_pubdata_price = {
+//         // Firstly, we calculate which part of the overall overhead each pubdata byte should cover.
+//         let l1_batch_overhead_per_pubdata =
+//             ceil_div_u256(l1_batch_overhead_wei, U256::from(max_pubdata_per_batch));
 
-        // Then, we multiply by the `pubdata_overhead_part` to get the overhead for each pubdata byte.
-        // Also, this means that if we almost never close batches because of pubdata, the `pubdata_overhead_part` should be zero and so
-        // it is possible that the pubdata costs include no overhead.
-        let pubdata_overhead_wei =
-            (l1_batch_overhead_per_pubdata.as_u64() as f64 * pubdata_overhead_part) as u64;
+//         // Then, we multiply by the `pubdata_overhead_part` to get the overhead for each pubdata byte.
+//         // Also, this means that if we almost never close batches because of pubdata, the `pubdata_overhead_part` should be zero and so
+//         // it is possible that the pubdata costs include no overhead.
+//         let pubdata_overhead_wei =
+//             (l1_batch_overhead_per_pubdata.as_u64() as f64 * pubdata_overhead_part) as u64;
 
-        // We sum up the raw L1 pubdata price (i.e. the expected price of publishing a single pubdata byte) and the overhead for batch being closed.
-        l1_pubdata_price + pubdata_overhead_wei
-    };
+//         // We sum up the raw L1 pubdata price (i.e. the expected price of publishing a single pubdata byte) and the overhead for batch being closed.
+//         l1_pubdata_price + pubdata_overhead_wei
+//     };
 
-    PubdataIndependentBatchFeeModelInput {
-        l1_gas_price,
-        fair_l2_gas_price,
-        fair_pubdata_price,
-    }
-}
+//     PubdataIndependentBatchFeeModelInput {
+//         l1_gas_price,
+//         fair_l2_gas_price,
+//         fair_pubdata_price,
+//     }
+// }
 
 /// Bootloader places limitations on fair_l2_gas_price and fair_pubdata_price.
 /// (MAX_ALLOWED_FAIR_L2_GAS_PRICE and MAX_ALLOWED_FAIR_PUBDATA_PRICE in bootloader code respectively)

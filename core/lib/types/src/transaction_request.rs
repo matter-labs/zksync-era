@@ -310,56 +310,74 @@ impl Eip712Meta {
     }
 }
 
+fn build_transaction_request_structure<BUILDER: StructBuilder>(
+    tx: &TransactionRequest,
+    builder: &mut BUILDER,
+    factory_dep_hashes: &[H256],
+) {
+    let meta = tx
+        .eip712_meta
+        .as_ref()
+        .expect("We can sign transaction only with meta");
+    builder.add_member(
+        "txType",
+        &tx.transaction_type
+            .map(|x| U256::from(x.as_u64()))
+            .unwrap_or_else(|| U256::from(EIP_712_TX_TYPE)),
+    );
+    builder.add_member(
+        "from",
+        &U256::from(
+            tx.from
+                .expect("We can only sign transactions with known sender")
+                .as_bytes(),
+        ),
+    );
+    builder.add_member("to", &U256::from(tx.to.unwrap_or_default().as_bytes()));
+    builder.add_member("gasLimit", &tx.gas);
+    builder.add_member("gasPerPubdataByteLimit", &meta.gas_per_pubdata);
+    builder.add_member("maxFeePerGas", &tx.gas_price);
+    builder.add_member(
+        "maxPriorityFeePerGas",
+        &tx.max_priority_fee_per_gas.unwrap_or(tx.gas_price),
+    );
+    builder.add_member(
+        "paymaster",
+        &U256::from(tx.get_paymaster().unwrap_or_default().as_bytes()),
+    );
+    builder.add_member("nonce", &tx.nonce);
+    builder.add_member("value", &tx.value);
+    builder.add_member("data", &tx.input.0.as_slice());
+    builder.add_member("factoryDeps", &factory_dep_hashes);
+    builder.add_member(
+        "paymasterInput",
+        &tx.get_paymaster_input().unwrap_or_default().as_slice(),
+    );
+}
+
 impl EIP712TypedStructure for TransactionRequest {
     const TYPE_NAME: &'static str = "Transaction";
 
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER) {
-        let meta = self
-            .eip712_meta
-            .as_ref()
-            .expect("We can sign transaction only with meta");
-        builder.add_member(
-            "txType",
-            &self
-                .transaction_type
-                .map(|x| U256::from(x.as_u64()))
-                .unwrap_or_else(|| U256::from(EIP_712_TX_TYPE)),
-        );
-        builder.add_member(
-            "from",
-            &U256::from(
-                self.from
-                    .expect("We can only sign transactions with known sender")
-                    .as_bytes(),
-            ),
-        );
-        builder.add_member("to", &U256::from(self.to.unwrap_or_default().as_bytes()));
-        builder.add_member("gasLimit", &self.gas);
-        builder.add_member("gasPerPubdataByteLimit", &meta.gas_per_pubdata);
-        builder.add_member("maxFeePerGas", &self.gas_price);
-        builder.add_member(
-            "maxPriorityFeePerGas",
-            &self.max_priority_fee_per_gas.unwrap_or(self.gas_price),
-        );
-        builder.add_member(
-            "paymaster",
-            &U256::from(self.get_paymaster().unwrap_or_default().as_bytes()),
-        );
-        builder.add_member("nonce", &self.nonce);
-        builder.add_member("value", &self.value);
-        builder.add_member("data", &self.input.0.as_slice());
-
         let factory_dep_hashes: Vec<_> = self
             .get_factory_deps()
             .into_iter()
             .map(|dep| BytecodeHash::for_bytecode(&dep).value())
             .collect();
-        builder.add_member("factoryDeps", &factory_dep_hashes.as_slice());
+        build_transaction_request_structure(self, builder, &factory_dep_hashes);
+    }
+}
 
-        builder.add_member(
-            "paymasterInput",
-            &self.get_paymaster_input().unwrap_or_default().as_slice(),
-        );
+struct TransactionRequestWithPrecomputedFactoryDeps<'a> {
+    tx: &'a TransactionRequest,
+    factory_dep_hashes: &'a [H256],
+}
+
+impl EIP712TypedStructure for TransactionRequestWithPrecomputedFactoryDeps<'_> {
+    const TYPE_NAME: &'static str = "Transaction";
+
+    fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER) {
+        build_transaction_request_structure(self.tx, builder, self.factory_dep_hashes);
     }
 }
 
@@ -730,6 +748,35 @@ impl TransactionRequest {
         }
     }
 
+    pub fn get_default_signed_message_with_factory_dep_hashes(
+        &self,
+        factory_dep_hashes: &[H256],
+    ) -> Result<H256, SerializationTransactionError> {
+        if !self.is_eip712_tx() {
+            return self.get_default_signed_message();
+        }
+
+        let meta = self
+            .eip712_meta
+            .as_ref()
+            .expect("We can sign transaction only with meta");
+        if meta.factory_deps.len() != factory_dep_hashes.len() {
+            return self.get_default_signed_message();
+        }
+
+        let chain_id = self
+            .chain_id
+            .ok_or(SerializationTransactionError::WrongChainId(None))?;
+        let typed_request = TransactionRequestWithPrecomputedFactoryDeps {
+            tx: self,
+            factory_dep_hashes,
+        };
+        Ok(PackedEthSignature::typed_data_to_signed_bytes(
+            &Eip712Domain::new(L2ChainId::try_from(chain_id).unwrap()),
+            &typed_request,
+        ))
+    }
+
     fn get_tx_hash_with_signed_message(
         &self,
         signed_message: H256,
@@ -749,6 +796,20 @@ impl TransactionRequest {
 
     pub fn get_signed_and_tx_hashes(&self) -> Result<(H256, H256), SerializationTransactionError> {
         let signed_message = self.get_default_signed_message()?;
+        if let Some(tx_hash) = self.get_tx_hash_with_signed_message(signed_message)? {
+            return Ok((signed_message, tx_hash));
+        }
+        let signature = self.get_packed_signature()?;
+        let tx_hash = H256(keccak256(&self.get_signed_bytes(&signature)?));
+        Ok((signed_message, tx_hash))
+    }
+
+    pub fn get_signed_and_tx_hashes_with_factory_dep_hashes(
+        &self,
+        factory_dep_hashes: &[H256],
+    ) -> Result<(H256, H256), SerializationTransactionError> {
+        let signed_message =
+            self.get_default_signed_message_with_factory_dep_hashes(factory_dep_hashes)?;
         if let Some(tx_hash) = self.get_tx_hash_with_signed_message(signed_message)? {
             return Ok((signed_message, tx_hash));
         }
@@ -1093,6 +1154,43 @@ mod tests {
         let (tx2, _) = TransactionRequest::from_bytes(&data, L2ChainId::from(270)).unwrap();
 
         assert_eq!(tx, tx2);
+    }
+
+    #[test]
+    fn precomputed_factory_deps_hashes_match_default_eip712_hashing() {
+        let tx = TransactionRequest {
+            nonce: U256::from(1u32),
+            to: Some(Address::random()),
+            from: Some(Address::random()),
+            value: U256::from(10u32),
+            gas_price: U256::from(11u32),
+            max_priority_fee_per_gas: Some(U256::from(0u32)),
+            gas: U256::from(12u32),
+            input: Bytes::from(vec![1, 2, 3]),
+            transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
+            eip712_meta: Some(Eip712Meta {
+                gas_per_pubdata: U256::from(4u32),
+                factory_deps: vec![vec![2; 32], vec![3; 32]],
+                custom_signature: Some(vec![1, 2, 3]),
+                paymaster_params: Some(PaymasterParams {
+                    paymaster: Default::default(),
+                    paymaster_input: vec![],
+                }),
+            }),
+            chain_id: Some(270),
+            ..Default::default()
+        };
+
+        let factory_deps_hashes: Vec<_> = tx
+            .get_factory_deps()
+            .into_iter()
+            .map(|dep| BytecodeHash::for_bytecode(&dep).value())
+            .collect();
+        assert_eq!(
+            tx.get_signed_and_tx_hashes().unwrap(),
+            tx.get_signed_and_tx_hashes_with_factory_dep_hashes(&factory_deps_hashes)
+                .unwrap()
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use assert_matches::assert_matches;
 use ethabi::Token;
-use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
+use zk_evm_1_5_2::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_contracts::{Account, TestContract, TxType};
 use zksync_types::{

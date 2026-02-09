@@ -140,41 +140,41 @@ impl Tracer for CircuitsTracer {
     }
 }
 
-impl CircuitsTracer {
-    /// Obtains the current circuit stats from this tracer.
-    pub fn circuit_statistic(&self) -> CircuitStatistic {
-        CircuitStatistic {
-            main_vm: self.main_vm_cycles as f32 / GEOMETRY_CONFIG.cycles_per_vm_snapshot as f32,
-            ram_permutation: self.ram_permutation_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_ram_permutation as f32,
-            storage_application: self.storage_application_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_storage_application as f32,
-            storage_sorter: self.storage_sorter_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_storage_sorter as f32,
-            code_decommitter: self.code_decommitter_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_code_decommitter as f32,
-            code_decommitter_sorter: self.code_decommitter_sorter_cycles as f32
-                / GEOMETRY_CONFIG.cycles_code_decommitter_sorter as f32,
-            log_demuxer: self.log_demuxer_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_log_demuxer as f32,
-            events_sorter: self.events_sorter_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_events_or_l1_messages_sorter as f32,
-            keccak256: self.keccak256_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_keccak256_circuit as f32,
-            ecrecover: self.ecrecover_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
-            sha256: self.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
-            secp256k1_verify: self.secp256r1_verify_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
-            transient_storage_checker: self.transient_storage_checker_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
-            modexp: self.modexp_cycles as f32 / GEOMETRY_CONFIG.cycles_per_modexp_circuit as f32,
-            ecadd: self.ecadd_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecadd_circuit as f32,
-            ecmul: self.ecmul_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecmul_circuit as f32,
-            ecpairing: self.ecpairing_cycles as f32
-                / GEOMETRY_CONFIG.cycles_per_ecpairing_circuit as f32,
-        }
-    }
-}
+// impl CircuitsTracer {
+// /// Obtains the current circuit stats from this tracer.
+// pub fn circuit_statistic(&self) -> CircuitStatistic {
+//     CircuitStatistic {
+//         main_vm: self.main_vm_cycles as f32 / GEOMETRY_CONFIG.cycles_per_vm_snapshot as f32,
+//         ram_permutation: self.ram_permutation_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_ram_permutation as f32,
+//         storage_application: self.storage_application_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_storage_application as f32,
+//         storage_sorter: self.storage_sorter_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_storage_sorter as f32,
+//         code_decommitter: self.code_decommitter_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_code_decommitter as f32,
+//         code_decommitter_sorter: self.code_decommitter_sorter_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_code_decommitter_sorter as f32,
+//         log_demuxer: self.log_demuxer_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_log_demuxer as f32,
+//         events_sorter: self.events_sorter_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_events_or_l1_messages_sorter as f32,
+//         keccak256: self.keccak256_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_keccak256_circuit as f32,
+//         ecrecover: self.ecrecover_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
+//         sha256: self.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
+//         secp256k1_verify: self.secp256r1_verify_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
+//         transient_storage_checker: self.transient_storage_checker_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,
+//         modexp: self.modexp_cycles as f32 / GEOMETRY_CONFIG.cycles_per_modexp_circuit as f32,
+//         ecadd: self.ecadd_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecadd_circuit as f32,
+//         ecmul: self.ecmul_cycles as f32 / GEOMETRY_CONFIG.cycles_per_ecmul_circuit as f32,
+//         ecpairing: self.ecpairing_cycles as f32
+//             / GEOMETRY_CONFIG.cycles_per_ecpairing_circuit as f32,
+//     }
+// }
+// }
 
 const GEOMETRY_CONFIG: GeometryConfig = ProtocolGeometry::latest().config();

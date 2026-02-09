@@ -87,8 +87,8 @@ impl Verify for V1TeeVerifierInput {
 
         let storage_snapshot = StorageSnapshot::new(storage, factory_deps);
         let storage_view = StorageView::new(storage_snapshot).to_rc_ptr();
-        // let vm = FastVmInstance::fast(self.l1_batch_env, self.system_env.clone(), storage_view);
-        let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env.clone(), storage_view);
+        let vm = FastVmInstance::fast(self.l1_batch_env, self.system_env.clone(), storage_view);
+        // let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env.clone(), storage_view);
 
         let vm_out = execute_vm(
             self.l2_blocks_execution_data,
@@ -184,8 +184,8 @@ fn get_bowp(witness_input_merkle_paths: WitnessInputMerklePaths) -> Result<Block
 /// Executes the VM and returns `FinishedL1Batch` on success.
 fn execute_vm<S: ReadStorage>(
     l2_blocks_execution_data: Vec<L2BlockExecutionData>,
-    // mut vm: FastVmInstance<S>,
-    mut vm: LegacyVmInstance<S, HistoryEnabled>,
+    mut vm: FastVmInstance<S>,
+    // mut vm: LegacyVmInstance<S, HistoryEnabled>,
     pubdata_params: PubdataParams,
     protocol_version: ProtocolVersionId,
 ) -> anyhow::Result<FinishedL1Batch> {
@@ -282,8 +282,8 @@ fn generate_tree_instructions(
 
 fn execute_tx<S: ReadStorage>(
     tx: &Transaction,
-    // vm: &mut FastVmInstance<S>,
-    vm: &mut LegacyVmInstance<S, HistoryEnabled>,
+    vm: &mut FastVmInstance<S>,
+    // vm: &mut LegacyVmInstance<S, HistoryEnabled>,
 ) -> anyhow::Result<()> {
     // Attempt to run VM with bytecode compression on.
     vm.make_snapshot();

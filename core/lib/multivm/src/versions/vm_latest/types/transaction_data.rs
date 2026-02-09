@@ -46,6 +46,7 @@ pub(crate) struct TransactionData {
     // and they are used in the ABI encoding of the struct.
     // TODO: include this into the tx signature as part of SMA-1010
     pub(crate) factory_deps: Vec<Vec<u8>>,
+    pub(crate) factory_deps_hashes: Vec<H256>,
     pub(crate) paymaster_input: Vec<u8>,
     pub(crate) reserved_dynamic: Vec<u8>,
     pub(crate) raw_bytes: Option<Vec<u8>>,
@@ -53,7 +54,7 @@ pub(crate) struct TransactionData {
 
 impl TransactionData {
     pub(crate) fn new(execute_tx: Transaction, use_evm_emulator: bool) -> Self {
-        match execute_tx.common_data {
+        let mut tx = match execute_tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
                 let nonce = U256::from_big_endian(&common_data.nonce.to_be_bytes());
 
@@ -110,6 +111,7 @@ impl TransactionData {
                     data: execute_tx.execute.calldata,
                     signature: common_data.signature,
                     factory_deps: execute_tx.execute.factory_deps,
+                    factory_deps_hashes: vec![],
                     paymaster_input: common_data.paymaster_params.paymaster_input,
                     reserved_dynamic: vec![],
                     raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
@@ -140,6 +142,7 @@ impl TransactionData {
                     // The signature isn't checked for L1 transactions so we don't care
                     signature: vec![],
                     factory_deps: execute_tx.execute.factory_deps,
+                    factory_deps_hashes: vec![],
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
                     raw_bytes: None,
@@ -170,12 +173,20 @@ impl TransactionData {
                     // The signature isn't checked for L1 transactions so we don't care
                     signature: vec![],
                     factory_deps: execute_tx.execute.factory_deps,
+                    factory_deps_hashes: vec![],
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
                     raw_bytes: None,
                 }
             }
-        }
+        };
+
+        tx.factory_deps_hashes = tx
+            .factory_deps
+            .iter()
+            .map(|dep| BytecodeHash::for_bytecode(dep).value())
+            .collect();
+        tx
     }
 }
 
@@ -206,9 +217,10 @@ impl TransactionData {
 
     pub(crate) fn abi_encode(self) -> Vec<u8> {
         let factory_deps_hashes = self
-            .factory_deps
+            .factory_deps_hashes
             .iter()
-            .map(|dep| BytecodeHash::for_bytecode(dep).value_u256())
+            .copied()
+            .map(h256_to_u256)
             .collect();
         self.abi_encode_with_custom_factory_deps(factory_deps_hashes)
     }
@@ -245,7 +257,7 @@ impl TransactionData {
 
         // It is assumed that the `TransactionData` always has all the necessary components to recover the hash.
         let (signed_hash, tx_hash) = transaction_request
-            .get_signed_and_tx_hashes()
+            .get_signed_and_tx_hashes_with_factory_dep_hashes(&self.factory_deps_hashes)
             .expect("Could not recover L2 transaction hash");
         (Some(signed_hash), tx_hash)
     }
@@ -346,6 +358,10 @@ mod tests {
             // and they are used in the ABI encoding of the struct.
             // TODO: include this into the tx signature as part of SMA-1010
             factory_deps: vec![vec![0u8; 32], vec![1u8; 32]],
+            factory_deps_hashes: vec![
+                BytecodeHash::for_bytecode(&[0u8; 32]).value(),
+                BytecodeHash::for_bytecode(&[1u8; 32]).value(),
+            ],
             paymaster_input: vec![0u8; 85],
             reserved_dynamic: vec![0u8; 32],
             raw_bytes: None,

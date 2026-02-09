@@ -843,7 +843,7 @@ pub(crate) fn test_emitted_events<VM: TestedVm>() {
 }
 
 pub(crate) fn test_calling_sha256_precompile<VM: TestedVm>() {
-    use zk_evm_1_5_0::sha2::{Digest, Sha256};
+    use zk_evm_1_5_2::sha2::{Digest, Sha256};
 
     let mut vm: VmTester<VM> = prepare_tester_with_real_emulator().0.build();
     let tester = TestEvmContract::evm_tester();

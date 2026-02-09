@@ -1,4 +1,4 @@
-use zk_evm_1_5_0::zkevm_opcode_defs::p256;
+use zk_evm_1_5_2::zkevm_opcode_defs::p256;
 use zksync_system_constants::SECP256R1_VERIFY_PRECOMPILE_ADDRESS;
 use zksync_types::{h256_to_u256, web3::keccak256, Execute, H256, U256};
 
