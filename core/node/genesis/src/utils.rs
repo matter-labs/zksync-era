@@ -12,8 +12,7 @@ use zksync_types::{
     block::{DeployedContract, L1BatchTreeData},
     bytecode::BytecodeHash,
     commitment::L1BatchCommitment,
-    get_base_token_holder_init_log, get_code_key, get_known_code_key, get_system_context_init_logs,
-    h256_to_u256,
+    get_code_key, get_known_code_key, get_system_context_init_logs, h256_to_u256,
     tokens::{TokenInfo, TokenMetadata},
     u256_to_h256,
     zk_evm_types::{LogQuery, Timestamp},
@@ -57,10 +56,6 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
         .dedup_by(|a, b| a == b)
         .collect();
 
-    // Initialize the BaseTokenHolder's balance in L2BaseToken contract
-    // This sets balance[BASE_TOKEN_HOLDER_ADDRESS] = 2^127 - 1
-    let base_token_holder_init_log = get_base_token_holder_init_log();
-
     let storage_logs: Vec<_> = system_contracts
         .iter()
         .map(|contract| {
@@ -70,7 +65,6 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
         })
         .chain(system_context_init_logs)
         .chain(known_code_storage_logs)
-        .chain(std::iter::once(base_token_holder_init_log))
         .collect();
 
     storage_logs
