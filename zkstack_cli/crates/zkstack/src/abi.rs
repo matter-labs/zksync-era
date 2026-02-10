@@ -57,6 +57,12 @@ abigen!(
 );
 
 abigen!(
+    IChainAdminAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IChainAdmin.sol/IChainAdmin.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
     IRegisterZKChainAbi,
     "../../../contracts/l1-contracts/zkstack-out/IRegisterZKChain.sol/IRegisterZKChain.json",
     event_derives(serde::Deserialize, serde::Serialize)
@@ -179,12 +185,6 @@ abigen!(
 abigen!(
     IGWAssetTrackerAbi,
     "../../../contracts/l1-contracts/zkstack-out/IGWAssetTracker.sol/IGWAssetTracker.json",
-    event_derives(serde::Deserialize, serde::Serialize)
-);
-
-abigen!(
-    IChainAdminAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IChainAdmin.sol/IChainAdmin.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
