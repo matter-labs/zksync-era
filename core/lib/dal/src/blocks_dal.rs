@@ -24,6 +24,7 @@ use zksync_types::{
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
+    settlement::SettlementLayer,
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
@@ -239,6 +240,16 @@ impl BlocksDal<'_, '_> {
         };
 
         Ok(Some(header.into()))
+    }
+
+    /// Returns latest sealed L1 batch header. Returns `None` if there are no sealed batches.
+    pub async fn get_latest_sealed_l1_batch_header(
+        &mut self,
+    ) -> DalResult<Option<CommonL1BatchHeader>> {
+        let Some(number) = self.get_sealed_l1_batch_number().await? else {
+            return Ok(None);
+        };
+        self.get_common_l1_batch_header(number).await
     }
 
     pub async fn get_sealed_l2_block_number(&mut self) -> DalResult<Option<L2BlockNumber>> {
@@ -3200,6 +3211,47 @@ impl BlocksDal<'_, '_> {
             "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
         )
         .instrument("pending_batch_exists")
+        .fetch_one(self.storage)
+        .await?
+        .unwrap_or(0);
+
+        Ok(count != 0)
+    }
+
+    /// Returns `true` if there is any batch on the provided settlement layer that isn't fully committed yet.
+    /// This includes unsealed batches and sealed batches without a finalized commit tx.
+    pub async fn has_uncommitted_batches_on_settlement_layer(
+        &mut self,
+        settlement_layer: &SettlementLayer,
+    ) -> DalResult<bool> {
+        let (settlement_layer_type, settlement_layer_chain_id) =
+            from_settlement_layer(settlement_layer);
+        let count = sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)
+            FROM l1_batches
+            WHERE
+                settlement_layer_type = $1
+                AND settlement_layer_chain_id = $2
+                AND (
+                    NOT is_sealed
+                    OR l1_batches.eth_commit_tx_id IS NULL
+                    OR NOT EXISTS (
+                        SELECT 1
+                        FROM eth_txs_history
+                        WHERE
+                            eth_tx_id = l1_batches.eth_commit_tx_id
+                            AND sent_successfully = TRUE
+                            AND finality_status = 'finalized'
+                    )
+                )
+            "#,
+            settlement_layer_type.as_str(),
+            settlement_layer_chain_id
+        )
+        .instrument("has_uncommitted_batches_on_settlement_layer")
+        .with_arg("settlement_layer_type", &settlement_layer_type)
+        .with_arg("settlement_layer_chain_id", &settlement_layer_chain_id)
         .fetch_one(self.storage)
         .await?
         .unwrap_or(0);

@@ -135,8 +135,20 @@ abigen!(
 );
 
 abigen!(
+    IL1NativeTokenVaultAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL1NativeTokenVault.sol/IL1NativeTokenVault.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
     IL2NativeTokenVaultAbi,
     "../../../contracts/l1-contracts/zkstack-out/IL2NativeTokenVault.sol/IL2NativeTokenVault.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IL1AssetRouterAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL1AssetRouter.sol/IL1AssetRouter.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
@@ -149,6 +161,12 @@ abigen!(
 abigen!(
     IAssetTrackerBaseAbi,
     "../../../contracts/l1-contracts/zkstack-out/IAssetTrackerBase.sol/IAssetTrackerBase.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IL1AssetTrackerAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL1AssetTracker.sol/IL1AssetTracker.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
