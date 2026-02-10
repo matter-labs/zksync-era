@@ -143,7 +143,7 @@ mod tests {
     use zksync_types::{
         block::{L1BatchHeader, L2BlockHeader},
         settlement::SettlementLayer,
-        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
+        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction, U256,
     };
     use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
@@ -277,7 +277,15 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_l1_batch_as_sealed(&l1_batch_header, &[], &[], &[], Default::default(), 1)
+            .mark_l1_batch_as_sealed(
+                &l1_batch_header,
+                &[],
+                &[],
+                &[],
+                Default::default(),
+                1,
+                U256::zero(),
+            )
             .await
             .unwrap();
         conn.blocks_dal()

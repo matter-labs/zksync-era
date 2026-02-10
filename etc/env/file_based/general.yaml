@@ -58,6 +58,7 @@ state_keeper:
   batch_overhead_l1_gas: 800000
   max_gas_per_batch: 200000000
   max_pubdata_per_batch: 500000
+  interop_fee: 1000000000
   fee_model_version: V2
   validation_computational_gas_limit: 300000
   save_call_traces: true
@@ -207,7 +208,7 @@ prometheus:
 observability:
   log_format: plain
   # zksync_multivm=trace,
-  log_directives: "warn,zksync=info,zksync_config=debug,zksync_commitment_generator=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_eth_watch=debug,zksync_state=debug,zksync_utils=debug,zksync_mempool=debug,zksync_web3_decl=debug,zksync_health_check=debug,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug"
+  log_directives: "warn,zksync=info,zksync_multivm=trace,zksync_config=debug,zksync_commitment_generator=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_eth_watch=debug,zksync_state=debug,zksync_utils=debug,zksync_mempool=debug,zksync_web3_decl=debug,zksync_health_check=debug,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug"
   # Uncomment only if needed
   # sentry:
   #   url: unset

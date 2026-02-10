@@ -188,6 +188,7 @@ pub(crate) struct StorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub _interop_fee: i64,
 
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_chain_id: Option<i64>,

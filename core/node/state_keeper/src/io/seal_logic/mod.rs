@@ -151,6 +151,7 @@ impl UpdatesManager {
                 &finished_batch.final_execution_state.pubdata_costs,
                 self.pending_execution_metrics().circuit_statistic,
                 ZK_SYNC_BYTES_PER_BLOB as u64,
+                self.interop_fee(),
             )
             .await?;
         progress.observe(None);
