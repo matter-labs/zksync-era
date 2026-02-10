@@ -41,10 +41,6 @@ impl DefaultChainUpgradeArgs {
 
 impl ChainUpgradeParams {
     pub async fn fill_if_empty(mut self, shell: &Shell) -> anyhow::Result<Self> {
-        if !self.dangerous_local_default_overrides.unwrap_or_default() {
-            return Ok(self);
-        }
-
         let chain_config = ZkStackConfig::current_chain(shell)?;
         self.chain_id = Some(self.chain_id.unwrap_or(chain_config.chain_id.as_u64()));
 
@@ -61,6 +57,11 @@ impl ChainUpgradeParams {
                 .unwrap_or("http://localhost:3250".to_string()),
         );
 
+        self.l1_rpc_url = Some(
+            self.l1_rpc_url
+                .unwrap_or("http://localhost:8545".to_string()),
+        );
+
         self.gw_rpc_url = if let Some(url) = self.gw_rpc_url {
             Some(url)
         } else {
@@ -69,12 +70,6 @@ impl ChainUpgradeParams {
                 .await?
                 .gateway_rpc_url()
                 .ok()
-        };
-
-        self.l1_rpc_url = if let Some(url) = self.l1_rpc_url {
-            Some(url)
-        } else {
-            chain_config.get_secrets_config().await?.l1_rpc_url().ok()
         };
 
         self.gw_chain_id = Some(self.gw_chain_id.unwrap_or(506));
