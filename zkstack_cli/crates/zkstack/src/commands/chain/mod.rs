@@ -5,7 +5,6 @@ use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
 use set_da_validator_pair::SetDAValidatorPairArgs;
 use set_da_validator_pair_calldata::SetDAValidatorPairCalldataArgs;
-use set_interop_fee::SetInteropFeeArgs;
 use set_transaction_filterer::SetTransactionFiltererArgs;
 use xshell::Shell;
 
@@ -34,7 +33,6 @@ pub mod register_chain;
 pub mod register_on_all_chains;
 mod set_da_validator_pair;
 mod set_da_validator_pair_calldata;
-mod set_interop_fee;
 mod set_pubdata_pricing_mode;
 mod set_token_multiplier_setter;
 pub(crate) mod set_transaction_filterer;
@@ -93,8 +91,6 @@ pub enum ChainCommands {
     SetDAValidatorPairCalldata(SetDAValidatorPairCalldataArgs),
     /// Enable EVM emulation on chain (Not supported yet)
     EnableEvmEmulator(ForgeScriptArgs),
-    /// Set interop fee on chain
-    SetInteropFee(SetInteropFeeArgs),
     /// Update pubdata pricing mode (used for Rollup -> Validium migration)
     SetPubdataPricingMode(SetPubdataPricingModeArgs),
     /// Pause deposits before initiating a chain migration to gateway
@@ -146,7 +142,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             set_da_validator_pair_calldata::run(shell, args).await
         }
         ChainCommands::EnableEvmEmulator(args) => enable_evm_emulator::run(args, shell).await,
-        ChainCommands::SetInteropFee(args) => set_interop_fee::run(args, shell).await,
         ChainCommands::SetPubdataPricingMode(args) => {
             set_pubdata_pricing_mode::run(args, shell).await
         }

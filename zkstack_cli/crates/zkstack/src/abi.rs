@@ -193,9 +193,3 @@ abigen!(
     "../../../contracts/l1-contracts/zkstack-out/ISetupLegacyBridge.sol/ISetupLegacyBridge.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
-
-abigen!(
-    ISetInteropFeeAbi,
-    "../../../contracts/l1-contracts/zkstack-out/ISetInteropFee.sol/ISetInteropFee.json",
-    event_derives(serde::Deserialize, serde::Serialize)
-);
