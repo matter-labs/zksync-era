@@ -2,7 +2,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
@@ -27,6 +26,7 @@ use zkstack_cli_config::{
 };
 use zksync_basic_types::{commitment::L2DACommitmentScheme, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
+use zksync_types::api::BlockNumber;
 use zksync_web3_decl::{
     client::{Client, L2},
     namespaces::EthNamespaceClient,
@@ -276,15 +276,9 @@ pub(crate) async fn check_whether_gw_transaction_is_finalized(
     hash: H256,
     transaction_type: GatewayTransactionType,
 ) -> anyhow::Result<bool> {
-    // let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? else {
-    //     return Ok(false);
-    // };
-    //
-    // if receipt.l1_batch_number.is_none() {
-    //     return Ok(false);
-    // }
-    //
-    // let batch_number = receipt.l1_batch_number.unwrap();
+    let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? else {
+        return Ok(false);
+    };
 
     match transaction_type {
         GatewayTransactionType::Withdrawal => {
@@ -306,16 +300,9 @@ pub(crate) async fn check_whether_gw_transaction_is_finalized(
             }
         }
     }
-    Ok(true)
-
     // // TODO(PLA-1121): investigate why waiting for the tx proof is not enough.
     // // This is not expected behavior.
-    // let gateway_contract = ZkChainAbi::new(gateway_diamond_proxy, l1_provider);
-    // println!(
-    //     "GATEWAY_CONTRACT: {:?}",
-    //     gateway_contract.get_total_batches_executed().await?
-    // );
-    // Ok(gateway_contract.get_total_batches_executed().await? >= U256::from(batch_number.as_u64()))
+    Ok(gateway_provider.get_block_by_number(BlockNumber::Finalized, false).await?.unwrap().number >= receipt.block_number)
 }
 
 async fn await_for_withdrawal_to_finalize(
