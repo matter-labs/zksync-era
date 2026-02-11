@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use ethers::types::{Address, H256, U256};
 use serde::{Deserialize, Serialize};
 
@@ -30,6 +32,7 @@ pub struct GatewayVotePreparationConfig {
     pub testnet_verifier: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub is_zk_sync_os: bool,
+    pub zk_token_asset_id: H256,
     pub contracts: GatewayContractsConfig,
     pub tokens: TokensConfig,
     pub refund_recipient: Address,
@@ -76,6 +79,10 @@ impl GatewayVotePreparationConfig {
             testnet_verifier,
             support_l2_legacy_shared_bridge_test: false,
             is_zk_sync_os,
+            zk_token_asset_id: H256::from_str(
+                "0x0100000000000000000000000000000000000000000000000000000000000000",
+            )
+            .unwrap(),
             contracts,
             tokens,
             refund_recipient,
