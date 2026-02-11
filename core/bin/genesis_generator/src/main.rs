@@ -11,9 +11,7 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, url::SensitiveUrl, ProtocolVersionId,
-};
+use zksync_types::url::SensitiveUrl;
 
 const DEFAULT_GENESIS_FILE_PATH: &str = "../etc/env/file_based/genesis.yaml";
 
