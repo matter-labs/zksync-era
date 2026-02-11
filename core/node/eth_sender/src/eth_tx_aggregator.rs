@@ -1119,7 +1119,11 @@ impl EthTxAggregator {
                         (calldata, None)
                     }
                     L1BatchAggregatedOperation::Execute(op) => {
-                        args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
+                        let settlement_fee_payer =
+                            self.config.settlement_fee_payer.unwrap_or(Address::zero());
+                        args.extend(
+                            op.encode_for_eth_tx(chain_protocol_version_id, settlement_fee_payer),
+                        );
                         let encoding_fn = if protocol_version.is_pre_gateway()
                             && chain_protocol_version_id.is_pre_gateway()
                         {
@@ -1127,10 +1131,6 @@ impl EthTxAggregator {
                         } else if chain_protocol_version_id.is_pre_interop_fast_blocks() {
                             &self.functions.post_v26_gateway_execute
                         } else {
-                            // Add settlement fee payer for post-v29 interop execute
-                            let settlement_fee_payer =
-                                self.config.settlement_fee_payer.unwrap_or(Address::zero());
-                            args.push(Token::Address(settlement_fee_payer));
                             &self.functions.post_v29_interop_execute
                         };
 
