@@ -28,8 +28,6 @@ pub(super) const GENERAL_CHAIN_UPGRADE: &str =
 
 pub(super) const V29_CHAIN_UPGRADE: &str = "V29 chain upgrade checker and calldata generator";
 
-pub(super) const V29_3_CHAIN_UPGRADE: &str = "V29.3 chain upgrade checker and calldata generator";
-
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
 pub(super) const MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT: &str = "Snapshots creator";
