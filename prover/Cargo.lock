@@ -1224,8 +1224,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.153.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dd5fa07dd1465959f191bb8435232b87ffc145522c977c46efb4590c030cc0b"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng#788bc1f601f94a781af9d11bad0b0cf098c5021b"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -1238,20 +1237,18 @@ dependencies = [
 [[package]]
 name = "circuit_encodings"
 version = "0.153.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c69df2ec80541bfef37908921556336d18154ecea1807d336ca54751e270aa56"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng#788bc1f601f94a781af9d11bad0b0cf098c5021b"
 dependencies = [
  "derivative",
  "serde",
  "zk_evm 0.153.7",
- "zkevm_circuits",
+ "zkevm_circuits 0.153.7 (git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng)",
 ]
 
 [[package]]
 name = "circuit_sequencer_api"
 version = "0.153.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67246eedfe7931c671a024eb3bc7a4eddc7b8597f94ec976bbeed674be7f654b"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng#788bc1f601f94a781af9d11bad0b0cf098c5021b"
 dependencies = [
  "derivative",
  "rayon",
@@ -8597,8 +8594,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.153.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fd9f3c6be17df931e471c0ee25ad798096165077666271f6fa704016a9e479b"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng#788bc1f601f94a781af9d11bad0b0cf098c5021b"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8606,7 +8602,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.153.7",
+ "zk_evm_abstractions 0.153.7 (git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng)",
 ]
 
 [[package]]
@@ -8658,14 +8654,25 @@ dependencies = [
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.153.7",
+ "zkevm_opcode_defs 0.153.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "zk_evm_abstractions"
+version = "0.153.7"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng#788bc1f601f94a781af9d11bad0b0cf098c5021b"
+dependencies = [
+ "anyhow",
+ "num_enum 0.6.1",
+ "serde",
+ "static_assertions",
+ "zkevm_opcode_defs 0.153.7 (git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng)",
 ]
 
 [[package]]
 name = "zkevm-assembly"
 version = "0.153.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df981aff790ecfc8316302922ab30608e7c593aa3a2d169a12aa9d11948b8931"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng#788bc1f601f94a781af9d11bad0b0cf098c5021b"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -8678,7 +8685,7 @@ dependencies = [
  "smallvec",
  "structopt",
  "thiserror 1.0.69",
- "zkevm_opcode_defs 0.153.7",
+ "zkevm_opcode_defs 0.153.7 (git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng)",
 ]
 
 [[package]]
@@ -8698,7 +8705,27 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "zkevm_opcode_defs 0.153.7",
+ "zkevm_opcode_defs 0.153.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zksync_cs_derive",
+]
+
+[[package]]
+name = "zkevm_circuits"
+version = "0.153.7"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng#788bc1f601f94a781af9d11bad0b0cf098c5021b"
+dependencies = [
+ "arrayvec 0.7.6",
+ "boojum",
+ "derivative",
+ "hex",
+ "itertools 0.10.5",
+ "lazy_static",
+ "rand 0.8.5",
+ "seq-macro",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "zkevm_opcode_defs 0.153.7 (git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng)",
  "zksync_cs_derive",
 ]
 
@@ -8780,10 +8807,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkevm_opcode_defs"
+version = "0.153.7"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng#788bc1f601f94a781af9d11bad0b0cf098c5021b"
+dependencies = [
+ "bitflags 2.9.0",
+ "blake2 0.10.6",
+ "ethereum-types",
+ "k256 0.13.4",
+ "lazy_static",
+ "p256 0.13.2",
+ "serde",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+ "zksync_pairing",
+]
+
+[[package]]
 name = "zkevm_test_harness"
 version = "0.153.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9cbc78054006e92d3bf72f490c2754f9cd80a0cd9b6a965ed6e040611914118"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng#788bc1f601f94a781af9d11bad0b0cf098c5021b"
 dependencies = [
  "bincode",
  "circuit_definitions",
@@ -8805,7 +8848,7 @@ dependencies = [
  "test-log",
  "tracing",
  "zkevm-assembly",
- "zksync_kzg",
+ "zksync_kzg 0.153.7 (git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng)",
 ]
 
 [[package]]
@@ -9224,7 +9267,23 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "zkevm_circuits",
+ "zkevm_circuits 0.153.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "zksync_kzg"
+version = "0.153.7"
+source = "git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng#788bc1f601f94a781af9d11bad0b0cf098c5021b"
+dependencies = [
+ "boojum",
+ "derivative",
+ "hex",
+ "once_cell",
+ "rayon",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "zkevm_circuits 0.153.7 (git+https://github.com/matter-labs/zksync-protocol.git?branch=deniallugo-fix-rng)",
 ]
 
 [[package]]
@@ -9238,7 +9297,7 @@ dependencies = [
  "once_cell",
  "sha2 0.10.8",
  "sha3 0.10.8",
- "zksync_kzg",
+ "zksync_kzg 0.153.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",
  "zksync_types",
@@ -9723,8 +9782,8 @@ checksum = "f65188dd5f40a3c4ffb913f758da82351507d76dd8f592eb5c85b51c6a129989"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.153.7",
- "zkevm_opcode_defs 0.153.7",
+ "zk_evm_abstractions 0.153.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zkevm_opcode_defs 0.153.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "zksync_vm2_interface",
 ]
 

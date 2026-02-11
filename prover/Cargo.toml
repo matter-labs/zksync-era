@@ -118,3 +118,10 @@ zksync_witness_generator_service = { version = "=24.1.0", path = "crates/lib/wit
 [profile.perf]
 inherits = "release"
 debug = true
+
+
+[patch.crates-io]
+circuit_definitions = { package = "circuit_definitions", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "deniallugo-fix-rng" }
+circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "deniallugo-fix-rng" }
+zkevm_test_harness = { package = "zkevm_test_harness", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "deniallugo-fix-rng" }
+zk_evm = { package = "zk_evm", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "deniallugo-fix-rng" }
