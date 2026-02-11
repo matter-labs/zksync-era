@@ -18,6 +18,7 @@
       "core/tests/gateway-migration-test/",
       "core/tests/ts-integration",
       "core/tests/highlevel-test-tools",
+      "core/tests/asset-tracker-chain-migration-test",
       "infrastructure/protocol-upgrade"
     ],
     "nohoist": [
