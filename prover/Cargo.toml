@@ -69,13 +69,13 @@ vise = "0.3.2"
 smart-config = "=0.2.0-pre"
 
 # zksync-crypto dependencies
-fflonk = "=0.32.8"
-franklin-crypto = "=0.32.8"
+fflonk = "=0.32.9"
+franklin-crypto = "=0.32.9"
 
 # zksync-protocol dependencies
-circuit_definitions = "=0.153.7"
-circuit_sequencer_api = "=0.153.7"
-zkevm_test_harness = "=0.153.7"
+circuit_definitions = "=0.153.8"
+circuit_sequencer_api = "=0.153.8"
+zkevm_test_harness = "=0.153.8"
 
 # zksync-crypto-gpu dependencies
 proof-compression-gpu = { package = "proof-compression", version = "=0.155.7" }
@@ -121,7 +121,10 @@ debug = true
 
 
 [patch.crates-io]
-circuit_definitions = { package = "circuit_definitions", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "deniallugo-fix-rng" }
-circuit_sequencer_api = { package = "circuit_sequencer_api", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "deniallugo-fix-rng" }
-zkevm_test_harness = { package = "zkevm_test_harness", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "deniallugo-fix-rng" }
-zk_evm = { package = "zk_evm", git = "https://github.com/matter-labs/zksync-protocol.git", branch = "deniallugo-fix-rng" }
+proof-compression-gpu = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "deniallugo-change-crypto-deps", package = "proof-compression" }
+fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "deniallugo-change-crypto-deps" }
+wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "deniallugo-change-crypto-deps" }
+shivini = { package = "shivini", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "deniallugo-change-crypto-deps" }
+boojum-cuda = { package = "boojum-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch = "deniallugo-change-crypto-deps" }
+
+
