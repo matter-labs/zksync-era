@@ -55,6 +55,7 @@ type BalanceSnapshot = {
     native: bigint;
     baseToken2?: bigint;
     token?: bigint;
+    tokenAddress?: string;
     zkToken?: bigint;
 };
 
@@ -90,7 +91,6 @@ export class InteropTestContext {
     public interop1NativeTokenVault!: zksync.Contract;
     public interop1TokenA!: zksync.Contract;
     // Interop 1 fee variables
-    public interopFee!: bigint;
     public zkTokenAddress!: string;
     public fixedFee!: bigint;
 
@@ -396,13 +396,6 @@ export class InteropTestContext {
     }
 
     private async performSetup() {
-        const fileConfig = shouldLoadConfigFromFile();
-
-        // Set interop fee on Interop1
-        this.interopFee = ethers.parseUnits(Math.floor(Math.random() * 11).toString(), 'gwei'); // Random [0,10] gwei
-        const setInteropFeeCmd = `zkstack chain set-interop-fee --fee ${this.interopFee} --chain ${fileConfig.chain}`;
-        await utils.spawn(setInteropFeeCmd);
-
         // Fund the wallet with ZK token for paying the fixed interop fee
         const zkTokenAddressL1 = getTokenAddress('ZK');
         const zkToken = new ethers.Contract(
@@ -411,12 +404,14 @@ export class InteropTestContext {
             this.interop1RichWallet.ethWallet()
         );
         await (await zkToken.mint(this.interop1RichWallet.address, ethers.parseEther('1000'))).wait();
-        await this.interop1RichWallet.deposit({
-            token: zkTokenAddressL1,
-            amount: ethers.parseEther('1000'),
-            to: this.interop1Wallet.address,
-            approveERC20: true
-        });
+        await (
+            await this.interop1RichWallet.deposit({
+                token: zkTokenAddressL1,
+                amount: ethers.parseEther('1000'),
+                to: this.interop1Wallet.address,
+                approveERC20: true
+            })
+        ).wait();
         // Get the fixed fee amount
         this.fixedFee = await this.interop1InteropCenter.ZK_INTEROP_FEE();
         // Approve the interop center to spend the ZK tokens
@@ -472,7 +467,6 @@ export class InteropTestContext {
                 l2AddressSecondChain: this.tokenA.l2AddressSecondChain,
                 assetId: this.tokenA.assetId
             },
-            interopFee: this.interopFee.toString(),
             zkTokenAddress: this.zkTokenAddress,
             fixedFee: this.fixedFee.toString()
         };
@@ -512,7 +506,6 @@ export class InteropTestContext {
             this.interop1Wallet
         );
 
-        this.interopFee = BigInt(state.interopFee);
         this.zkTokenAddress = state.zkTokenAddress;
         this.fixedFee = BigInt(state.fixedFee);
     }
@@ -745,10 +738,18 @@ export class InteropTestContext {
      * Calculates the message value needed for an interop transaction.
      * Includes interop fees and optionally the base token amount if chains share the same base token.
      */
-    calculateMsgValue(numCalls: number, baseTokenAmount: bigint = 0n, useFixedFee: boolean = false): bigint {
-        const interopFeesTotal = useFixedFee ? 0n : this.interopFee * BigInt(numCalls);
+    async calculateMsgValue(
+        numCalls: number,
+        baseTokenAmount: bigint = 0n,
+        useFixedFee: boolean = false
+    ): Promise<bigint> {
         const baseTokenIncluded = this.isSameBaseToken ? baseTokenAmount : 0n;
-        return interopFeesTotal + baseTokenIncluded;
+        if (useFixedFee) {
+            return baseTokenIncluded;
+        } else {
+            const interopFeesTotal = (await this.interop1InteropCenter.interopProtocolFee()) * BigInt(numCalls);
+            return interopFeesTotal + baseTokenIncluded;
+        }
     }
 
     /**
@@ -769,6 +770,7 @@ export class InteropTestContext {
 
         if (tokenAddress) {
             snapshot.token = await this.getTokenBalance(this.interop1Wallet, tokenAddress);
+            snapshot.tokenAddress = tokenAddress;
         }
 
         snapshot.zkToken = await this.getTokenBalance(this.interop1Wallet, this.zkTokenAddress);
@@ -803,7 +805,7 @@ export class InteropTestContext {
         }
 
         if (expected.tokenAmount !== undefined && beforeSnapshot.token !== undefined) {
-            const tokenAddress = this.tokenA.l2Address || this.bridgedToken.l2Address;
+            const tokenAddress = beforeSnapshot.tokenAddress ?? this.tokenA.l2Address ?? this.bridgedToken.l2Address;
             const afterToken = await this.getTokenBalance(this.interop1Wallet, tokenAddress);
             expect(afterToken.toString()).toBe((beforeSnapshot.token - expected.tokenAmount).toString());
         }

@@ -33,7 +33,7 @@ describe('Interop-B Messages behavior checks', () => {
             const amount = ctx.getTransferAmount();
             const before = await ctx.captureInterop1BalanceSnapshot();
 
-            const msgValue = ctx.calculateMsgValue(1, amount, true);
+            const msgValue = await ctx.calculateMsgValue(1, amount, true);
             const tx = await ctx.interop1InteropCenter.sendMessage(
                 recipient,
                 '0x',
@@ -57,7 +57,7 @@ describe('Interop-B Messages behavior checks', () => {
             const amount = await ctx.getAndApproveTokenTransferAmount();
             const before = await ctx.captureInterop1BalanceSnapshot(ctx.tokenA.l2Address);
 
-            const msgValue = ctx.calculateMsgValue(1);
+            const msgValue = await ctx.calculateMsgValue(1);
             const tx = await ctx.interop1InteropCenter.sendMessage(
                 assetRouterRecipient,
                 ctx.getTokenTransferSecondBridgeData(ctx.tokenA.assetId!, amount, ctx.interop2Recipient.address),
@@ -95,7 +95,7 @@ describe('Interop-B Messages behavior checks', () => {
             const amount = await ctx.getAndApproveBridgedTokenTransferAmount();
             const before = await ctx.captureInterop1BalanceSnapshot(ctx.bridgedToken.l2Address);
 
-            const msgValue = ctx.calculateMsgValue(1);
+            const msgValue = await ctx.calculateMsgValue(1);
             const tx = await ctx.interop1InteropCenter.sendMessage(
                 assetRouterRecipient,
                 ctx.getTokenTransferSecondBridgeData(ctx.bridgedToken.assetId!, amount, ctx.interop2Recipient.address),

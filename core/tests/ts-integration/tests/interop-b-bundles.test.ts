@@ -39,7 +39,7 @@ describe('Interop-B Bundles behavior checks', () => {
                     callAttributes: [ctx.interopCallValueAttr(amount)]
                 }
             ];
-            const msgValue = ctx.calculateMsgValue(execCallStarters.length, amount);
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length, amount);
             const receipt = await ctx.fromInterop1RequestInterop(
                 execCallStarters,
                 { executionAddress: ctx.interop2RichWallet.address },
@@ -67,7 +67,7 @@ describe('Interop-B Bundles behavior checks', () => {
                     callAttributes: [ctx.indirectCallAttr()]
                 }
             ];
-            const msgValue = ctx.calculateMsgValue(execCallStarters.length);
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length);
             const receipt = await ctx.fromInterop1RequestInterop(execCallStarters, {}, { value: msgValue });
 
             await ctx.assertInterop1BalanceChanges(receipt, before, { msgValue, tokenAmount: amount });
@@ -94,7 +94,7 @@ describe('Interop-B Bundles behavior checks', () => {
                     callAttributes: [ctx.interopCallValueAttr(baseAmountB)]
                 }
             ];
-            const msgValue = ctx.calculateMsgValue(execCallStarters.length, totalAmount);
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length, totalAmount);
             const receipt = await ctx.fromInterop1RequestInterop(
                 execCallStarters,
                 { executionAddress: ctx.interop2RichWallet.address },
@@ -137,7 +137,7 @@ describe('Interop-B Bundles behavior checks', () => {
                     callAttributes: [ctx.indirectCallAttr()]
                 }
             ];
-            const msgValue = ctx.calculateMsgValue(execCallStarters.length);
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length);
             const receipt = await ctx.fromInterop1RequestInterop(execCallStarters, {}, { value: msgValue });
 
             await ctx.assertInterop1BalanceChanges(receipt, before, { msgValue, tokenAmount: totalAmount });
@@ -170,7 +170,7 @@ describe('Interop-B Bundles behavior checks', () => {
                     callAttributes: [ctx.interopCallValueAttr(baseAmount)]
                 }
             ];
-            const msgValue = ctx.calculateMsgValue(execCallStarters.length, baseAmount, true);
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length, baseAmount, true);
             const receipt = await ctx.fromInterop1RequestInterop(
                 execCallStarters,
                 { executionAddress: ctx.interop2RichWallet.address, useFixedFee: true },

@@ -71,7 +71,7 @@ describe('Interop-B Unbundle behavior checks', () => {
                     callAttributes: [ctx.indirectCallAttr()]
                 }
             ];
-            const msgValue = ctx.calculateMsgValue(execCallStarters.length, baseAmount);
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length, baseAmount);
             const receipt = await ctx.fromInterop1RequestInterop(
                 execCallStarters,
                 { executionAddress: ctx.interop2RichWallet.address, unbundlerAddress: ctx.interop2RichWallet.address },
@@ -118,7 +118,7 @@ describe('Interop-B Unbundle behavior checks', () => {
                     callAttributes: [ctx.indirectCallAttr()]
                 }
             ];
-            const msgValue = ctx.calculateMsgValue(execCallStarters.length, baseAmount);
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length, baseAmount);
             const receipt = await ctx.fromInterop1RequestInterop(
                 execCallStarters,
                 // The unbundler address defaults to the sending address on the destination chain
@@ -185,7 +185,7 @@ describe('Interop-B Unbundle behavior checks', () => {
                     callAttributes: []
                 }
             ];
-            const msgValue = ctx.calculateMsgValue(execCallStarters.length);
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length);
             const receipt = await ctx.fromInterop1RequestInterop(
                 execCallStarters,
                 { executionAddress: ctx.interop2RichWallet.address, unbundlerAddress: ctx.interop2RichWallet.address },
