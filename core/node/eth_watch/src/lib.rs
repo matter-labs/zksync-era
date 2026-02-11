@@ -13,15 +13,17 @@ use zksync_types::{
     web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
-pub use self::client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExtentionEthClient};
 use self::{
     client::RETRY_LIMIT,
     event_processors::{
-        BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventProcessor,
-        EventProcessorError, EventsSource, GatewayMigrationProcessor, InteropRootProcessor,
-        PriorityOpsEventProcessor,
+        DecentralizedUpgradesEventProcessor, EventsSource, GatewayMigrationProcessor,
+        InteropRootProcessor, PriorityOpsEventProcessor,
     },
     metrics::METRICS,
+};
+pub use self::{
+    client::{EthClient, EthHttpQueryClient, GetLogsClient, ZkSyncExtentionEthClient},
+    event_processors::{BatchRootProcessor, EventProcessor, EventProcessorError},
 };
 
 mod client;

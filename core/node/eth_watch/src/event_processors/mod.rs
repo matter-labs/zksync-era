@@ -4,7 +4,7 @@ use zksync_dal::{eth_watcher_dal::EventType, Connection, Core};
 use zksync_eth_client::{ContractCallError, EnrichedClientError};
 use zksync_types::{api::Log, H256};
 
-pub(crate) use self::{
+pub use self::{
     appended_chain_batch_root::BatchRootProcessor,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
     gateway_migration::GatewayMigrationProcessor, interop_root::InteropRootProcessor,
@@ -19,7 +19,7 @@ mod priority_ops;
 
 /// Errors issued by an [`EventProcessor`].
 #[derive(Debug, thiserror::Error)]
-pub(super) enum EventProcessorError {
+pub enum EventProcessorError {
     #[error("Fatal: {0:?}")]
     Fatal(#[from] FatalError),
     #[error("Transient: {0:?}")]
@@ -77,7 +77,7 @@ impl EventProcessorError {
 /// Processor for a single type of events emitted by the L1 contract. [`EthWatch`](crate::EthWatch)
 /// feeds events to all processors one-by-one.
 #[async_trait::async_trait]
-pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
+pub trait EventProcessor: 'static + fmt::Debug + Send + Sync {
     /// Processes given events. All events are guaranteed to match [`Self::topic1()`] and [`Self::topic2()`].
     /// Returns number of processed events, this result is used to update last processed block.
     async fn process_events(

@@ -1,0 +1,27 @@
+[package]
+name = "block_root_processor"
+description = "Block root processor utility"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+zksync_types.workspace = true
+zksync_system_constants.workspace = true
+zksync_basic_types.workspace = true
+zksync_dal.workspace = true
+zksync_eth_watch.workspace = true
+zksync_mini_merkle_tree.workspace = true
+zksync_web3_decl.workspace = true
+
+anyhow.workspace = true
+tokio.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true
+serde.workspace = true

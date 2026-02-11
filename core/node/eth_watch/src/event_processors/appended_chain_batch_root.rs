@@ -317,7 +317,7 @@ impl EventProcessor for BatchRootProcessor {
 }
 
 impl BatchRootProcessor {
-    pub(crate) fn batch_leaf_preimage(batch_root: H256, batch_number: L1BatchNumber) -> [u8; 96] {
+    pub fn batch_leaf_preimage(batch_root: H256, batch_number: L1BatchNumber) -> [u8; 96] {
         let mut full_preimage = [0u8; 96];
 
         full_preimage[0..32].copy_from_slice(BATCH_LEAF_PADDING.as_bytes());

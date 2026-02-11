@@ -2576,6 +2576,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "block_root_processor"
+version = "29.10.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.20",
+ "zksync_basic_types",
+ "zksync_dal",
+ "zksync_eth_watch",
+ "zksync_mini_merkle_tree",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_web3_decl",
+]
+
+[[package]]
 name = "blocking"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

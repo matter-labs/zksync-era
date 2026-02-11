@@ -2,6 +2,7 @@
 members = [
   # Binaries
   "bin/block_reverter",
+  "bin/block_root_processor",
   "bin/contract-verifier",
   "bin/custom_genesis_export",
   "bin/external_node",
