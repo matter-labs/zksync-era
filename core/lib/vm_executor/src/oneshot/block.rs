@@ -238,14 +238,16 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
 
         let interop_fee = connection
             .blocks_dal()
-            .get_l1_batch_interop_fee(resolved_block_info.vm_l1_batch_number)
+            .get_l1_batch_interop_fee_if_sealed(resolved_block_info.vm_l1_batch_number)
             .await
             .with_context(|| {
                 format!(
                     "failed loading interop fee for L1 batch #{}",
                     resolved_block_info.vm_l1_batch_number
                 )
-            })?;
+            })?
+            .or(self.interop_fee_fallback)
+            .unwrap_or_default();
 
         let (system, l1_batch) = self
             .prepare_env(

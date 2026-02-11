@@ -260,6 +260,29 @@ impl BlocksDal<'_, '_> {
         Ok(U256::from(row.interop_fee as u64))
     }
 
+    pub async fn get_l1_batch_interop_fee_if_sealed(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<U256>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                interop_fee,
+                is_sealed
+            FROM
+                l1_batches
+            WHERE number = $1
+            "#,
+            i64::from(number.0),
+        )
+        .instrument("get_l1_batch_interop_fee_if_sealed")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.and_then(|row| row.is_sealed.then_some(U256::from(row.interop_fee as u64))))
+    }
+
     /// Returns latest sealed L1 batch header. Returns `None` if there are no sealed batches.
     pub async fn get_latest_sealed_l1_batch_header(
         &mut self,
