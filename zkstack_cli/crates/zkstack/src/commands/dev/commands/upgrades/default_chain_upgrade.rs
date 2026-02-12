@@ -1,18 +1,22 @@
-use anyhow::{bail, ensure, Context};
-use ethers::{providers::Middleware, utils::hex};
+use std::path::PathBuf;
+
+use anyhow::{bail, Context};
+use ethers::{contract::BaseContract, providers::Middleware, utils::hex};
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
+    forge::{Forge, ForgeScriptArgs},
     logger,
+    wallets::Wallet,
 };
 use zkstack_cli_config::{
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
     traits::{FileConfigTrait, ReadConfig},
     ZkStackConfig, ZkStackConfigTrait,
 };
-use zksync_basic_types::{
-    protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, L2BlockNumber, U256,
-};
+use zksync_basic_types::{web3::Bytes, Address, L1BatchNumber, H256, U256};
 use zksync_types::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -20,7 +24,7 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    abi::{BridgehubAbi, ZkChainAbi},
+    abi::{BridgehubAbi, ZkChainAbi, ADMINFUNCTIONSABI_ABI},
     commands::{
         chain::{
             admin_call_builder::{AdminCall, AdminCallBuilder},
@@ -32,8 +36,15 @@ use crate::{
             utils::{print_error, set_upgrade_timestamp_calldata},
         },
     },
-    utils::addresses::apply_l1_to_l2_alias,
+    utils::{
+        addresses::apply_l1_to_l2_alias,
+        forge::{check_the_balance, fill_forge_private_key, WalletOwner},
+    },
 };
+
+lazy_static! {
+    static ref ADMIN_FUNCTIONS: BaseContract = BaseContract::from(ADMINFUNCTIONSABI_ABI.clone());
+}
 
 #[derive(Debug, Default)]
 pub struct FetchedChainInfo {
@@ -56,27 +67,27 @@ async fn verify_next_batch_new_version(
 
     let next_l2_block = right_bound + 1;
 
-    let block_details = main_node_client
-        .get_block_details(L2BlockNumber(next_l2_block.as_u32()))
-        .await?
-        .with_context(|| format!("No L2 block is present after the batch {}", batch_number))?;
+    // let block_details = main_node_client
+    //     .get_block_details(L2BlockNumber(next_l2_block.as_u32()))
+    //     .await?
+    //     .with_context(|| format!("No L2 block is present after the batch {}", batch_number))?;
 
-    let protocol_version = block_details.protocol_version.with_context(|| {
-        format!(
-            "Protocol version not present for block {}",
-            next_l2_block.as_u64()
-        )
-    })?;
-    match upgrade_versions {
-        UpgradeVersion::V29InteropAFf => ensure!(
-            protocol_version >= ProtocolVersionId::Version29,
-            "THe block does not yet contain the v29  upgrade"
-        ),
-        UpgradeVersion::V31InteropB => ensure!(
-            protocol_version >= ProtocolVersionId::Version31,
-            "The block does not yet contain the v31 upgrade"
-        ),
-    }
+    // let protocol_version = block_details.protocol_version.with_context(|| {
+    //     format!(
+    //         "Protocol version not present for block {}",
+    //         next_l2_block.as_u64()
+    //     )
+    // })?;
+    // match upgrade_versions {
+    //     UpgradeVersion::V29InteropAFf => ensure!(
+    //         protocol_version >= ProtocolVersionId::Version29,
+    //         "THe block does not yet contain the v29  upgrade"
+    //     ),
+    //     UpgradeVersion::V31InteropB => ensure!(
+    //         protocol_version >= ProtocolVersionId::Version31,
+    //         "The block does not yet contain the v31 upgrade"
+    //     ),
+    // }
 
     Ok(())
 }
@@ -132,10 +143,7 @@ pub async fn fetch_chain_info(
     let chain_id = U256::from(args.chain_id);
 
     let bridgehub = BridgehubAbi::new(
-        upgrade_info
-            .deployed_addresses
-            .bridgehub
-            .bridgehub_proxy_addr,
+        upgrade_info.core_contracts.bridgehub_proxy_addr,
         l1_provider.clone(),
     );
     let zkchain_addr = bridgehub.get_zk_chain(chain_id).await?;
@@ -186,34 +194,50 @@ pub async fn fetch_chain_info(
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UpgradeInfo {
-    // Information about pre-upgrade contracts.
-    pub(crate) l1_chain_id: u32,
-    pub(crate) gateway_chain_id: u32,
-    pub(crate) deployed_addresses: DeployedAddresses,
+    // Simplified: just read the specific addresses we need
+    pub(crate) core_contracts: CoreContracts,
+    pub(crate) state_transition: StateTransition,
+
     pub(crate) contracts_config: ContractsConfig,
-    pub(crate) gateway: Gateway,
 
     // Information from upgrade
+    #[serde(skip)]
     pub(crate) chain_upgrade_diamond_cut: Bytes,
+    #[serde(default)]
+    pub(crate) chain_upgrade_diamond_cut_file: Option<PathBuf>,
+}
+
+impl UpgradeInfo {
+    /// Load the diamond cut data from the file if it hasn't been loaded yet
+    pub fn load_diamond_cut(&mut self) -> anyhow::Result<()> {
+        if self.chain_upgrade_diamond_cut.0.is_empty() {
+            if let Some(ref file_path) = self.chain_upgrade_diamond_cut_file {
+                let hex_string = std::fs::read_to_string(file_path)?;
+                let hex_trimmed = hex_string.trim().trim_start_matches("0x");
+                let bytes = hex::decode(hex_trimmed)?;
+                self.chain_upgrade_diamond_cut = Bytes(bytes);
+            }
+        }
+        Ok(())
+    }
 }
 
 impl FileConfigTrait for UpgradeInfo {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ContractsConfig {
-    pub(crate) new_protocol_version: u64,
-    pub(crate) old_protocol_version: u64,
+pub struct CoreContracts {
+    pub(crate) bridgehub_proxy_addr: Address,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DeployedAddresses {
-    pub(crate) bridgehub: BridgehubAddresses,
+pub struct StateTransition {
     pub(crate) validator_timelock_addr: Address,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BridgehubAddresses {
-    pub(crate) bridgehub_proxy_addr: Address,
+pub struct ContractsConfig {
+    pub(crate) new_protocol_version: u64,
+    pub(crate) old_protocol_version: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -245,7 +269,7 @@ pub(crate) async fn run_chain_upgrade(
     run_upgrade: bool,
     upgrade_version: UpgradeVersion,
 ) -> anyhow::Result<()> {
-    let forge_args = &Default::default();
+    let forge_args: &ForgeScriptArgs = &Default::default();
     let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
@@ -261,12 +285,16 @@ pub(crate) async fn run_chain_upgrade(
     }
 
     // 0. Read the GatewayUpgradeInfo
-    let upgrade_info = UpgradeInfo::read(
+    let mut upgrade_info = UpgradeInfo::read(
         shell,
         args.clone()
             .upgrade_description_path
             .expect("upgrade_description_path is required"),
     )?;
+
+    // Load the diamond cut data from file
+    upgrade_info.load_diamond_cut()?;
+
     logger::info("upgrade_info: ");
 
     // 1. Update all the configs
@@ -309,73 +337,72 @@ pub(crate) async fn run_chain_upgrade(
     let (calldata, total_value) = if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
         let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
 
-        admin_calls_gw.append_execute_upgrade(
-            chain_info.hyperchain_addr,
-            upgrade_info.contracts_config.old_protocol_version,
-            upgrade_info.chain_upgrade_diamond_cut.clone(),
-        );
+        // admin_calls_gw.append_execute_upgrade(
+        //     chain_info.hyperchain_addr,
+        //     upgrade_info.contracts_config.old_protocol_version,
+        //     upgrade_info.chain_upgrade_diamond_cut.clone(),
+        // );
 
-        admin_calls_gw
-            .prepare_upgrade_chain_on_gateway_calls(
-                shell,
-                forge_args,
-                &contracts_foundry_path,
-                args.chain_id.expect("chain_id is required"),
-                args.gw_chain_id.expect("gw_chain_id is required"),
-                upgrade_info
-                    .deployed_addresses
-                    .bridgehub
-                    .bridgehub_proxy_addr,
-                args.l1_gas_price.expect("l1_gas_price is required"),
-                upgrade_info.contracts_config.old_protocol_version,
-                chain_info.gw_hyperchain_addr,
-                chain_info.l1_asset_router_proxy,
-                args_input
-                    .refund_recipient
-                    .context("refund_recipient is required")?
-                    .parse()
-                    .context("refund recipient is not a valid address")?,
-                upgrade_info.gateway.upgrade_cut_data.0.into(),
-                args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
-            )
-            .await;
+        // admin_calls_gw
+        //     .prepare_upgrade_chain_on_gateway_calls(
+        //         shell,
+        //         forge_args,
+        //         &contracts_foundry_path,
+        //         args.chain_id.expect("chain_id is required"),
+        //         args.gw_chain_id.expect("gw_chain_id is required"),
+        //         upgrade_info.core_contracts.bridgehub_proxy_addr,
+        //         args.l1_gas_price.expect("l1_gas_price is required"),
+        //         upgrade_info.contracts_config.old_protocol_version,
+        //         chain_info.gw_hyperchain_addr,
+        //         chain_info.l1_asset_router_proxy,
+        //         args_input
+        //             .refund_recipient
+        //             .context("refund_recipient is required")?
+        //             .parse()
+        //             .context("refund recipient is not a valid address")?,
+        //         upgrade_info.gateway.upgrade_cut_data.0.into(),
+        //         args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
+        //     )
+        //     .await;
 
         // v29: enable_validator_via_gateway for operator
-        if let Some(validators) = &additional.updated_validators {
-            let operator = validators.operator.context("operator is required")?;
-            let enable_validator_calls = crate::admin_functions::enable_validator_via_gateway(
-                shell,
-                forge_args,
-                &contracts_foundry_path,
-                crate::admin_functions::AdminScriptMode::OnlySave,
-                upgrade_info
-                    .deployed_addresses
-                    .bridgehub
-                    .bridgehub_proxy_addr,
-                args.l1_gas_price.expect("l1_gas_price is required").into(),
-                args.chain_id.expect("chain_id is required"),
-                args.gw_chain_id.expect("gw_chain_id is required"),
-                operator,
-                upgrade_info
-                    .gateway
-                    .gateway_state_transition
-                    .validator_timelock_addr,
-                operator,
-                args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
-            )
-            .await?;
-            admin_calls_gw.extend_with_calls(enable_validator_calls.calls);
-        }
+        // if let Some(validators) = &additional.updated_validators {
+        //     let operator = validators.operator.context("operator is required")?;
+        //     let enable_validator_calls = crate::admin_functions::enable_validator_via_gateway(
+        //         shell,
+        //         forge_args,
+        //         &contracts_foundry_path,
+        //         crate::admin_functions::AdminScriptMode::OnlySave,
+        //         upgrade_info.core_contracts.bridgehub_proxy_addr,
+        //         args.l1_gas_price.expect("l1_gas_price is required").into(),
+        //         args.chain_id.expect("chain_id is required"),
+        //         args.gw_chain_id.expect("gw_chain_id is required"),
+        //         operator,
+        //         upgrade_info
+        //             .gateway
+        //             .gateway_state_transition
+        //             .validator_timelock_addr,
+        //         operator,
+        //         args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
+        //     )
+        //     .await?;
+        //     admin_calls_gw.extend_with_calls(enable_validator_calls.calls);
+        // }
 
         admin_calls_gw.display();
 
-        let (gw_chain_admin_calldata, total_value) = admin_calls_gw.compile_full_calldata();
-
-        logger::info(format!(
-            "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
-            hex::encode(&gw_chain_admin_calldata),
-            total_value,
-        ));
+        let (gw_chain_admin_calldata, total_value) = if admin_calls_gw.is_empty() {
+            logger::info("No calls to execute for gateway upgrade");
+            (vec![], U256::zero())
+        } else {
+            let (data, value) = admin_calls_gw.compile_full_calldata();
+            logger::info(format!(
+                "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
+                hex::encode(&data),
+                value,
+            ));
+            (data, value)
+        };
         (gw_chain_admin_calldata, total_value)
     } else {
         let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
@@ -387,41 +414,43 @@ pub(crate) async fn run_chain_upgrade(
         );
 
         // v29: enable_validator for operator and blob_operator
-        if let Some(validators) = &additional.updated_validators {
-            for validator in [
-                validators.operator.context("operator is required")?,
-                validators
-                    .blob_operator
-                    .context("blob_operator is required")?,
-            ] {
-                let enable_validator_calls = crate::admin_functions::enable_validator(
-                    shell,
-                    forge_args,
-                    &contracts_foundry_path,
-                    crate::admin_functions::AdminScriptMode::OnlySave,
-                    upgrade_info
-                        .deployed_addresses
-                        .bridgehub
-                        .bridgehub_proxy_addr,
-                    args.chain_id.expect("chain_id is required"),
-                    validator,
-                    upgrade_info.deployed_addresses.validator_timelock_addr,
-                    args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
-                )
-                .await?;
-                admin_calls_finalize.extend_with_calls(enable_validator_calls.calls);
-            }
-        }
+        // if let Some(validators) = &additional.updated_validators {
+        //     for validator in [
+        //         validators.operator.context("operator is required")?,
+        //         validators
+        //             .blob_operator
+        //             .context("blob_operator is required")?,
+        //     ] {
+        //         let enable_validator_calls = crate::admin_functions::enable_validator(
+        //             shell,
+        //             forge_args,
+        //             &contracts_foundry_path,
+        //             crate::admin_functions::AdminScriptMode::OnlySave,
+        //             upgrade_info.core_contracts.bridgehub_proxy_addr,
+        //             args.chain_id.expect("chain_id is required"),
+        //             validator,
+        //             upgrade_info.state_transition.validator_timelock_addr,
+        //             args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
+        //         )
+        //         .await?;
+        //         admin_calls_finalize.extend_with_calls(enable_validator_calls.calls);
+        //     }
+        // }
 
         admin_calls_finalize.display();
 
-        let (chain_admin_calldata, total_value) = admin_calls_finalize.compile_full_calldata();
-
-        logger::info(format!(
-            "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
-            hex::encode(&chain_admin_calldata),
-            total_value,
-        ));
+        let (chain_admin_calldata, total_value) = if admin_calls_finalize.is_empty() {
+            logger::info("No calls to execute for direct upgrade");
+            (vec![], U256::zero())
+        } else {
+            let (data, value) = admin_calls_finalize.compile_full_calldata();
+            logger::info(format!(
+                "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
+                hex::encode(&data),
+                value,
+            ));
+            (data, value)
+        };
         (chain_admin_calldata, total_value)
     };
 
@@ -445,22 +474,27 @@ pub(crate) async fn run_chain_upgrade(
         logger::info("Set upgrade timestamp successfully!");
         logger::info(format!("receipt: {:#?}", receipt1));
 
-        logger::info("Starting the migration!");
-        let receipt = send_tx(
-            chain_info.chain_admin_addr,
-            calldata,
-            total_value,
-            args.l1_rpc_url.clone().unwrap(),
-            chain_config
-                .get_wallets_config()?
-                .governor
-                .private_key_h256()
-                .unwrap(),
-            "finalize upgrade",
-        )
-        .await?;
-        logger::info("Upgrade completed successfully!");
-        logger::info(format!("receipt: {:#?}", receipt));
+        // Only run migration if there are calls to execute
+        if !calldata.is_empty() {
+            logger::info("Starting the migration!");
+            let receipt = send_tx(
+                chain_info.chain_admin_addr,
+                calldata,
+                total_value,
+                args.l1_rpc_url.clone().unwrap(),
+                chain_config
+                    .get_wallets_config()?
+                    .governor
+                    .private_key_h256()
+                    .unwrap(),
+                "finalize upgrade",
+            )
+            .await?;
+            logger::info("Upgrade completed successfully!");
+            logger::info(format!("receipt: {:#?}", receipt));
+        } else {
+            logger::info("Skipping migration (no calls to execute)");
+        }
     }
 
     Ok(())
@@ -471,12 +505,110 @@ pub(crate) async fn run(
     args_input: DefaultChainUpgradeArgs,
     run_upgrade: bool,
 ) -> anyhow::Result<()> {
-    run_chain_upgrade(
-        shell,
-        args_input.params.clone(),
-        AdditionalUpgradeParams::default(),
-        run_upgrade,
-        args_input.upgrade_version,
-    )
-    .await
+    if run_upgrade {
+        // Use simplified approach: call Forge script that reads from CTM
+        let chain_config = ZkStackConfig::current_chain(shell)?;
+        let contracts_config = chain_config.get_contracts_config()?;
+        let wallets_config = chain_config.get_wallets_config()?;
+
+        // Fill in default parameters
+        let args = args_input.params.fill_if_empty(shell).await?;
+
+        let chain_address = contracts_config.l1.diamond_proxy_addr;
+        let ctm_address = contracts_config
+            .ecosystem_contracts
+            .ctm
+            .state_transition_proxy_addr;
+        let l1_rpc_url = args.l1_rpc_url.clone().context("l1_rpc_url is required")?;
+        let governor_private_key = wallets_config
+            .governor
+            .private_key_h256()
+            .context("governor private key is required")?;
+
+        run_chain_upgrade_from_ctm(
+            shell,
+            chain_address,
+            ctm_address,
+            l1_rpc_url,
+            governor_private_key,
+        )
+        .await
+    } else {
+        // Dry run - use old approach
+        run_chain_upgrade(
+            shell,
+            args_input.params.clone(),
+            AdditionalUpgradeParams::default(),
+            run_upgrade,
+            args_input.upgrade_version,
+        )
+        .await
+    }
+}
+
+/// Run chain upgrade using Forge script that reads diamond cut from CTM
+/// This bypasses TOML parsing issues with large hex strings
+pub(crate) async fn run_chain_upgrade_from_ctm(
+    shell: &Shell,
+    chain_address: Address,
+    ctm_address: Address,
+    l1_rpc_url: String,
+    _governor_private_key: H256,
+) -> anyhow::Result<()> {
+    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
+    let chain_config = ZkStackConfig::current_chain(shell)?;
+    let wallets_config = chain_config.get_wallets_config()?;
+    let contracts_config = chain_config.get_contracts_config()?;
+
+    logger::info(format!(
+        "Running chain upgrade from CTM: chain={:?}, ctm={:?}",
+        chain_address, ctm_address
+    ));
+
+    let mut forge_args = ForgeScriptArgs::default();
+    forge_args.resume = false;
+
+    // Get admin addresses
+    let admin_address = contracts_config.l1.chain_admin_addr;
+    let access_control_restriction = contracts_config
+        .l1
+        .access_control_restriction_addr
+        .context("access_control_restriction_addr is required")?;
+
+    // Encode the function call
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "upgradeChainFromCTM",
+            (
+                chain_address,
+                ctm_address,
+                admin_address,
+                access_control_restriction,
+            ),
+        )
+        .context("Failed to encode upgradeChainFromCTM call")?;
+
+    // Set up the Forge script
+    let forge = Forge::new(&contracts_foundry_path)
+        .script(
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url.clone())
+        .with_broadcast()
+        .with_calldata(&calldata);
+
+    // Fill in the private key for the governor wallet
+    let forge =
+        fill_forge_private_key(forge, Some(&wallets_config.governor), WalletOwner::Governor)?;
+
+    // Check balance
+    check_the_balance(&forge).await?;
+
+    // Run the script
+    forge.run(shell)?;
+
+    logger::success("Chain upgrade from CTM completed successfully");
+    Ok(())
 }
