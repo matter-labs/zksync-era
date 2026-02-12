@@ -182,10 +182,15 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
 
     const migrationTxHash = await findLatestMigrationTxHash(l1Provider, chainAssetHandlerAddr, config.l2ChainId);
     if (!migrationTxHash) {
+        console.log(
+            `[${chainName}] MigrationStarted event not found on chainAssetHandler=${chainAssetHandlerAddr} ` +
+                `for chainId=${config.l2ChainId}, topic=${MIGRATION_STARTED_TOPIC}`
+        );
         return false;
     }
     const receipt = await l1Provider.getTransactionReceipt(migrationTxHash);
     if (!receipt) {
+        console.log(`[${chainName}] No receipt for migrationTxHash=${migrationTxHash}`);
         return false;
     }
 
@@ -193,6 +198,10 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
     const priorityOpHash = zksync.utils.getL2HashFromPriorityOp(receipt, gatewayMainContract);
     const l2Receipt = await gatewayProvider.getTransactionReceipt(priorityOpHash);
     if (!l2Receipt?.l1BatchNumber) {
+        console.log(
+            `[${chainName}] L2 receipt not ready: priorityOpHash=${priorityOpHash}, ` +
+                `l1BatchNumber=${l2Receipt?.l1BatchNumber ?? 'null'}`
+        );
         return false;
     }
 
@@ -204,6 +213,11 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
 
     const totalExecuted = BigInt(await gatewayDiamondProxy.getTotalBatchesExecuted());
     const batchNumber = BigInt(l2Receipt.l1BatchNumber);
+    if (totalExecuted < batchNumber) {
+        console.log(
+            `[${chainName}] Batch not yet executed: totalExecuted=${totalExecuted}, needed=${batchNumber}`
+        );
+    }
     return totalExecuted >= batchNumber;
 }
 
