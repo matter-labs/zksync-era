@@ -13,14 +13,14 @@ abigen!(
 );
 
 abigen!(
-    ZkChainAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IZKChain.sol/IZKChain.json",
+    IChainTypeManagerAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IChainTypeManager.sol/IChainTypeManager.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
-    IChainTypeManagerAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IChainTypeManager.sol/IChainTypeManager.json",
+    ZkChainAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IZKChain.sol/IZKChain.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
