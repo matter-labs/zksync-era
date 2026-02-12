@@ -11,7 +11,7 @@ l2_chain_id: 270
 fee_account: '0x0000000000000000000000000000000000000001'
 l1_batch_commit_data_generator_mode: Rollup
 prover:
-  snark_wrapper_vk_hash: 0x51b04a313e94eedf037d93be8477de9be4aca92b33e28727a82ea0786fdaf9a3
-  fflonk_snark_wrapper_vk_hash: 0x9a0785300d358d50925a2fbb93de384313b3a864303b3831b6cc25b6a6b0bac1
+  snark_wrapper_vk_hash: 0xb2f50340e0edbe49dc657d4eb298e07f13860c1be0fe2e438e44ef8fad133d84
+  fflonk_snark_wrapper_vk_hash: 0xc8cd705a0db89577146137de78eba6bd1f1c9c3f66dc52f7627e7c2df30895b2
   dummy_verifier: true
 custom_genesis_state_path: null
