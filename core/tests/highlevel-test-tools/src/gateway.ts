@@ -214,9 +214,7 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
     const totalExecuted = BigInt(await gatewayDiamondProxy.getTotalBatchesExecuted());
     const batchNumber = BigInt(l2Receipt.l1BatchNumber);
     if (totalExecuted < batchNumber) {
-        console.log(
-            `[${chainName}] Batch not yet executed: totalExecuted=${totalExecuted}, needed=${batchNumber}`
-        );
+        console.log(`[${chainName}] Batch not yet executed: totalExecuted=${totalExecuted}, needed=${batchNumber}`);
     }
     return totalExecuted >= batchNumber;
 }
