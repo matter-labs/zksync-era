@@ -1119,8 +1119,10 @@ impl EthTxAggregator {
                         (calldata, None)
                     }
                     L1BatchAggregatedOperation::Execute(op) => {
-                        let settlement_fee_payer =
-                            self.config.settlement_fee_payer.unwrap_or(Address::zero());
+                        let settlement_fee_payer = self
+                            .config
+                            .settlement_fee_payer
+                            .unwrap_or(self.eth_client.sender_account());
                         args.extend(
                             op.encode_for_eth_tx(chain_protocol_version_id, settlement_fee_payer),
                         );
