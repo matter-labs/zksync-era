@@ -1024,8 +1024,9 @@ dependencies = [
 
 [[package]]
 name = "boojum-cuda"
-version = "0.155.7"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=deniallugo-change-crypto-deps#4fdf301410decd1e30aac10b6d753acee59c7d29"
+version = "0.155.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3bc38515a0b00b7b310e3e0900266129521615813614189f170ee5ac3abbd7e"
 dependencies = [
  "boojum",
  "cmake",
@@ -2132,8 +2133,9 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "era_cudart"
-version = "0.155.7"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=deniallugo-change-crypto-deps#4fdf301410decd1e30aac10b6d753acee59c7d29"
+version = "0.155.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0465fe3707a41dd5d7b81efbbb3af32c24b60feb4999970dfd2a1e7a611f0743"
 dependencies = [
  "bitflags 2.9.0",
  "era_cudart_sys",
@@ -2142,8 +2144,9 @@ dependencies = [
 
 [[package]]
 name = "era_cudart_sys"
-version = "0.155.7"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=deniallugo-change-crypto-deps#4fdf301410decd1e30aac10b6d753acee59c7d29"
+version = "0.155.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f178d43231cdb883976c29dfd5c4526f62ae6779dbb679a2fdf52a10d1a1682a"
 dependencies = [
  "regex-lite",
 ]
@@ -2279,8 +2282,9 @@ dependencies = [
 
 [[package]]
 name = "fflonk-cuda"
-version = "0.155.7"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=deniallugo-change-crypto-deps#4fdf301410decd1e30aac10b6d753acee59c7d29"
+version = "0.155.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1e577965f393646e86bcc9ea544a2d7ba922a990337eca05ea4bdcf85102ff5"
 dependencies = [
  "bincode",
  "byteorder",
@@ -5001,8 +5005,9 @@ dependencies = [
 
 [[package]]
 name = "proof-compression"
-version = "0.155.7"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=deniallugo-change-crypto-deps#4fdf301410decd1e30aac10b6d753acee59c7d29"
+version = "0.155.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d0579212e92726ad25dd09163d8920b9cd7365f27209b876642fbcf032ba9df"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6404,8 +6409,9 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shivini"
-version = "0.155.7"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=deniallugo-change-crypto-deps#4fdf301410decd1e30aac10b6d753acee59c7d29"
+version = "0.155.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38724875b5c11cf4838188922f527df167a2fe8efe9ef064da43a0ffa1eadeb9"
 dependencies = [
  "bincode",
  "boojum",
@@ -8800,8 +8806,9 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-ffi"
-version = "0.155.7"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=deniallugo-change-crypto-deps#4fdf301410decd1e30aac10b6d753acee59c7d29"
+version = "0.155.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91a4435e15999d98ca32155edbb2709e0ba7be97ac5c6e2bcb4f34dc134b0f39"
 dependencies = [
  "cmake",
  "crossbeam",
@@ -8814,8 +8821,9 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-prover"
-version = "0.155.7"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=deniallugo-change-crypto-deps#4fdf301410decd1e30aac10b6d753acee59c7d29"
+version = "0.155.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cb25db43c88e86fb54bf997c5f27cdde6b4db957b608275e3620f9b11e829ad"
 dependencies = [
  "bit-vec 0.6.3",
  "cfg-if",
@@ -9825,8 +9833,3 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
 ]
-
-[[patch.unused]]
-name = "zksync-wrapper-prover"
-version = "0.155.7"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=deniallugo-change-crypto-deps#4fdf301410decd1e30aac10b6d753acee59c7d29"
