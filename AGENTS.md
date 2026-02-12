@@ -14,7 +14,7 @@ zkstackup --local
 
 This is necessary because:
 
-- The `zkstack` command is a compiled binary installed in `~/.local/bin/`
+- The `zkstack` command is a a compiled binary installed in `~/.local/bin/`
 - Changes to Rust source code won't take effect until the binary is rebuilt
 - Without rebuilding, you'll be running the old version of the CLI
 
