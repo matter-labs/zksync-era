@@ -37,6 +37,7 @@ pub struct GatewayVotePreparationConfig {
     pub tokens: TokensConfig,
     pub refund_recipient: Address,
     pub gateway_chain_id: U256,
+    pub gateway_settlement_fee: U256,
     pub force_deployments_data: String,
 }
 
@@ -87,6 +88,7 @@ impl GatewayVotePreparationConfig {
             tokens,
             refund_recipient,
             gateway_chain_id,
+            gateway_settlement_fee: initial_deployment_config.gateway_settlement_fee,
             force_deployments_data: external_contracts_config
                 .ecosystem_contracts
                 .ctm
