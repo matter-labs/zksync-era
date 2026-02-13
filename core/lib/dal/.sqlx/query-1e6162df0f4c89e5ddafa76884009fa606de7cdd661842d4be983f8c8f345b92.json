@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(*)\n            FROM l1_batches\n            WHERE\n                settlement_layer_type = $1\n                AND settlement_layer_chain_id = $2\n                AND (\n                    NOT is_sealed\n                    OR l1_batches.eth_commit_tx_id IS NULL\n                    OR NOT EXISTS (\n                        SELECT 1\n                        FROM eth_txs_history\n                        WHERE\n                            eth_tx_id = l1_batches.eth_commit_tx_id\n                            AND sent_successfully = TRUE\n                            AND finality_status = 'finalized'\n                    )\n                )\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1e6162df0f4c89e5ddafa76884009fa606de7cdd661842d4be983f8c8f345b92"
+}

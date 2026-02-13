@@ -42,7 +42,8 @@ pub enum GatewayComamnds {
     MigrateFromGateway(migrate_from_gateway::MigrateFromGatewayArgs),
     NotifyAboutToGatewayUpdate(NotifyServerArgs),
     NotifyAboutFromGatewayUpdate(NotifyServerArgs),
-    MigrateTokenBalances(migrate_token_balances::MigrateTokenBalancesArgs),
+    InitiateTokenBalanceMigration(migrate_token_balances::InitiateTokenBalanceMigrationArgs),
+    FinalizeTokenBalanceMigration(migrate_token_balances::FinalizeTokenBalanceMigrationArgs),
 }
 
 pub async fn run(shell: &Shell, args: GatewayComamnds) -> anyhow::Result<()> {
@@ -78,8 +79,11 @@ pub async fn run(shell: &Shell, args: GatewayComamnds) -> anyhow::Result<()> {
         GatewayComamnds::NotifyAboutFromGatewayUpdate(args) => {
             gateway_common::notify_server(args, shell, MigrationDirection::FromGateway).await
         }
-        GatewayComamnds::MigrateTokenBalances(args) => {
-            migrate_token_balances::run(args, shell).await
+        GatewayComamnds::InitiateTokenBalanceMigration(args) => {
+            migrate_token_balances::run_initiate(args, shell).await
+        }
+        GatewayComamnds::FinalizeTokenBalanceMigration(args) => {
+            migrate_token_balances::run_finalize(args, shell).await
         }
     }
 }

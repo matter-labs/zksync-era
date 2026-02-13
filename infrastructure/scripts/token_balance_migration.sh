@@ -47,5 +47,4 @@ zkstack server wait --ignore-prerequisites --verbose --chain gateway
 export CI=1 # Needed to avoid killing the server in core/tests/highlevel-test-tools/global-setup.ts#48
 export USE_GATEWAY_CHAIN=WITH_GATEWAY
 export TESTED_CHAIN_TYPE=era
-yarn --cwd core/tests/highlevel-test-tools test -t "Token balance migration TO GW tests"
-# yarn --cwd core/tests/highlevel-test-tools test -t "Token balance migration FROM GW tests"
+yarn --cwd core/tests/highlevel-test-tools test -t "Token balance migration tests"

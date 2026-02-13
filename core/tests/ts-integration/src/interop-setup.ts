@@ -4,15 +4,16 @@ import * as path from 'path';
 import { TestMaster } from './test-master';
 import { Token } from './types';
 import * as utils from 'utils';
-import { shouldLoadConfigFromFile } from 'utils/build/file-configs';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
+import { encodeNTVAssetId } from 'zksync-ethers/build/utils';
 
 import { RetryableWallet } from './retry-provider';
 import {
     scaledGasPrice,
     deployContract,
+    readContract,
     waitUntilBlockFinalized,
     waitForInteropRootNonZero,
     getGWBlockNumber,
@@ -27,6 +28,7 @@ import {
     L2_INTEROP_HANDLER_ADDRESS,
     L2_INTEROP_CENTER_ADDRESS,
     ETH_ADDRESS_IN_CONTRACTS,
+    ARTIFACTS_PATH,
     ArtifactInteropCenter,
     ArtifactInteropHandler,
     ArtifactNativeTokenVault,
@@ -330,6 +332,7 @@ export class InteropTestContext {
 
                     const state = JSON.parse(fs.readFileSync(SHARED_STATE_FILE, 'utf-8'));
                     this.loadState(state);
+                    await this.fundInterop1TokenAForSuite();
                     return;
                 } catch (e) {
                     // File might be half-written, continue waiting
@@ -380,35 +383,34 @@ export class InteropTestContext {
     }
 
     private async performSetup() {
-        const tokenADeploy = await deployContract(this.interop1Wallet, ArtifactMintableERC20, [
+        const l1TokenArtifact = readContract(ARTIFACTS_PATH, 'TestnetERC20Token');
+        const l1TokenBytecode = l1TokenArtifact.bytecode.object ?? l1TokenArtifact.bytecode;
+        const l1TokenFactory = new ethers.ContractFactory(
+            l1TokenArtifact.abi,
+            l1TokenBytecode,
+            this.interop1RichWallet.ethWallet()
+        );
+        const l1TokenDeploy = await l1TokenFactory.deploy(
             this.tokenA.name,
             this.tokenA.symbol,
-            this.tokenA.decimals
-        ]);
-        this.tokenA.l2Address = await tokenADeploy.getAddress();
+            Number(this.tokenA.decimals)
+        );
+        await l1TokenDeploy.waitForDeployment();
+        this.tokenA.l1Address = await l1TokenDeploy.getAddress();
+        await this.fundInterop1TokenAForSuite();
 
-        // Register tokens on Interop1
-        await (await this.interop1NativeTokenVault.registerToken(this.tokenA.l2Address)).wait();
-        this.tokenA.assetId = await this.interop1NativeTokenVault.assetId(this.tokenA.l2Address);
+        const l1ChainId = (await this.l1Provider.getNetwork()).chainId;
+        this.tokenA.assetId = encodeNTVAssetId(l1ChainId, this.tokenA.l1Address);
+        while (true) {
+            this.tokenA.l2Address = await this.interop1NativeTokenVault.tokenAddress(this.tokenA.assetId);
+            if (this.tokenA.l2Address !== ethers.ZeroAddress) break;
+            await utils.sleep(1);
+        }
         this.interop1TokenA = new zksync.Contract(
             this.tokenA.l2Address,
             ArtifactMintableERC20.abi,
             this.interop1Wallet
         );
-
-        const fileConfig = shouldLoadConfigFromFile();
-        const migrationCmd = `zkstack chain gateway migrate-token-balances --to-gateway true --gateway-chain-name gateway --chain ${fileConfig.chain}`;
-
-        // Migration might sometimes fail, so we retry a few times.
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                await utils.spawn(migrationCmd);
-                break;
-            } catch (e) {
-                if (attempt === 3) throw e;
-                await utils.sleep(2 * attempt);
-            }
-        }
 
         // Save State
         const newState = {
@@ -424,6 +426,25 @@ export class InteropTestContext {
 
         this.loadState(newState);
         fs.writeFileSync(SHARED_STATE_FILE, JSON.stringify(newState, null, 2));
+    }
+
+    private async fundInterop1TokenAForSuite() {
+        const l1Token = new ethers.Contract(
+            this.tokenA.l1Address,
+            readContract(ARTIFACTS_PATH, 'TestnetERC20Token').abi,
+            this.interop1RichWallet.ethWallet()
+        );
+        const initialL1Amount = ethers.parseEther('1000');
+        await (await l1Token.mint(this.interop1RichWallet.address, initialL1Amount)).wait();
+        await (
+            await this.interop1RichWallet.deposit({
+                token: this.tokenA.l1Address,
+                amount: initialL1Amount,
+                to: this.interop1Wallet.address,
+                approveERC20: true,
+                approveBaseERC20: true
+            })
+        ).wait();
     }
 
     private loadState(state: any) {
@@ -610,17 +631,13 @@ export class InteropTestContext {
     }
 
     /**
-     * Approves and mints a random amount of test tokens and returns the amount.
+     * Approves a random amount of test tokens and returns the amount.
      */
     async getAndApproveTokenTransferAmount(): Promise<bigint> {
         const transferAmount = BigInt(Math.floor(Math.random() * 900) + 100);
 
-        await Promise.all([
-            // Approve token transfer on Interop1
-            (await this.interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait(),
-            // Mint tokens for the test wallet on Interop1 for the transfer
-            (await this.interop1TokenA.mint(this.interop1Wallet.address, transferAmount)).wait()
-        ]);
+        // Approve token transfer on Interop1
+        await (await this.interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait();
 
         return transferAmount;
     }

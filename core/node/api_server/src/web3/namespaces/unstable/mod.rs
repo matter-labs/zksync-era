@@ -8,14 +8,12 @@ use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_multivm::{interface::VmEvent, zk_evm_latest::ethereum_types::U64};
 use zksync_types::{
-    aggregated_operations::L1BatchAggregatedActionType,
     api,
     api::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
         TransactionDetailedResult, TransactionExecutionInfo,
     },
-    eth_sender::EthTxFinalityStatus,
-    server_notification::GatewayMigrationState,
+    server_notification::{GatewayMigrationNotification, GatewayMigrationState},
     tee_types::TeeType,
     web3,
     web3::Bytes,
@@ -250,27 +248,6 @@ impl UnstableNamespace {
             .await
             .map_err(DalError::generalize)?;
 
-        let all_batches_with_interop_roots_committed = match connection
-            .interop_root_dal()
-            .get_latest_processed_interop_root_l1_batch_number()
-            .await
-            .map_err(DalError::generalize)?
-        {
-            None => true,
-            Some(latest_processed_l1_batch_number) => {
-                match connection
-                    .eth_sender_dal()
-                    .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                        L1BatchNumber::from(latest_processed_l1_batch_number),
-                        L1BatchAggregatedActionType::Commit,
-                    )
-                    .await
-                {
-                    Some(tx) => tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized,
-                    None => false,
-                }
-            }
-        };
         let state = GatewayMigrationState::from_sl_and_notification(
             self.state
                 .api_config
@@ -278,6 +255,34 @@ impl UnstableNamespace {
                 .settlement_layer_for_sending_txs(),
             latest_notification,
         );
+        let settlement_layer = self.state.api_config.settlement_layer.settlement_layer();
+        let has_uncommitted_batches = connection
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .map_err(DalError::generalize)?;
+        let latest_sealed_matches_expected = match (
+            latest_notification,
+            connection
+                .blocks_dal()
+                .get_latest_sealed_l1_batch_header()
+                .await
+                .map_err(DalError::generalize)?,
+        ) {
+            (Some(GatewayMigrationNotification::ToGateway), Some(header)) => {
+                header.settlement_layer.is_gateway()
+            }
+            (Some(GatewayMigrationNotification::FromGateway), Some(header)) => {
+                !header.settlement_layer.is_gateway()
+            }
+            (Some(_), None) => false,
+            (None, _) => true,
+        };
+        let all_batches_committed = if state == GatewayMigrationState::InProgress {
+            !has_uncommitted_batches
+        } else {
+            !has_uncommitted_batches && latest_sealed_matches_expected
+        };
 
         Ok(GatewayMigrationStatus {
             latest_notification,
@@ -287,7 +292,7 @@ impl UnstableNamespace {
                 .api_config
                 .settlement_layer
                 .settlement_layer_for_sending_txs(),
-            wait_for_batches_to_be_committed: !all_batches_with_interop_roots_committed,
+            wait_for_batches_to_be_committed: !all_batches_committed,
         })
     }
 

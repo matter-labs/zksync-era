@@ -289,7 +289,7 @@ describe('Interop-B Bundles behavior checks', () => {
         expect((otherRecipientBalance - otherRecipientBalanceBefore).toString()).toBe(bundles.twoIndirect.amounts[1]);
     });
 
-    test('Can received a mixed call bundle', async () => {
+    test('Can receive a mixed call bundle', async () => {
         if (ctx.skipInteropTests) return;
 
         const recipientBalanceBefore = await ctx.getInterop2Balance(ctx.dummyInteropRecipient);

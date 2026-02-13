@@ -9,10 +9,9 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Provider, Wallet } from 'ethers';
-import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof } from '../src/helpers';
+import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof, waitForPriorityOp } from '../src/helpers';
 import { encodeNTVAssetId } from 'zksync-ethers/build/utils';
 import { ARTIFACTS_PATH, L2_ASSET_TRACKER_ADDRESS } from '../src/constants';
-import { sleep } from 'utils/src';
 
 async function migrateTokenBalanceFromL1ToGateway(
     alice: zksync.Wallet,
@@ -50,10 +49,12 @@ async function migrateTokenBalanceFromL1ToGateway(
     };
 
     // Finalize the migration on L1.
-    await expect(l1AssetTracker.receiveMigrationOnL1(finalizeDepositParams)).toBeAccepted();
+    const l1ReceiveTx = await l1AssetTracker.receiveMigrationOnL1(finalizeDepositParams);
+    await expect(l1ReceiveTx).toBeAccepted();
+    const l1Receipt = await l1ReceiveTx.wait();
 
-    // TODO: the above tx has created some priority ops, we should wait for them
-    await sleep(5);
+    // Wait for priority ops created by the migration to execute.
+    await waitForPriorityOp(alice, l1Receipt);
 }
 
 describe('L2 native ERC20 contract checks', () => {
