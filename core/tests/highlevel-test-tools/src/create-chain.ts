@@ -70,10 +70,7 @@ const fileMutex = new FileMutex();
 /**
  * Reads the custom token address from the erc20.yaml configuration file
  */
-export function getTokenAddress(
-    tokenName: string = 'DAI',
-    configPath: string = join(configsPath(), 'erc20.yaml')
-): string {
+export function getCustomTokenAddress(configPath: string = join(configsPath(), 'erc20.yaml')): string {
     try {
         if (!fs.existsSync(configPath)) {
             throw new Error(`Config file ${configPath} not found`);
@@ -81,20 +78,18 @@ export function getTokenAddress(
 
         const fileContent = fs.readFileSync(configPath, 'utf8');
 
-        // Parse YAML as string and extract token address using regex
-        const tokenAddressMatch = fileContent.match(
-            new RegExp(`\\s*${tokenName}:\\s*\\n\\s*address:\\s*(0x[a-fA-F0-9]{40})`)
-        );
+        // Parse YAML as string and extract DAI token address using regex
+        const daiAddressMatch = fileContent.match(/DAI:\s*\n\s*address:\s*(0x[a-fA-F0-9]{40})/);
 
-        if (tokenAddressMatch && tokenAddressMatch[1]) {
-            const tokenAddress = tokenAddressMatch[1];
-            console.log(`✅ Found token address for ${tokenName}: ${tokenAddress}`);
+        if (daiAddressMatch && daiAddressMatch[1]) {
+            const tokenAddress = daiAddressMatch[1];
+            console.log(`✅ Found custom token address: ${tokenAddress}`);
             return tokenAddress;
         } else {
-            throw new Error(`Token address for ${tokenName} not found in config file ${configPath}`);
+            throw new Error(`Custom token address not found in config file ${configPath}`);
         }
     } catch (error) {
-        console.error(`❌ Error reading token address for ${tokenName} from ${configPath}:`, error);
+        console.error(`❌ Error reading custom token address from ${configPath}:`, error);
         throw error;
     }
 }
@@ -123,7 +118,7 @@ export async function createChainAndStartServer(
 
     const ethTokenAddress = '0x0000000000000000000000000000000000000001';
     // Get custom token address from config file
-    const customTokenAddress = getTokenAddress();
+    const customTokenAddress = getCustomTokenAddress();
 
     // Chain-specific configurations
     const chainConfigs = {

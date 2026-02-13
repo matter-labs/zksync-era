@@ -52,9 +52,9 @@ impl L1Network {
     pub fn zk_token_asset_id(&self) -> H256 {
         match self {
             L1Network::Localhost => {
-                // When testing locally, we deploy the ZK token after ecosystem init, so we need to derive its asset id
-                // The address where ZK will be deployed at is 0xa49ced8a9a7c32cd4287530143f35f1208d77770
-                H256::from_str("0xd676717086885cdf8485b32920cb05c50330e98b230f584bbe8b4bbff4bc2c5a")
+                // When testing locally, we deploy the ZK token inside interop tests, so we need to derive its asset id
+                // The address where ZK will be deployed at is 0x8207187d1682B3ebaF2e1bdE471aC9d5B886fD93
+                H256::from_str("0x50c8daa176d24869d010ad74c2d374427601375ca2264e94f73784e299d572d4")
                     .unwrap()
             }
             L1Network::Sepolia => {

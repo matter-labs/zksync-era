@@ -4,7 +4,6 @@ import * as path from 'path';
 import { TestMaster } from './test-master';
 import { Token } from './types';
 import * as utils from 'utils';
-import { shouldLoadConfigFromFile } from 'utils/build/file-configs';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
@@ -40,10 +39,13 @@ import {
 } from './constants';
 import { RetryProvider } from './retry-provider';
 import { getInteropBundleData } from './temp-sdk';
-import { getTokenAddress } from 'highlevel-test-tools/src/create-chain';
 
 const SHARED_STATE_FILE = path.join(__dirname, '../interop-shared-state.json');
 const LOCK_DIR = path.join(__dirname, '../interop-setup.lock');
+
+// Testing environment ZK token
+export const TEST_ZK_TOKEN_DEPLOYER_PRIVATE_KEY = ethers.hashMessage('TEST_ZK_TOKEN_DEPLOYER_PRIVATE_KEY');
+export const TEST_ZK_TOKEN_ADDRESS = '0x8207187d1682B3ebaF2e1bdE471aC9d5B886fD93';
 
 export interface InteropCallStarter {
     to: string;
@@ -396,17 +398,47 @@ export class InteropTestContext {
     }
 
     private async performSetup() {
+        // Deploy the test ZK token if it wasn't already, as may be the case when testing locally
+        const zkTokenExists = (await this.interop1RichWallet.providerL1?.getCode(TEST_ZK_TOKEN_ADDRESS)) !== '0x';
+        if (!zkTokenExists) {
+            // Fund the deployer
+            const zkTokenDeployer = new ethers.Wallet(
+                TEST_ZK_TOKEN_DEPLOYER_PRIVATE_KEY,
+                this.interop1RichWallet.providerL1
+            );
+            await (
+                await this.interop1RichWallet.ethWallet().sendTransaction({
+                    to: zkTokenDeployer.address,
+                    value: ethers.parseEther('0.1')
+                })
+            ).wait();
+            // Deploy the ZK token
+            const zkTokenFactory = new ethers.ContractFactory(
+                ArtifactMintableERC20.abi,
+                ArtifactMintableERC20.bytecode,
+                zkTokenDeployer
+            );
+            const zkTokenDeploy = await zkTokenFactory.deploy('ZK', 'ZK', 18);
+            await zkTokenDeploy.waitForDeployment();
+            const zkTokenAddress = await zkTokenDeploy.getAddress();
+            if (zkTokenAddress !== TEST_ZK_TOKEN_ADDRESS) {
+                throw new Error(
+                    `Test ZK token address mismatch: ${zkTokenAddress} !== ${TEST_ZK_TOKEN_ADDRESS}. Probably compiler version changed.`
+                );
+            }
+            console.log(`Deployed test ZK token at ${zkTokenAddress}`);
+        }
+
         // Fund the wallet with ZK token for paying the fixed interop fee
-        const zkTokenAddressL1 = getTokenAddress('ZK');
         const zkToken = new ethers.Contract(
-            zkTokenAddressL1,
+            TEST_ZK_TOKEN_ADDRESS,
             ArtifactMintableERC20.abi,
             this.interop1RichWallet.ethWallet()
         );
         await (await zkToken.mint(this.interop1RichWallet.address, ethers.parseEther('1000'))).wait();
         await (
             await this.interop1RichWallet.deposit({
-                token: zkTokenAddressL1,
+                token: TEST_ZK_TOKEN_ADDRESS,
                 amount: ethers.parseEther('1000'),
                 to: this.interop1Wallet.address,
                 approveERC20: true
@@ -428,11 +460,9 @@ export class InteropTestContext {
         await (await zkTokenInterop1.approve(L2_INTEROP_CENTER_ADDRESS, ethers.parseEther('1000'))).wait();
 
         // Deploy test token on L1
-        const l1TokenArtifact = readContract(ARTIFACTS_PATH, 'TestnetERC20Token');
-        const l1TokenBytecode = l1TokenArtifact.bytecode.object ?? l1TokenArtifact.bytecode;
         const l1TokenFactory = new ethers.ContractFactory(
-            l1TokenArtifact.abi,
-            l1TokenBytecode,
+            ArtifactMintableERC20.abi,
+            ArtifactMintableERC20.bytecode,
             this.interop1RichWallet.ethWallet()
         );
         const l1TokenDeploy = await l1TokenFactory.deploy(

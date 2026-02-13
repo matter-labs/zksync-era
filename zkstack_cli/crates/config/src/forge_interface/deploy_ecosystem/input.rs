@@ -80,13 +80,6 @@ impl Default for Erc20DeploymentConfig {
                     implementation: String::from("TestnetERC20Token.sol"),
                     mint: U256::from_str("9000000000000000000000").unwrap(),
                 },
-                Erc20DeploymentTokensConfig {
-                    name: String::from("ZK"),
-                    symbol: String::from("ZK"),
-                    decimals: 18,
-                    implementation: String::from("TestnetERC20Token.sol"),
-                    mint: U256::from_str("9000000000000000000000").unwrap(),
-                },
             ],
         }
     }
