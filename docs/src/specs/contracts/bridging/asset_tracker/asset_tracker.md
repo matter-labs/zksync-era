@@ -9,39 +9,37 @@ The `AssetTracker` is the main component that is used to ensure that even if a m
 ## Glossary
 
 - A "completely compromised" chain assumes that not only their proof system, but their facets can change arbitrarily. This is a relevant assumption since ZKsync OS chains CTM will be controlled by a temporary multisig before final transition to the governance. 
-- A "ZK compromised" means that the chain uses a canonical implementation with our Diamond Proxy, facets, etc, but its ZK proving system is compromised.
+- A "ZK compromised" means that the chain uses a canonical implementation with our Diamond Proxy, facets, etc, but its ZK proving system is compromised, due an unexpected bug in ZK circuits.
 
 ## Security assumptions
 
-- All settlement layers are whitelisted and completely trusted: they are controlled by the decentralized governance and sufficient monitoring and defense in depth mechanisms ensure that their proof system will not be exploited.
-- What's more, until stage1 is reached, it is chains that migrate on top of Gateway assume that Gateway's operator is reasonably trusted, e.g. he will not censor transactions unnecessarily for prolonged periods of time.
+- All settlement layers are whitelisted and are trusted to be "ZK compromised" at most, i.e. their implementation is controlled by the decentralized governance, however the system should be robust in cases the ZK proof system of a settlement layer is compromised. More about it can be read here [TODO: link to the gateway trust assumptions docs].
+- What's more, until stage1 is reached, it is chains that migrate on top of Gateway assume that Gateway's operator is reasonably trusted, e.g. he will not censor transactions unnecessarily for prolonged periods of time. Note that, in this release, stage1 is available only for chains that settle on L1. More on it here [TODO: link to stage1 doc].
 
-> In the future, we want to allow untrusted settlement layers, however the scope of this release includes only trusted settlement layers. Any places that disallow it for now should be clearly marked with comments in the codebase.
+> In the future, we want to allow completely untrusted settlement layers, however the scope of this release includes only trusted settlement layers. Any places that disallow it for now should be clearly marked with comments in the codebase.
 
-### Before v30
+### Before v31
 
 - Only era-based chains were settling on a ZK Gateway, and those are trusted to be "ZK Compromised" at worst, since their implementation is controlled by the decentralized governance.
-- ZKsync OS based chains are possible. Before their upgrade system's ownership is migrated to the decentralized governance, they can be assumed to be potentially completely malicious even before the upgrade, but they can not settle on top of ZK based Gateway. Before v30 they only settle on L1.
+- ZKsync OS based chains are possible. Before their upgrade system's ownership is migrated to the decentralized governance, they can be assumed to be potentially completely malicious even before the upgrade, but they can not settle on top of ZK based Gateway. Before v31 they only settle on L1.
 - Only one whitelisted settlement layer exists and it is EraVM based ZK Gateway. 
 
 ### At the moment of the upgrade
 
-At the moment of the upgrade we will demand that all chains have migrated to L1, i.e. the number of chains that settle on top of ZK Gateway is 0.
+At the moment of the upgrade we will demand that all chains have migrated to L1, i.e. the number of chains that settle on top of ZK Gateway is 0. Also, the old Era-based ZK Gateway will be shut down and will have its whitelisted settlement layer status revoked (TODO: link to the upgrade process).
 
-> The requirement for all chains moving back to L1 is necessitated by the need to stop any deposits incoming to ZK Gateway during the upgrade. This is why the rest of the code is still prepared for such scenarios in case it is suddenly decided that it is not an option. You can read more about it here (../../../upgrade_history/v30-bundles/upgrade_process_v30.md#ecosystem-upgrade-process).
+By "shut down" we mean completely abandoned and it will not participate in the v31 upgrade.
 
-### After v30
+### After v31
 
-- A new ZKsync OS powered settlement layer may be added. The transfer of control to decentralized governance is a prerequisite before the creation of such a settlement layer, i.e. then this settlement layer will also be completely trusted, but also ZKsync OS chains will be able to become "ZK compromised" at most. Note, that the transfer of the ownership to governance is a prerequisite for ZKsync OS based settlement layer, not v30 upgrade in general.
-- Chains can only migrate between L1 and ZK Gateway that belongs to their CTM (i.e. Era chains wont be able to migrate to ZKsync OS settlement layer and vice versa).
+- A new ZKsync OS powered settlement layer may be added. The transfer of control to decentralized governance is a prerequisite before the creation of such a settlement layer, i.e. then this settlement layer will also be completely trusted, but also ZKsync OS chains will be able to become "ZK compromised" at most. Note, that the transfer of the ownership to governance is a prerequisite for ZKsync OS based settlement layer, *not* v31 upgrade in general.
+- Chains should be able to migrate to the ZKsync OS powered ZK Gateway, once it is added. However, it is assumed that chains from only trusted CTMs can settle on top of our ZK Gateway.
 
-> Future compatibility note 1. In the future we want to allow Era-based chains to migrate on top of ZKsync OS powered Gateway. The codebase should be ready for it in general. Any places that disallow it for now should be clearly marked in the codebase or documentation.
+> Future compatibility note. In the future we would want to support chains from untrusted, potentially completely malicious CTMs settling on top of ZKsync OS powered Gateway. Any places that disallow it for now should be clearly marked in the codebase. 
 
-> Future compatibility note 2. In the future we would want to support chains from untrusted, potentially completely malicious CTMs settling on top of ZKsync OS powered Gateway. Any places that disallow it for now should be clearly marked in the codebase. 
+## How chain balances were tracked before v31 (only L1<>L2 messaging)
 
-## How chain balances were tracked before v30 (only L1<>L2 messaging)
-
-Before v30, the chain balance was tracked only inside `L1NativeTokenVault`.
+Before v31, the chain balance was tracked only inside `L1NativeTokenVault`.
 
 - The balances of the tokens for each chain are stored only on L1.
 - When there is a deposit to the chain we increase it's relevant balance, opposite for withdrawals, we decrease the chain's balance for the token that's being withdrawn.
@@ -92,21 +90,21 @@ Similar to before, on L1, `chainBalance` will lazily store the amount of funds t
 
 We say that a chain is responsible, i.e. its `chainBalance` should be reduced for a withdrawal/failed deposit, if:
 
-1. The withdrawal/deposit happened before a chain upgraded to v30. Before v30 all chains were responsible for their own withdrawals/failed deposits.
+1. The withdrawal/deposit happened before a chain upgraded to v31. Before v31 all chains were responsible for their own withdrawals/failed deposits.
 2. The withdrawal happened when the chain settled on L1.
-3. If it is a whitelisted settlement layer, it is responsible for all withdrawals for chains that settled there since they upgraded to v30.
+3. If it is a whitelisted settlement layer, it is responsible for all withdrawals for chains that settled there since they upgraded to v31.
 
 Overall, the algorithm for determining whether to reduce the chain balance should look the following way:
 
 ```
 1. If withdrawal is directly from L2 to L1 (chain didnt settle on GW), the chainBalance of the chain should be reduced.
-2. Alternatively, if the chain did settle on GW, check whether the batch is before the chain has upgraded to v30.
-    2a. If the batch is before the chain upgraded to v30, the chain's balance is reduced.
-    2b. If the batch is after the chain upgraded to v30, the settlement layer's balance is reduced.
+2. Alternatively, if the chain did settle on GW, check whether the batch is before the chain has upgraded to v31.
+    2a. If the batch is before the chain upgraded to v31, the chain's balance is reduced.
+    2b. If the batch is after the chain upgraded to v31, the settlement layer's balance is reduced.
 ```
 
-Note, that the above scheme relies on a fact that chains never lie about the time they upgraded to v30. This is ensured inside MessageRoot (see [v30UpgradeChainBatchNumber](../../interop/message_root.md#v30upgradechainbatchnumber)):
- - Additionally we also assume that chains that have non-zero v30 upgrade batch number while settling on top of a ZK Gateway, belong to a CTM controlled by the decentralized governance (either Era CTM or ZKsync OS CTM after the ownership migration). For all the other CTMs, when a chain will be spawned, its "v30 upgrade batch number" will be started from 0.
+Note, that the above scheme relies on a fact that chains never lie about the time they upgraded to v31. This is ensured inside MessageRoot (see [v31UpgradeChainBatchNumber](../../interop/message_root.md#v31upgradechainbatchnumber)):
+ - Additionally we also assume that chains that have non-zero v31 upgrade batch number while settling on top of a ZK Gateway, belong to a CTM controlled by the decentralized governance (either Era CTM or ZKsync OS CTM after the ownership migration). For all the other CTMs, when a chain will be spawned, its "v31 upgrade batch number" will be started from 0.
 
 Also, this relies on the fact that message verification needs to always happen against the root of GW that was submitted on L1, basically to ensure that the "Gateway" approved this messages and checked via `GWAssetTracker` that it was correct.
 
@@ -151,9 +149,9 @@ On `GWAssetTracker` for each `assetId` the sum of `chainBalance[chainId][assetId
 `L2AssetTracker`'s job is to ensure that a malicious user or token can not cause the chain to fail to settle. For example, if a bad token allows sending multiple interops of `2^256-1` units of the same token, then the chain would violate the invariant (it would be caught inside `GWAssetTracker`) and so would fail to settle. On `L2AssetTracker`:
 - `chainBalance[chainId][assetId]` is tracked only for balances of native assets for the current chain. These start from `2^256-1` and then get reduced with each outbound transaction or increased with inbound transaction. This way, even if a token is malicious, it can not withdraw more than `2^256-1`, ensuring that chain always settles.
 
-#### Migration of pre-v30 past chain balances
+#### Migration of pre-v31 past chain balances
 
-The invariants above are very easy to hold for post-v30 tokens. However those that were present before v30, the process is a bit harder. The process of the v30 upgrade is described [here](../../upgrade_history/v30-bundles/upgrade_process_v30.md).
+The invariants above are very easy to hold for post-v31 tokens. However those that were present before v31, the process is a bit harder. The process of the v31 upgrade is described [here](../../upgrade_history/v31-bundles/upgrade_process_v31.md).
 
 ### Gateway asset tracker
 
@@ -323,14 +321,14 @@ Withdrawals are always initiated from L1Nullifier (there are also some legacy me
 
 To get the chain id of the settlement layer for a particular withdrawal (or claimed deposit), we look at the proof for the message. You can read more about its recursive format [here](../../interop/message_root.md#proving-that-a-message-belongs-to-a-messageroot), but in a nutshell, a proof is a recursive structure that starts from the L2 chain's tree root and then (if chain settled on top of some Gateway), it ends with the GW's tree.
 
-If the proof is of depth 1, i.e. it does not have any recursion, it means that the withdrawal belonged to the chain. If not, the withdrawal belonged to its settlement layer (the only exception is based on v30 upgrade, you can read more about in the sections above [here](#invariants-on-l1)). We ensure that all proofs have depth at most 2.
+If the proof is of depth 1, i.e. it does not have any recursion, it means that the withdrawal belonged to the chain. If not, the withdrawal belonged to its settlement layer (the only exception is based on v31 upgrade, you can read more about in the sections above [here](#invariants-on-l1)). We ensure that all proofs have depth at most 2.
 
-After verifying the correctness of the message, `L1Nullifier` stores inside `TRANSIENT_SETTLEMENT_LAYER_SLOT` and `TRANSIENT_SETTLEMENT_LAYER_SLOT+1` the settlement layer at the time of withdrawal and the batch number when withdrawal happened (the batch number would be needed for the checks against the time when the chain upgraded to v30).
+After verifying the correctness of the message, `L1Nullifier` stores inside `TRANSIENT_SETTLEMENT_LAYER_SLOT` and `TRANSIENT_SETTLEMENT_LAYER_SLOT+1` the settlement layer at the time of withdrawal and the batch number when withdrawal happened (the batch number would be needed for the checks against the time when the chain upgraded to v31).
 
 To ensure secure verification, the `L1MessageRoot` is used (see [MessageRoot](../../interop/message_root.md)).
 
 Then, when processing the decrease of the balance, the `L1AssetTracker` would read the values from above and decide which chain to reduce the balance of:
-- If the withdrawal is from before the chain upgraded to v30, the chain is responsible.
+- If the withdrawal is from before the chain upgraded to v31, the chain is responsible.
 - Otherwise, the settlement layer is responsible (or chain if it settled on L1).
 
 #### Security notes around withdrawals
@@ -351,7 +349,7 @@ With regards to L1AssetRouter, the process of claiming failed deposits is extrem
 
 As discussed previously in the section about sum invariants ([see here](#total-sum-invariant)), to ensure that that sum of chainBalances for each asset is lower than `2^256-1`, all chain balances must originate from L1 (starting from `2^256-1` for origin chain at the start the first time). We will refer to the process of initializing the token's chainBalances for the first as "registration".
 
-Note, that for this section we will only consider tokens that are interacted with for the first time starting from v30. To explore what the migration for pre-v30 assets looks like, check out the doc [here](../../upgrade_history/v30-bundles/upgrade_process_v30.md).
+Note, that for this section we will only consider tokens that are interacted with for the first time starting from v31. To explore what the migration for pre-v31 assets looks like, check out the doc [here](../../upgrade_history/v31-bundles/upgrade_process_v31.md).
 
 When a token is bridged for the first time, `registerNewToken` function is called, it would assign the max balance to the origin chain of the token. This function is only used in `L1AssetTracker` and `L2AssetTracker`.
 
