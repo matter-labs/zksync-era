@@ -14,7 +14,7 @@ const gatewayMutex = new FileMutex();
 /**
  * Constants for migration readiness check
  */
-const MIGRATION_STARTED_TOPIC = ethers.id('MigrationStarted(uint256,bytes32,uint256)');
+const MIGRATION_STARTED_TOPIC = ethers.id('MigrationStarted(uint256,uint256,bytes32,uint256)');
 const BLOCK_SEARCH_RANGE = 5000;
 const MAX_BLOCK_LOOKBACK = 200000;
 
