@@ -1,6 +1,7 @@
 import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
 import { findHome } from './zksync-home';
+import { withDeadline } from './deadline';
 import * as utils from 'utils';
 import { loadConfig } from 'utils/build/file-configs';
 import * as ethers from 'ethers';
@@ -220,17 +221,15 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
 }
 
 export async function waitForMigrationReadyForFinalize(chainName: string): Promise<void> {
-    while (true) {
-        try {
+    await withDeadline(
+        async () => {
             if (await isMigrationReadyForFinalize(chainName)) {
                 console.log(`✅ Migration is ready to finalize for ${chainName}`);
-                return;
+                return true;
             }
-
             console.log(`⏳ Migration not ready to finalize for ${chainName}, retrying...`);
-        } catch (error) {
-            console.warn(`⚠️ Failed to check migration readiness for ${chainName}: ${error}`);
-        }
-        await utils.sleep(5);
-    }
+            return null;
+        },
+        { timeoutMs: 10 * 60 * 1000, intervalMs: 5000, label: `waitForMigrationReadyForFinalize(${chainName})` }
+    );
 }

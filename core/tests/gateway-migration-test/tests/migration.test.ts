@@ -135,9 +135,7 @@ describe('Migration from gateway test', function () {
             to: alice.address
         });
         await firstDepositHandle.wait();
-        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
-            await utils.sleep(1);
-        }
+        await waitForBatchAdvance(tester, initialL1BatchNumber, 'first deposit');
 
         const secondDepositHandle = await tester.syncWallet.deposit({
             token: baseToken,
@@ -145,9 +143,7 @@ describe('Migration from gateway test', function () {
             to: alice.address
         });
         await secondDepositHandle.wait();
-        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
-            await utils.sleep(1);
-        }
+        await waitForBatchAdvance(tester, initialL1BatchNumber + 1, 'second deposit');
 
         const balance = await alice.getBalance();
         expect(balance === depositAmount * 2n, 'Incorrect balance after deposits').to.be.true;
@@ -165,9 +161,7 @@ describe('Migration from gateway test', function () {
             to: alice.address
         });
         await thirdDepositHandle.wait();
-        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
-            await utils.sleep(1);
-        }
+        await waitForBatchAdvance(tester, initialL1BatchNumber, 'third deposit');
 
         // kl todo add an L2 token and withdrawal here, to check token balance migration properly.
 
@@ -336,10 +330,16 @@ describe('Migration from gateway test', function () {
     /// Verify that the precommits are enabled on the gateway. This check is enough for making sure
     // precommits are working correctly. The rest of the checks are done by contract.
     step('Verify precommits', async () => {
+        const precommitStart = Date.now();
+        const precommitTimeoutMs = 5 * 60 * 1000;
         let gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
         while (gwCommittedBatches === 1) {
+            if (Date.now() - precommitStart > precommitTimeoutMs) {
+                throw new Error(`Verify precommits: timed out after ${(precommitTimeoutMs / 1000).toFixed(0)}s waiting for gateway batch commits (stuck at ${gwCommittedBatches})`);
+            }
             console.log(`Waiting for at least one batch committed batch on gateway... ${gwCommittedBatches}`);
             await utils.sleep(1);
+            gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
         }
 
         // Now we sure that we have at least one batch was committed from the gateway
@@ -457,6 +457,17 @@ async function zkstackExecWithMutex(command: string, name: string) {
     } catch (e) {
         console.error(`❌ Failed to execute ${name} for chain ${fileConfig.chain}:`, e);
         throw e;
+    }
+}
+
+async function waitForBatchAdvance(tester: Tester, pastBatchNumber: number, label: string, timeoutMs: number = 5 * 60 * 1000): Promise<void> {
+    const start = Date.now();
+    while ((await tester.web3Provider.getL1BatchNumber()) <= pastBatchNumber) {
+        if (Date.now() - start > timeoutMs) {
+            const current = await tester.web3Provider.getL1BatchNumber();
+            throw new Error(`waitForBatchAdvance(${label}): timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for batch > ${pastBatchNumber} (current: ${current})`);
+        }
+        await utils.sleep(1);
     }
 }
 
