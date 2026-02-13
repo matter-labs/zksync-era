@@ -18,7 +18,9 @@ export async function withDeadline<T>(
     while (true) {
         const elapsed = Date.now() - start;
         if (elapsed >= timeoutMs) {
-            throw new Error(`[withDeadline] ${label}: timed out after ${(elapsed / 1000).toFixed(1)}s (limit: ${(timeoutMs / 1000).toFixed(0)}s)`);
+            throw new Error(
+                `[withDeadline] ${label}: timed out after ${(elapsed / 1000).toFixed(1)}s (limit: ${(timeoutMs / 1000).toFixed(0)}s)`
+            );
         }
 
         try {

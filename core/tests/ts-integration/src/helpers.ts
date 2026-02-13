@@ -84,12 +84,18 @@ export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.Tran
  * @param blockNumber Number of block.
  * @param timeoutMs Maximum time to wait (default 10 min).
  */
-export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: number, timeoutMs: number = 10 * 60 * 1000) {
+export async function waitUntilBlockFinalized(
+    wallet: zksync.Wallet,
+    blockNumber: number,
+    timeoutMs: number = 10 * 60 * 1000
+) {
     const start = Date.now();
     let printedBlockNumber = 0;
     while (true) {
         if (Date.now() - start > timeoutMs) {
-            throw new Error(`waitUntilBlockFinalized: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} to be finalized (last finalized: ${printedBlockNumber})`);
+            throw new Error(
+                `waitUntilBlockFinalized: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} to be finalized (last finalized: ${printedBlockNumber})`
+            );
         }
         const block = await wallet.provider.getBlock('finalized');
         if (blockNumber <= block.number) {
@@ -126,7 +132,9 @@ export async function waitUntilBlockExecutedOnGateway(
     let currentExecutedBatchNumber = 0;
     while (currentExecutedBatchNumber < batchNumber) {
         if (Date.now() - start > timeoutMs) {
-            throw new Error(`waitUntilBlockExecutedOnGateway: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} (batch ${batchNumber}, current executed: ${currentExecutedBatchNumber})`);
+            throw new Error(
+                `waitUntilBlockExecutedOnGateway: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} (batch ${batchNumber}, current executed: ${currentExecutedBatchNumber})`
+            );
         }
         currentExecutedBatchNumber = await gettersFacet.getTotalBatchesExecuted();
         if (currentExecutedBatchNumber >= batchNumber) {
@@ -137,12 +145,18 @@ export async function waitUntilBlockExecutedOnGateway(
     }
 }
 
-export async function waitUntilBlockCommitted(wallet: zksync.Wallet, blockNumber: number, timeoutMs: number = 10 * 60 * 1000) {
+export async function waitUntilBlockCommitted(
+    wallet: zksync.Wallet,
+    blockNumber: number,
+    timeoutMs: number = 10 * 60 * 1000
+) {
     const start = Date.now();
     console.log('Waiting for block to be committed...', blockNumber);
     while (true) {
         if (Date.now() - start > timeoutMs) {
-            throw new Error(`waitUntilBlockCommitted: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} to be committed`);
+            throw new Error(
+                `waitUntilBlockCommitted: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} to be committed`
+            );
         }
         const block = await wallet.provider.getBlock('committed');
         if (blockNumber <= block.number) {
@@ -168,7 +182,11 @@ async function getL1BatchFinalizationStatus(provider: zksync.Provider, number: n
     return null;
 }
 
-export async function waitForBlockToBeFinalizedOnL1(wallet: zksync.Wallet, blockNumber: number, timeoutMs: number = 10 * 60 * 1000) {
+export async function waitForBlockToBeFinalizedOnL1(
+    wallet: zksync.Wallet,
+    blockNumber: number,
+    timeoutMs: number = 10 * 60 * 1000
+) {
     const start = Date.now();
     // Waiting for the block to be finalized on the immediate settlement layer.
     await waitUntilBlockFinalized(wallet, blockNumber, timeoutMs);
@@ -181,7 +199,9 @@ export async function waitForBlockToBeFinalizedOnL1(wallet: zksync.Wallet, block
 
     while (result == null) {
         if (Date.now() - start > timeoutMs) {
-            throw new Error(`waitForBlockToBeFinalizedOnL1: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for batch ${batchNumber} (block ${blockNumber}) to be finalized on L1`);
+            throw new Error(
+                `waitForBlockToBeFinalizedOnL1: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for batch ${batchNumber} (block ${blockNumber}) to be finalized on L1`
+            );
         }
         await zksync.utils.sleep(provider.pollingInterval);
 
@@ -189,7 +209,12 @@ export async function waitForBlockToBeFinalizedOnL1(wallet: zksync.Wallet, block
     }
 }
 
-export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string, timeoutMs: number = 10 * 60 * 1000) {
+export async function waitForL2ToL1LogProof(
+    wallet: zksync.Wallet,
+    blockNumber: number,
+    txHash: string,
+    timeoutMs: number = 10 * 60 * 1000
+) {
     const start = Date.now();
     log('waiting for block to be finalized');
     // First, we wait for block to be finalized.
@@ -200,7 +225,9 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
     let i = 0;
     while ((await wallet.provider.getLogProof(txHash)) == null) {
         if (Date.now() - start > timeoutMs) {
-            throw new Error(`waitForL2ToL1LogProof: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for log proof of tx ${txHash} (block ${blockNumber})`);
+            throw new Error(
+                `waitForL2ToL1LogProof: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for log proof of tx ${txHash} (block ${blockNumber})`
+            );
         }
         log(`Waiting for log proof... ${i}`);
         await zksync.utils.sleep(wallet.provider.pollingInterval);
@@ -208,14 +235,20 @@ export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: 
     }
 }
 
-export async function waitForPriorityOp(wallet: zksync.Wallet, l1Receipt: ethers.TransactionReceipt, timeoutMs: number = 10 * 60 * 1000) {
+export async function waitForPriorityOp(
+    wallet: zksync.Wallet,
+    l1Receipt: ethers.TransactionReceipt,
+    timeoutMs: number = 10 * 60 * 1000
+) {
     const start = Date.now();
     const mainContractAddress = await wallet.provider.getMainContractAddress();
     const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, mainContractAddress);
     let l2Receipt: ethers.TransactionReceipt | null = null;
     while (!l2Receipt) {
         if (Date.now() - start > timeoutMs) {
-            throw new Error(`waitForPriorityOp: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for L2 receipt of priority op ${l2Hash}`);
+            throw new Error(
+                `waitForPriorityOp: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for L2 receipt of priority op ${l2Hash}`
+            );
         }
         l2Receipt = await wallet.provider.getTransactionReceipt(l2Hash);
         if (!l2Receipt) {

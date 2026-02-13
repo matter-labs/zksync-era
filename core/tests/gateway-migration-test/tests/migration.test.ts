@@ -335,7 +335,9 @@ describe('Migration from gateway test', function () {
         let gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
         while (gwCommittedBatches === 1) {
             if (Date.now() - precommitStart > precommitTimeoutMs) {
-                throw new Error(`Verify precommits: timed out after ${(precommitTimeoutMs / 1000).toFixed(0)}s waiting for gateway batch commits (stuck at ${gwCommittedBatches})`);
+                throw new Error(
+                    `Verify precommits: timed out after ${(precommitTimeoutMs / 1000).toFixed(0)}s waiting for gateway batch commits (stuck at ${gwCommittedBatches})`
+                );
             }
             console.log(`Waiting for at least one batch committed batch on gateway... ${gwCommittedBatches}`);
             await utils.sleep(1);
@@ -460,12 +462,19 @@ async function zkstackExecWithMutex(command: string, name: string) {
     }
 }
 
-async function waitForBatchAdvance(tester: Tester, pastBatchNumber: number, label: string, timeoutMs: number = 5 * 60 * 1000): Promise<void> {
+async function waitForBatchAdvance(
+    tester: Tester,
+    pastBatchNumber: number,
+    label: string,
+    timeoutMs: number = 5 * 60 * 1000
+): Promise<void> {
     const start = Date.now();
     while ((await tester.web3Provider.getL1BatchNumber()) <= pastBatchNumber) {
         if (Date.now() - start > timeoutMs) {
             const current = await tester.web3Provider.getL1BatchNumber();
-            throw new Error(`waitForBatchAdvance(${label}): timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for batch > ${pastBatchNumber} (current: ${current})`);
+            throw new Error(
+                `waitForBatchAdvance(${label}): timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for batch > ${pastBatchNumber} (current: ${current})`
+            );
         }
         await utils.sleep(1);
     }
