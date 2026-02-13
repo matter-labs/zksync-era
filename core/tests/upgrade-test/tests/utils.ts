@@ -81,7 +81,7 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
                 require(`${CONTRACTS_FOLDER}/l1-contracts/out/IBridgehubBase.sol/IBridgehubBase.json`).abi
             ),
             chainAssetHandlerAbi: new ethers.Interface(
-                require(`${CONTRACTS_FOLDER}/l1-contracts/out/IChainAssetHandler.sol/IChainAssetHandler.json`).abi
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/IChainAssetHandler.sol/IChainAssetHandlerBase.json`).abi
             )
         };
     } else {
@@ -120,7 +120,7 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             ),
             chainAssetHandlerAbi: new ethers.Interface(
                 require(
-                    `${L1_CONTRACTS_FOLDER}/core/chain-asset-handler/IChainAssetHandler.sol/IChainAssetHandler.json`
+                    `${L1_CONTRACTS_FOLDER}/core/chain-asset-handler/IChainAssetHandler.sol/IChainAssetHandlerBase.json`
                 ).abi
             )
         };
