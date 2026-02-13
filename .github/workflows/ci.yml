@@ -44,6 +44,8 @@ jobs:
             core:
               - 'core/**'
               - '!core/CHANGELOG.md'
+              - 'contracts'
+              - 'contracts/**'
               - 'docker/contract-verifier/**'
               - 'docker/external-node/**'
               - 'docker/server/**'
