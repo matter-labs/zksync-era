@@ -11,7 +11,11 @@ import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 import { getEcosystemContracts } from 'utils/build/tokens';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
-import { waitForAllBatchesToBeExecuted, waitForMigrationReadyForFinalize, RpcHealthGuard } from 'highlevel-test-tools/src';
+import {
+    waitForAllBatchesToBeExecuted,
+    waitForMigrationReadyForFinalize,
+    RpcHealthGuard
+} from 'highlevel-test-tools/src';
 import { FileMutex } from 'highlevel-test-tools/src/file-mutex';
 
 async function logsPath(name: string): Promise<string> {

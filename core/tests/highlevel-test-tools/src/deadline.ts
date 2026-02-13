@@ -53,9 +53,7 @@ export class RpcHealthGuard {
             return 'healthy';
         }
         this.consecutiveFailures++;
-        console.log(
-            `⚠️ Health check failed for ${this.label} (${this.consecutiveFailures}/${this.maxFailures})`
-        );
+        console.log(`⚠️ Health check failed for ${this.label} (${this.consecutiveFailures}/${this.maxFailures})`);
         return this.consecutiveFailures >= this.maxFailures ? 'dead' : 'failing';
     }
 }
