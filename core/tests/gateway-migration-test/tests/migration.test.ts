@@ -11,7 +11,7 @@ import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 import { getEcosystemContracts } from 'utils/build/tokens';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
-import { waitForAllBatchesToBeExecuted, waitForMigrationReadyForFinalize } from 'highlevel-test-tools/src';
+import { waitForAllBatchesToBeExecuted, waitForMigrationReadyForFinalize, RpcHealthGuard } from 'highlevel-test-tools/src';
 import { FileMutex } from 'highlevel-test-tools/src/file-mutex';
 
 async function logsPath(name: string): Promise<string> {
@@ -53,6 +53,7 @@ describe('Migration from gateway test', function () {
     let web3JsonRpc: string | undefined;
 
     let mainNodeSpawner: utils.NodeSpawner;
+    let gatewayRpcUrl: string;
 
     before('Create test wallet', async () => {
         direction = process.env.DIRECTION || 'TO';
@@ -96,7 +97,7 @@ describe('Migration from gateway test', function () {
 
         await mainNodeSpawner.killAndSpawnMainNode();
 
-        const gatewayRpcUrl = secretsConfig.l1.gateway_rpc_url;
+        gatewayRpcUrl = secretsConfig.l1.gateway_rpc_url;
         tester = await Tester.init(ethProviderAddress!, web3JsonRpc!, gatewayRpcUrl!);
         alice = tester.emptyWallet();
 
@@ -227,7 +228,39 @@ describe('Migration from gateway test', function () {
         } else {
             let migrationSucceeded = false;
             let tryCount = 0;
+            // Health guards detect dead servers early instead of burning through all 60 retries.
+            // Chain server: dies when migration is initiated (expected) → treat as success.
+            // Gateway: dies independently (unexpected) → abort immediately.
+            const chainHealth = new RpcHealthGuard(web3JsonRpc!, 3, 'chain server');
+            const gwHealth = new RpcHealthGuard(gatewayRpcUrl, 3, 'gateway');
+
             while (!migrationSucceeded && tryCount < 60) {
+                if (tryCount > 0) {
+                    const chainStatus = await chainHealth.check();
+                    if (chainStatus === 'dead') {
+                        console.log(
+                            `Migration was likely already initiated and chain server shut down as expected. Proceeding to restart.`
+                        );
+                        migrationSucceeded = true;
+                        break;
+                    }
+                    if (chainStatus === 'failing') {
+                        await utils.sleep(10);
+                        tryCount++;
+                        continue;
+                    }
+
+                    const gwStatus = await gwHealth.check();
+                    if (gwStatus === 'dead') {
+                        throw new Error(`Gateway server unreachable at ${gatewayRpcUrl}. Aborting migration retries.`);
+                    }
+                    if (gwStatus === 'failing') {
+                        await utils.sleep(10);
+                        tryCount++;
+                        continue;
+                    }
+                }
+
                 try {
                     // Acquire mutex for migration attempt
                     console.log(`🔒 Acquiring mutex for migration attempt ${tryCount}...`);
