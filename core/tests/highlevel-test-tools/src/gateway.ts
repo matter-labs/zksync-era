@@ -230,6 +230,6 @@ export async function waitForMigrationReadyForFinalize(chainName: string): Promi
             console.log(`⏳ Migration not ready to finalize for ${chainName}, retrying...`);
             return null;
         },
-        { timeoutMs: 10 * 60 * 1000, intervalMs: 5000, label: `waitForMigrationReadyForFinalize(${chainName})` }
+        { timeoutMs: 10 * 60 * 1000, intervalMs: 2000, label: `waitForMigrationReadyForFinalize(${chainName})` }
     );
 }
