@@ -250,9 +250,9 @@ describe('Migration from gateway test', function () {
                         migrationMutex.release();
                     }
                 } catch (e) {
-                    console.log(`Migration attempt ${tryCount} failed with error: ${e}`);
                     tryCount++;
-                    await utils.sleep(2);
+                    console.log(`Migration attempt ${tryCount}/60 failed with error: ${e}`);
+                    await utils.sleep(10);
                 }
             }
 
