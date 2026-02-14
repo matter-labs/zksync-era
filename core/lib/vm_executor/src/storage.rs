@@ -12,7 +12,7 @@ use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMo
 use zksync_types::{
     block::L2BlockHeader, bytecode::BytecodeHash, commitment::PubdataParams,
     fee_model::BatchFeeInput, settlement::SettlementLayer, snapshots::SnapshotRecoveryStatus,
-    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
+    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, U256,
     ZKPORTER_IS_AVAILABLE,
 };
 
@@ -72,6 +72,7 @@ pub fn l1_batch_params(
     chain_id: L2ChainId,
     settlement_layer: SettlementLayer,
     interop_roots: Vec<InteropRoot>,
+    interop_fee: U256,
 ) -> (SystemEnv, L1BatchEnv) {
     (
         SystemEnv {
@@ -88,6 +89,7 @@ pub fn l1_batch_params(
             number: current_l1_batch_number,
             timestamp: l1_batch_timestamp,
             fee_input,
+            interop_fee,
             fee_account,
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
@@ -354,6 +356,12 @@ impl L1BatchParamsProvider {
         .await
         .context("failed getting base system contracts")?;
 
+        let interop_fee = conn
+            .blocks_dal()
+            .get_l1_batch_interop_fee(first_l2_block_in_batch.l1_batch_number)
+            .await
+            .map_err(DalError::generalize)?;
+
         let (system_env, l1_batch_env) = l1_batch_params(
             first_l2_block_in_batch.l1_batch_number,
             first_l2_block_in_batch.header.fee_account_address,
@@ -372,6 +380,7 @@ impl L1BatchParamsProvider {
             chain_id,
             l1_batch_header.settlement_layer,
             first_l2_block_in_batch.interop_roots.clone(),
+            interop_fee,
         );
 
         Ok(RestoredL1BatchEnv {

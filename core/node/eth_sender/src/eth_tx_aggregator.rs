@@ -1119,7 +1119,13 @@ impl EthTxAggregator {
                         (calldata, None)
                     }
                     L1BatchAggregatedOperation::Execute(op) => {
-                        args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
+                        let settlement_fee_payer = self
+                            .config
+                            .settlement_fee_payer
+                            .unwrap_or(self.eth_client.sender_account());
+                        args.extend(
+                            op.encode_for_eth_tx(chain_protocol_version_id, settlement_fee_payer),
+                        );
                         let encoding_fn = if protocol_version.is_pre_gateway()
                             && chain_protocol_version_id.is_pre_gateway()
                         {

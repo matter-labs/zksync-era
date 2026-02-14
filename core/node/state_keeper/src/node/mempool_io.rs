@@ -15,12 +15,13 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_shared_resources::contracts::{L2ContractsResource, ZkChainOnChainConfigResource};
-use zksync_types::{commitment::PubdataType, L2ChainId};
+use zksync_types::{commitment::PubdataType, L2ChainId, U256};
 use zksync_vm_executor::node::ApiTransactionFilter;
 
 use super::resources::StateKeeperIOResource;
 use crate::{
-    seal_criteria::ConditionalSealer, MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer,
+    interop_fee::ConstantInteropFeeInputProvider, seal_criteria::ConditionalSealer, MempoolFetcher,
+    MempoolGuard, MempoolIO, SequencerSealer,
 };
 
 /// Wiring layer for `MempoolIO`, an IO part of state keeper used by the main node.
@@ -134,6 +135,10 @@ impl WiringLayer for MempoolIOLayer {
             mempool_fetcher_pool,
         );
 
+        let interop_fee_input_provider = Arc::new(ConstantInteropFeeInputProvider::new(
+            U256::from(self.state_keeper_config.interop_fee),
+        ));
+
         // Create mempool IO resource.
         let mempool_db_pool = master_pool
             .get_singleton()
@@ -143,6 +148,7 @@ impl WiringLayer for MempoolIOLayer {
         let io = MempoolIO::new(
             mempool_guard,
             batch_fee_input_provider,
+            interop_fee_input_provider,
             mempool_db_pool,
             &self.state_keeper_config,
             self.fee_account.address(),

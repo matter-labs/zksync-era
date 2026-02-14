@@ -3,7 +3,7 @@ use zksync_types::{
     ethabi::{encode, Token},
     l2_to_l1_log::UserL2ToL1Log,
     web3::contract::Tokenizable,
-    InteropRoot, ProtocolVersionId, H256,
+    Address, InteropRoot, ProtocolVersionId, H256,
 };
 
 use crate::i_executor::structures::{get_encoding_version, StoredBatchInfo};
@@ -24,7 +24,11 @@ impl ExecuteBatches {
     // of the underlying chain.
     // However, we can send batches with older protocol versions just by changing the encoding.
     // This makes the migration simpler.
-    pub fn encode_for_eth_tx(&self, chain_protocol_version: ProtocolVersionId) -> Vec<Token> {
+    pub fn encode_for_eth_tx(
+        &self,
+        chain_protocol_version: ProtocolVersionId,
+        settlement_fee_payer: Address,
+    ) -> Vec<Token> {
         let internal_protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
 
         if internal_protocol_version.is_pre_gateway() && chain_protocol_version.is_pre_gateway() {
@@ -170,6 +174,7 @@ impl ExecuteBatches {
                         .map(|root| Token::FixedBytes(root.0.as_slice().into()))
                         .collect(),
                 ),
+                Token::Address(settlement_fee_payer),
             ]);
             let execute_data = [
                 [get_encoding_version(internal_protocol_version)].to_vec(),

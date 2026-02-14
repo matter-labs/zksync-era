@@ -313,6 +313,7 @@ mod tests {
     use zksync_types::{
         commitment::{L2DACommitmentScheme, L2PubdataValidator},
         settlement::SettlementLayer,
+        U256,
     };
 
     use super::*;
@@ -339,6 +340,7 @@ mod tests {
                 number: Default::default(),
                 timestamp: 0,
                 fee_input: Default::default(),
+                interop_fee: U256::zero(),
                 fee_account: Default::default(),
                 enforced_base_fee: None,
                 first_l2_block: L2BlockEnv {

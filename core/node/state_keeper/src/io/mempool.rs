@@ -30,6 +30,7 @@ use zksync_types::{
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
 use crate::{
+    interop_fee::InteropFeeInputProvider,
     io::{
         common::{load_pending_batch, poll_iters, IoCursor},
         seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
@@ -66,6 +67,7 @@ pub struct MempoolIO {
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
+    interop_fee_input_provider: Arc<dyn InteropFeeInputProvider>,
     chain_id: L2ChainId,
     l2_da_validator_address: Option<Address>,
     l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
@@ -146,7 +148,7 @@ impl StateKeeperIO for MempoolIO {
         else {
             return Ok((cursor, None));
         };
-        let pending_batch_data = load_pending_batch(&mut storage, restored_l1_batch_env)
+        let mut pending_batch_data = load_pending_batch(&mut storage, restored_l1_batch_env)
             .await
             .with_context(|| {
                 format!(
@@ -154,6 +156,8 @@ impl StateKeeperIO for MempoolIO {
                     cursor.l1_batch
                 )
             })?;
+        let interop_fee = self.interop_fee_input_provider.get_interop_fee().await?;
+        pending_batch_data.l1_batch_env.interop_fee = interop_fee;
 
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
@@ -500,6 +504,7 @@ impl MempoolIO {
     pub fn new(
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
+        interop_fee_input_provider: Arc<dyn InteropFeeInputProvider>,
         pool: ConnectionPool<Core>,
         config: &StateKeeperConfig,
         fee_account: Address,
@@ -524,6 +529,7 @@ impl MempoolIO {
             max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit.into(),
             delay_interval,
             batch_fee_input_provider,
+            interop_fee_input_provider,
             chain_id,
             l2_da_validator_address,
             l2_da_commitment_scheme,
@@ -573,6 +579,7 @@ impl MempoolIO {
                 .protocol_version
                 .context("unsealed batch is missing protocol version")?;
 
+            let interop_fee = self.interop_fee_input_provider.get_interop_fee().await?;
             let interop_roots = storage
                 .interop_root_dal()
                 .get_interop_roots_for_first_l2_block_in_pending_batch()
@@ -582,6 +589,7 @@ impl MempoolIO {
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: unsealed_storage_batch.fee_address,
                 fee_input: unsealed_storage_batch.fee_input,
+                interop_fee,
                 // We only persist timestamp in seconds.
                 // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
                 first_l2_block: L2BlockParams::new_raw(
@@ -639,6 +647,7 @@ impl MempoolIO {
                 return Ok(None);
             };
             let timestamp = timestamp_ms / 1000;
+            let interop_fee = self.interop_fee_input_provider.get_interop_fee().await?;
 
             tracing::trace!(
                 "Fee input for L1 batch #{} is {:#?}",
@@ -693,7 +702,7 @@ impl MempoolIO {
             // During v29 protocol upgrade, interop roots cannot be set as the L2InteropRootStorage contract is not yet deployed
             // This is why interop roots for the first L2 block are not set on protocol upgrades, as this could cause the batch to fail
             let first_l2_block = if batch_with_upgrade_tx {
-                L2BlockParams::new(timestamp_ms)
+                L2BlockParams::new_raw(timestamp_ms, 1, vec![])
             } else {
                 let mut storage = self.pool.connection_tagged("state_keeper").await?;
                 let gateway_migration_state = self.gateway_status(&mut storage).await;
@@ -718,6 +727,7 @@ impl MempoolIO {
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
+                interop_fee,
                 first_l2_block,
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit,

@@ -24,6 +24,7 @@ pub struct InitialDeploymentConfig {
     pub bridgehub_create_new_chain_salt: u64,
     pub max_number_of_chains: u64,
     pub validator_timelock_execution_delay: u64,
+    pub gateway_settlement_fee: U256,
 }
 
 impl Default for InitialDeploymentConfig {
@@ -39,6 +40,7 @@ impl Default for InitialDeploymentConfig {
             // toml crate u64 support is backed by i64 implementation
             // https://github.com/toml-rs/toml/issues/705
             bridgehub_create_new_chain_salt: rand::thread_rng().gen_range(0..=i64::MAX) as u64,
+            gateway_settlement_fee: U256::from(1000000000),
         }
     }
 }

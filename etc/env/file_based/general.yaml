@@ -58,6 +58,7 @@ state_keeper:
   batch_overhead_l1_gas: 800000
   max_gas_per_batch: 200000000
   max_pubdata_per_batch: 500000
+  interop_fee: 1000000000
   fee_model_version: V2
   validation_computational_gas_limit: 300000
   save_call_traces: true

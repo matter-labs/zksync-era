@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{OneshotEnv, TxExecutionMode};
-use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId};
+use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId, U256};
 
 use super::{
     BaseSystemContractsProvider, CallOrExecute, ContractsKind, EstimateGas, ResolvedBlockInfo,
@@ -20,6 +20,7 @@ pub struct OneshotEnvParameters<C: ContractsKind> {
     pub(super) base_system_contracts: Arc<dyn BaseSystemContractsProvider<C>>,
     pub(super) operator_account: AccountTreeId,
     pub(super) validation_computational_gas_limit: u32,
+    pub(super) interop_fee_fallback: Option<U256>,
 }
 
 impl<C: ContractsKind> OneshotEnvParameters<C> {
@@ -35,7 +36,12 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
             base_system_contracts,
             operator_account,
             validation_computational_gas_limit,
+            interop_fee_fallback: None,
         }
+    }
+
+    pub fn set_interop_fee_fallback(&mut self, interop_fee: U256) {
+        self.interop_fee_fallback = Some(interop_fee);
     }
 
     /// Returns gas limit for account validation of transactions.
