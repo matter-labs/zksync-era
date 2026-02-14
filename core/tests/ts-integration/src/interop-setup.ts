@@ -93,7 +93,7 @@ export class InteropTestContext {
     public interop1NativeTokenVault!: zksync.Contract;
     public interop1TokenA!: zksync.Contract;
     // Interop 1 fee variables
-    public zkTokenAddress!: string;
+    public zkTokenAddressInterop1!: string;
     public fixedFee!: bigint;
 
     // Interop2 (Second Chain) Variables
@@ -347,7 +347,8 @@ export class InteropTestContext {
 
                     const state = JSON.parse(fs.readFileSync(SHARED_STATE_FILE, 'utf-8'));
                     this.loadState(state);
-                    await this.fundInterop1TokenAForSuite();
+                    await this.fundInterop1TokenForSuite(TEST_ZK_TOKEN_ADDRESS);
+                    await this.fundInterop1TokenForSuite(this.tokenA.l1Address);
                     return;
                 } catch (e) {
                     // File might be half-written, continue waiting
@@ -428,32 +429,20 @@ export class InteropTestContext {
             }
             console.log(`Deployed test ZK token at ${zkTokenAddress}`);
         }
+        console.log(`Test ZK token address: ${TEST_ZK_TOKEN_ADDRESS}`);
 
         // Fund the wallet with ZK token for paying the fixed interop fee
-        const zkToken = new ethers.Contract(
-            TEST_ZK_TOKEN_ADDRESS,
-            ArtifactMintableERC20.abi,
-            this.interop1RichWallet.ethWallet()
-        );
-        await (await zkToken.mint(this.interop1RichWallet.address, ethers.parseEther('1000'))).wait();
-        await (
-            await this.interop1RichWallet.deposit({
-                token: TEST_ZK_TOKEN_ADDRESS,
-                amount: ethers.parseEther('1000'),
-                to: this.interop1Wallet.address,
-                approveERC20: true
-            })
-        ).wait();
+        await this.fundInterop1TokenForSuite(TEST_ZK_TOKEN_ADDRESS);
         // Get the fixed fee amount
         this.fixedFee = await this.interop1InteropCenter.ZK_INTEROP_FEE();
         // Approve the interop center to spend the ZK tokens
-        this.zkTokenAddress = ethers.ZeroAddress;
-        while (this.zkTokenAddress === ethers.ZeroAddress) {
-            this.zkTokenAddress = await this.interop1InteropCenter.getZKTokenAddress();
+        this.zkTokenAddressInterop1 = ethers.ZeroAddress;
+        while (this.zkTokenAddressInterop1 === ethers.ZeroAddress) {
+            this.zkTokenAddressInterop1 = await this.interop1InteropCenter.getZKTokenAddress();
             await zksync.utils.sleep(this.interop1Wallet.provider.pollingInterval);
         }
         const zkTokenInterop1 = new zksync.Contract(
-            this.zkTokenAddress,
+            this.zkTokenAddressInterop1,
             ArtifactMintableERC20.abi,
             this.interop1Wallet
         );
@@ -472,7 +461,7 @@ export class InteropTestContext {
         );
         await l1TokenDeploy.waitForDeployment();
         this.tokenA.l1Address = await l1TokenDeploy.getAddress();
-        await this.fundInterop1TokenAForSuite();
+        await this.fundInterop1TokenForSuite(this.tokenA.l1Address);
 
         const l1ChainId = (await this.l1Provider.getNetwork()).chainId;
         this.tokenA.assetId = encodeNTVAssetId(l1ChainId, this.tokenA.l1Address);
@@ -497,7 +486,7 @@ export class InteropTestContext {
                 l2AddressSecondChain: this.tokenA.l2AddressSecondChain,
                 assetId: this.tokenA.assetId
             },
-            zkTokenAddress: this.zkTokenAddress,
+            zkTokenAddressInterop1: this.zkTokenAddressInterop1,
             fixedFee: this.fixedFee.toString()
         };
 
@@ -505,21 +494,20 @@ export class InteropTestContext {
         fs.writeFileSync(SHARED_STATE_FILE, JSON.stringify(newState, null, 2));
     }
 
-    private async fundInterop1TokenAForSuite() {
-        const l1Token = new ethers.Contract(
-            this.tokenA.l1Address,
-            readContract(ARTIFACTS_PATH, 'TestnetERC20Token').abi,
+    private async fundInterop1TokenForSuite(tokenAddress: string) {
+        const initialL1Amount = ethers.parseEther('1000');
+        const zkToken = new ethers.Contract(
+            tokenAddress,
+            ArtifactMintableERC20.abi,
             this.interop1RichWallet.ethWallet()
         );
-        const initialL1Amount = ethers.parseEther('1000');
-        await (await l1Token.mint(this.interop1RichWallet.address, initialL1Amount)).wait();
+        await (await zkToken.mint(this.interop1RichWallet.address, initialL1Amount)).wait();
         await (
             await this.interop1RichWallet.deposit({
-                token: this.tokenA.l1Address,
+                token: tokenAddress,
                 amount: initialL1Amount,
                 to: this.interop1Wallet.address,
-                approveERC20: true,
-                approveBaseERC20: true
+                approveERC20: true
             })
         ).wait();
     }
@@ -536,7 +524,7 @@ export class InteropTestContext {
             this.interop1Wallet
         );
 
-        this.zkTokenAddress = state.zkTokenAddress;
+        this.zkTokenAddressInterop1 = state.zkTokenAddressInterop1;
         this.fixedFee = BigInt(state.fixedFee);
     }
 
@@ -803,7 +791,7 @@ export class InteropTestContext {
             snapshot.tokenAddress = tokenAddress;
         }
 
-        snapshot.zkToken = await this.getTokenBalance(this.interop1Wallet, this.zkTokenAddress);
+        snapshot.zkToken = await this.getTokenBalance(this.interop1Wallet, this.zkTokenAddressInterop1);
 
         return snapshot;
     }
@@ -841,7 +829,7 @@ export class InteropTestContext {
         }
 
         if (expected.zkTokenAmount !== undefined && beforeSnapshot.zkToken !== undefined) {
-            const afterZkToken = await this.getTokenBalance(this.interop1Wallet, this.zkTokenAddress);
+            const afterZkToken = await this.getTokenBalance(this.interop1Wallet, this.zkTokenAddressInterop1);
             expect(afterZkToken.toString()).toBe((beforeSnapshot.zkToken - expected.zkTokenAmount).toString());
         }
     }
