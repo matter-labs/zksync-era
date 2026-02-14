@@ -497,7 +497,8 @@ export class InteropTestContext {
                 token: tokenAddress,
                 amount: initialL1Amount,
                 to: this.interop1Wallet.address,
-                approveERC20: true
+                approveERC20: true,
+                approveBaseERC20: true
             })
         ).wait();
     }
