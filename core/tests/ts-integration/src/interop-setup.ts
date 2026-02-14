@@ -381,7 +381,7 @@ export class InteropTestContext {
         try {
             await this.performSetup();
         } catch (error) {
-            console.error(`[${process.pid}] Setup failed, removing lock.`);
+            console.error(`[${process.pid}] Setup failed: ${error}, removing lock.`);
             // If we fail, remove lock so others might try (or fail faster)
             try {
                 fs.rmdirSync(LOCK_DIR);
@@ -432,7 +432,6 @@ export class InteropTestContext {
             }
             console.log(`Deployed test ZK token at ${zkTokenAddress}`);
         }
-        console.log(`Test ZK token address: ${TEST_ZK_TOKEN_ADDRESS}`);
 
         // Fund the wallet with ZK token for paying the fixed interop fee
         await this.fundInterop1TokenForSuite(TEST_ZK_TOKEN_ADDRESS);
