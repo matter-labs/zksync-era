@@ -347,8 +347,11 @@ export class InteropTestContext {
 
                     const state = JSON.parse(fs.readFileSync(SHARED_STATE_FILE, 'utf-8'));
                     this.loadState(state);
+
+                    // Fund and approve the ZK token and the test token on Interop1
                     await this.fundInterop1TokenForSuite(TEST_ZK_TOKEN_ADDRESS);
                     await this.fundInterop1TokenForSuite(this.tokenA.l1Address);
+                    await this.approveInteropCenterToSpendZkToken();
                     return;
                 } catch (e) {
                     // File might be half-written, continue waiting
@@ -433,20 +436,8 @@ export class InteropTestContext {
 
         // Fund the wallet with ZK token for paying the fixed interop fee
         await this.fundInterop1TokenForSuite(TEST_ZK_TOKEN_ADDRESS);
-        // Get the fixed fee amount
-        this.fixedFee = await this.interop1InteropCenter.ZK_INTEROP_FEE();
         // Approve the interop center to spend the ZK tokens
-        this.zkTokenAddressInterop1 = ethers.ZeroAddress;
-        while (this.zkTokenAddressInterop1 === ethers.ZeroAddress) {
-            this.zkTokenAddressInterop1 = await this.interop1InteropCenter.getZKTokenAddress();
-            await zksync.utils.sleep(this.interop1Wallet.provider.pollingInterval);
-        }
-        const zkTokenInterop1 = new zksync.Contract(
-            this.zkTokenAddressInterop1,
-            ArtifactMintableERC20.abi,
-            this.interop1Wallet
-        );
-        await (await zkTokenInterop1.approve(L2_INTEROP_CENTER_ADDRESS, ethers.parseEther('1000'))).wait();
+        await this.approveInteropCenterToSpendZkToken();
 
         // Deploy test token on L1
         const l1TokenFactory = new ethers.ContractFactory(
@@ -510,6 +501,23 @@ export class InteropTestContext {
                 approveERC20: true
             })
         ).wait();
+    }
+
+    private async approveInteropCenterToSpendZkToken() {
+        // Get the fixed fee amount
+        this.fixedFee = await this.interop1InteropCenter.ZK_INTEROP_FEE();
+        // Approve the interop center to spend the ZK tokens
+        this.zkTokenAddressInterop1 = ethers.ZeroAddress;
+        while (this.zkTokenAddressInterop1 === ethers.ZeroAddress) {
+            this.zkTokenAddressInterop1 = await this.interop1InteropCenter.getZKTokenAddress();
+            await zksync.utils.sleep(this.interop1Wallet.provider.pollingInterval);
+        }
+        const zkTokenInterop1 = new zksync.Contract(
+            this.zkTokenAddressInterop1,
+            ArtifactMintableERC20.abi,
+            this.interop1Wallet
+        );
+        await (await zkTokenInterop1.approve(L2_INTEROP_CENTER_ADDRESS, ethers.parseEther('1000'))).wait();
     }
 
     private loadState(state: any) {
