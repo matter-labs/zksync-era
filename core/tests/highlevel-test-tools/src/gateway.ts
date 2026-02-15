@@ -102,6 +102,15 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
  * @returns Promise that resolves when set up of settlement fees is complete
  */
 export async function agreeToPaySettlementFees(chainName: string): Promise<void> {
+    const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
+
+    if (useGatewayChain !== 'WITH_GATEWAY') {
+        console.log(`⏭️ Skipping payment of settlement fees for ${chainName} (USE_GATEWAY_CHAIN=${useGatewayChain})`);
+        return;
+    }
+
+    console.log(`🔄 Setting up payment of settlement fees for ${chainName}...`);
+
     const pathToHome = findHome();
     const gatewayGeneralConfig = loadConfig({
         pathToHome,
@@ -141,6 +150,8 @@ export async function agreeToPaySettlementFees(chainName: string): Promise<void>
     await (await gwWrappedZkToken.deposit({ value: ethers.parseEther('1') })).wait();
     await (await gwWrappedZkToken.approve(GW_ASSET_TRACKER_ADDRESS, ethers.parseEther('1'))).wait();
     await (await gwAssetTracker.agreeToPaySettlementFees(l2ChainId)).wait();
+
+    console.log(`✅ Successfully set up payment of settlement fees for ${chainName}`);
 }
 
 function loadMigrationFinalizeCheckConfig(chainName: string) {
