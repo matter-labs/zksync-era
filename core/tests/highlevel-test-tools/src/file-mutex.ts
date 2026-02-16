@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { findHome } from './zksync-home';
 
 /**
  * Simple file-based mutex implementation for Node.js
@@ -9,12 +10,16 @@ export class FileMutex {
     private lockDir: string;
 
     constructor() {
-        this.lockDir = '.';
+        try {
+            this.lockDir = findHome();
+        } catch (_) {
+            this.lockDir = '.';
+        }
         this.lockFile = path.join(this.lockDir, 'highlevel_tests.lock');
     }
 
     async acquire(): Promise<void> {
-        const maxRetries = 600 * 10; // 10 minutes with 100ms intervals
+        const maxRetries = 600 * 12; // 12 minutes with 100ms intervals
         const retryDelay = 100; // 100ms
 
         for (let i = 0; i < maxRetries; i++) {
@@ -92,7 +97,10 @@ export function cleanTestChains(chainsDir: string = './chains'): void {
  * Cleans up any leftover mutex lock files from previous test runs
  */
 export function cleanMutexLockFiles(): void {
-    const mutexLockFile = 'highlevel_tests.lock';
+    let mutexLockFile = 'highlevel_tests.lock';
+    try {
+        mutexLockFile = path.join(findHome(), 'highlevel_tests.lock');
+    } catch (_) {}
     if (fs.existsSync(mutexLockFile)) {
         try {
             fs.unlinkSync(mutexLockFile);
