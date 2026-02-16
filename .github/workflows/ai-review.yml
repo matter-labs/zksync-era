@@ -1,4 +1,4 @@
-name: CI
+name: AI review script
 on: [workflow_dispatch]
 
 jobs:
