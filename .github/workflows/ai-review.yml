@@ -1,0 +1,29 @@
+name: CI
+on: [workflow_dispatch]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v4
+        with:
+          path: zksync-era
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Checkout AI script (private)
+        uses: actions/checkout@v4
+        with:
+          repository: matter-labs/ai-security-review
+          ref: vb-add-the-tool
+          path: tool
+          #token: ${{ secrets.MATTER_LABS_READ_TOKEN }}
+
+      - name: Run tool
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          cd tool
+          yarn install --frozen-lockfile
+          yarn review --docs-path "../zksync-era/" prompt
