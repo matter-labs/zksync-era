@@ -39,6 +39,8 @@ When a ZKsync chain's batch gets executed on the settlement layer, the chain cal
 
 Note, that the above only happens on Gateway. On L1, chains can append hashes of their batches without any additional checks. The `L1MessageRoot` contract serves mainly as a source of truth for appended batches' data.
 
+> Note, that on ZKsync OS, `L1Messenger` is not a system contract and so it does not read the aggregated root via a getter, but reads it directly from storage within the zksync-os code.
+
 ## Proving that a message belongs to a MessageRoot
 
 ### Concepts
@@ -135,7 +137,7 @@ Maintaining `chainBatchRoots` inside a global contract allows to verify messages
 
 For all chains we also store `v30UpgradeChainBatchNumber`, the batch number when the chain has upgraded to v30. You can read more about its usage [here](../bridging/asset_tracker/asset_tracker.md).
 
-This means that it is important that a settlement layer knows what is the canonical `v30UpgradeChainBatchNumber` is and ensure that any chain's batch that it appends to its shared tree is at least of this number. The original number is stored on `L1MessageRoot`, and copied to all the settlement layers whenever a chain migrates there. Note, that for Era chains it is possible that the value is stored on GW if chains settled there at the time they upgraded to v30. It will then be copied on L1 when a chain migrates to L1.
+This means that it is important that the L1 knows what is the canonical `v30UpgradeChainBatchNumber` is and ensure that any chain's batch that it appends to its shared tree is at least of this number. The original number is stored on `L1MessageRoot`, and copied to all the settlement layers whenever a chain migrates there. Note, that for Era chains it is possible that the value is stored on GW if chains settled there at the time they upgraded to v30. It will then be copied on L1 when a chain migrates to L1.
 
 You can also read more on the v30 upgrade process [here](../../upgrade_history/v30-bundles/upgrade_process_v30.md#ecosystem-upgrade-process).
 

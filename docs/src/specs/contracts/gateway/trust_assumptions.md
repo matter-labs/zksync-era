@@ -28,7 +28,9 @@ Due to the `_migrationInterval` mapping mentioend above, chains that are not set
 
 To reiterate, the goal of the mapping is to protect chains against "completely malicious" settlement layers that the chain does not settle to at the moment, while historical withdrawals can be not be overwriten due to the `MessageRoot` restrictions. The only exception if Era and the fact that it settled on top of Era-based ZK Gateway.
 
-However, it does NOT mean that the *codebase as a whole* is ready for "completely malicious" settlement layers (only to "ZK compromised" ones). There are other parts of code that still depend on the correct ZK Gateway L1 implementation. 
+> Note, that right now, the bounds of batches that can be used to prove transactions from the chain are quried on L1 during migration to and from Gateway. This means that the chain is protected from a potentially malicious gateway only the moment it finalizes its migration to L1, not the moment the GW batch with the migration transaction settles. More can be read in the comments for the `MigrationInterval` struct. 
+
+However, it does NOT mean that the *codebase as a whole* is ready for "completely malicious" settlement layers (only to "ZK compromised" ones). There are other parts of code that still depend on the correct ZK Gateway L1 implementation.
 
 ## Trust assumptions that are required for Gateway itself
 

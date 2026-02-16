@@ -105,6 +105,7 @@ Overall, the algorithm for determining whether to reduce the chain balance shoul
 
 Note, that the above scheme relies on a fact that chains never lie about the time they upgraded to v31. This is ensured inside MessageRoot (see [v31UpgradeChainBatchNumber](../../interop/message_root.md#v31upgradechainbatchnumber)):
  - Additionally we also assume that chains that have non-zero v31 upgrade batch number while settling on top of a ZK Gateway, belong to a CTM controlled by the decentralized governance (either Era CTM or ZKsync OS CTM after the ownership migration). For all the other CTMs, when a chain will be spawned, its "v31 upgrade batch number" will be started from 0.
+ - Note, that during the v31 upgrade, the chains the implementation of which is not controlled by the decentralized governance may theoretically lie about their v31 upgrade batch number, so before enabling any settlement layer, the governance will have to double check that no chain did so.   
 
 Also, this relies on the fact that message verification needs to always happen against the root of GW that was submitted on L1, basically to ensure that the "Gateway" approved this messages and checked via `GWAssetTracker` that it was correct.
 
@@ -163,7 +164,7 @@ Thus, to ensure that chains always consume only the balance they have and intero
 
 Note, that when a chain sends interop, the sender chains' balance is decreased immediately, while the balance of the recipient chain is not increased right after the call. The expected balance changed is stored in the `interopBalanceChange` mapping. When the chain accepts the deposit and claims the interop, it must send a `verifyBundle` message to L1, the GW asset tracker will intercept it and mint the corresponding funds for the chain.
 
-The above procedure is needed to ensure that the balance that is maintained within `GWAssetTracker` is in sync with the in `L2AssetTracker`. It allows to ensure that in the future ifz the chain for some reason migrates from ZK Gateway, the balance that will be migrated from Gateway to L1 will contain exactly the balance that the chain has access to. You can read about the migration process [here](#migrating-and-settling-on-gateway). 
+The above procedure is needed to ensure that the balance that is maintained within `GWAssetTracker` is in sync with the in `L2AssetTracker`. It allows to ensure that in the future if the chain for some reason migrates from ZK Gateway, the balance that will be migrated from Gateway to L1 will contain exactly the balance that the chain has access to. You can read about the migration process [here](#migrating-and-settling-on-gateway). 
 
 On GW we process all incoming and outgoing messages to chains. L1->L2 messages are processed as they are sent through the Gateway, and L2->L1 messages are processed together with L2->L2 messages in the `processLogsAndMessages` function.
 
@@ -201,7 +202,7 @@ These L1->GW->L2 deposits might fail. This is handled on the L1 and on GW.
 
 This way, if a deposit failed, the ZK Gateway knows that it should keep enough funds to serve all these potential failed withdrawals when a chain will try to move out from ZK Gateway.
 
-Note, that Gateway can only process a deposit only when this deposit went through Gateway. It is the responsibility of the chain to ensure that when it migrates to Gateway, it has not outstanding priority transactions. It is current checked inside `AdminFacet.forwardedBridgeBurn`.
+Note, that Gateway can only process a deposit only when this deposit went through Gateway. It is the responsibility of the chain to ensure that when it migrates to Gateway, it has no outstanding priority transactions. It is current checked inside `AdminFacet.forwardedBridgeBurn`.
 
 #### Withdrawals
 
