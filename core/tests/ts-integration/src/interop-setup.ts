@@ -27,10 +27,14 @@ import {
     L2_NATIVE_TOKEN_VAULT_ADDRESS,
     L2_INTEROP_HANDLER_ADDRESS,
     L2_INTEROP_CENTER_ADDRESS,
+    L2_ASSET_TRACKER_ADDRESS,
+    GW_ASSET_TRACKER_ADDRESS,
     ETH_ADDRESS_IN_CONTRACTS,
     ARTIFACTS_PATH,
     ArtifactInteropCenter,
     ArtifactInteropHandler,
+    ArtifactL2AssetTracker,
+    ArtifactGWAssetTracker,
     ArtifactNativeTokenVault,
     ArtifactMintableERC20,
     ArtifactDummyInteropRecipient,
@@ -47,6 +51,33 @@ export interface InteropCallStarter {
     to: string;
     data: string;
     callAttributes: string[];
+}
+
+export interface AssetTrackerBalanceSnapshot {
+    senderChainId: bigint;
+    receiverChainId: bigint;
+    senderBaseTokenAssetId: string;
+    receiverBaseTokenAssetId: string;
+    tokenAssetId: string;
+    gwatSenderBase: bigint;
+    gwatSenderToken: bigint;
+    gwatReceiverBase: bigint;
+    gwatReceiverToken: bigint;
+    l2SenderBase: bigint;
+    l2ReceiverBase: bigint;
+    l2SenderToken: bigint;
+    l2ReceiverToken: bigint;
+}
+
+export interface AssetTrackerBalanceDeltas {
+    gwatSenderBase?: bigint;
+    gwatSenderToken?: bigint;
+    gwatReceiverBase?: bigint;
+    gwatReceiverToken?: bigint;
+    l2SenderBase?: bigint;
+    l2ReceiverBase?: bigint;
+    l2SenderToken?: bigint;
+    l2ReceiverToken?: bigint;
 }
 
 export class InteropTestContext {
@@ -67,9 +98,6 @@ export class InteropTestContext {
         l2Address: '',
         l2AddressSecondChain: ''
     };
-
-    // Token B (bridged from L1)
-    public bridgedToken!: Token;
 
     // Interop1 (Main Chain) Variables
     public baseToken1!: Token;
@@ -96,6 +124,9 @@ export class InteropTestContext {
     // Gateway Variables
     public gatewayProvider!: zksync.Provider;
     public gatewayWallet!: zksync.Wallet;
+    public gwAssetTracker!: zksync.Contract;
+    public interop1AssetTracker!: zksync.Contract;
+    public interop2AssetTracker!: zksync.Contract;
 
     public erc7786AttributeDummy!: zksync.Contract;
     public isSameBaseToken!: boolean;
@@ -190,10 +221,21 @@ export class InteropTestContext {
             ArtifactNativeTokenVault.abi,
             this.interop2Provider
         );
-
-        // Define bridged token
-        this.bridgedToken = this.testMaster.environment().erc20Token;
-        this.bridgedToken.assetId = await this.interop1NativeTokenVault.assetId(this.bridgedToken.l2Address);
+        this.interop1AssetTracker = new zksync.Contract(
+            L2_ASSET_TRACKER_ADDRESS,
+            ArtifactL2AssetTracker.abi,
+            this.interop1Wallet
+        );
+        this.interop2AssetTracker = new zksync.Contract(
+            L2_ASSET_TRACKER_ADDRESS,
+            ArtifactL2AssetTracker.abi,
+            this.interop2RichWallet
+        );
+        this.gwAssetTracker = new zksync.Contract(
+            GW_ASSET_TRACKER_ADDRESS,
+            ArtifactGWAssetTracker.abi,
+            this.gatewayWallet
+        );
 
         // Deposit funds on Interop1
         const gasPrice = await scaledGasPrice(this.interop1RichWallet);
@@ -497,6 +539,14 @@ export class InteropTestContext {
         ];
     }
 
+    async indirectDirectCallAttrs(amount: bigint, callValue: bigint = 0n, executionAddress?: string) {
+        return [
+            await this.erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [callValue]),
+            await this.erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [amount]),
+            await this.executionAddressAttr(executionAddress)
+        ];
+    }
+
     /**
      * Helper to encode interopCallValue attribute (for bundle call attributes)
      */
@@ -584,16 +634,155 @@ export class InteropTestContext {
      * Reads an interop transaction from the sender chain, constructs a new transaction,
      * and broadcasts it on the receiver chain.
      */
-    async readAndBroadcastInteropBundle(txHash: string) {
+    async readAndBroadcastInteropBundle(txHash: string): Promise<ethers.TransactionReceipt | undefined> {
         // Get interop trigger and bundle data from the sender chain.
         const executionBundle = await getInteropBundleData(this.interop1Provider, txHash, 0);
-        if (executionBundle.output == null) return;
+        if (executionBundle.output == null) return undefined;
 
-        const receipt = await this.interop2InteropHandler.executeBundle(
+        const tx = await this.interop2InteropHandler.executeBundle(
             executionBundle.rawData,
             executionBundle.proofDecoded
         );
-        await receipt.wait();
+        return await tx.wait();
+    }
+
+    async getGatewayChainBalance(chainId: bigint, assetId: string): Promise<bigint> {
+        return await this.gwAssetTracker.chainBalance(chainId, assetId);
+    }
+
+    async getInterop1ChainBalance(assetId: string): Promise<bigint> {
+        return await this.interop1AssetTracker.chainBalance(this.interop1ChainId, assetId);
+    }
+
+    async getInterop2ChainBalance(assetId: string): Promise<bigint> {
+        return await this.interop2AssetTracker.chainBalance(this.interop2ChainId, assetId);
+    }
+
+    async waitUntilInterop2BlockExecutedOnGateway(blockNumber: number): Promise<void> {
+        await waitUntilBlockExecutedOnGateway(this.interop2RichWallet, this.gatewayWallet, blockNumber);
+    }
+
+    async snapshotAssetTrackerBalances(
+        senderChainId: bigint,
+        receiverChainId: bigint,
+        senderBaseTokenAssetId: string,
+        receiverBaseTokenAssetId: string,
+        tokenAssetId: string
+    ): Promise<AssetTrackerBalanceSnapshot> {
+        if (!senderBaseTokenAssetId || !receiverBaseTokenAssetId || !tokenAssetId) {
+            throw new Error('Missing asset ID for base token or Token A');
+        }
+
+        const [gwatSenderBase, gwatSenderToken, gwatReceiverBase, gwatReceiverToken] = await Promise.all([
+            this.getGatewayChainBalance(senderChainId, senderBaseTokenAssetId),
+            this.getGatewayChainBalance(senderChainId, tokenAssetId),
+            this.getGatewayChainBalance(receiverChainId, receiverBaseTokenAssetId),
+            this.getGatewayChainBalance(receiverChainId, tokenAssetId)
+        ]);
+
+        const [l2SenderBase, l2ReceiverBase, l2SenderToken, l2ReceiverToken] = await Promise.all([
+            this.getInterop1ChainBalance(senderBaseTokenAssetId),
+            this.getInterop2ChainBalance(receiverBaseTokenAssetId),
+            this.getInterop1ChainBalance(tokenAssetId),
+            this.getInterop2ChainBalance(tokenAssetId)
+        ]);
+
+        return {
+            senderChainId,
+            receiverChainId,
+            senderBaseTokenAssetId,
+            receiverBaseTokenAssetId,
+            tokenAssetId,
+            gwatSenderBase,
+            gwatSenderToken,
+            gwatReceiverBase,
+            gwatReceiverToken,
+            l2SenderBase,
+            l2ReceiverBase,
+            l2SenderToken,
+            l2ReceiverToken
+        };
+    }
+
+    async snapshotInteropAssetTrackerBalances(): Promise<AssetTrackerBalanceSnapshot> {
+        if (!this.baseToken1.assetId || !this.baseToken2.assetId || !this.tokenA.assetId) {
+            throw new Error('Missing asset ID for base token or Token A');
+        }
+
+        return await this.snapshotAssetTrackerBalances(
+            this.interop1ChainId,
+            this.interop2ChainId,
+            this.baseToken1.assetId,
+            this.baseToken2.assetId,
+            this.tokenA.assetId
+        );
+    }
+
+    async assertAssetTrackerBalances(
+        snapshot: AssetTrackerBalanceSnapshot,
+        deltas: AssetTrackerBalanceDeltas = {}
+    ): Promise<void> {
+        const current = await this.snapshotAssetTrackerBalances(
+            snapshot.senderChainId,
+            snapshot.receiverChainId,
+            snapshot.senderBaseTokenAssetId,
+            snapshot.receiverBaseTokenAssetId,
+            snapshot.tokenAssetId
+        );
+
+        const expectedGwatSenderBase = snapshot.gwatSenderBase + (deltas.gwatSenderBase ?? 0n);
+        const expectedGwatSenderToken = snapshot.gwatSenderToken + (deltas.gwatSenderToken ?? 0n);
+        const expectedGwatReceiverBase = snapshot.gwatReceiverBase + (deltas.gwatReceiverBase ?? 0n);
+        const expectedGwatReceiverToken = snapshot.gwatReceiverToken + (deltas.gwatReceiverToken ?? 0n);
+
+        if (current.gwatSenderBase !== expectedGwatSenderBase) {
+            throw new Error(
+                `GWAT sender base balance mismatch (chainId=${snapshot.senderChainId}, assetId=${snapshot.senderBaseTokenAssetId}): expected ${expectedGwatSenderBase}, got ${current.gwatSenderBase}`
+            );
+        }
+        if (current.gwatSenderToken !== expectedGwatSenderToken) {
+            throw new Error(
+                `GWAT sender token balance mismatch (chainId=${snapshot.senderChainId}, assetId=${snapshot.tokenAssetId}): expected ${expectedGwatSenderToken}, got ${current.gwatSenderToken}`
+            );
+        }
+        if (current.gwatReceiverBase !== expectedGwatReceiverBase) {
+            throw new Error(
+                `GWAT receiver base balance mismatch (chainId=${snapshot.receiverChainId}, assetId=${snapshot.receiverBaseTokenAssetId}): expected ${expectedGwatReceiverBase}, got ${current.gwatReceiverBase}`
+            );
+        }
+        if (current.gwatReceiverToken !== expectedGwatReceiverToken) {
+            throw new Error(
+                `GWAT receiver token balance mismatch (chainId=${snapshot.receiverChainId}, assetId=${snapshot.tokenAssetId}): expected ${expectedGwatReceiverToken}, got ${current.gwatReceiverToken}`
+            );
+        }
+
+        const expectedL2SenderBase = snapshot.l2SenderBase + (deltas.l2SenderBase ?? 0n);
+        const expectedL2ReceiverBase = snapshot.l2ReceiverBase + (deltas.l2ReceiverBase ?? 0n);
+
+        if (current.l2SenderBase !== expectedL2SenderBase) {
+            throw new Error(
+                `L2AssetTracker sender base balance mismatch (chainId=${snapshot.senderChainId}, assetId=${snapshot.senderBaseTokenAssetId}): expected ${expectedL2SenderBase}, got ${current.l2SenderBase}`
+            );
+        }
+        if (current.l2ReceiverBase !== expectedL2ReceiverBase) {
+            throw new Error(
+                `L2AssetTracker receiver base balance mismatch (chainId=${snapshot.receiverChainId}, assetId=${snapshot.receiverBaseTokenAssetId}): expected ${expectedL2ReceiverBase}, got ${current.l2ReceiverBase}`
+            );
+        }
+
+        const expectedL2SenderToken = snapshot.l2SenderToken + (deltas.l2SenderToken ?? 0n);
+        const expectedL2ReceiverToken = snapshot.l2ReceiverToken + (deltas.l2ReceiverToken ?? 0n);
+
+        if (current.l2SenderToken !== expectedL2SenderToken) {
+            throw new Error(
+                `L2AssetTracker sender token balance mismatch (chainId=${snapshot.senderChainId}, assetId=${snapshot.tokenAssetId}): expected ${expectedL2SenderToken}, got ${current.l2SenderToken}`
+            );
+        }
+        if (current.l2ReceiverToken !== expectedL2ReceiverToken) {
+            throw new Error(
+                `L2AssetTracker receiver token balance mismatch (chainId=${snapshot.receiverChainId}, assetId=${snapshot.tokenAssetId}): expected ${expectedL2ReceiverToken}, got ${current.l2ReceiverToken}`
+            );
+        }
     }
 
     /**
@@ -624,43 +813,9 @@ export class InteropTestContext {
     }
 
     /**
-     * Returns a random amount of ETH to transfer.
+     * Returns a random amount to transfer.
      */
     getTransferAmount(): bigint {
         return ethers.parseUnits((Math.floor(Math.random() * 900) + 100).toString(), 'gwei');
-    }
-
-    /**
-     * Approves a random amount of test tokens and returns the amount.
-     */
-    async getAndApproveTokenTransferAmount(): Promise<bigint> {
-        const transferAmount = BigInt(Math.floor(Math.random() * 900) + 100);
-
-        // Approve token transfer on Interop1
-        await (await this.interop1TokenA.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait();
-
-        return transferAmount;
-    }
-
-    async getAndApproveBridgedTokenTransferAmount(): Promise<bigint> {
-        const transferAmount = BigInt(Math.floor(Math.random() * 900) + 100);
-
-        await this.interop1RichWallet.transfer({
-            to: this.interop1Wallet.address,
-            amount: transferAmount,
-            token: this.bridgedToken.l2Address
-        });
-        const bridgedTokenContract = new zksync.Contract(
-            this.bridgedToken.l2Address,
-            zksync.utils.IERC20,
-            this.interop1Wallet
-        );
-
-        await Promise.all([
-            // Approve token transfer on Interop1
-            (await bridgedTokenContract.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, transferAmount)).wait()
-        ]);
-
-        return transferAmount;
     }
 }
