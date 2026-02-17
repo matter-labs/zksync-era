@@ -17,6 +17,7 @@ export const L2_CHAIN_ASSET_HANDLER_ADDRESS = '0x0000000000000000000000000000000
 export const L2_INTEROP_CENTER_ADDRESS = '0x000000000000000000000000000000000001000D';
 export const L2_INTEROP_HANDLER_ADDRESS = '0x000000000000000000000000000000000001000E';
 export const L2_ASSET_TRACKER_ADDRESS = '0x000000000000000000000000000000000001000F';
+export const GW_ASSET_TRACKER_ADDRESS = '0x0000000000000000000000000000000000010010';
 
 // System contract addresses
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
@@ -57,6 +58,7 @@ export const ArtifactMintableERC20 = readContract(`${L1_ZK_ARTIFACTS_PATH}`, 'Te
 export const ArtifactL1AssetRouter = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter');
 export const ArtifactL1AssetTracker = readContract(`${ARTIFACTS_PATH}`, 'L1AssetTracker');
 export const ArtifactL2AssetTracker = readContract(`${ARTIFACTS_PATH}`, 'L2AssetTracker');
+export const ArtifactGWAssetTracker = readContract(`${ARTIFACTS_PATH}`, 'GWAssetTracker');
 export const ArtifactDummyInteropRecipient = readContract(`${L1_ZK_ARTIFACTS_PATH}`, 'DummyInteropRecipient');
 export const ArtifactIBridgehubBase = readContract(`${ARTIFACTS_PATH}`, 'IBridgehubBase');
 export const ArtifactIGetters = readContract(`${ARTIFACTS_PATH}`, 'IGetters');
