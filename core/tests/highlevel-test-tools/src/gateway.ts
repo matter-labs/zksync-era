@@ -1,6 +1,7 @@
 import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
 import { findHome } from './zksync-home';
+import { withDeadline } from './deadline';
 import * as utils from 'utils';
 import { loadConfig } from 'utils/build/file-configs';
 import * as ethers from 'ethers';
@@ -182,10 +183,15 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
 
     const migrationTxHash = await findLatestMigrationTxHash(l1Provider, chainAssetHandlerAddr, config.l2ChainId);
     if (!migrationTxHash) {
+        console.log(
+            `[${chainName}] MigrationStarted event not found on chainAssetHandler=${chainAssetHandlerAddr} ` +
+                `for chainId=${config.l2ChainId}, topic=${MIGRATION_STARTED_TOPIC}`
+        );
         return false;
     }
     const receipt = await l1Provider.getTransactionReceipt(migrationTxHash);
     if (!receipt) {
+        console.log(`[${chainName}] No receipt for migrationTxHash=${migrationTxHash}`);
         return false;
     }
 
@@ -193,6 +199,10 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
     const priorityOpHash = zksync.utils.getL2HashFromPriorityOp(receipt, gatewayMainContract);
     const l2Receipt = await gatewayProvider.getTransactionReceipt(priorityOpHash);
     if (!l2Receipt?.l1BatchNumber) {
+        console.log(
+            `[${chainName}] L2 receipt not ready: priorityOpHash=${priorityOpHash}, ` +
+                `l1BatchNumber=${l2Receipt?.l1BatchNumber ?? 'null'}`
+        );
         return false;
     }
 
@@ -204,21 +214,22 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
 
     const totalExecuted = BigInt(await gatewayDiamondProxy.getTotalBatchesExecuted());
     const batchNumber = BigInt(l2Receipt.l1BatchNumber);
+    if (totalExecuted < batchNumber) {
+        console.log(`[${chainName}] Batch not yet executed: totalExecuted=${totalExecuted}, needed=${batchNumber}`);
+    }
     return totalExecuted >= batchNumber;
 }
 
 export async function waitForMigrationReadyForFinalize(chainName: string): Promise<void> {
-    while (true) {
-        try {
+    await withDeadline(
+        async () => {
             if (await isMigrationReadyForFinalize(chainName)) {
                 console.log(`✅ Migration is ready to finalize for ${chainName}`);
-                return;
+                return true;
             }
-
             console.log(`⏳ Migration not ready to finalize for ${chainName}, retrying...`);
-        } catch (error) {
-            console.warn(`⚠️ Failed to check migration readiness for ${chainName}: ${error}`);
-        }
-        await utils.sleep(5);
-    }
+            return null;
+        },
+        { timeoutMs: 10 * 60 * 1000, intervalMs: 2000, label: `waitForMigrationReadyForFinalize(${chainName})` }
+    );
 }
