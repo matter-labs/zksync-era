@@ -41,3 +41,39 @@ What’s more, the L1 part will always be used for priority transactions initiat
 There is a need to ensure that the chains work smoothly during migration and there are not many issues during the protocol upgrade.
 
 You can read more about it [here](./gateway_protocol_upgrades.md).
+
+## Deposit pausing
+
+Our asset trackers depend on a fact that when a chain migrates to or from Gateway, there are no outstanding deposits. In order to ensure that, the chain admin needs to somehow stop deposits. One way could be to set `TransactionFilterer` contract. However, to make the approach more stage1-compatible in the future, the following, more permissionless approach has been chosen:
+
+1. Firslty, the chain admin, needs to call `pauseDepositsBeforeInitiatingMigration`. It will give users a heads up of `PAUSE_DEPOSITS_TIME_WINDOW_START_MAINNET` time. Right now it is 3.5 days. I.e. for the next 3.5 days the users will still be able to conduct L1->L2 transactions. This is a headsup they get before the deposits are disabled.
+
+2. After the headsup window, the deposits will be paused until `PAUSE_DEPOSITS_TIME_WINDOW_END_MAINNET` (right now it is 7 days) has elapsed since the deposit pausing has been announced (i.e. 3.5 days since the deposits have become paused).
+
+3. To ensure that the chain has enough time to migrate and return, we give only 1.5 days to migrate to Gateway. 
+
+4. Once the chain migrates or the migration fails, the user can proof the migration status and the `forwardedBridgeConfirmTransferResult` will be invoked, which will unpause the deposits regardless of the result.
+
+All in all, the following imoprtant timestamps are used:
+
+1. `s.pausedDepositsTimestamp` -- when chain admin has announced that the migration will happen soon and the deposits are paused.
+2. `s.pausedDepositsTimestamp + PAUSE_DEPOSITS_TIME_WINDOW_START_MAINNET` = `s.pausedDepositsTimestamp + CHAIN_MIGRATION_TIME_WINDOW_START_MAINNET` -- when the deposits are actually paused and no more L1->L2 transactions can be accepted by the chain. Also, starting from this moment the chain can migrate to another settlement layers.
+3. `s.pausedDepositsTimestamp + CHAIN_MIGRATION_TIME_WINDOW_END_MAINNET` -- when the chain can no longer migrate to GW (considered too close to end of the time window to risk it).
+4. `s.pausedDepositsTimestamp + PAUSE_DEPOSITS_TIME_WINDOW_END_MAINNET` -- when the deposits are unpaused again and so the system gets back to normal.
+
+During step (3) the deposits can be unlocked earlier if the ZK Gateway has processed the transactions soon enough.
+
+> Important note, that the feature in its current form is NOT compatible with our stage1 design, since our stage1 design mandates much larger headsup for users to withdraw. This feature is mainly for future compatibility.
+
+### Risks
+
+The time-based solution above relies on:
+- Admin being able to process all outstanding priority transactions within the `CHAIN_MIGRATION_TIME_WINDOW_END_MAINNET - PAUSE_DEPOSITS_TIME_WINDOW_START_MAINNET` (1.5 days right now) window. In case of severe spamming of the chain with L1->L2 transactions the chain can not have enough time to process all outstanding priority transacitons. The risk is deemed low, since processing priority transactions is much cheaper than including those.
+- ZK Gateway not providing a valid confirmation of the migration success or failure within the `PAUSE_DEPOSITS_TIME_WINDOW_END_MAINNET - CHAIN_MIGRATION_TIME_WINDOW_END_MAINNET` (the last 1.5 days) window. Note, that not only Gateway needs to settle to provide this value, the users of the chain need to have the opportunity to confirm the result on L1 (so in theory might be subject to temporary L1 censorship). We assume that 1.5 days is enough.
+
+
+If the chain *fails* to settle on settlement layer AND it receives an L1->L2 transaction that went through GW, the deposit will be attributed to ZK Gateway, while the deposit itself will fail, preventing funds from being released.
+
+If the chain succeeded in its migration to ZK Gateway the early confirmation serves only to enable L1->L2 transactions again.
+
+FIXME: the risks are insane we should update the logic.
