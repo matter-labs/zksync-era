@@ -2,8 +2,12 @@
  * This suite contains tests checking Interop-B bundles features,
  * those that were included as part of v31 protocol upgrade.
  *
- * TODO: do mention here the balance checks being done and at which steps:
- *  before sending, after sending, after finalized sending, after receiving,
+ * This suite checks Asset Tracker accounting for Interop-B bundles (v31):
+ * - Baseline GWAT/L2AssetTracker balances before sending.
+ * - After sending on source (before GW batch): L2AssetTracker and GWAT unchanged.
+ * - After gateway executes source batch: GWAT sender decreases (L2AssetTracker unchanged).
+ * - After destination executes bundle (before GW batch): GWAT unchanged.
+ * - After gateway executes destination batch: GWAT receiver increases only for executed calls.
  */
 
 import { AssetTrackerBalanceSnapshot, InteropTestContext } from '../src/interop-setup';

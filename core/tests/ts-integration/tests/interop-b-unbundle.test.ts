@@ -1,6 +1,18 @@
 /**
  * This suite contains tests checking Interop-B unbundle features,
  * those that were included as part of v32 protocol upgrade.
+ *
+ * This suite checks Asset Tracker accounting for Interop-B unbundle (v32):
+ * - Baseline GWAT/L2AssetTracker balances before sending.
+ * - After sending on source (before GW batch): L2AssetTracker and GWAT unchanged.
+ * - After gateway executes source batch: GWAT sender decreases (L2AssetTracker unchanged).
+ * - After destination executes unbundle (before GW batch): GWAT unchanged.
+ * - After gateway executes destination batch: GWAT receiver increases only for executed calls.
+ *
+ * Additional checks specific to unbundling:
+ * - Progressive unbundling updates GWAT per each unbundling call marked as "Executed".
+ * - A cancelled call is expected to leave funds unrecoverable until a recovery mechanism is implemented.
+ *   These lost funds are NOT reflected on the GW Asset Tracker.
  */
 
 import * as zksync from 'zksync-ethers';
