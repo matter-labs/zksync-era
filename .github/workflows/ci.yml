@@ -22,6 +22,8 @@ jobs:
         with:
           fetch-depth: 2
           submodules: "recursive"
+          # FIXME: Temporarily needed for CI
+          fetch-additional-submodule-history: true
 
       - name: Get changed files
         id: changed-files
