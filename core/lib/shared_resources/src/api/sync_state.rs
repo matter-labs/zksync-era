@@ -51,7 +51,7 @@ impl SyncState {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct SyncStateData {
     main_node_block: Option<L2BlockNumber>,
     local_block: Option<L2BlockNumber>,
