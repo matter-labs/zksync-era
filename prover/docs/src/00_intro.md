@@ -36,7 +36,7 @@ We'll cover how the components work further in documentation.
 [cp]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/circuit_prover
 [pc]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/proof_fri_compressor
 [pdh]: https://github.com/matter-labs/zksync-era/tree/main/core/node/proof_data_handler
-[pjm]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover-job-monitor
+[pjm]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_job_monitor
 [vkg]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/vk_setup_data_generator_server_fri
 [pcli]: https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_cli
 [mc]: https://github.com/matter-labs/zksync-era/tree/main/core/node/metadata_calculator
