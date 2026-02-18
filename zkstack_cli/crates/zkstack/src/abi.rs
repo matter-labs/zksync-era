@@ -18,6 +18,13 @@ abigen!(
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
+// Using IChainTypeManager for the upgradeChainFromVersion function
+abigen!(
+    ChainTypeManagerUpgradeFnAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IChainTypeManager.sol/IChainTypeManager.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
 abigen!(
     ZkChainAbi,
     "../../../contracts/l1-contracts/zkstack-out/IZKChain.sol/IZKChain.json",
@@ -33,13 +40,6 @@ abigen!(
 abigen!(
     IChainAssetHandlerAbi,
     "../../../contracts/l1-contracts/zkstack-out/IChainAssetHandler.sol/IChainAssetHandlerBase.json",
-    event_derives(serde::Deserialize, serde::Serialize)
-);
-
-// Using IChainTypeManager for the upgradeChainFromVersion function
-abigen!(
-    ChainTypeManagerUpgradeFnAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IChainTypeManager.sol/IChainTypeManager.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
