@@ -44,36 +44,46 @@ You can read more about it [here](./gateway_protocol_upgrades.md).
 
 ## Deposit pausing
 
-Our asset trackers depend on a fact that when a chain migrates to or from Gateway, there are no outstanding deposits. In order to ensure that, the chain admin needs to somehow stop deposits. One way could be to set `TransactionFilterer` contract. However, to make the approach more stage1-compatible in the future, the following, more permissionless approach has been chosen:
+Asset trackers rely on the invariant that there are no outstanding L1->L2 deposits while a chain is migrating to or from Gateway.
+To enforce this invariant, deposits are paused before migration and enable them only after the migration is complete.
 
-1. Firslty, the chain admin, needs to call `pauseDepositsBeforeInitiatingMigration`. It will give users a heads up of `PAUSE_DEPOSITS_TIME_WINDOW_START_MAINNET` time. Right now it is 3.5 days. I.e. for the next 3.5 days the users will still be able to conduct L1->L2 transactions. This is a headsup they get before the deposits are disabled.
+### Flow
 
-2. After the headsup window, the deposits will be paused until `PAUSE_DEPOSITS_TIME_WINDOW_END_MAINNET` (right now it is 7 days) has elapsed since the deposit pausing has been announced (i.e. 3.5 days since the deposits have become paused).
+1. Chain admin calls `pauseDepositsBeforeInitiatingMigration`.
+2. Deposits become paused after the `PAUSE_DEPOSITS_TIME_WINDOW_START`. In this release, since stage1 compatibility is not yet enabled for chains that settle on ZK Gateway, `PAUSE_DEPOSITS_TIME_WINDOW_START` is set to 0.
+3. Migration can be initiated immediately after pause.
+4. Deposits stay paused until the migration status is confirmed (`forwardedBridgeConfirmTransferResult`)
 
-3. To ensure that the chain has enough time to migrate and return, we give only 1.5 days to migrate to Gateway. 
+### Timestamps and checks
 
-4. Once the chain migrates or the migration fails, the user can proof the migration status and the `forwardedBridgeConfirmTransferResult` will be invoked, which will unpause the deposits regardless of the result.
+`s.pausedDepositsTimestamp` stores when pause was announced.
 
-All in all, the following imoprtant timestamps are used:
+Deposits are considered paused when:
 
-1. `s.pausedDepositsTimestamp` -- when chain admin has announced that the migration will happen soon and the deposits are paused.
-2. `s.pausedDepositsTimestamp + PAUSE_DEPOSITS_TIME_WINDOW_START_MAINNET` = `s.pausedDepositsTimestamp + CHAIN_MIGRATION_TIME_WINDOW_START_MAINNET` -- when the deposits are actually paused and no more L1->L2 transactions can be accepted by the chain. Also, starting from this moment the chain can migrate to another settlement layers.
-3. `s.pausedDepositsTimestamp + CHAIN_MIGRATION_TIME_WINDOW_END_MAINNET` -- when the chain can no longer migrate to GW (considered too close to end of the time window to risk it).
-4. `s.pausedDepositsTimestamp + PAUSE_DEPOSITS_TIME_WINDOW_END_MAINNET` -- when the deposits are unpaused again and so the system gets back to normal.
+- `s.pausedDepositsTimestamp != 0`, and
+- `s.pausedDepositsTimestamp + PAUSE_DEPOSITS_TIME_WINDOW_START <= block.timestamp`.
 
-During step (3) the deposits can be unlocked earlier if the ZK Gateway has processed the transactions soon enough.
+Migration is considered allowed when:
 
-> Important note, that the feature in its current form is NOT compatible with our stage1 design, since our stage1 design mandates much larger headsup for users to withdraw. This feature is mainly for future compatibility.
+- `s.pausedDepositsTimestamp != 0`, and
+- `s.pausedDepositsTimestamp + CHAIN_MIGRATION_TIME_WINDOW_START <= block.timestamp`.
 
-### Risks
+Current constants set both start windows to `0`, so both conditions are immediate.
 
-The time-based solution above relies on:
-- Admin being able to process all outstanding priority transactions within the `CHAIN_MIGRATION_TIME_WINDOW_END_MAINNET - PAUSE_DEPOSITS_TIME_WINDOW_START_MAINNET` (1.5 days right now) window. In case of severe spamming of the chain with L1->L2 transactions the chain can not have enough time to process all outstanding priority transacitons. The risk is deemed low, since processing priority transactions is much cheaper than including those.
-- ZK Gateway not providing a valid confirmation of the migration success or failure within the `PAUSE_DEPOSITS_TIME_WINDOW_END_MAINNET - CHAIN_MIGRATION_TIME_WINDOW_END_MAINNET` (the last 1.5 days) window. Note, that not only Gateway needs to settle to provide this value, the users of the chain need to have the opportunity to confirm the result on L1 (so in theory might be subject to temporary L1 censorship). We assume that 1.5 days is enough.
+## Unpause behavior
 
+- `forwardedBridgeConfirmTransferResult` unpauses deposits during migration result handling.
+- `forwardedBridgeMint` also unpauses deposits on successful migration completion.
+- `unpauseDeposits` remains available to the chain admin, but only if `isMigrationInProgress(chainId) == false`. This is only used to allow chains to have their deposits paused (and so migrate to Gatewat) right after the chain is created.
 
-If the chain *fails* to settle on settlement layer AND it receives an L1->L2 transaction that went through GW, the deposit will be attributed to ZK Gateway, while the deposit itself will fail, preventing funds from being released.
+## Stage1 note
 
-If the chain succeeded in its migration to ZK Gateway the early confirmation serves only to enable L1->L2 transactions again.
+Since stage1 is not yet supported for chains that settle on top of Gateway, in this release the delay before pausing deposits is 0. However, the code should be ready to be able to jump bump those constants in one of the future releases.
 
-FIXME: the risks are insane we should update the logic.
+Additionally, there is a risk that the chain admin may abuse this functionality by disabling deposits to prevent users from executing any deposits, while actually not even trying to migrate to ZK Gateway. It is a known issue and will be resolved in one of the future upgrades. Right now it is considered acceptable, since:
+- A malicious chain admin can set `transactionFilterer` that would achieve the same goal anyway.
+- This functionality (as well as the `transactionFilterer` one) is disabled for chains that aim to support stage1, i.e. `s.priorityModeInfo.canBeActivated = true`. 
+
+## Risk model update
+
+In case of a stuck and uncooperative ZK Gateway deposits can remain paused indefinitely if no confirmation is provided and admin does not manually unpause. However, it is assumed that a chain that migrates on top of ZK Gateway trusts it.

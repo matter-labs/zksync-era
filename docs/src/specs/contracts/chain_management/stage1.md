@@ -111,6 +111,8 @@ One of the ways a malicious admin could prevent deposits is by setting an absurd
 
 Note, that even after the priority mode is activated, the chain admin is the only entity that can continue updating the fees for priority transactions. It means that after the stage1 is activated, the fee can in theory become very small and uneconomical for a permissionless validator service to process the priority transactions. It is assumed that in case this event happens, the community will provide fees for their priority transactions in some way offchain or build batches themselves.
 
+Also, note that before the chain is allowed to become stage1, the chain admin has more freedom at setting the fee params for the chain. So before treating a chain as "stage1" it is important to double check that no tampering has been done with the fee params before the transition. 
+
 ## What to pay attention to as an auditor
 
 1. Admin is a privileged role in a normal chain mode, however it shouldn’t be able to censor L1 → L2 transactions in the Priority Mode. Examples
