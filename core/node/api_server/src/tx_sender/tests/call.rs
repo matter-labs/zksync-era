@@ -4,7 +4,9 @@ use std::collections::HashMap;
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
-use zksync_multivm::interface::{ExecutionResult, VmEvent, VmExecutionLogs, VmExecutionResultAndLogs};
+use zksync_multivm::interface::{
+    ExecutionResult, VmEvent, VmExecutionLogs, VmExecutionResultAndLogs,
+};
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_contracts::{Account, TestContract};
