@@ -692,12 +692,11 @@ impl TxSender {
         &self,
         block_args: BlockArgs,
         call_overrides: CallOverrides,
-        mut call: L2Tx,
+        call: L2Tx,
         state_override: Option<StateOverride>,
     ) -> Result<Vec<u8>, SubmitTxError> {
         let no_target_call = call.recipient_account().is_none();
         let initiator = call.initiator_account();
-        let mut state_override = state_override;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
@@ -716,7 +715,7 @@ impl TxSender {
             block_args.historical_fee_input(&mut connection).await?
         };
 
-        if no_target_call {
+        let (call, state_override) = if no_target_call {
             let base_nonce = connection
                 .storage_web3_dal()
                 .get_address_historical_nonce(initiator, block_args.resolved_block_number())
@@ -728,18 +727,15 @@ impl TxSender {
                     )
                 })?;
 
-            // `createEVM()` expects EOA nonce to be pre-incremented, which does not happen
-            // in `eth_call` mode. Emulate this increment via state override.
-            let mut override_accounts: HashMap<Address, OverrideAccount> =
-                state_override.unwrap_or_default().into_iter().collect();
-            override_accounts.entry(initiator).or_default().nonce =
-                Some(base_nonce.saturating_add(U256::from(1u8)));
-            state_override = Some(StateOverride::new(override_accounts));
-
-            let initcode = std::mem::take(&mut call.execute.calldata);
-            call.execute.contract_address = Some(CONTRACT_DEPLOYER_ADDRESS);
-            call.execute.calldata = Self::encode_create_evm_calldata(initcode);
-        }
+            Self::prepare_no_target_eth_call(
+                call,
+                state_override,
+                initiator,
+                base_nonce.saturating_add(U256::from(1u8)),
+            )
+        } else {
+            (call, state_override)
+        };
 
         let action = SandboxAction::Call {
             call,
@@ -752,19 +748,35 @@ impl TxSender {
             .executor
             .execute_in_sandbox(vm_permit, connection, action, &block_args, state_override)
             .await?;
-        // For create-style `eth_call`s, the VM may return empty output while exposing
-        // deployed EVM bytecode via dynamic deps. This mirrors Ethereum behavior where
-        // initcode return data is returned from `eth_call`.
-        let deployless_output = no_target_call
-            .then(|| Self::deployless_output_from_dynamic_bytecodes(&result, initiator))
-            .flatten();
-        let output = result.result.into_api_call_result()?;
         if no_target_call {
-            if let Some(deploy_output) = deployless_output {
+            // In deployless calls, prefer constructor return bytes from the deployed EVM code.
+            // The direct VM output is often `createEVM` ABI return data instead.
+            if let Some(deploy_output) =
+                Self::deployless_output_from_dynamic_bytecodes(&result, initiator)
+            {
                 return Ok(deploy_output);
             }
         }
-        Ok(output)
+        result.result.into_api_call_result()
+    }
+
+    fn prepare_no_target_eth_call(
+        mut call: L2Tx,
+        state_override: Option<StateOverride>,
+        initiator: Address,
+        emulated_nonce: U256,
+    ) -> (L2Tx, Option<StateOverride>) {
+        // `createEVM()` expects EOA nonce to be pre-incremented, which does not happen
+        // in `eth_call` mode. Emulate this increment via state override.
+        let mut override_accounts: HashMap<Address, OverrideAccount> =
+            state_override.unwrap_or_default().into_iter().collect();
+        override_accounts.entry(initiator).or_default().nonce = Some(emulated_nonce);
+        let state_override = Some(StateOverride::new(override_accounts));
+
+        let initcode = std::mem::take(&mut call.execute.calldata);
+        call.execute.contract_address = Some(CONTRACT_DEPLOYER_ADDRESS);
+        call.execute.calldata = Self::encode_create_evm_calldata(initcode);
+        (call, state_override)
     }
 
     fn encode_create_evm_calldata(initcode: Vec<u8>) -> Vec<u8> {
