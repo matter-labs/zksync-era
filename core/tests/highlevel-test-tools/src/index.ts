@@ -20,3 +20,4 @@ export { waitForAllBatchesToBeExecuted, generateRealisticLoad } from './wait-for
 export { TESTED_CHAIN_TYPE } from './chain-types';
 export { migrateToGatewayIfNeeded, agreeToPaySettlementFees, waitForMigrationReadyForFinalize } from './gateway';
 export { getMainWalletPk } from './wallets';
+export { withDeadline, checkRpcHealth, isConnectionError, RpcHealthGuard, type HealthStatus } from './deadline';

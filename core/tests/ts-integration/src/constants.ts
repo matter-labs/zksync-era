@@ -60,4 +60,8 @@ export const ArtifactL2AssetTracker = readContract(`${ARTIFACTS_PATH}`, 'L2Asset
 export const ArtifactDummyInteropRecipient = readContract(`${L1_ZK_ARTIFACTS_PATH}`, 'DummyInteropRecipient');
 export const ArtifactIBridgehubBase = readContract(`${ARTIFACTS_PATH}`, 'IBridgehubBase');
 export const ArtifactIGetters = readContract(`${ARTIFACTS_PATH}`, 'IGetters');
-export const ArtifactIChainAssetHandler = readContract(`${ARTIFACTS_PATH}`, 'IChainAssetHandler');
+export const ArtifactIChainAssetHandler = readContract(
+    `${ARTIFACTS_PATH}`,
+    'IChainAssetHandler',
+    'IChainAssetHandlerBase'
+);
