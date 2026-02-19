@@ -748,6 +748,7 @@ impl TxSender {
             .executor
             .execute_in_sandbox(vm_permit, connection, action, &block_args, state_override)
             .await?;
+        result.result.check_api_call_result()?;
         if no_target_call {
             // In deployless calls, prefer constructor return bytes from the deployed EVM code.
             // The direct VM output is often `createEVM` ABI return data instead.
@@ -764,13 +765,18 @@ impl TxSender {
         mut call: L2Tx,
         state_override: Option<StateOverride>,
         initiator: Address,
-        emulated_nonce: U256,
+        default_emulated_nonce: U256,
     ) -> (L2Tx, Option<StateOverride>) {
         // `createEVM()` expects EOA nonce to be pre-incremented, which does not happen
         // in `eth_call` mode. Emulate this increment via state override.
         let mut override_accounts: HashMap<Address, OverrideAccount> =
             state_override.unwrap_or_default().into_iter().collect();
-        override_accounts.entry(initiator).or_default().nonce = Some(emulated_nonce);
+        let account_override = override_accounts.entry(initiator).or_default();
+        let emulated_nonce = account_override
+            .nonce
+            .map(|nonce| nonce.saturating_add(U256::from(1u8)))
+            .unwrap_or(default_emulated_nonce);
+        account_override.nonce = Some(emulated_nonce);
         let state_override = Some(StateOverride::new(override_accounts));
 
         let initcode = std::mem::take(&mut call.execute.calldata);

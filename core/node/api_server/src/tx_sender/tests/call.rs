@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use assert_matches::assert_matches;
 use test_casing::test_casing;
 use zksync_multivm::interface::{
-    ExecutionResult, VmEvent, VmExecutionLogs, VmExecutionResultAndLogs,
+    ExecutionResult, VmEvent, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
@@ -173,6 +173,98 @@ async fn eth_call_deployless_ambire_signature_validation_vector() {
         .await
         .unwrap();
     assert_eq!(output, vec![1]);
+}
+
+#[tokio::test]
+async fn eth_call_deployless_does_not_mask_revert_with_dynamic_bytecode() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    let genesis_params = GenesisParams::mock();
+    insert_genesis_batch(&mut storage, &genesis_params)
+        .await
+        .unwrap();
+    let block_args = BlockArgs::pending(&mut storage).await.unwrap();
+    drop(storage);
+
+    let mut tx = create_l2_transaction(10, 100);
+    tx.execute.contract_address = None;
+    let initiator = tx.initiator_account();
+
+    let bytecode = vec![0xde, 0xad];
+    let padded = pad_evm_bytecode(&bytecode);
+    let bytecode_hash = BytecodeHash::for_evm_bytecode(bytecode.len(), &padded).value();
+
+    let mut tx_executor = MockOneshotExecutor::default();
+    tx_executor.set_full_call_responses(move |_, _| {
+        let deploy_event = VmEvent {
+            address: CONTRACT_DEPLOYER_ADDRESS,
+            indexed_topics: vec![
+                VmEvent::DEPLOY_EVENT_SIGNATURE,
+                address_to_h256(&initiator),
+                bytecode_hash,
+                address_to_h256(&Address::repeat_byte(0xbb)),
+            ],
+            ..VmEvent::default()
+        };
+        VmExecutionResultAndLogs {
+            result: ExecutionResult::Revert {
+                output: VmRevertReason::General {
+                    msg: "deployless revert".to_owned(),
+                    data: vec![],
+                },
+            },
+            logs: VmExecutionLogs {
+                events: vec![deploy_event],
+                ..VmExecutionLogs::default()
+            },
+            statistics: Default::default(),
+            refunds: Default::default(),
+            dynamic_factory_deps: HashMap::from([(bytecode_hash, padded.clone())]),
+        }
+    });
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
+    let (tx_sender, _) = create_test_tx_sender(
+        pool.clone(),
+        genesis_params.config().l2_chain_id,
+        tx_executor,
+    )
+    .await;
+    let call_overrides = CallOverrides {
+        enforced_base_fee: None,
+    };
+
+    let err = tx_sender
+        .eth_call(block_args, call_overrides, tx, None)
+        .await
+        .unwrap_err();
+    assert_matches!(err, SubmitTxError::ExecutionReverted(..));
+}
+
+#[test]
+fn prepare_no_target_eth_call_uses_override_nonce_if_provided() {
+    let mut tx = create_l2_transaction(10, 100);
+    tx.execute.contract_address = None;
+    tx.execute.calldata = vec![1, 2, 3];
+    let initiator = tx.initiator_account();
+    let state_override = StateOverride::new(HashMap::from([(
+        initiator,
+        OverrideAccount {
+            nonce: Some(U256::from(41u8)),
+            ..OverrideAccount::default()
+        },
+    )]));
+
+    let (tx, state_override) =
+        TxSender::prepare_no_target_eth_call(tx, Some(state_override), initiator, U256::from(8u8));
+    assert_eq!(tx.execute.contract_address, Some(CONTRACT_DEPLOYER_ADDRESS));
+
+    let override_accounts: HashMap<_, _> = state_override.unwrap().into_iter().collect();
+    assert_eq!(
+        override_accounts
+            .get(&initiator)
+            .and_then(|account| account.nonce),
+        Some(U256::from(42u8))
+    );
 }
 
 async fn test_call(
