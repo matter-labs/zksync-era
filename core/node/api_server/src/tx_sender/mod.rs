@@ -1,6 +1,7 @@
 //! Helper module to submit transactions into the ZKsync Network.
 
 use std::{
+    collections::HashMap,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -31,8 +32,9 @@ use zksync_object_store::ObjectStore;
 use zksync_state::PostgresStorageCaches;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
-    api::state_override::StateOverride,
+    api::state_override::{OverrideAccount, StateOverride},
     bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
+    ethabi::{self, ParamType, Token},
     fee_model::BatchFeeInput,
     get_intrinsic_constants, h256_to_address, h256_to_u256,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
@@ -690,11 +692,12 @@ impl TxSender {
         &self,
         block_args: BlockArgs,
         call_overrides: CallOverrides,
-        call: L2Tx,
+        mut call: L2Tx,
         state_override: Option<StateOverride>,
     ) -> Result<Vec<u8>, SubmitTxError> {
         let no_target_call = call.recipient_account().is_none();
         let initiator = call.initiator_account();
+        let mut state_override = state_override;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
@@ -713,6 +716,31 @@ impl TxSender {
             block_args.historical_fee_input(&mut connection).await?
         };
 
+        if no_target_call {
+            let base_nonce = connection
+                .storage_web3_dal()
+                .get_address_historical_nonce(initiator, block_args.resolved_block_number())
+                .await
+                .with_context(|| {
+                    format!(
+                        "failed getting nonce for address {initiator:?} at L2 block #{}",
+                        block_args.resolved_block_number()
+                    )
+                })?;
+
+            // `createEVM()` expects EOA nonce to be pre-incremented, which does not happen
+            // in `eth_call` mode. Emulate this increment via state override.
+            let mut override_accounts: HashMap<Address, OverrideAccount> =
+                state_override.unwrap_or_default().into_iter().collect();
+            override_accounts.entry(initiator).or_default().nonce =
+                Some(base_nonce.saturating_add(U256::from(1u8)));
+            state_override = Some(StateOverride::new(override_accounts));
+
+            let initcode = std::mem::take(&mut call.execute.calldata);
+            call.execute.contract_address = Some(CONTRACT_DEPLOYER_ADDRESS);
+            call.execute.calldata = Self::encode_create_evm_calldata(initcode);
+        }
+
         let action = SandboxAction::Call {
             call,
             fee_input,
@@ -730,13 +758,19 @@ impl TxSender {
         let deployless_output = no_target_call
             .then(|| Self::deployless_output_from_dynamic_bytecodes(&result, initiator))
             .flatten();
-        let mut output = result.result.into_api_call_result()?;
-        if output.is_empty() {
+        let output = result.result.into_api_call_result()?;
+        if no_target_call {
             if let Some(deploy_output) = deployless_output {
-                output = deploy_output;
-            };
+                return Ok(deploy_output);
+            }
         }
         Ok(output)
+    }
+
+    fn encode_create_evm_calldata(initcode: Vec<u8>) -> Vec<u8> {
+        let mut calldata = ethabi::short_signature("createEVM", &[ParamType::Bytes]).to_vec();
+        calldata.extend(ethabi::encode(&[Token::Bytes(initcode)]));
+        calldata
     }
 
     fn deployless_output_from_dynamic_bytecodes(

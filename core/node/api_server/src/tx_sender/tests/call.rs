@@ -4,9 +4,7 @@ use std::collections::HashMap;
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
-use zksync_multivm::interface::{
-    ExecutionResult, VmEvent, VmExecutionLogs, VmExecutionResultAndLogs,
-};
+use zksync_multivm::interface::{ExecutionResult, VmEvent, VmExecutionLogs, VmExecutionResultAndLogs};
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_contracts::{Account, TestContract};
@@ -14,7 +12,7 @@ use zksync_types::{
     address_to_h256,
     api::state_override::OverrideAccount,
     bytecode::{pad_evm_bytecode, BytecodeHash, BytecodeMarker},
-    ethabi::{self, ParamType, Token},
+    ethabi::{self, Token},
     get_code_key,
     transaction_request::CallRequest,
     Address, H256,
@@ -27,6 +25,7 @@ const AMBIRE_DEPLOYLESS_UNIVERSAL_SIG_VALIDATOR_BYTECODE: &str =
     include_str!("fixtures/ambire_deployless_universal_sig_validator_bytecode.txt");
 
 fn decode_prefixed_hex(hex_str: &str) -> Vec<u8> {
+    let hex_str = hex_str.trim();
     let hex_str = hex_str.strip_prefix("0x").unwrap_or(hex_str);
     hex::decode(hex_str).unwrap()
 }
@@ -148,12 +147,12 @@ async fn eth_call_deployless_ambire_signature_validation_vector() {
         .await;
 
     let signer = Address::from_slice(&decode_prefixed_hex(
-        "0xd4f5d2D26B38B1b120311B20d0E84B0664CEd90b",
+        "0xF74d0EE5b5CcE67A57A65bBF4e6aB55a520F13ab",
     ));
     let message_hash = H256::from_slice(&decode_prefixed_hex(
         "0xb453bd4e271eed985cbab8231da609c4ce0a9cf1f763b6c1594e76315510e0f1",
     ));
-    let signature = decode_prefixed_hex("0xa0d4bd8b3c3215d8578bcc8fc663ba8e70c0b441764e8f3b0348cbeb8e4544aa105766ee4c91931a6d24e0636dda935221fb85a127d73c650f262916126e59251b");
+    let signature = decode_prefixed_hex("0xced94cb43caf891e57e5311d3feb33bd1d15cce4b9f32fbb1545238d5f8b0edb7dfecd9ec72dc84336c386e64c1baef0b12f4e0a63bf89d64e6620e468223ca51b");
 
     let mut call_data = decode_prefixed_hex(AMBIRE_DEPLOYLESS_UNIVERSAL_SIG_VALIDATOR_BYTECODE);
     call_data.extend(ethabi::encode(&[
@@ -161,9 +160,8 @@ async fn eth_call_deployless_ambire_signature_validation_vector() {
         Token::FixedBytes(message_hash.as_bytes().to_vec()),
         Token::Bytes(signature),
     ]));
-
     let call = CallRequest {
-        from: Some(signer),
+        from: None,
         to: None,
         data: Some(call_data.into()),
         ..CallRequest::default()
@@ -172,18 +170,7 @@ async fn eth_call_deployless_ambire_signature_validation_vector() {
     let output = test_call(&tx_sender, StateOverride::default(), call)
         .await
         .unwrap();
-    let is_valid = ethabi::decode(&[ParamType::Bool], &output)
-        .ok()
-        .and_then(|tokens| match tokens.as_slice() {
-            [Token::Bool(value)] => Some(*value),
-            _ => None,
-        })
-        .unwrap_or(false);
-    assert!(
-        is_valid,
-        "Ambire deployless validator returned invalid result: 0x{}",
-        hex::encode(output)
-    );
+    assert_eq!(output, vec![1]);
 }
 
 async fn test_call(
