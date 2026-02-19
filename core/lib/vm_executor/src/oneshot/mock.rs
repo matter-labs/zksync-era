@@ -55,6 +55,14 @@ impl MockOneshotExecutor {
         self.call_responses = self.wrap_responses(responses);
     }
 
+    /// Same as [`Self::set_call_responses()`], but allows to customize returned VM logs etc.
+    pub fn set_full_call_responses<F>(&mut self, responses: F)
+    where
+        F: Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + 'static + Send + Sync,
+    {
+        self.call_responses = Box::new(responses);
+    }
+
     /// Sets transaction response closure used by this executor. The closure will be called both for transaction execution / validation,
     /// and for gas estimation.
     pub fn set_tx_responses<F>(&mut self, responses: F)

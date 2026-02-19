@@ -1,6 +1,7 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
 use std::{
+    collections::HashMap,
     fmt,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -28,7 +29,7 @@ use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
     api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode,
-    StorageLog, Transaction,
+    StorageLog, Transaction, H256,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
@@ -92,6 +93,8 @@ pub struct SandboxExecutionOutput {
     pub metrics: TransactionExecutionMetrics,
     /// Were published bytecodes OK?
     pub are_published_bytecodes_ok: bool,
+    /// Dynamic bytecodes decommitted during VM execution.
+    pub dynamic_factory_deps: HashMap<H256, Vec<u8>>,
 }
 
 impl SandboxExecutionOutput {
@@ -108,6 +111,7 @@ impl SandboxExecutionOutput {
                 gas_refunded: 0,
             },
             are_published_bytecodes_ok: true,
+            dynamic_factory_deps: HashMap::new(),
         }
     }
 }
@@ -163,6 +167,7 @@ where
             call_traces: result.call_traces,
             metrics,
             are_published_bytecodes_ok: result.compression_result.is_ok(),
+            dynamic_factory_deps: tx_result.dynamic_factory_deps,
         })
     }
 }

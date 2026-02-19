@@ -29,10 +29,12 @@ use zksync_multivm::{
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
 use zksync_object_store::ObjectStore;
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     api::state_override::StateOverride,
+    bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
     fee_model::BatchFeeInput,
-    get_intrinsic_constants, h256_to_u256,
+    get_intrinsic_constants, h256_to_address, h256_to_u256,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
@@ -691,6 +693,8 @@ impl TxSender {
         call: L2Tx,
         state_override: Option<StateOverride>,
     ) -> Result<Vec<u8>, SubmitTxError> {
+        let no_target_call = call.recipient_account().is_none();
+        let initiator = call.initiator_account();
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
@@ -720,7 +724,51 @@ impl TxSender {
             .executor
             .execute_in_sandbox(vm_permit, connection, action, &block_args, state_override)
             .await?;
-        result.result.into_api_call_result()
+        // For create-style `eth_call`s, the VM may return empty output while exposing
+        // deployed EVM bytecode via dynamic deps. This mirrors Ethereum behavior where
+        // initcode return data is returned from `eth_call`.
+        let deployless_output = no_target_call
+            .then(|| Self::deployless_output_from_dynamic_bytecodes(&result, initiator))
+            .flatten();
+        let mut output = result.result.into_api_call_result()?;
+        if output.is_empty() {
+            if let Some(deploy_output) = deployless_output {
+                output = deploy_output;
+            };
+        }
+        Ok(output)
+    }
+
+    fn deployless_output_from_dynamic_bytecodes(
+        result: &SandboxExecutionOutput,
+        initiator: Address,
+    ) -> Option<Vec<u8>> {
+        let deployed_hash = result.events.iter().find_map(|event| {
+            let is_deploy_event = event.address == CONTRACT_DEPLOYER_ADDRESS
+                && event.indexed_topics.first()
+                    == Some(&zksync_multivm::interface::VmEvent::DEPLOY_EVENT_SIGNATURE);
+            if !is_deploy_event {
+                return None;
+            }
+            let deployer = h256_to_address(event.indexed_topics.get(1)?);
+            (deployer == initiator).then_some(*event.indexed_topics.get(2)?)
+        });
+
+        let (bytecode_hash, bytecode) = if let Some(hash) = deployed_hash {
+            (hash, result.dynamic_factory_deps.get(&hash)?)
+        } else if result.dynamic_factory_deps.len() == 1 {
+            let (&hash, bytecode) = result.dynamic_factory_deps.iter().next().unwrap();
+            (hash, bytecode)
+        } else {
+            return None;
+        };
+
+        let bytecode_hash = BytecodeHash::try_from(bytecode_hash).ok()?;
+        if bytecode_hash.marker() != BytecodeMarker::Evm {
+            return None;
+        }
+        let output = trim_padded_evm_bytecode(bytecode_hash, bytecode).ok()?;
+        Some(output.to_vec())
     }
 
     pub async fn gas_price_and_gas_per_pubdata(&self) -> anyhow::Result<(u64, u64)> {

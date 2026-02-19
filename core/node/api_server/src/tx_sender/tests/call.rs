@@ -4,18 +4,32 @@ use std::collections::HashMap;
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
-use zksync_multivm::interface::ExecutionResult;
+use zksync_multivm::interface::{
+    ExecutionResult, VmEvent, VmExecutionLogs, VmExecutionResultAndLogs,
+};
 use zksync_node_test_utils::create_l2_transaction;
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
+    address_to_h256,
     api::state_override::OverrideAccount,
-    bytecode::{BytecodeHash, BytecodeMarker},
+    bytecode::{pad_evm_bytecode, BytecodeHash, BytecodeMarker},
+    ethabi::{self, ParamType, Token},
     get_code_key,
     transaction_request::CallRequest,
+    Address, H256,
 };
 
 use super::*;
 use crate::testonly::{decode_u256_output, Call3Result, Call3Value, StateBuilder, TestAccount};
+
+const AMBIRE_DEPLOYLESS_UNIVERSAL_SIG_VALIDATOR_BYTECODE: &str =
+    include_str!("fixtures/ambire_deployless_universal_sig_validator_bytecode.txt");
+
+fn decode_prefixed_hex(hex_str: &str) -> Vec<u8> {
+    let hex_str = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+    hex::decode(hex_str).unwrap()
+}
 
 #[tokio::test]
 async fn eth_call_requires_single_connection() {
@@ -53,6 +67,123 @@ async fn eth_call_requires_single_connection() {
         .await
         .unwrap();
     assert_eq!(output, b"success!");
+}
+
+#[tokio::test]
+async fn eth_call_deployless_returns_selected_dynamic_evm_bytecode() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    let genesis_params = GenesisParams::mock();
+    insert_genesis_batch(&mut storage, &genesis_params)
+        .await
+        .unwrap();
+    let block_args = BlockArgs::pending(&mut storage).await.unwrap();
+    drop(storage);
+
+    let mut tx = create_l2_transaction(10, 100);
+    tx.execute.contract_address = None;
+    let initiator = tx.initiator_account();
+
+    let expected_output = vec![0xde, 0xad, 0xbe, 0xef];
+    let expected_padded = pad_evm_bytecode(&expected_output);
+    let expected_hash =
+        BytecodeHash::for_evm_bytecode(expected_output.len(), &expected_padded).value();
+
+    let other_output = vec![0xca, 0xfe];
+    let other_padded = pad_evm_bytecode(&other_output);
+    let other_hash = BytecodeHash::for_evm_bytecode(other_output.len(), &other_padded).value();
+
+    let mut tx_executor = MockOneshotExecutor::default();
+    tx_executor.set_full_call_responses(move |_, _| {
+        let deploy_event = VmEvent {
+            address: CONTRACT_DEPLOYER_ADDRESS,
+            indexed_topics: vec![
+                VmEvent::DEPLOY_EVENT_SIGNATURE,
+                address_to_h256(&initiator),
+                expected_hash,
+                address_to_h256(&Address::repeat_byte(0xaa)),
+            ],
+            ..VmEvent::default()
+        };
+        VmExecutionResultAndLogs {
+            result: ExecutionResult::Success { output: vec![] },
+            logs: VmExecutionLogs {
+                events: vec![deploy_event],
+                ..VmExecutionLogs::default()
+            },
+            statistics: Default::default(),
+            refunds: Default::default(),
+            dynamic_factory_deps: HashMap::from([
+                (other_hash, other_padded.clone()),
+                (expected_hash, expected_padded.clone()),
+            ]),
+        }
+    });
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
+    let (tx_sender, _) = create_test_tx_sender(
+        pool.clone(),
+        genesis_params.config().l2_chain_id,
+        tx_executor,
+    )
+    .await;
+    let call_overrides = CallOverrides {
+        enforced_base_fee: None,
+    };
+
+    let output = tx_sender
+        .eth_call(block_args, call_overrides, tx, None)
+        .await
+        .unwrap();
+    assert_eq!(output, expected_output);
+}
+
+#[tokio::test]
+async fn eth_call_deployless_ambire_signature_validation_vector() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool.clone()).await;
+
+    StateBuilder::default()
+        .enable_evm_deployments()
+        .apply(pool.connection().await.unwrap())
+        .await;
+
+    let signer = Address::from_slice(&decode_prefixed_hex(
+        "0xd4f5d2D26B38B1b120311B20d0E84B0664CEd90b",
+    ));
+    let message_hash = H256::from_slice(&decode_prefixed_hex(
+        "0xb453bd4e271eed985cbab8231da609c4ce0a9cf1f763b6c1594e76315510e0f1",
+    ));
+    let signature = decode_prefixed_hex("0xa0d4bd8b3c3215d8578bcc8fc663ba8e70c0b441764e8f3b0348cbeb8e4544aa105766ee4c91931a6d24e0636dda935221fb85a127d73c650f262916126e59251b");
+
+    let mut call_data = decode_prefixed_hex(AMBIRE_DEPLOYLESS_UNIVERSAL_SIG_VALIDATOR_BYTECODE);
+    call_data.extend(ethabi::encode(&[
+        Token::Address(signer),
+        Token::FixedBytes(message_hash.as_bytes().to_vec()),
+        Token::Bytes(signature),
+    ]));
+
+    let call = CallRequest {
+        from: Some(signer),
+        to: None,
+        data: Some(call_data.into()),
+        ..CallRequest::default()
+    };
+
+    let output = test_call(&tx_sender, StateOverride::default(), call)
+        .await
+        .unwrap();
+    let is_valid = ethabi::decode(&[ParamType::Bool], &output)
+        .ok()
+        .and_then(|tokens| match tokens.as_slice() {
+            [Token::Bool(value)] => Some(*value),
+            _ => None,
+        })
+        .unwrap_or(false);
+    assert!(
+        is_valid,
+        "Ambire deployless validator returned invalid result: 0x{}",
+        hex::encode(output)
+    );
 }
 
 async fn test_call(
