@@ -713,6 +713,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_type,
                 settlement_layer_chain_id
@@ -1074,6 +1075,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 l1_tx_count,
                 l2_tx_count,
@@ -1097,6 +1099,7 @@ impl BlocksDal<'_, '_> {
                 $6,
                 $7,
                 $8,
+                $9,
                 0,
                 0,
                 ''::bytea,
@@ -1106,8 +1109,8 @@ impl BlocksDal<'_, '_> {
                 NOW(),
                 NOW(),
                 FALSE,
-                $9,
-                $10
+                $10,
+                $11
             )
             "#,
             i64::from(unsealed_batch_header.number.0),
@@ -1117,6 +1120,7 @@ impl BlocksDal<'_, '_> {
             unsealed_batch_header.fee_input.l1_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_l2_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_pubdata_price() as i64,
+            unsealed_batch_header.interop_fee.as_u64() as i64,
             unsealed_batch_header.pubdata_limit.map(|l| l as i64),
             settlement_layer_type,
             settlement_layer_chain_id as i32
@@ -1384,6 +1388,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_type,
                 settlement_layer_chain_id
@@ -1396,6 +1401,7 @@ impl BlocksDal<'_, '_> {
                     l1_gas_price,
                     l2_fair_gas_price,
                     fair_pubdata_price,
+                    interop_fee,
                     pubdata_limit,
                     is_sealed,
                     settlement_layer_type,

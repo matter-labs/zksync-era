@@ -321,6 +321,7 @@ impl StateKeeperIO for ExternalIO {
                         protocol_version: Some(params.protocol_version),
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
+                        interop_fee: params.interop_fee,
                         pubdata_limit: params.pubdata_limit,
                         settlement_layer: params.settlement_layer,
                     })

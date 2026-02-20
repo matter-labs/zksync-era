@@ -40,6 +40,7 @@ impl L1BatchEnv {
             protocol_version,
             fee_address: self.fee_account,
             fee_input: self.fee_input,
+            interop_fee: self.interop_fee,
             pubdata_limit,
             settlement_layer: self.settlement_layer,
         }

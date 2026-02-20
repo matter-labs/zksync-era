@@ -694,6 +694,7 @@ impl MempoolIO {
                     protocol_version: Some(protocol_version),
                     fee_address: self.fee_account,
                     fee_input: self.filter.fee_input,
+                    interop_fee,
                     pubdata_limit,
                     settlement_layer: self.settlement_layer,
                 })
