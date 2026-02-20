@@ -216,8 +216,6 @@ pub enum SerializationTransactionError {
     /// making the transaction invalid, rather a DOS protection.
     #[error("oversized data. max: {0}; actual: {1}")]
     OversizedData(usize, usize),
-    #[error("gas per pub data limit is zero")]
-    GasPerPubDataLimitZero,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -783,8 +781,6 @@ impl TransactionRequest {
         let gas_per_pubdata_limit = if let Some(meta) = &self.eip712_meta {
             if meta.gas_per_pubdata > u64::MAX.into() {
                 return Err(SerializationTransactionError::MaxFeePerPubdataByteNotU64);
-            } else if meta.gas_per_pubdata == U256::zero() {
-                return Err(SerializationTransactionError::GasPerPubDataLimitZero);
             }
             meta.gas_per_pubdata
         } else {
