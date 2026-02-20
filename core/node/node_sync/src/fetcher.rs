@@ -58,6 +58,7 @@ pub struct FetchedBlock {
     pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
     pub settlement_layer: Option<SettlementLayer>,
+    pub interop_fee: u64,
 }
 
 impl FetchedBlock {
@@ -114,6 +115,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             pubdata_limit: block.pubdata_limit,
             interop_roots: block.interop_roots.clone().unwrap_or_default(),
             settlement_layer: block.settlement_layer,
+            interop_fee: block.interop_fee.unwrap_or(0),
         })
     }
 }
@@ -182,7 +184,7 @@ impl IoCursorExt for IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
-                    interop_fee: U256::zero(),
+                    interop_fee: U256::from(block.interop_fee),
                     // It's ok that we lose info about millis since it's only used for sealing criteria.
                     first_l2_block: L2BlockParams::new_raw(
                         block.timestamp * 1000,

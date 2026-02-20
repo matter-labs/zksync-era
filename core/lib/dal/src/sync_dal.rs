@@ -71,7 +71,8 @@ impl SyncDal<'_, '_> {
                 miniblocks.pubdata_type AS "pubdata_type!",
                 l1_batches.pubdata_limit,
                 l1_batches.settlement_layer_type,
-                l1_batches.settlement_layer_chain_id
+                l1_batches.settlement_layer_chain_id,
+                l1_batches.interop_fee
             FROM
                 miniblocks
             INNER JOIN l1_batch ON true

@@ -75,6 +75,7 @@ impl MockMainNodeClient {
             pubdata_limit: Some(100_000),
             interop_roots: Some(vec![]),
             settlement_layer: Some(SettlementLayer::for_tests()),
+            interop_fee: Some(0),
         };
 
         Self {
