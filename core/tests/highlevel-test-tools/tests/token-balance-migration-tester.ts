@@ -450,6 +450,17 @@ export class ChainHandler {
         return true;
     }
 
+    /// Returns the total base token chain balance across L1AT and GWAT.
+    /// The sum is always valid regardless of migration phase, since at any point
+    /// the chain's balance is split between L1AT and GWAT.
+    async getTotalBaseTokenChainBalance(): Promise<bigint> {
+        const l1atBalance = await this.l1AssetTracker.chainBalance(this.inner.chainId, this.baseTokenAssetId);
+        const gwatBalance = this.gwAssetTracker
+            ? await this.gwAssetTracker.chainBalance(this.inner.chainId, this.baseTokenAssetId)
+            : 0n;
+        return l1atBalance + gwatBalance;
+    }
+
     private async assertAssetMigrationNumber(
         assetId: string,
         where: 'L1AT' | 'L1AT_GW' | 'GWAT',
@@ -516,6 +527,12 @@ export class ERC20Handler {
     }
 
     async deposit(chainHandler: ChainHandler) {
+        // For non-base-token deposits, measure the base token chain balance delta.
+        // ERC20 deposits also send base token for L2 gas, which the asset tracker tracks
+        // but would otherwise be unaccounted for in our local chainBalances.
+        const trackBaseToken = !this.isBaseToken && !!chainHandler.baseTokenAssetId;
+        const baseTokenBefore = trackBaseToken ? await chainHandler.getTotalBaseTokenChainBalance() : 0n;
+
         const depositTx = await this.wallet.deposit({
             token: await this.l1Contract!.getAddress(),
             amount: TOKEN_MINT_AMOUNT,
@@ -529,6 +546,15 @@ export class ERC20Handler {
 
         const assetId = await this.assetId(chainHandler);
         chainHandler.chainBalances[assetId] = (chainHandler.chainBalances[assetId] ?? 0n) + TOKEN_MINT_AMOUNT;
+
+        if (trackBaseToken) {
+            const baseTokenAfter = await chainHandler.getTotalBaseTokenChainBalance();
+            const baseTokenDelta = baseTokenAfter - baseTokenBefore;
+            if (baseTokenDelta > 0n) {
+                chainHandler.chainBalances[chainHandler.baseTokenAssetId] =
+                    (chainHandler.chainBalances[chainHandler.baseTokenAssetId] ?? 0n) + baseTokenDelta;
+            }
+        }
     }
 
     async withdraw(amount?: bigint): Promise<WithdrawalHandler> {
