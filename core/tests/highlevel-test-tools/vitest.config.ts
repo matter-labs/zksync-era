@@ -1,4 +1,8 @@
 import { defineConfig } from 'vitest/config';
+import { findHome } from './src/zksync-home';
+import path from 'path';
+
+const logsDir = path.join(findHome(), 'logs', 'highlevel');
 
 export default defineConfig({
     test: {
@@ -10,6 +14,10 @@ export default defineConfig({
             provider: 'v8',
             reporter: ['text', 'json', 'html'],
             exclude: ['node_modules/', 'dist/', '**/*.d.ts', '**/*.test.ts', '**/*.spec.ts', 'tests/setup.ts']
+        },
+        reporters: ['default', 'json'],
+        outputFile: {
+            json: path.join(logsDir, 'vitest-results.json')
         },
         testTimeout: 20 * 60 * 1000, // 20 minutes
         hookTimeout: 25 * 60 * 1000, // 25 minutes - revert test beforeAll needs ~20 min
