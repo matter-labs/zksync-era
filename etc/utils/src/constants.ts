@@ -49,7 +49,7 @@ function readContract(path: string, fileName: string, contractName?: string) {
 export const ArtifactL1BridgeHub = readContract(`${ARTIFACTS_PATH}`, 'L1Bridgehub');
 export const ArtifactInteropCenter = readContract(`${ARTIFACTS_PATH}`, 'InteropCenter');
 export const ArtifactInteropHandler = readContract(`${ARTIFACTS_PATH}`, 'InteropHandler');
-export const ArtifactL2InteropRootStorage = readContract(`${SYSTEM_ARTIFACTS_PATH}`, 'L2InteropRootStorage');
+export const ArtifactL2InteropRootStorage = readContract(`${ARTIFACTS_PATH}`, 'L2InteropRootStorage');
 export const ArtifactL2MessageVerification = readContract(`${ARTIFACTS_PATH}`, 'L2MessageVerification');
 export const ArtifactIERC7786Attributes = readContract(`${ARTIFACTS_PATH}`, 'IERC7786Attributes');
 export const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}`, 'L2NativeTokenVault');
