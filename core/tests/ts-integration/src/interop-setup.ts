@@ -17,8 +17,6 @@ import {
     waitUntilBlockFinalized,
     waitForInteropRootNonZero,
     getGWBlockNumber,
-    formatEvmV1Address,
-    formatEvmV1Chain,
     getL2bUrl,
     waitUntilBlockExecutedOnGateway
 } from './helpers';
@@ -38,7 +36,7 @@ import {
     ArtifactL1BridgeHub
 } from './constants';
 import { RetryProvider } from './retry-provider';
-import { getInteropBundleData } from 'highlevel-test-tools/src/temp-sdk';
+import { getInteropBundleData, formatEvmV1Address, formatEvmV1Chain } from 'highlevel-test-tools/src/temp-sdk';
 
 const SHARED_STATE_FILE = path.join(__dirname, '../interop-shared-state.json');
 const LOCK_DIR = path.join(__dirname, '../interop-setup.lock');

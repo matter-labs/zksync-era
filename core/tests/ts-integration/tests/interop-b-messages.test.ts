@@ -4,7 +4,7 @@
  */
 
 import { InteropTestContext } from '../src/interop-setup';
-import { formatEvmV1Address } from '../src/helpers';
+import { formatEvmV1Address } from 'highlevel-test-tools/src/temp-sdk';
 import { L2_ASSET_ROUTER_ADDRESS } from '../src/constants';
 import { TransactionReceipt } from 'ethers';
 

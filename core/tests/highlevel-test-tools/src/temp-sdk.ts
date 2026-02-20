@@ -27,6 +27,53 @@ export enum BundleStatus {
     Unbundled = 3
 }
 
+/**
+ * Formats an Ethereum address as ERC-7930 InteroperableAddress bytes
+ * Format: version (2 bytes) + chain type (2 bytes) + chain ref len (1 byte) + chain ref + addr len (1 byte) + address
+ */
+export function formatEvmV1Address(address: string, chainId?: bigint): string {
+    const version = '0001'; // ERC-7930 version
+    const chainType = '0000'; // EIP-155 chain type
+
+    let result = version + chainType;
+
+    if (chainId !== undefined) {
+        // Convert chainId to minimal bytes representation
+        const chainIdHex = chainId.toString(16);
+        const chainIdBytes = chainIdHex.length % 2 === 0 ? chainIdHex : '0' + chainIdHex;
+        const chainRefLen = (chainIdBytes.length / 2).toString(16).padStart(2, '0');
+        result += chainRefLen + chainIdBytes;
+    } else {
+        result += '00'; // Empty chain reference
+    }
+
+    result += '14'; // Address length (20 bytes)
+    result += address.slice(2); // Remove '0x' prefix
+
+    return '0x' + result;
+}
+
+/**
+ * Formats a chain ID as ERC-7930 InteroperableAddress bytes (without specific address)
+ * This is used for destination chain specification in sendBundle
+ */
+export function formatEvmV1Chain(chainId: bigint): string {
+    const version = '0001'; // ERC-7930 version
+    const chainType = '0000'; // EIP-155 chain type
+
+    let result = version + chainType;
+
+    // Convert chainId to minimal bytes representation
+    const chainIdHex = chainId.toString(16);
+    const chainIdBytes = chainIdHex.length % 2 === 0 ? chainIdHex : '0' + chainIdHex;
+    const chainRefLen = (chainIdBytes.length / 2).toString(16).padStart(2, '0');
+    result += chainRefLen + chainIdBytes;
+
+    result += '00'; // Empty address (0 length)
+
+    return '0x' + result;
+}
+
 export async function getInteropBundleData(
     provider: zksync.Provider,
     withdrawalHash: BytesLike,
