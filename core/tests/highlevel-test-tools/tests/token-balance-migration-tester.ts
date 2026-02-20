@@ -481,8 +481,7 @@ export class ChainHandler {
         const after = await this.getTotalBaseTokenChainBalance();
         const delta = after - before;
         if (delta !== 0n) {
-            this.chainBalances[this.baseTokenAssetId] =
-                (this.chainBalances[this.baseTokenAssetId] ?? 0n) + delta;
+            this.chainBalances[this.baseTokenAssetId] = (this.chainBalances[this.baseTokenAssetId] ?? 0n) + delta;
         }
     }
 
