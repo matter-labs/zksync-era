@@ -42,6 +42,7 @@ import { getInteropBundleData } from './temp-sdk';
 
 const SHARED_STATE_FILE = path.join(__dirname, '../interop-shared-state.json');
 const LOCK_DIR = path.join(__dirname, '../interop-setup.lock');
+const FUND_LOCK_DIR = path.join(__dirname, '../interop-fund.lock');
 
 // Testing environment ZK token
 export const TEST_ZK_TOKEN_DEPLOYER_PRIVATE_KEY = ethers.hashMessage('TEST_ZK_TOKEN_DEPLOYER_PRIVATE_KEY');
@@ -348,10 +349,14 @@ export class InteropTestContext {
                     const state = JSON.parse(fs.readFileSync(SHARED_STATE_FILE, 'utf-8'));
                     this.loadState(state);
 
-                    // Fund and approve the ZK token and the test token on Interop1
-                    await this.fundInterop1TokenForSuite(TEST_ZK_TOKEN_ADDRESS);
-                    await this.fundInterop1TokenForSuite(this.tokenA.l1Address);
-                    await this.approveInteropCenterToSpendZkToken();
+                    // Fund and approve the ZK token and the test token on Interop1.
+                    // These send L1/L2 transactions using shared wallets, so we must
+                    // serialize across parallel test processes to avoid nonce collisions.
+                    await this.withFundLock(async () => {
+                        await this.fundInterop1TokenForSuite(TEST_ZK_TOKEN_ADDRESS);
+                        await this.fundInterop1TokenForSuite(this.tokenA.l1Address);
+                        await this.approveInteropCenterToSpendZkToken();
+                    });
                     return;
                 } catch (e) {
                     // File might be half-written, continue waiting
@@ -398,6 +403,32 @@ export class InteropTestContext {
                     console.warn(`[${process.pid}] Failed to release lock:`, e);
                 }
             }
+        }
+    }
+
+    private async withFundLock(fn: () => Promise<void>) {
+        const maxRetries = 120;
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                fs.mkdirSync(FUND_LOCK_DIR);
+                break;
+            } catch (err: any) {
+                if (err.code === 'EEXIST') {
+                    await utils.sleep(1);
+                    if (i === maxRetries - 1) {
+                        throw new Error(`[${process.pid}] Timed out waiting for fund lock`);
+                    }
+                } else {
+                    throw err;
+                }
+            }
+        }
+        try {
+            await fn();
+        } finally {
+            try {
+                fs.rmdirSync(FUND_LOCK_DIR);
+            } catch (_) {}
         }
     }
 
