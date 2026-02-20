@@ -38,7 +38,7 @@ import {
     ArtifactL1BridgeHub
 } from './constants';
 import { RetryProvider } from './retry-provider';
-import { getInteropBundleData } from './temp-sdk';
+import { getInteropBundleData } from 'highlevel-test-tools/src/temp-sdk';
 
 const SHARED_STATE_FILE = path.join(__dirname, '../interop-shared-state.json');
 const LOCK_DIR = path.join(__dirname, '../interop-setup.lock');

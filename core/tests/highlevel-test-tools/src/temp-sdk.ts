@@ -1,8 +1,7 @@
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BytesLike } from 'ethers';
-import { INTEROP_BUNDLE_ABI, MESSAGE_INCLUSION_PROOF_ABI, L2_INTEROP_CENTER_ADDRESS } from './constants';
-// import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
+import { INTEROP_BUNDLE_ABI, MESSAGE_INCLUSION_PROOF_ABI, L2_INTEROP_CENTER_ADDRESS } from 'utils/src/constants';
 
 export interface Output {
     output: any;
