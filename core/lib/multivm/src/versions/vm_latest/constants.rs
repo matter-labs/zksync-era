@@ -156,11 +156,15 @@ pub(crate) const fn get_settlement_layer_offset(subversion: MultiVmSubversion) -
     get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS + 1
 }
 
+pub(crate) const fn get_interop_fee_offset(subversion: MultiVmSubversion) -> usize {
+    get_settlement_layer_offset(subversion) + 1
+}
+
 pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversion) -> usize {
     match subversion {
         // The additional slot comes from INTEROP_ROOT_ROLLING_HASH_SLOT.
         MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS + 1,
-        MultiVmSubversion::MediumInterop => get_settlement_layer_offset(subversion) + 1,
+        MultiVmSubversion::MediumInterop => get_interop_fee_offset(subversion) + 1,
         MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles
         | MultiVmSubversion::Gateway

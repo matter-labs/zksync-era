@@ -81,6 +81,7 @@ pub struct Payload {
     pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
     pub settlement_layer: Option<SettlementLayer>,
+    pub interop_fee: Option<u64>,
 }
 
 impl Payload {

@@ -50,6 +50,7 @@ pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -
         previous_batch_hash: None,
         number: L1BatchNumber(number),
         timestamp,
+        interop_fee: U256::zero(),
         fee_account,
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {
