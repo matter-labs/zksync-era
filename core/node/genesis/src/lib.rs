@@ -587,6 +587,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
             &[],
             Default::default(),
             ZK_SYNC_BYTES_PER_BLOB as u64,
+            U256::zero(),
         )
         .await?;
     transaction

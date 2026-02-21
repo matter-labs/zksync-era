@@ -15,7 +15,7 @@ import {
     GW_ASSET_TRACKER_ADDRESS,
     GATEWAY_CHAIN_ID
 } from 'utils/src/constants';
-import { executeCommand, FileMutex, migrateToGatewayIfNeeded, startServer } from '../src';
+import { executeCommand, FileMutex, migrateToGatewayIfNeeded, agreeToPaySettlementFees, startServer } from '../src';
 import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
 
@@ -165,6 +165,10 @@ export class ChainHandler {
     }
 
     async initEcosystemContracts(gwWallet: zksync.Wallet) {
+        // Fix baseTokenAssetId: js-yaml parses unquoted hex as a lossy JS number.
+        // Query the on-chain NTV for the authoritative asset ID string.
+        this.baseTokenAssetId = await this.l1Ntv.assetId(await this.l1BaseTokenContract.getAddress());
+
         const l1AssetTrackerAddr = await this.l1Ntv.l1AssetTracker();
         this.l1AssetTracker = new ethers.Contract(
             l1AssetTrackerAddr,
@@ -265,21 +269,25 @@ export class ChainHandler {
     }
 
     async migrateToGateway() {
-        // Pause deposits before initiating migration
-        await this.zkstackExecWithMutex(
-            ['chain', 'pause-deposits', '--chain', this.inner.chainName],
-            'pausing deposits before initiating migration',
-            'gateway_migration'
-        );
-        // Wait for priority queue to be empty
-        await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
-        // Wait for all batches to be executed
-        await this.inner.waitForAllBatchesToBeExecuted();
-        // We can now reliably migrate to gateway
-        removeErrorListeners(this.inner.mainNode.process!);
-        await migrateToGatewayIfNeeded(this.inner.chainName);
-        await this.waitForShutdown();
-        await this.startServer();
+        await this.trackBaseTokenDelta(async () => {
+            // Pause deposits before initiating migration
+            await this.zkstackExecWithMutex(
+                ['chain', 'pause-deposits', '--chain', this.inner.chainName],
+                'pausing deposits before initiating migration',
+                'gateway_migration'
+            );
+            // Wait for priority queue to be empty
+            await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
+            // Wait for all batches to be executed
+            await this.inner.waitForAllBatchesToBeExecuted();
+            // We can now reliably migrate to gateway
+            removeErrorListeners(this.inner.mainNode.process!);
+            await migrateToGatewayIfNeeded(this.inner.chainName);
+            await agreeToPaySettlementFees(this.inner.chainName);
+
+            await this.waitForShutdown();
+            await this.startServer();
+        });
 
         // After migration, we can define the gateway getters contract
         const gatewayConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'gateway_chain.yaml' });
@@ -298,77 +306,83 @@ export class ChainHandler {
     }
 
     async migrateFromGateway() {
-        // Pause deposits before initiating migration
-        await this.zkstackExecWithMutex(
-            ['chain', 'pause-deposits', '--chain', this.inner.chainName],
-            'pausing deposits before initiating migration',
-            'gateway_migration'
-        );
-        // Wait for priority queue to be empty
-        await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
-        // Wait for all batches to be executed
-        await this.inner.waitForAllBatchesToBeExecuted();
-        // Notify server
-        await this.zkstackExecWithMutex(
-            ['chain', 'gateway', 'notify-about-from-gateway-update', '--chain', this.inner.chainName],
-            'notifying about from gateway update',
-            'gateway_migration'
-        );
-        // We can now reliably migrate from gateway
-        removeErrorListeners(this.inner.mainNode.process!);
-        await this.zkstackExecWithMutex(
-            [
-                'chain',
-                'gateway',
-                'migrate-from-gateway',
-                '--gateway-chain-name',
-                'gateway',
-                '--chain',
-                this.inner.chainName
-            ],
-            'migrating from gateway',
-            'gateway_migration'
-        );
-        await this.waitForShutdown();
-        await this.startServer();
+        await this.trackBaseTokenDelta(async () => {
+            // Pause deposits before initiating migration
+            await this.zkstackExecWithMutex(
+                ['chain', 'pause-deposits', '--chain', this.inner.chainName],
+                'pausing deposits before initiating migration',
+                'gateway_migration'
+            );
+            // Wait for priority queue to be empty
+            await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
+            // Wait for all batches to be executed
+            await this.inner.waitForAllBatchesToBeExecuted();
+            // Notify server
+            await this.zkstackExecWithMutex(
+                ['chain', 'gateway', 'notify-about-from-gateway-update', '--chain', this.inner.chainName],
+                'notifying about from gateway update',
+                'gateway_migration'
+            );
+            // We can now reliably migrate from gateway
+            removeErrorListeners(this.inner.mainNode.process!);
+            await this.zkstackExecWithMutex(
+                [
+                    'chain',
+                    'gateway',
+                    'migrate-from-gateway',
+                    '--gateway-chain-name',
+                    'gateway',
+                    '--chain',
+                    this.inner.chainName
+                ],
+                'migrating from gateway',
+                'gateway_migration'
+            );
+            await this.waitForShutdown();
+            await this.startServer();
+        });
     }
 
     async initiateTokenBalanceMigration(direction: 'to-gateway' | 'from-gateway') {
-        await executeCommand(
-            'zkstack',
-            [
-                'chain',
-                'gateway',
-                'initiate-token-balance-migration',
-                '--to-gateway',
-                String(direction === 'to-gateway'),
-                '--gateway-chain-name',
-                'gateway',
-                '--chain',
-                this.inner.chainName
-            ],
-            this.inner.chainName,
-            'token_balance_migration'
-        );
+        await this.trackBaseTokenDelta(async () => {
+            await executeCommand(
+                'zkstack',
+                [
+                    'chain',
+                    'gateway',
+                    'initiate-token-balance-migration',
+                    '--to-gateway',
+                    String(direction === 'to-gateway'),
+                    '--gateway-chain-name',
+                    'gateway',
+                    '--chain',
+                    this.inner.chainName
+                ],
+                this.inner.chainName,
+                'token_balance_migration'
+            );
+        });
     }
 
     async finalizeTokenBalanceMigration(direction: 'to-gateway' | 'from-gateway') {
-        await executeCommand(
-            'zkstack',
-            [
-                'chain',
-                'gateway',
-                'finalize-token-balance-migration',
-                '--to-gateway',
-                String(direction === 'to-gateway'),
-                '--gateway-chain-name',
-                'gateway',
-                '--chain',
-                this.inner.chainName
-            ],
-            this.inner.chainName,
-            'token_balance_migration'
-        );
+        await this.trackBaseTokenDelta(async () => {
+            await executeCommand(
+                'zkstack',
+                [
+                    'chain',
+                    'gateway',
+                    'finalize-token-balance-migration',
+                    '--to-gateway',
+                    String(direction === 'to-gateway'),
+                    '--gateway-chain-name',
+                    'gateway',
+                    '--chain',
+                    this.inner.chainName
+                ],
+                this.inner.chainName,
+                'token_balance_migration'
+            );
+        });
     }
 
     static async createNewChain(chainType: ChainType): Promise<ChainHandler> {
@@ -450,6 +464,29 @@ export class ChainHandler {
         return true;
     }
 
+    /// Returns the total base token chain balance across L1AT and GWAT.
+    /// The sum is always valid regardless of migration phase, since at any point
+    /// the chain's balance is split between L1AT and GWAT.
+    async getTotalBaseTokenChainBalance(): Promise<bigint> {
+        const l1atBalance = await this.l1AssetTracker.chainBalance(this.inner.chainId, this.baseTokenAssetId);
+        const gwatBalance = this.gwAssetTracker
+            ? await this.gwAssetTracker.chainBalance(this.inner.chainId, this.baseTokenAssetId)
+            : 0n;
+        return l1atBalance + gwatBalance;
+    }
+
+    /// Executes an action and tracks any base token chain balance change caused by it.
+    /// This captures gas spent on L1/GW priority operations that increase chain balance.
+    async trackBaseTokenDelta(action: () => Promise<void>): Promise<void> {
+        const before = await this.getTotalBaseTokenChainBalance();
+        await action();
+        const after = await this.getTotalBaseTokenChainBalance();
+        const delta = after - before;
+        if (delta !== 0n) {
+            this.chainBalances[this.baseTokenAssetId] = (this.chainBalances[this.baseTokenAssetId] ?? 0n) + delta;
+        }
+    }
+
     private async assertAssetMigrationNumber(
         assetId: string,
         where: 'L1AT' | 'L1AT_GW' | 'GWAT',
@@ -516,6 +553,12 @@ export class ERC20Handler {
     }
 
     async deposit(chainHandler: ChainHandler) {
+        // For non-base-token deposits, measure the base token chain balance delta.
+        // ERC20 deposits also send base token for L2 gas, which the asset tracker tracks
+        // but would otherwise be unaccounted for in our local chainBalances.
+        const trackBaseToken = !this.isBaseToken && !!chainHandler.baseTokenAssetId;
+        const baseTokenBefore = trackBaseToken ? await chainHandler.getTotalBaseTokenChainBalance() : 0n;
+
         const depositTx = await this.wallet.deposit({
             token: await this.l1Contract!.getAddress(),
             amount: TOKEN_MINT_AMOUNT,
@@ -529,6 +572,15 @@ export class ERC20Handler {
 
         const assetId = await this.assetId(chainHandler);
         chainHandler.chainBalances[assetId] = (chainHandler.chainBalances[assetId] ?? 0n) + TOKEN_MINT_AMOUNT;
+
+        if (trackBaseToken) {
+            const baseTokenAfter = await chainHandler.getTotalBaseTokenChainBalance();
+            const baseTokenDelta = baseTokenAfter - baseTokenBefore;
+            if (baseTokenDelta > 0n) {
+                chainHandler.chainBalances[chainHandler.baseTokenAssetId] =
+                    (chainHandler.chainBalances[chainHandler.baseTokenAssetId] ?? 0n) + baseTokenDelta;
+            }
+        }
     }
 
     async withdraw(amount?: bigint): Promise<WithdrawalHandler> {

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_types::{
     block::UnsealedL1BatchHeader, fee_model::BatchFeeInput, settlement::SettlementLayer, Address,
-    L1BatchNumber, ProtocolVersionId, H256,
+    L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
 use super::L2BlockEnv;
@@ -20,6 +20,8 @@ pub struct L1BatchEnv {
 
     /// The fee input into the batch. It contains information such as L1 gas price, L2 fair gas price, etc.
     pub fee_input: BatchFeeInput,
+    #[serde(default)]
+    pub interop_fee: U256,
     pub fee_account: Address,
     pub enforced_base_fee: Option<u64>,
     pub first_l2_block: L2BlockEnv,
@@ -38,6 +40,7 @@ impl L1BatchEnv {
             protocol_version,
             fee_address: self.fee_account,
             fee_input: self.fee_input,
+            interop_fee: self.interop_fee,
             pubdata_limit,
             settlement_layer: self.settlement_layer,
         }

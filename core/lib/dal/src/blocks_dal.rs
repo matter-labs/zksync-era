@@ -242,6 +242,47 @@ impl BlocksDal<'_, '_> {
         Ok(Some(header.into()))
     }
 
+    pub async fn get_l1_batch_interop_fee(&mut self, number: L1BatchNumber) -> DalResult<U256> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                interop_fee
+            FROM
+                l1_batches
+            WHERE number = $1
+            "#,
+            i64::from(number.0),
+        )
+        .instrument("get_l1_batch_interop_fee")
+        .with_arg("number", &number)
+        .fetch_one(self.storage)
+        .await?;
+        Ok(U256::from(row.interop_fee as u64))
+    }
+
+    pub async fn get_l1_batch_interop_fee_if_sealed(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<U256>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                interop_fee,
+                is_sealed
+            FROM
+                l1_batches
+            WHERE number = $1
+            "#,
+            i64::from(number.0),
+        )
+        .instrument("get_l1_batch_interop_fee_if_sealed")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.and_then(|row| row.is_sealed.then_some(U256::from(row.interop_fee as u64))))
+    }
+
     /// Returns latest sealed L1 batch header. Returns `None` if there are no sealed batches.
     pub async fn get_latest_sealed_l1_batch_header(
         &mut self,
@@ -623,6 +664,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_type,
                 settlement_layer_chain_id
@@ -671,6 +713,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_type,
                 settlement_layer_chain_id
@@ -1032,6 +1075,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 l1_tx_count,
                 l2_tx_count,
@@ -1055,6 +1099,7 @@ impl BlocksDal<'_, '_> {
                 $6,
                 $7,
                 $8,
+                $9,
                 0,
                 0,
                 ''::bytea,
@@ -1064,8 +1109,8 @@ impl BlocksDal<'_, '_> {
                 NOW(),
                 NOW(),
                 FALSE,
-                $9,
-                $10
+                $10,
+                $11
             )
             "#,
             i64::from(unsealed_batch_header.number.0),
@@ -1075,6 +1120,7 @@ impl BlocksDal<'_, '_> {
             unsealed_batch_header.fee_input.l1_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_l2_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_pubdata_price() as i64,
+            unsealed_batch_header.interop_fee.as_u64() as i64,
             unsealed_batch_header.pubdata_limit.map(|l| l as i64),
             settlement_layer_type,
             settlement_layer_chain_id as i32
@@ -1202,6 +1248,7 @@ impl BlocksDal<'_, '_> {
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
         bytes_per_blob: u64,
+        interop_fee: U256,
     ) -> anyhow::Result<()> {
         let initial_bootloader_contents_len = initial_bootloader_contents.len();
         let instrumentation = Instrumented::new("mark_l1_batch_as_sealed")
@@ -1234,6 +1281,7 @@ impl BlocksDal<'_, '_> {
             .map(|input| input.len() as u64)
             .unwrap_or(0)
             .div_ceil(bytes_per_blob);
+        let interop_fee = interop_fee.as_u64() as i64;
 
         let query = sqlx::query!(
             r#"
@@ -1256,6 +1304,7 @@ impl BlocksDal<'_, '_> {
                 pubdata_input = $16,
                 predicted_circuits_by_type = $17,
                 blobs_amount = $18,
+                interop_fee = $19,
                 updated_at = NOW(),
                 sealed_at = NOW(),
                 is_sealed = TRUE
@@ -1284,6 +1333,7 @@ impl BlocksDal<'_, '_> {
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
             blobs_amount as i64,
+            interop_fee,
         );
         let update_result = instrumentation.with(query).execute(self.storage).await?;
 
@@ -1338,6 +1388,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_type,
                 settlement_layer_chain_id
@@ -1350,6 +1401,7 @@ impl BlocksDal<'_, '_> {
                     l1_gas_price,
                     l2_fair_gas_price,
                     fair_pubdata_price,
+                    interop_fee,
                     pubdata_limit,
                     is_sealed,
                     settlement_layer_type,
@@ -1794,6 +1846,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_chain_id,
                 settlement_layer_type
@@ -2057,6 +2110,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_chain_id,
                 settlement_layer_type
@@ -2153,6 +2207,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_chain_id,
                 settlement_layer_type
@@ -2240,6 +2295,7 @@ impl BlocksDal<'_, '_> {
                         l1_gas_price,
                         l2_fair_gas_price,
                         fair_pubdata_price,
+                        interop_fee,
                         pubdata_limit,
                         settlement_layer_chain_id,
                         settlement_layer_type
@@ -2415,6 +2471,7 @@ impl BlocksDal<'_, '_> {
                     l1_gas_price,
                     l2_fair_gas_price,
                     fair_pubdata_price,
+                    interop_fee,
                     pubdata_limit,
                     settlement_layer_chain_id,
                     settlement_layer_type
@@ -2494,6 +2551,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_chain_id,
                 settlement_layer_type
@@ -2587,6 +2645,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_chain_id,
                 settlement_layer_type
@@ -3826,7 +3885,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
         self.insert_l1_batch(header.to_unsealed_header()).await?;
-        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1)
+        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1, U256::zero())
             .await
     }
 

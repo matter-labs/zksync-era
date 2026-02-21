@@ -7,7 +7,7 @@ use smart_config::{
     metadata::TimeUnit,
     DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::{pubdata_da::PubdataSendingMode, H256};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, Address, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{utils::Fallback, EthWatchConfig};
@@ -57,6 +57,7 @@ impl EthConfig {
                 fusaka_upgrade_block: Some(0),
                 fusaka_upgrade_safety_margin: 0,
                 fusaka_upgrade_timestamp: Some(1),
+                settlement_fee_payer: None,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -189,6 +190,11 @@ pub struct SenderConfig {
     /// Use this value if block is not set
     #[config(default_t = Some(1764798551))]
     pub fusaka_upgrade_timestamp: Option<u64>,
+    /// Address that pays gateway settlement fees for execute batches.
+    /// Must have approved GWAssetTracker to spend wrapped ZK tokens.
+    /// If not set, defaults to Address::zero().
+    #[config(default)]
+    pub settlement_fee_payer: Option<Address>,
 }
 
 /// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
@@ -316,6 +322,7 @@ mod tests {
                 fusaka_upgrade_safety_margin: 100,
                 fusaka_upgrade_block: Some(33582142),
                 fusaka_upgrade_timestamp: Some(1),
+                settlement_fee_payer: None,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,

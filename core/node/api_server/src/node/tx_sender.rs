@@ -14,7 +14,7 @@ use zksync_node_framework::{
 use zksync_object_store::ObjectStore;
 use zksync_shared_resources::contracts::L2ContractsResource;
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
-use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
+use zksync_types::{vm::FastVmMode, AccountTreeId, Address, U256};
 use zksync_vm_executor::node::ApiTransactionFilter;
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -184,6 +184,7 @@ impl WiringLayer for TxSenderLayer {
             config.validation_computational_gas_limit,
         )
         .await?;
+        executor_options.set_interop_fee_fallback(U256::from(config.interop_fee));
         executor_options.set_fast_vm_mode(self.vm_mode);
 
         if let Some(store) = input.core_object_store {

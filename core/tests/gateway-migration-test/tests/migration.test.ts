@@ -402,7 +402,7 @@ describe('Migration from gateway test', function () {
 
         // Wait until the priority queue is empty
         let tryCount = 0;
-        while ((await getPriorityQueueSize()) > 0 && tryCount < 100) {
+        while ((await getPriorityQueueSizeOnL1()) > 0 && tryCount < 100) {
             tryCount += 1;
             await utils.sleep(1);
         }
@@ -426,6 +426,10 @@ describe('Migration from gateway test', function () {
             mainNodeSpawner.mainNode?.terminate();
         } catch (_) {}
     });
+
+    async function getPriorityQueueSizeOnL1() {
+        return await l1MainContract.getPriorityQueueSize();
+    }
 
     async function getPriorityQueueSize() {
         if (direction == 'TO') {

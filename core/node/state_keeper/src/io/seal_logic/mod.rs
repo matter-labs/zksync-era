@@ -133,6 +133,7 @@ impl UpdatesManager {
             pubdata_input: finished_batch.pubdata_input.clone(),
             fee_address: self.fee_account_address(),
             batch_fee_input: self.batch_fee_input(),
+            interop_fee: self.interop_fee(),
             pubdata_limit: self.pubdata_limit(),
             settlement_layer: self.settlement_layer(),
         };
@@ -151,6 +152,7 @@ impl UpdatesManager {
                 &finished_batch.final_execution_state.pubdata_costs,
                 self.pending_execution_metrics().circuit_statistic,
                 ZK_SYNC_BYTES_PER_BLOB as u64,
+                self.interop_fee(),
             )
             .await?;
         progress.observe(None);

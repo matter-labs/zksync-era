@@ -16,7 +16,7 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     settlement::SettlementLayer,
     snapshots::SnapshotVersion,
-    AccountTreeId, L2BlockNumber, ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog,
+    AccountTreeId, L2BlockNumber, ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, U256,
 };
 
 use super::*;
@@ -94,6 +94,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             pubdata_input: None,
             fee_address: Default::default(),
             batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+            interop_fee: U256::zero(),
             pubdata_limit: Some(100_000),
             settlement_layer: SettlementLayer::for_tests(),
         };

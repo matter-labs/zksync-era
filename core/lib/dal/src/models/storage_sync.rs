@@ -39,6 +39,7 @@ pub(crate) struct StorageSyncBlock {
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_type: Option<String>,
     pub settlement_layer_chain_id: Option<i64>,
+    pub interop_fee: i64,
 }
 
 pub(crate) struct SyncBlock {
@@ -58,6 +59,7 @@ pub(crate) struct SyncBlock {
     pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
     pub settlement_layer: SettlementLayer,
+    pub interop_fee: u64,
 }
 
 impl SyncBlock {
@@ -133,6 +135,7 @@ impl SyncBlock {
                 block.settlement_layer_type,
                 block.settlement_layer_chain_id,
             ),
+            interop_fee: block.interop_fee as u64,
         })
     }
 }
@@ -157,6 +160,7 @@ impl SyncBlock {
             pubdata_limit: self.pubdata_limit,
             interop_roots: Some(self.interop_roots),
             settlement_layer: Some(self.settlement_layer),
+            interop_fee: Some(self.interop_fee),
         }
     }
 
@@ -177,6 +181,7 @@ impl SyncBlock {
             pubdata_limit: self.pubdata_limit,
             interop_roots: self.interop_roots,
             settlement_layer: Some(self.settlement_layer),
+            interop_fee: Some(self.interop_fee),
         }
     }
 }
