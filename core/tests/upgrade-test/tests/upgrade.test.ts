@@ -772,7 +772,6 @@ async function prepareUpgradeCalldata(
 
     // Execute this upgrade on a specific chain under this STM.
     const chainUpgradeCalldata = contracts.adminFacetAbi.encodeFunctionData('upgradeChainFromVersion', [
-        await settlementLayerDiamondProxy.getAddress(),
         oldProtocolVersion,
         upgradeParam
     ]);
