@@ -114,7 +114,7 @@ the requests to different contracts (facets) that can be independently updated a
 ![Diamond proxy layout](https://user-images.githubusercontent.com/128217157/229521292-1532a59b-665c-4cc4-8342-d25ad45a8fcd.png)
 
 You can find more detailed description in
-[Contract docs](https://github.com/matter-labs/era-contracts/blob/main/docs/Overview.md)
+[Contract docs](https://github.com/matter-labs/era-contracts/blob/main/docs/overview.md)
 
 #### requestL2Transaction Function details
 
