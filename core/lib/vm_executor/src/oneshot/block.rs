@@ -14,7 +14,7 @@ use zksync_types::{
     settlement::SettlementLayer,
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-    SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
+    SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, U256, ZKPORTER_IS_AVAILABLE,
 };
 
 use super::{env::OneshotEnvParameters, ContractsKind};
@@ -236,12 +236,26 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         )
         .await?;
 
+        let interop_fee = connection
+            .blocks_dal()
+            .get_l1_batch_interop_fee_if_sealed(resolved_block_info.vm_l1_batch_number)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading interop fee for L1 batch #{}",
+                    resolved_block_info.vm_l1_batch_number
+                )
+            })?
+            .or(self.interop_fee_fallback)
+            .unwrap_or_default();
+
         let (system, l1_batch) = self
             .prepare_env(
                 execution_mode,
                 resolved_block_info,
                 next_block,
                 fee_input,
+                interop_fee,
                 enforced_base_fee,
             )
             .await?;
@@ -259,6 +273,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         resolved_block_info: &ResolvedBlockInfo,
         next_block: L2BlockEnv,
         fee_input: BatchFeeInput,
+        interop_fee: U256,
         enforced_base_fee: Option<u64>,
     ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
         let &Self {
@@ -286,6 +301,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
             number: resolved_block_info.vm_l1_batch_number,
             timestamp: resolved_block_info.l1_batch_timestamp,
             fee_input,
+            interop_fee,
             fee_account: *operator_account.address(),
             enforced_base_fee,
             first_l2_block: next_block,

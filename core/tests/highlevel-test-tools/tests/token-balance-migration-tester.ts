@@ -15,7 +15,7 @@ import {
     GW_ASSET_TRACKER_ADDRESS,
     GATEWAY_CHAIN_ID
 } from 'utils/src/constants';
-import { executeCommand, FileMutex, migrateToGatewayIfNeeded, startServer } from '../src';
+import { executeCommand, FileMutex, migrateToGatewayIfNeeded, agreeToPaySettlementFees, startServer } from '../src';
 import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
 
@@ -283,6 +283,8 @@ export class ChainHandler {
             // We can now reliably migrate to gateway
             removeErrorListeners(this.inner.mainNode.process!);
             await migrateToGatewayIfNeeded(this.inner.chainName);
+            await agreeToPaySettlementFees(this.inner.chainName);
+
             await this.waitForShutdown();
             await this.startServer();
         });
