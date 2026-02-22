@@ -49,7 +49,7 @@ async function migrateTokenBalanceFromL1ToGateway(
     };
 
     // Finalize the migration on L1.
-    const l1ReceiveTx = await l1AssetTracker.receiveMigrationOnL1(finalizeDepositParams);
+    const l1ReceiveTx = await l1AssetTracker.receiveL1ToGatewayMigrationOnL1(finalizeDepositParams);
     await expect(l1ReceiveTx).toBeAccepted();
     const l1Receipt = await l1ReceiveTx.wait();
 

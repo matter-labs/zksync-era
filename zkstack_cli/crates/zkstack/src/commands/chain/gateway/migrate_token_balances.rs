@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::{bail, Context};
 use clap::Parser;
 use ethers::{
-    abi::{Address, ParamType, Token},
+    abi::{AbiParser, Address, ParamType, Token},
     contract::{BaseContract, Contract},
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
@@ -431,11 +431,21 @@ async fn finalize_token_balance_migration(
             l1_provider.clone(),
         );
 
-        let expected_selector: [u8; 4] = keccak256(
-            "receiveMigrationOnL1((bytes1,bool,address,uint256,bytes32,uint256,uint256,uint256,uint256))",
-        )[0..4]
-            .try_into()
-            .expect("selector length is always 4 bytes");
+        let (expected_selector, receive_method): ([u8; 4], &str) = if to_gateway {
+            (
+                keccak256("receiveL1ToGatewayMigrationOnL1((bytes1,address,uint256,bytes32,uint256,uint256,uint256,uint256,uint256,uint256))")[0..4]
+                    .try_into()
+                    .expect("selector length is always 4 bytes"),
+                "receiveL1ToGatewayMigrationOnL1",
+            )
+        } else {
+            (
+                keccak256("receiveGatewayToL1MigrationOnL1((bytes1,address,uint256,bytes32,uint256,uint256,uint256,uint256))")[0..4]
+                    .try_into()
+                    .expect("selector length is always 4 bytes"),
+                "receiveGatewayToL1MigrationOnL1",
+            )
+        };
 
         let mut next_nonce = l1_client
             .get_transaction_count(wallet.address, Some(BlockId::Number(BlockNumber::Pending)))
@@ -457,7 +467,7 @@ async fn finalize_token_balance_migration(
             }
 
             let (data_chain_id, asset_id, selector) =
-                decode_token_balance_migration_message(&params.message.0)?;
+                decode_token_balance_migration_message(&params.message.0, to_gateway)?;
             if data_chain_id.as_u64() != expected_data_chain_id {
                 println!(
                     "Skipping tx hash from different chain: 0x{}",
@@ -500,8 +510,7 @@ async fn finalize_token_balance_migration(
                 params.proof.proof.clone(),
             );
 
-            let call_result =
-                l1_asset_tracker.method::<_, ()>("receiveMigrationOnL1", (finalize_param,));
+            let call_result = l1_asset_tracker.method::<_, ()>(receive_method, (finalize_param,));
 
             match call_result {
                 Ok(mut call) => {
@@ -800,7 +809,10 @@ async fn wait_for_migration_ready(
     Ok(finalize_params)
 }
 
-fn decode_token_balance_migration_message(message: &[u8]) -> anyhow::Result<(U256, H256, [u8; 4])> {
+fn decode_token_balance_migration_message(
+    message: &[u8],
+    to_gateway: bool,
+) -> anyhow::Result<(U256, H256, [u8; 4])> {
     if message.len() < 4 {
         bail!("L2->L1 message is too short");
     }
@@ -808,21 +820,34 @@ fn decode_token_balance_migration_message(message: &[u8]) -> anyhow::Result<(U25
     let selector: [u8; 4] = message[0..4]
         .try_into()
         .context("Failed to read function selector")?;
-    let tokens = ethers::abi::decode(
-        &[ParamType::Tuple(vec![
-            ParamType::FixedBytes(1),
-            ParamType::Bool,
-            ParamType::Address,
-            ParamType::Uint(256),
-            ParamType::FixedBytes(32),
-            ParamType::Uint(256),
-            ParamType::Uint(256),
-            ParamType::Uint(256),
-            ParamType::Uint(256),
-        ])],
-        &message[4..],
-    )
-    .context("Failed to decode token balance migration data")?;
+    let token_balance_migration_data = if to_gateway {
+        ParamType::Tuple(vec![
+            ParamType::FixedBytes(1),  // version
+            ParamType::Address,        // originToken
+            ParamType::Uint(256),      // chainId
+            ParamType::FixedBytes(32), // assetId
+            ParamType::Uint(256),      // tokenOriginChainId
+            ParamType::Uint(256),      // chainMigrationNumber
+            ParamType::Uint(256),      // assetMigrationNumber
+            ParamType::Uint(256),      // totalWithdrawalsToL1
+            ParamType::Uint(256),      // totalSuccessfulDepositsFromL1
+            ParamType::Uint(256),      // totalPreV31TotalSupply
+        ])
+    } else {
+        ParamType::Tuple(vec![
+            ParamType::FixedBytes(1),  // version
+            ParamType::Address,        // originToken
+            ParamType::Uint(256),      // chainId
+            ParamType::FixedBytes(32), // assetId
+            ParamType::Uint(256),      // tokenOriginChainId
+            ParamType::Uint(256),      // amount
+            ParamType::Uint(256),      // chainMigrationNumber
+            ParamType::Uint(256),      // assetMigrationNumber
+        ])
+    };
+
+    let tokens = ethers::abi::decode(&[token_balance_migration_data], &message[4..])
+        .context("Failed to decode token balance migration data")?;
 
     let Token::Tuple(values) = tokens
         .into_iter()
@@ -833,11 +858,11 @@ fn decode_token_balance_migration_message(message: &[u8]) -> anyhow::Result<(U25
     };
 
     let chain_id = values
-        .get(3)
+        .get(2)
         .and_then(|token| token.clone().into_uint())
         .context("Missing chainId")?;
     let asset_id_bytes = values
-        .get(4)
+        .get(3)
         .and_then(|token| token.clone().into_fixed_bytes())
         .context("Missing assetId")?;
 
