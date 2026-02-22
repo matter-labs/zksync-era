@@ -36,7 +36,7 @@ export const SYSTEM_ARTIFACTS_PATH = '../../../contracts/system-contracts/zkout'
 export const INTEROP_CALL_ABI =
     'tuple(bytes1 version, bool shadowAccount, address to, address from, uint256 value, bytes data)';
 export const INTEROP_BUNDLE_ABI =
-    'tuple(bytes1 version, uint256 destinationChainId, bytes32 interopBundleSalt, tuple(bytes1 version, bool shadowAccount, address to, address from, uint256 value, bytes data)[] calls, (address executionAddress, address unbundlerAddress) bundleAttributes)';
+    'tuple(bytes1 version, uint256 destinationChainId, uint256 destinationBaseTokenAssetId, bytes32 interopBundleSalt, tuple(bytes1 version, bool shadowAccount, address to, address from, uint256 value, bytes data)[] calls, (address executionAddress, address unbundlerAddress) bundleAttributes)';
 
 export const MESSAGE_INCLUSION_PROOF_ABI =
     'tuple(uint256 chainId, uint256 l1BatchNumber, uint256 l2MessageIndex, tuple(uint16 txNumberInBatch, address sender, bytes data) message, bytes32[] proof)';
@@ -58,3 +58,5 @@ export const ArtifactMintableERC20 = readContract('../../../contracts/l1-contrac
 export const ArtifactL1AssetRouter = readContract(`${ARTIFACTS_PATH}`, 'L1AssetRouter');
 export const ArtifactL1AssetTracker = readContract(`${ARTIFACTS_PATH}`, 'L1AssetTracker');
 export const ArtifactL2AssetTracker = readContract(`${ARTIFACTS_PATH}`, 'L2AssetTracker');
+export const ArtifactIBridgehubBase = readContract(`${ARTIFACTS_PATH}`, 'IBridgehubBase');
+export const ArtifactIGetters = readContract(`${ARTIFACTS_PATH}`, 'IGetters');

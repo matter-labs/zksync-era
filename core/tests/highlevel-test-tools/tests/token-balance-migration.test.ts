@@ -8,7 +8,10 @@ import {
     generateChainRichWallet,
     ERC20Handler,
     expectRevertWithSelector,
-    TOKEN_MINT_AMOUNT
+    TOKEN_MINT_AMOUNT,
+    sendInteropBundle,
+    awaitInteropBundle,
+    readAndBroadcastInteropBundle
 } from './token-balance-migration-tester';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
@@ -43,12 +46,12 @@ if (shouldSkip) {
 /// the entire balance to L1. It should not be possible to finalize all old interops.
 (shouldSkip ? describe.skip : describe)('Token balance migration tests', function () {
     let chainHandler: ChainHandler;
-    let customTokenChainHandler: ChainHandler;
+    let secondChainHandler: ChainHandler;
 
     let l1RichWallet: ethers.Wallet;
     let gwRichWallet: zksync.Wallet;
     let chainRichWallet: zksync.Wallet;
-    let customTokenChainRichWallet: zksync.Wallet;
+    let secondChainRichWallet: zksync.Wallet;
 
     // Stored token data for cross-test assertions
     const tokens: Record<string, ERC20Handler> = {};
@@ -58,6 +61,8 @@ if (shouldSkip) {
     const unfinalizedWithdrawalsSecondChain: Record<string, WithdrawalHandler> = {};
     // Withdrawals initiated while the chain is on Gateway
     const gatewayEraWithdrawals: Record<string, WithdrawalHandler> = {};
+    // Bundles sent to from chain to custom token chain
+    const bundles: Record<string, ethers.TransactionReceipt> = {};
 
     beforeAll(async () => {
         // Initialize gateway chain
@@ -75,8 +80,11 @@ if (shouldSkip) {
         console.log('Chain rich wallet private key:', chainRichWallet.privateKey);
         // Initialize auxiliary chain
         console.log('Creating a secondary chain...');
-        customTokenChainHandler = await ChainHandler.createNewChain('era');
-        customTokenChainRichWallet = customTokenChainHandler.l2RichWallet;
+        secondChainHandler = await ChainHandler.createNewChain('era');
+        await secondChainHandler.initEcosystemContracts(gwRichWallet);
+        secondChainRichWallet = secondChainHandler.l2RichWallet;
+        // Register the second chain on the tested chain
+        await chainHandler.registerChain(l1RichWallet, secondChainHandler.inner.chainId);
 
         // DEPLOY TOKENS THAT WILL BE TESTED
         // Token native to L1, deposited to L2
@@ -88,10 +96,10 @@ if (shouldSkip) {
         unfinalizedWithdrawals.L2NativeWithdrawnToL1 = await tokens.L2NativeWithdrawnToL1.withdraw();
 
         // Token native to L2-B, withdrawn from L2-B, and deposited to L2-A
-        tokensSecondChain.L2BToken = await ERC20Handler.deployTokenOnL2(customTokenChainHandler);
+        tokensSecondChain.L2BToken = await ERC20Handler.deployTokenOnL2(secondChainHandler);
         unfinalizedWithdrawalsSecondChain.L2BToken = await tokensSecondChain.L2BToken.withdraw(TOKEN_MINT_AMOUNT);
         // Token native to L2-B, withdrawn from L2-B, not yet deposited to L2-A
-        tokensSecondChain.L2BTokenNotDepositedToL2A = await ERC20Handler.deployTokenOnL2(customTokenChainHandler);
+        tokensSecondChain.L2BTokenNotDepositedToL2A = await ERC20Handler.deployTokenOnL2(secondChainHandler);
         unfinalizedWithdrawalsSecondChain.L2BTokenNotDepositedToL2A =
             await tokensSecondChain.L2BTokenNotDepositedToL2A.withdraw(TOKEN_MINT_AMOUNT);
 
@@ -136,6 +144,18 @@ if (shouldSkip) {
         }
     });
 
+    it('Cannot initiate interop before migrating to gateway', async () => {
+        await expectRevertWithSelector(
+            sendInteropBundle(
+                chainRichWallet,
+                secondChainHandler.inner.chainId,
+                await tokens.L1NativeDepositedToL2.l2Contract?.getAddress()
+            ),
+            '"0x472477e2', // NotInGatewayMode
+            'Initiate interop before migrating to gateway should revert'
+        );
+    });
+
     it('Can migrate the chain to Gateway', async () => {
         await chainHandler.migrateToGateway();
     });
@@ -160,12 +180,8 @@ if (shouldSkip) {
         await unfinalizedWithdrawalsSecondChain.L2BToken.finalizeWithdrawal(chainRichWallet.ethWallet());
         delete unfinalizedWithdrawalsSecondChain.L2BToken;
         // Define the L2-B token for L2-A use
-        const L2BTokenL1Contract = await tokensSecondChain.L2BToken.getL1Contract(customTokenChainHandler);
-        tokens.L2BToken = await ERC20Handler.fromL2BL1Token(
-            L2BTokenL1Contract,
-            chainRichWallet,
-            customTokenChainRichWallet
-        );
+        const L2BTokenL1Contract = await tokensSecondChain.L2BToken.getL1Contract(secondChainHandler);
+        tokens.L2BToken = await ERC20Handler.fromL2BL1Token(L2BTokenL1Contract, chainRichWallet, secondChainRichWallet);
         // Deposit L2-B token to L2-A
         await tokens.L2BToken.deposit(chainHandler);
         await expect(
@@ -180,6 +196,42 @@ if (shouldSkip) {
                 }
             })
         ).resolves.toBe(true);
+    });
+
+    it('Cannot initiate interop to non registered chains', async () => {
+        await expectRevertWithSelector(
+            sendInteropBundle(
+                chainRichWallet,
+                1337, // Chain that does not exist, and thus is not registered
+                await tokens.L2BToken.l2Contract?.getAddress()
+            ),
+            '0x2d159f39', // DestinationChainNotRegistered
+            'Initiate to non registered chains should revert'
+        );
+    });
+
+    it('Cannot initiate interop for non migrated tokens', async () => {
+        // We already registered the destination chain on the sending chain before migrating any of them to gateway
+        // Trying this registration now would revert with `ChainsSettlementLayerMismatch`
+        await expectRevertWithSelector(
+            sendInteropBundle(
+                chainRichWallet,
+                secondChainHandler.inner.chainId,
+                await tokens.L1NativeDepositedToL2.l2Contract?.getAddress()
+            ),
+            '0x90ed63bb', // TokenBalanceNotMigratedToGateway
+            'Initiate interop for non migrated tokens should revert'
+        );
+    });
+
+    it('Can initiate interop to chains that are registered on this chain, but not migrated to gateway', async () => {
+        // Since L2BToken was deposited after the chain migrated to gateway, its balance gets effectively migrated
+        bundles.beforeGatewayRegistrationOfSecondChain = await sendInteropBundle(
+            chainRichWallet,
+            secondChainHandler.inner.chainId,
+            await tokens.L2BToken.l2Contract?.getAddress()
+        );
+        // TODO: Reduce the balance of the L2-B token on the sending chain
     });
 
     it('Can initiate token balance migration to Gateway', async () => {
@@ -218,11 +270,11 @@ if (shouldSkip) {
 
         // Define the L2-B token for L2-A use
         const L2BTokenNotDepositedToL2AL1Contract =
-            await tokensSecondChain.L2BTokenNotDepositedToL2A.getL1Contract(customTokenChainHandler);
+            await tokensSecondChain.L2BTokenNotDepositedToL2A.getL1Contract(secondChainHandler);
         tokens.L2BTokenNotDepositedToL2A = await ERC20Handler.fromL2BL1Token(
             L2BTokenNotDepositedToL2AL1Contract,
             chainRichWallet,
-            customTokenChainRichWallet
+            secondChainRichWallet
         );
     });
 
@@ -278,6 +330,30 @@ if (shouldSkip) {
                     }
                 })
             ).resolves.toBe(true);
+        }
+    });
+
+    it('Can migrate the second chain to gateway', async () => {
+        await secondChainHandler.migrateToGateway();
+    });
+
+    it('Can initiate interop of migrated tokens', async () => {
+        bundles.afterChainMigrationToGateway = await sendInteropBundle(
+            chainRichWallet,
+            secondChainHandler.inner.chainId,
+            await tokens.L2BToken.l2Contract?.getAddress()
+        );
+        // TODO: Reduce the balance of the L2-B token on the sending chain
+    });
+
+    it('Can finalize interop of migrated tokens', async () => {
+        for (const bundleName of Object.keys(bundles)) {
+            await awaitInteropBundle(chainRichWallet, gwRichWallet, secondChainRichWallet, bundles[bundleName].hash);
+            await readAndBroadcastInteropBundle(
+                secondChainRichWallet,
+                chainRichWallet.provider,
+                bundles[bundleName].hash
+            );
         }
     });
 
@@ -378,8 +454,8 @@ if (shouldSkip) {
         if (chainHandler) {
             await chainHandler.stopServer();
         }
-        if (customTokenChainHandler) {
-            await customTokenChainHandler.stopServer();
+        if (secondChainHandler) {
+            await secondChainHandler.stopServer();
         }
         console.log('Complete');
     });
