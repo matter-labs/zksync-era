@@ -123,6 +123,20 @@ zkstack chain gateway finalize-chain-migration-to-gateway --chain era --gateway-
 zkstack chain gateway migrate-to-gateway --chain $SECOND_CHAIN_NAME --gateway-chain-name gateway
 zkstack chain gateway finalize-chain-migration-to-gateway --chain $SECOND_CHAIN_NAME --gateway-chain-name gateway --deploy-paymaster
 
+# Get the GW base token wrapped address and operator private key
+GW_ASSET_TRACKER_ADDRESS=0x0000000000000000000000000000000000010010
+AMOUNT=1000000000000000000
+GW_RPC_URL=$(yq -r '.api.web3_json_rpc.http_url' chains/gateway/configs/general.yaml)
+GW_WRAPPED_ZK_TOKEN_ADDRESS=$(cast call $GW_ASSET_TRACKER_ADDRESS "wrappedZKToken()(address)" --rpc-url $GW_RPC_URL)
+ERA_OPERATOR_PRIVATE_KEY=$(yq -r '.operator.private_key' chains/era/configs/wallets.yaml)
+# Wrap some GW base token to the era operator
+cast send $GW_WRAPPED_ZK_TOKEN_ADDRESS "deposit()" --private-key $ERA_OPERATOR_PRIVATE_KEY --rpc-url $GW_RPC_URL --value $AMOUNT
+# Approve spending to GWAT
+cast send $GW_WRAPPED_ZK_TOKEN_ADDRESS "approve(address,uint256)" $GW_ASSET_TRACKER_ADDRESS $AMOUNT --private-key $ERA_OPERATOR_PRIVATE_KEY --rpc-url $GW_RPC_URL
+# Agree to pay settlement fees for era chain
+ERA_CHAIN_ID=$(yq -r '.chain_id' chains/era/ZkStack.yaml)
+cast send $GW_ASSET_TRACKER_ADDRESS "agreeToPaySettlementFees(uint256)" $ERA_CHAIN_ID --private-key $ERA_OPERATOR_PRIVATE_KEY --rpc-url $GW_RPC_URL
+
 # Chain registrations on chain `validium` were skipped, as its deposits were paused. Do these registrations now
 zkstack chain --chain $SECOND_CHAIN_NAME register-on-all-chains 
 

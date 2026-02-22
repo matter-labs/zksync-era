@@ -86,6 +86,11 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
         } else {
             Some(SettlementLayer::L1(SLChainId(rng.gen::<u64>())))
         },
+        interop_fee: if protocol_version < ProtocolVersionId::Version29 {
+            None
+        } else {
+            Some(rng.gen())
+        },
     }
 }
 

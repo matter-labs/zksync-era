@@ -142,3 +142,9 @@ pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
     output: "script-out/gateway-finalize-upgrade.toml",
     script_path: "deploy-scripts/upgrade/FinalizeUpgrade.s.sol",
 };
+
+pub const SET_INTEROP_FEE_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/set-interop-fee.toml",
+    output: "script-out/output-set-interop-fee.toml",
+    script_path: "deploy-scripts/chain/SetInteropFee.s.sol",
+};

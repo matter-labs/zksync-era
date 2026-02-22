@@ -245,6 +245,7 @@ impl ProtoFmt for Payload {
             interop_roots,
             settlement_layer: read_optional_repr(&r.settlement_layer)
                 .context("settlement_layer")?,
+            interop_fee: r.interop_fee,
         };
         if this.protocol_version.is_pre_gateway() {
             anyhow::ensure!(
@@ -312,6 +313,7 @@ impl ProtoFmt for Payload {
             pubdata_limit: self.pubdata_limit,
             interop_roots: self.interop_roots.iter().map(ProtoRepr::build).collect(),
             settlement_layer: self.settlement_layer.as_ref().map(ProtoRepr::build),
+            interop_fee: self.interop_fee,
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {

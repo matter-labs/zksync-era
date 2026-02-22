@@ -83,12 +83,13 @@ pub async fn build_tx_sender(
         replica_pool,
         web3_json_config.gas_price_scale_factor_open_batch,
     );
-    let executor_options = SandboxExecutorOptions::new(
+    let mut executor_options = SandboxExecutorOptions::new(
         tx_sender_config.chain_id,
         AccountTreeId::new(tx_sender_config.fee_account_addr),
         tx_sender_config.validation_computational_gas_limit,
     )
     .await?;
+    executor_options.set_interop_fee_fallback(U256::from(tx_sender_config.interop_fee));
     let tx_sender = tx_sender_builder.build(
         Arc::new(batch_fee_input_provider),
         Arc::new(vm_concurrency_limiter),
@@ -155,6 +156,11 @@ impl SandboxExecutorOptions {
     /// Sets the fast VM mode used by this executor.
     pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
         self.fast_vm_mode = fast_vm_mode;
+    }
+
+    pub fn set_interop_fee_fallback(&mut self, interop_fee: U256) {
+        self.estimate_gas.set_interop_fee_fallback(interop_fee);
+        self.eth_call.set_interop_fee_fallback(interop_fee);
     }
 
     pub fn set_vm_dump_object_store(&mut self, store: Arc<dyn ObjectStore>) {
@@ -263,6 +269,7 @@ pub struct TxSenderConfig {
     pub max_allowed_l2_tx_gas_limit: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
+    pub interop_fee: u64,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
     pub timestamp_asserter_params: Option<TimestampAsserterParams>,
@@ -289,6 +296,7 @@ impl TxSenderConfig {
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
+            interop_fee: state_keeper_config.interop_fee,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
             timestamp_asserter_params: None,

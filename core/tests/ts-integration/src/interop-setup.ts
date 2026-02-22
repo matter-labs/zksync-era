@@ -40,12 +40,25 @@ import { getInteropBundleData, formatEvmV1Address, formatEvmV1Chain } from 'high
 
 const SHARED_STATE_FILE = path.join(__dirname, '../interop-shared-state.json');
 const LOCK_DIR = path.join(__dirname, '../interop-setup.lock');
+const FUND_LOCK_DIR = path.join(__dirname, '../interop-fund.lock');
+
+// Testing environment ZK token
+export const TEST_ZK_TOKEN_DEPLOYER_PRIVATE_KEY = ethers.hashMessage('TEST_ZK_TOKEN_DEPLOYER_PRIVATE_KEY');
+export const TEST_ZK_TOKEN_ADDRESS = '0x8207187d1682B3ebaF2e1bdE471aC9d5B886fD93';
 
 export interface InteropCallStarter {
     to: string;
     data: string;
     callAttributes: string[];
 }
+
+type BalanceSnapshot = {
+    native: bigint;
+    baseToken2?: bigint;
+    token?: bigint;
+    tokenAddress?: string;
+    zkToken?: bigint;
+};
 
 export class InteropTestContext {
     public testMaster!: TestMaster;
@@ -78,6 +91,9 @@ export class InteropTestContext {
     public interop1InteropCenter!: zksync.Contract;
     public interop1NativeTokenVault!: zksync.Contract;
     public interop1TokenA!: zksync.Contract;
+    // Interop 1 fee variables
+    public zkTokenAddressInterop1!: string;
+    public fixedFee!: bigint;
 
     // Interop2 (Second Chain) Variables
     public baseToken2!: Token;
@@ -330,7 +346,15 @@ export class InteropTestContext {
 
                     const state = JSON.parse(fs.readFileSync(SHARED_STATE_FILE, 'utf-8'));
                     this.loadState(state);
-                    await this.fundInterop1TokenAForSuite();
+
+                    // Fund and approve the ZK token and the test token on Interop1.
+                    // These send L1/L2 transactions using shared wallets, so we must
+                    // serialize across parallel test processes to avoid nonce collisions.
+                    await this.withFundLock(async () => {
+                        await this.fundInterop1TokenForSuite(TEST_ZK_TOKEN_ADDRESS);
+                        await this.fundInterop1TokenForSuite(this.tokenA.l1Address);
+                        await this.approveInteropCenterToSpendZkToken();
+                    });
                     return;
                 } catch (e) {
                     // File might be half-written, continue waiting
@@ -360,7 +384,7 @@ export class InteropTestContext {
         try {
             await this.performSetup();
         } catch (error) {
-            console.error(`[${process.pid}] Setup failed, removing lock.`);
+            console.error(`[${process.pid}] Setup failed: ${error}, removing lock.`);
             // If we fail, remove lock so others might try (or fail faster)
             try {
                 fs.rmdirSync(LOCK_DIR);
@@ -380,12 +404,73 @@ export class InteropTestContext {
         }
     }
 
+    private async withFundLock(fn: () => Promise<void>) {
+        const maxRetries = 120;
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                fs.mkdirSync(FUND_LOCK_DIR);
+                break;
+            } catch (err: any) {
+                if (err.code === 'EEXIST') {
+                    await utils.sleep(1);
+                    if (i === maxRetries - 1) {
+                        throw new Error(`[${process.pid}] Timed out waiting for fund lock`);
+                    }
+                } else {
+                    throw err;
+                }
+            }
+        }
+        try {
+            await fn();
+        } finally {
+            try {
+                fs.rmdirSync(FUND_LOCK_DIR);
+            } catch (_) {}
+        }
+    }
+
     private async performSetup() {
-        const l1TokenArtifact = readContract(ARTIFACTS_PATH, 'TestnetERC20Token');
-        const l1TokenBytecode = l1TokenArtifact.bytecode.object ?? l1TokenArtifact.bytecode;
+        // Deploy the test ZK token if it wasn't already, as may be the case when testing locally
+        const zkTokenExists = (await this.interop1RichWallet.providerL1?.getCode(TEST_ZK_TOKEN_ADDRESS)) !== '0x';
+        if (!zkTokenExists) {
+            // Fund the deployer
+            const zkTokenDeployer = new ethers.Wallet(
+                TEST_ZK_TOKEN_DEPLOYER_PRIVATE_KEY,
+                this.interop1RichWallet.providerL1
+            );
+            await (
+                await this.interop1RichWallet.ethWallet().sendTransaction({
+                    to: zkTokenDeployer.address,
+                    value: ethers.parseEther('0.1')
+                })
+            ).wait();
+            // Deploy the ZK token
+            const zkTokenFactory = new ethers.ContractFactory(
+                ArtifactMintableERC20.abi,
+                ArtifactMintableERC20.bytecode,
+                zkTokenDeployer
+            );
+            const zkTokenDeploy = await zkTokenFactory.deploy('ZK', 'ZK', 18);
+            await zkTokenDeploy.waitForDeployment();
+            const zkTokenAddress = await zkTokenDeploy.getAddress();
+            if (zkTokenAddress !== TEST_ZK_TOKEN_ADDRESS) {
+                throw new Error(
+                    `Test ZK token address mismatch: ${zkTokenAddress} !== ${TEST_ZK_TOKEN_ADDRESS}. Probably compiler version changed.`
+                );
+            }
+            console.log(`Deployed test ZK token at ${zkTokenAddress}`);
+        }
+
+        // Fund the wallet with ZK token for paying the fixed interop fee
+        await this.fundInterop1TokenForSuite(TEST_ZK_TOKEN_ADDRESS);
+        // Approve the interop center to spend the ZK tokens
+        await this.approveInteropCenterToSpendZkToken();
+
+        // Deploy test token on L1
         const l1TokenFactory = new ethers.ContractFactory(
-            l1TokenArtifact.abi,
-            l1TokenBytecode,
+            ArtifactMintableERC20.abi,
+            ArtifactMintableERC20.bytecode,
             this.interop1RichWallet.ethWallet()
         );
         const l1TokenDeploy = await l1TokenFactory.deploy(
@@ -395,7 +480,7 @@ export class InteropTestContext {
         );
         await l1TokenDeploy.waitForDeployment();
         this.tokenA.l1Address = await l1TokenDeploy.getAddress();
-        await this.fundInterop1TokenAForSuite();
+        await this.fundInterop1TokenForSuite(this.tokenA.l1Address);
 
         const l1ChainId = (await this.l1Provider.getNetwork()).chainId;
         this.tokenA.assetId = encodeNTVAssetId(l1ChainId, this.tokenA.l1Address);
@@ -419,30 +504,49 @@ export class InteropTestContext {
                 l2Address: this.tokenA.l2Address,
                 l2AddressSecondChain: this.tokenA.l2AddressSecondChain,
                 assetId: this.tokenA.assetId
-            }
+            },
+            zkTokenAddressInterop1: this.zkTokenAddressInterop1,
+            fixedFee: this.fixedFee.toString()
         };
 
         this.loadState(newState);
         fs.writeFileSync(SHARED_STATE_FILE, JSON.stringify(newState, null, 2));
     }
 
-    private async fundInterop1TokenAForSuite() {
-        const l1Token = new ethers.Contract(
-            this.tokenA.l1Address,
-            readContract(ARTIFACTS_PATH, 'TestnetERC20Token').abi,
+    private async fundInterop1TokenForSuite(tokenAddress: string) {
+        const initialL1Amount = ethers.parseEther('1000');
+        const zkToken = new ethers.Contract(
+            tokenAddress,
+            ArtifactMintableERC20.abi,
             this.interop1RichWallet.ethWallet()
         );
-        const initialL1Amount = ethers.parseEther('1000');
-        await (await l1Token.mint(this.interop1RichWallet.address, initialL1Amount)).wait();
+        await (await zkToken.mint(this.interop1RichWallet.address, initialL1Amount)).wait();
         await (
             await this.interop1RichWallet.deposit({
-                token: this.tokenA.l1Address,
+                token: tokenAddress,
                 amount: initialL1Amount,
                 to: this.interop1Wallet.address,
                 approveERC20: true,
                 approveBaseERC20: true
             })
         ).wait();
+    }
+
+    private async approveInteropCenterToSpendZkToken() {
+        // Get the fixed fee amount
+        this.fixedFee = await this.interop1InteropCenter.ZK_INTEROP_FEE();
+        // Approve the interop center to spend the ZK tokens
+        this.zkTokenAddressInterop1 = ethers.ZeroAddress;
+        while (this.zkTokenAddressInterop1 === ethers.ZeroAddress) {
+            this.zkTokenAddressInterop1 = await this.interop1InteropCenter.getZKTokenAddress();
+            await zksync.utils.sleep(this.interop1Wallet.provider.pollingInterval);
+        }
+        const zkTokenInterop1 = new zksync.Contract(
+            this.zkTokenAddressInterop1,
+            ArtifactMintableERC20.abi,
+            this.interop1Wallet
+        );
+        await (await zkTokenInterop1.approve(L2_INTEROP_CENTER_ADDRESS, ethers.parseEther('1000'))).wait();
     }
 
     private loadState(state: any) {
@@ -456,6 +560,9 @@ export class InteropTestContext {
             ArtifactMintableERC20.abi,
             this.interop1Wallet
         );
+
+        this.zkTokenAddressInterop1 = state.zkTokenAddressInterop1;
+        this.fixedFee = BigInt(state.fixedFee);
     }
 
     async deinitialize() {
@@ -476,22 +583,31 @@ export class InteropTestContext {
     }
 
     /**
+     * Helper to create the useFixedFee attribute
+     */
+    async useFixedFeeAttr(useFixedFee: boolean = false) {
+        return this.erc7786AttributeDummy.interface.encodeFunctionData('useFixedFee', [useFixedFee]);
+    }
+
+    /**
      * Helper to create attributes with interopCallValue
      */
-    async directCallAttrs(amount: bigint, executionAddress?: string) {
+    async directCallAttrs(amount: bigint, useFixedFee: boolean = false, executionAddress?: string) {
         return [
             await this.erc7786AttributeDummy.interface.encodeFunctionData('interopCallValue', [amount]),
-            await this.executionAddressAttr(executionAddress)
+            await this.executionAddressAttr(executionAddress),
+            await this.useFixedFeeAttr(useFixedFee)
         ];
     }
 
     /**
      * Helper to create attributes with indirectCall
      */
-    async indirectCallAttrs(callValue: bigint = 0n, executionAddress?: string) {
+    async indirectCallAttrs(callValue: bigint = 0n, useFixedFee: boolean = false, executionAddress?: string) {
         return [
             await this.erc7786AttributeDummy.interface.encodeFunctionData('indirectCall', [callValue]),
-            await this.executionAddressAttr(executionAddress)
+            await this.executionAddressAttr(executionAddress),
+            await this.useFixedFeeAttr(useFixedFee)
         ];
     }
 
@@ -515,7 +631,7 @@ export class InteropTestContext {
      */
     async fromInterop1RequestInterop(
         execCallStarters: InteropCallStarter[],
-        bundleOptions?: { executionAddress?: string; unbundlerAddress?: string },
+        bundleOptions?: { executionAddress?: string; unbundlerAddress?: string; useFixedFee?: boolean },
         overrides: ethers.Overrides = {}
     ) {
         const bundleAttributes = [];
@@ -526,6 +642,7 @@ export class InteropTestContext {
                 ])
             );
         }
+        // Note: The InteropCenter will automatically set the unbundler address to msg.sender if not provided
         if (bundleOptions?.unbundlerAddress) {
             bundleAttributes.push(
                 await this.erc7786AttributeDummy.interface.encodeFunctionData('unbundlerAddress', [
@@ -533,6 +650,12 @@ export class InteropTestContext {
                 ])
             );
         }
+        // The `useFixedFee` attribute is required for all interop calls to ensure explicit fee payment choice
+        bundleAttributes.push(
+            await this.erc7786AttributeDummy.interface.encodeFunctionData('useFixedFee', [
+                bundleOptions?.useFixedFee ?? false
+            ])
+        );
 
         const txFinalizeReceipt = (
             await this.interop1InteropCenter.sendBundle(
@@ -542,6 +665,7 @@ export class InteropTestContext {
                 overrides
             )
         ).wait();
+
         return txFinalizeReceipt;
     }
 
@@ -640,6 +764,9 @@ export class InteropTestContext {
         return transferAmount;
     }
 
+    /**
+     * Transfers a random amount of bridged tokens to the interop1 wallet and approves the transfer on Interop1.
+     */
     async getAndApproveBridgedTokenTransferAmount(): Promise<bigint> {
         const transferAmount = BigInt(Math.floor(Math.random() * 900) + 100);
 
@@ -660,5 +787,87 @@ export class InteropTestContext {
         ]);
 
         return transferAmount;
+    }
+
+    /**
+     * Calculates the message value needed for an interop transaction.
+     * Includes interop fees and optionally the base token amount if chains share the same base token.
+     */
+    async calculateMsgValue(
+        numCalls: number,
+        baseTokenAmount: bigint = 0n,
+        useFixedFee: boolean = false
+    ): Promise<bigint> {
+        const baseTokenIncluded = this.isSameBaseToken ? baseTokenAmount : 0n;
+        if (useFixedFee) {
+            return baseTokenIncluded;
+        } else {
+            const interopFeesTotal = (await this.interop1InteropCenter.interopProtocolFee()) * BigInt(numCalls);
+            return interopFeesTotal + baseTokenIncluded;
+        }
+    }
+
+    /**
+     * Captures the current balance state of the interop1 wallet.
+     * Includes native balance, base token (if different), and optionally a custom token.
+     */
+    async captureInterop1BalanceSnapshot(tokenAddress?: string): Promise<BalanceSnapshot> {
+        const snapshot: any = {
+            native: await this.interop1Wallet.getBalance()
+        };
+
+        if (!this.isSameBaseToken) {
+            snapshot.baseToken2 = await this.getTokenBalance(
+                this.interop1Wallet,
+                this.baseToken2.l2AddressSecondChain!
+            );
+        }
+
+        if (tokenAddress) {
+            snapshot.token = await this.getTokenBalance(this.interop1Wallet, tokenAddress);
+            snapshot.tokenAddress = tokenAddress;
+        }
+
+        snapshot.zkToken = await this.getTokenBalance(this.interop1Wallet, this.zkTokenAddressInterop1);
+
+        return snapshot;
+    }
+
+    /**
+     * Asserts that balance changes match expected values after a transaction.
+     */
+    async assertInterop1BalanceChanges(
+        receipt: ethers.TransactionReceipt,
+        beforeSnapshot: BalanceSnapshot,
+        expected: {
+            msgValue: bigint;
+            baseTokenAmount?: bigint;
+            tokenAmount?: bigint;
+            zkTokenAmount?: bigint;
+        }
+    ) {
+        const feePaid = BigInt(receipt.gasUsed) * BigInt(receipt.gasPrice);
+        const afterNative = await this.interop1Wallet.getBalance();
+
+        expect(afterNative.toString()).toBe((beforeSnapshot.native - feePaid - expected.msgValue).toString());
+
+        if (!this.isSameBaseToken && expected.baseTokenAmount !== undefined) {
+            const afterBaseToken2 = await this.getTokenBalance(
+                this.interop1Wallet,
+                this.baseToken2.l2AddressSecondChain!
+            );
+            expect(afterBaseToken2.toString()).toBe((beforeSnapshot.baseToken2! - expected.baseTokenAmount).toString());
+        }
+
+        if (expected.tokenAmount !== undefined && beforeSnapshot.token !== undefined) {
+            const tokenAddress = beforeSnapshot.tokenAddress ?? this.tokenA.l2Address ?? this.bridgedToken.l2Address;
+            const afterToken = await this.getTokenBalance(this.interop1Wallet, tokenAddress);
+            expect(afterToken.toString()).toBe((beforeSnapshot.token - expected.tokenAmount).toString());
+        }
+
+        if (expected.zkTokenAmount !== undefined && beforeSnapshot.zkToken !== undefined) {
+            const afterZkToken = await this.getTokenBalance(this.interop1Wallet, this.zkTokenAddressInterop1);
+            expect(afterZkToken.toString()).toBe((beforeSnapshot.zkToken - expected.zkTokenAmount).toString());
+        }
     }
 }
