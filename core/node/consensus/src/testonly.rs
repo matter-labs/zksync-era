@@ -47,7 +47,7 @@ use zksync_types::{
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
     settlement::{SettlementLayer, WorkingSettlementLayer},
     Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
-    Transaction,
+    Transaction, U256,
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
@@ -264,6 +264,7 @@ impl StateKeeper {
                         fair_l2_gas_price: 10,
                         l1_gas_price: 100,
                     }),
+                    interop_fee: U256::zero(),
                     first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
                     pubdata_params: PubdataParams::genesis(),
                     pubdata_limit: (self.protocol_version >= ProtocolVersionId::Version29)

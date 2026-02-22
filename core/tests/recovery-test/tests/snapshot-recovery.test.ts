@@ -472,7 +472,10 @@ describe('snapshot recovery', () => {
 
         while (!isDbPruned || !isTreePruned) {
             await sleep(1000);
-            const health = (await getExternalNodeHealth(extNodeHealthUrl))!;
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
+            if (health === null) {
+                continue;
+            }
 
             const dbPrunerHealth = health.components.db_pruner!;
             console.log('DB pruner health', dbPrunerHealth);
