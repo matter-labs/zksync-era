@@ -39,7 +39,7 @@ abigen!(
 // Using IChainTypeManager for the upgradeChainFromVersion function
 abigen!(
     IChainAssetHandlerAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IChainAssetHandler.sol/IChainAssetHandlerBase.json"",
+    "../../../contracts/l1-contracts/zkstack-out/IChainAssetHandler.sol/IChainAssetHandlerBase.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
