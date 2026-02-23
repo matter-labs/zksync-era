@@ -24,7 +24,6 @@ use crate::{
         genesis::genesis,
         init::configs::init_configs,
         register_chain::register_chain,
-        register_on_all_chains::register_on_all_chains,
         set_token_multiplier_setter::set_token_multiplier_setter,
         setup_legacy_bridge::setup_legacy_bridge,
     },
@@ -323,21 +322,6 @@ pub async fn send_priority_txs(
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
         spinner.finish();
     }
-
-    // Register chain on all other chains
-    register_on_all_chains(
-        shell,
-        &chain_config.path_to_foundry_scripts(),
-        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-        chain_config.chain_id,
-        &chain_config
-            .get_wallets_config()?
-            .deployer
-            .expect("Deployer wallet not set"),
-        forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
 
     Ok(())
 }

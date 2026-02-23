@@ -310,20 +310,6 @@ export class ChainHandler {
         throw new Error(`${this.inner.chainName} didn't stop after a kill request`);
     }
 
-    // Registers "chainToBeRegistered" on this chain
-    async registerChain(l1Wallet: ethers.Wallet, chainToBeRegistered: number): Promise<void> {
-        const contractsConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'contracts.yaml' });
-        const bridgehubAddress = contractsConfig.ecosystem_contracts.bridgehub_proxy_addr;
-        const bridgehub = new ethers.Contract(bridgehubAddress, readArtifact('L1Bridgehub').abi, l1Wallet);
-        const chainRegistrationSender = new ethers.Contract(
-            await bridgehub.chainRegistrationSender(),
-            CHAIN_REGISTRATION_SENDER_ABI,
-            l1Wallet
-        );
-
-        await (await chainRegistrationSender.registerChain(this.inner.chainId, chainToBeRegistered)).wait();
-    }
-
     async migrateToGateway() {
         await this.trackBaseTokenDelta(async () => {
             // Pause deposits before initiating migration

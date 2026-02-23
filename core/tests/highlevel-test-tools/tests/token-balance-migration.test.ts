@@ -83,8 +83,6 @@ if (shouldSkip) {
         secondChainHandler = await ChainHandler.createNewChain('era');
         await secondChainHandler.initEcosystemContracts(gwRichWallet);
         secondChainRichWallet = secondChainHandler.l2RichWallet;
-        // Register the second chain on the tested chain
-        await chainHandler.registerChain(l1RichWallet, secondChainHandler.inner.chainId);
 
         // DEPLOY TOKENS THAT WILL BE TESTED
         // Token native to L1, deposited to L2
