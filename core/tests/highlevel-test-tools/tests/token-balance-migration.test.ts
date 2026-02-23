@@ -154,8 +154,9 @@ if (shouldSkip) {
         );
     });
 
-    it('Can migrate the chain to Gateway', async () => {
+    it('Can migrate both chains to Gateway', async () => {
         await chainHandler.migrateToGateway();
+        await secondChainHandler.migrateToGateway();
     });
 
     it('Can deposit a token to the chain after migrating to gateway', async () => {
@@ -200,7 +201,7 @@ if (shouldSkip) {
         await expectRevertWithSelector(
             sendInteropBundle(
                 chainRichWallet,
-                secondChainHandler.inner.chainId,
+                1337, // Unregistered chain ID
                 await tokens.L2BToken.l2Contract?.getAddress()
             ),
             '0x2d159f39', // DestinationChainNotRegistered
@@ -210,10 +211,6 @@ if (shouldSkip) {
 
     it('Can initiate token balance migration to Gateway', async () => {
         await chainHandler.initiateTokenBalanceMigration('to-gateway');
-    });
-
-    it('Can migrate the second chain to gateway', async () => {
-        await secondChainHandler.migrateToGateway();
     });
 
     it('Cannot initiate interop for non migrated tokens', async () => {
@@ -228,16 +225,6 @@ if (shouldSkip) {
             '0x90ed63bb', // TokenBalanceNotMigratedToGateway
             'Initiate interop for non migrated tokens should revert'
         );
-    });
-
-    it('Can initiate interop of migrated tokens', async () => {
-        // Since L2BToken was deposited after the chain migrated to gateway, its balance gets effectively migrated
-        bundles.afterChainMigrationToGateway = await sendInteropBundle(
-            chainRichWallet,
-            secondChainHandler.inner.chainId,
-            await tokens.L2BToken.l2Contract?.getAddress()
-        );
-        // TODO: Reduce the balance of the L2-B token on the sending chain
     });
 
     it('Cannot withdraw tokens that have not been migrated', async () => {
@@ -309,15 +296,6 @@ if (shouldSkip) {
         gatewayEraWithdrawals.L1NativeDepositedToL2 = await tokens.L1NativeDepositedToL2.withdraw();
     });
 
-    it('Can initiate interop of migrated tokens', async () => {
-        bundles.afterChainMigrationToGateway = await sendInteropBundle(
-            chainRichWallet,
-            secondChainHandler.inner.chainId,
-            await tokens.L1NativeDepositedToL2.l2Contract?.getAddress()
-        );
-        // TODO: Reduce the balance of the token on the sending chain
-    });
-
     it('Correctly assigns chain token balances after migrating token balances to gateway', async () => {
         for (const tokenName of Object.keys(tokens)) {
             if (tokenName === 'L2BTokenNotDepositedToL2A') continue;
@@ -344,7 +322,30 @@ if (shouldSkip) {
         }
     });
 
+    it('Can initiate interop of migrated tokens', async () => {
+        bundles.L1NativeDepositedToL2 = await sendInteropBundle(
+            chainRichWallet,
+            secondChainHandler.inner.chainId,
+            await tokens.L1NativeDepositedToL2.l2Contract?.getAddress()
+        );
+        await chainHandler.accountForSentInterop(tokens.L1NativeDepositedToL2);
+        bundles.L2NativeNotWithdrawnToL1 = await sendInteropBundle(
+            chainRichWallet,
+            secondChainHandler.inner.chainId,
+            await tokens.L2NativeNotWithdrawnToL1.l2Contract?.getAddress()
+        );
+        await chainHandler.accountForSentInterop(tokens.L2NativeNotWithdrawnToL1);
+        bundles.L2BToken = await sendInteropBundle(
+            chainRichWallet,
+            secondChainHandler.inner.chainId,
+            await tokens.L2BToken.l2Contract?.getAddress()
+        );
+        await chainHandler.accountForSentInterop(tokens.L2BToken);
+    });
+
     it('Can finalize interop of migrated tokens', async () => {
+        // TODO (with new tbm flow): also check interop execution AFTER we migrate from gateway,
+        // for interop bundles whose containing roots were imported before the migration
         for (const bundleName of Object.keys(bundles)) {
             await awaitInteropBundle(chainRichWallet, gwRichWallet, secondChainRichWallet, bundles[bundleName].hash);
             await readAndBroadcastInteropBundle(
@@ -360,12 +361,14 @@ if (shouldSkip) {
     });
 
     it('Can initiate interop to chains that are registered on this chain, but migrated from gateway', async () => {
-        bundles.beforeGatewayRegistrationOfSecondChain = await sendInteropBundle(
+        // Note that this interop will NOT be able to be executed on the destination chain, as it was migrated from gateway.
+        // In a future release, we will allow repeated migrations, which will enable such interops to be executed.
+        await sendInteropBundle(
             chainRichWallet,
             secondChainHandler.inner.chainId,
             await tokens.L1NativeDepositedToL2.l2Contract?.getAddress()
         );
-        // TODO: Reduce the balance of the token on the sending chain
+        await chainHandler.accountForSentInterop(tokens.L1NativeDepositedToL2);
     });
 
     it('Can migrate the chain from gateway', async () => {
@@ -430,8 +433,14 @@ if (shouldSkip) {
 
             const isL2Token = tokens[tokenName].isL2Token;
             const baseBalance = chainHandler.chainBalances[assetId] ?? (isL2Token ? ethers.MaxUint256 : 0n);
-            const l1GatewayExpected = gatewayEraWithdrawals[tokenName]?.amount ?? 0n;
-            const l1Expected = baseBalance - l1GatewayExpected;
+            // `gatewayEraWithdrawals` are this chain's own balance split that remains on L1AT_GW,
+            // so they must be subtracted from this chain's L1AT expectation.
+            const gatewayEraWithdrawalExpected = gatewayEraWithdrawals[tokenName]?.amount ?? 0n;
+            // Interop-driven increases on L1AT_GW belong to the destination chain's side and
+            // should not be subtracted from this chain's L1AT expectation.
+            const interopGatewayIncreaseExpected = chainHandler.interopGatewayIncreases[assetId] ?? 0n;
+            const l1GatewayExpected = gatewayEraWithdrawalExpected + interopGatewayIncreaseExpected;
+            const l1Expected = baseBalance - gatewayEraWithdrawalExpected;
 
             // Tokens deposited AFTER migrating from gateway won't have a GWAT migration number set
             const depositedAfterFromGW = tokenName === 'L2BTokenNotDepositedToL2A';

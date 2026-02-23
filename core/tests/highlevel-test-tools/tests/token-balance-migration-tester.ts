@@ -170,6 +170,8 @@ export class ChainHandler {
 
     // Records expected chain balances for each token asset ID
     public chainBalances: Record<string, bigint> = {};
+    // Interop sends increase the recipient-side balance tracked on L1AT_GW for each asset.
+    public interopGatewayIncreases: Record<string, bigint> = {};
 
     constructor(inner: TestChain, l2RichWallet: zksync.Wallet) {
         const contractsConfig = loadConfig({ pathToHome, chain: inner.chainName, config: 'contracts.yaml' });
@@ -525,6 +527,14 @@ export class ChainHandler {
         }
     }
 
+    async accountForSentInterop(token: ERC20Handler, amount: bigint = INTEROP_TEST_AMOUNT): Promise<void> {
+        const assetId = await token.assetId(this);
+        // For L2-native tokens we use MaxUint256 as the starting expected balance when not tracked yet.
+        const currentBalance = this.chainBalances[assetId] ?? (token.isL2Token ? ethers.MaxUint256 : 0n);
+        this.chainBalances[assetId] = currentBalance - amount;
+        this.interopGatewayIncreases[assetId] = (this.interopGatewayIncreases[assetId] ?? 0n) + amount;
+    }
+
     private async assertAssetMigrationNumber(
         assetId: string,
         where: 'L1AT' | 'L1AT_GW' | 'GWAT',
@@ -787,13 +797,6 @@ async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: numbe
             if (printedBlockNumber < block.number) {
                 printedBlockNumber = block.number;
             }
-            // We make repeated transactions to force the L2 to update.
-            await (
-                await wallet.transfer({
-                    to: wallet.address,
-                    amount: 1
-                })
-            ).wait();
             await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
     }
@@ -907,13 +910,12 @@ export async function awaitInteropBundle(
     destinationWallet: zksync.Wallet,
     txHash: string
 ) {
-    const senderUtilityWallet = new zksync.Wallet(zksync.Wallet.createRandom().privateKey, senderWallet.provider);
     const txReceipt = await senderWallet.provider.getTransactionReceipt(txHash);
-    await waitUntilBlockFinalized(senderUtilityWallet, txReceipt!.blockNumber);
+    await waitUntilBlockFinalized(senderWallet, txReceipt!.blockNumber);
 
-    await waitUntilBlockExecutedOnGateway(senderUtilityWallet, gwWallet, txReceipt!.blockNumber);
+    await waitUntilBlockExecutedOnGateway(senderWallet, gwWallet, txReceipt!.blockNumber);
     await utils.sleep(1); // Additional delay to avoid flakiness
-    const params = await senderUtilityWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
+    const params = await senderWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
     await waitForInteropRootNonZero(destinationWallet.provider, destinationWallet, getGWBlockNumber(params));
 }
 
