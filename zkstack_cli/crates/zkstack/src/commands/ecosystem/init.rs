@@ -1,17 +1,13 @@
 use std::{path::PathBuf, str::FromStr};
 
-use anyhow::Context;
 use xshell::Shell;
-use zkstack_cli_common::{
-    contracts::rebuild_all_contracts, forge::ForgeScriptArgs, logger, spinner::Spinner, Prompt,
-};
+use zkstack_cli_common::{logger, spinner::Spinner, Prompt};
 use zkstack_cli_config::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
     ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
-use zkstack_cli_types::{L1Network, VMOption};
-use zksync_basic_types::Address;
+use zkstack_cli_types::{L1Network, ProverMode, VMOption};
 
 use super::{
     args::init::{EcosystemInitArgs, EcosystemInitArgsFinal},
@@ -19,14 +15,9 @@ use super::{
     setup_observability,
 };
 use crate::{
-    admin_functions::{accept_admin, accept_owner},
-    commands::{
-        ctm::commands::init_new_ctm::deploy_new_ctm_and_accept_admin,
-        ecosystem::{
-            common::{deploy_erc20, deploy_l1_core_contracts},
-            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
-            register_ctm::register_ctm_on_existing_bh,
-        },
+    commands::ecosystem::{
+        common::deploy_erc20,
+        create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
     },
     messages::{
         msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
@@ -34,6 +25,7 @@ use crate::{
         MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
         MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
     },
+    utils::protocol_ops::{EcosystemInitProtocolOpsArgs, ProtocolOpsRunner},
 };
 
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -93,7 +85,7 @@ async fn init_ecosystem(
     init_args: &EcosystemInitArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
+    _initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     spinner.finish();
@@ -106,92 +98,17 @@ async fn init_ecosystem(
         )
         .await?
     } else {
-        let core_contracts = deploy_ecosystem(
+        let contracts = deploy_ecosystem(
             shell,
             init_args.l1_rpc_url.clone(),
-            init_args.forge_args.clone(),
             ecosystem_config,
-            initial_deployment_config,
             init_args.support_l2_legacy_shared_bridge_test,
             init_args.vm_option,
         )
         .await?;
-        core_contracts.save_with_base_path(shell, &ecosystem_config.config)?;
-
-        let mut contracts = deploy_and_register_ctm(
-            shell,
-            init_args.l1_rpc_url.clone(),
-            ecosystem_config,
-            initial_deployment_config,
-            core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
-            init_args.support_l2_legacy_shared_bridge_test,
-            &init_args.forge_args,
-            init_args.vm_option,
-        )
-        .await?;
-
-        // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
-        if !init_args.vm_option.is_zksync_os() && init_args.dev {
-            rebuild_all_contracts(
-                shell,
-                &ecosystem_config.contracts_path_for_ctm(VMOption::ZKSyncOsVM),
-            )?;
-            contracts = deploy_and_register_ctm(
-                shell,
-                init_args.l1_rpc_url.clone(),
-                ecosystem_config,
-                initial_deployment_config,
-                core_contracts.core_ecosystem_contracts.bridgehub_proxy_addr,
-                init_args.support_l2_legacy_shared_bridge_test,
-                &init_args.forge_args,
-                VMOption::ZKSyncOsVM,
-            )
-            .await?;
-        }
-
+        contracts.save_with_base_path(shell, &ecosystem_config.config)?;
         contracts
     };
-    Ok(contracts)
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn deploy_and_register_ctm(
-    shell: &Shell,
-    l1_rpc_url: String,
-    ecosystem_config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
-    bridgehub_proxy_addr: Address,
-    support_l2_legacy_shared_bridge_test: bool,
-    forge_args: &ForgeScriptArgs,
-    vm_option: VMOption,
-) -> anyhow::Result<CoreContractsConfig> {
-    let contracts = deploy_new_ctm_and_accept_admin(
-        shell,
-        l1_rpc_url.clone(),
-        forge_args,
-        ecosystem_config,
-        initial_deployment_config,
-        support_l2_legacy_shared_bridge_test,
-        bridgehub_proxy_addr,
-        vm_option,
-        true,
-    )
-    .await?;
-
-    contracts.save_with_base_path(shell, &ecosystem_config.config)?;
-
-    register_ctm_on_existing_bh(
-        shell,
-        forge_args,
-        ecosystem_config,
-        &l1_rpc_url,
-        None,
-        bridgehub_proxy_addr,
-        contracts.ctm(vm_option).state_transition_proxy_addr,
-        false,
-        vm_option,
-    )
-    .await?;
     Ok(contracts)
 }
 
@@ -256,94 +173,37 @@ async fn return_ecosystem_contracts(
 async fn deploy_ecosystem(
     shell: &Shell,
     l1_rpc_url: String,
-    forge_args: ForgeScriptArgs,
     ecosystem_config: &EcosystemConfig,
-    initial_deployment_config: &InitialDeploymentConfig,
     support_l2_legacy_shared_bridge_test: bool,
     vm_option: VMOption,
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
-    let contracts_config = deploy_l1_core_contracts(
-        shell,
-        &forge_args,
-        ecosystem_config,
-        initial_deployment_config,
-        &l1_rpc_url,
-        None,
-        true,
-        support_l2_legacy_shared_bridge_test,
-        vm_option,
-    )
-    .await?;
+    let wallets = ecosystem_config.get_wallets()?;
+
+    let deployer = wallets
+        .deployer
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Deployer wallet is required for ecosystem init"))?;
+    let deployer_pk = deployer
+        .private_key_h256()
+        .ok_or_else(|| anyhow::anyhow!("Deployer wallet private key is required"))?;
+
+    // Governor private key is needed when governor != deployer (for accepting ownership)
+    let governor_pk = wallets.governor.private_key_h256();
+
+    let runner = ProtocolOpsRunner::new(ecosystem_config);
+    let args = EcosystemInitProtocolOpsArgs {
+        private_key: deployer_pk,
+        owner: wallets.governor.address,
+        owner_private_key: governor_pk,
+        l1_rpc_url,
+        era_chain_id: ecosystem_config.era_chain_id.as_u64(),
+        vm_type: vm_option,
+        with_testnet_verifier: ecosystem_config.prover_version == ProverMode::NoProofs,
+        with_legacy_bridge: support_l2_legacy_shared_bridge_test,
+    };
+    let output = runner.ecosystem_init(shell, &args)?;
     spinner.finish();
 
-    accept_owner(
-        shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        contracts_config.l1.governance_addr,
-        &ecosystem_config.get_wallets()?.governor,
-        contracts_config
-            .core_ecosystem_contracts
-            .bridgehub_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-    accept_admin(
-        shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        contracts_config.l1.chain_admin_addr,
-        &ecosystem_config.get_wallets()?.governor,
-        contracts_config
-            .core_ecosystem_contracts
-            .bridgehub_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    // Note, that there is no admin in L1 asset router, so we do
-    // need to accept it
-    accept_owner(
-        shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        contracts_config.l1.governance_addr,
-        &ecosystem_config.get_wallets()?.governor,
-        contracts_config.bridges.shared.l1_address,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    accept_owner(
-        shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        contracts_config.l1.governance_addr,
-        &ecosystem_config.get_wallets()?.governor,
-        contracts_config
-            .core_ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr
-            .context("stm_deployment_tracker_proxy_addr")?,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    if let Some(chain_asset_handler_addr) = contracts_config
-        .core_ecosystem_contracts
-        .chain_asset_handler_proxy_addr
-    {
-        accept_owner(
-            shell,
-            ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-            contracts_config.l1.governance_addr,
-            &ecosystem_config.get_wallets()?.governor,
-            chain_asset_handler_addr,
-            &forge_args,
-            l1_rpc_url.clone(),
-        )
-        .await?;
-    }
-
-    Ok(contracts_config)
+    Ok(output.to_core_contracts_config(vm_option))
 }
