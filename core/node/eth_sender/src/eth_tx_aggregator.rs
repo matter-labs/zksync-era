@@ -23,10 +23,7 @@ use zksync_types::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
     commitment::{L1BatchWithMetadata, L2DACommitmentScheme, SerializeCommitment},
-    eth_sender::{
-        EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxBlobSidecarV2, EthTxFinalityStatus,
-        SidecarBlobV1,
-    },
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxBlobSidecarV2, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
@@ -34,7 +31,7 @@ use zksync_types::{
     server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, BlockId, BlockNumber, CallRequest},
-    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
+    Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 use super::aggregated_operations::{
@@ -859,11 +856,11 @@ impl EthTxAggregator {
             // so there is no restriction for prove and execute operations
             if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_))) {
                 if self
-                    .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
+                    .is_waiting_for_batches_with_current_settlement_layer_to_be_committed(storage)
                     .await?
                 {
-                    // For the migration from gateway to L1, we need to ensure all batches containing interop roots
-                    // get committed and executed. Once this happens, we can re-enable commit & precommit.
+                    // For migration from gateway to L1, keep commits/precommits flowing
+                    // once old settlement layer batches are finalized.
                     op_restrictions.commit_restriction = None;
                     op_restrictions.precommit_restriction = None;
                 }
@@ -1122,7 +1119,13 @@ impl EthTxAggregator {
                         (calldata, None)
                     }
                     L1BatchAggregatedOperation::Execute(op) => {
-                        args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
+                        let settlement_fee_payer = self
+                            .config
+                            .settlement_fee_payer
+                            .unwrap_or(self.eth_client.sender_account());
+                        args.extend(
+                            op.encode_for_eth_tx(chain_protocol_version_id, settlement_fee_payer),
+                        );
                         let encoding_fn = if protocol_version.is_pre_gateway()
                             && chain_protocol_version_id.is_pre_gateway()
                         {
@@ -1380,34 +1383,21 @@ impl EthTxAggregator {
         GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
     }
 
-    async fn is_waiting_for_batches_with_interop_roots_to_be_committed(
+    /// Returns `true` if there are batches on the current settlement layer not yet committed.
+    /// Used to block gateway migration until all batches are finalized.
+    async fn is_waiting_for_batches_with_current_settlement_layer_to_be_committed(
         &self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<bool, EthSenderError> {
-        let latest_processed_l1_batch_number = storage
-            .interop_root_dal()
-            .get_latest_processed_interop_root_l1_batch_number()
+        let settlement_layer = self
+            .settlement_layer
+            .expect("settlement layer should be known");
+        let has_uncommitted_batches = storage
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
             .await?;
 
-        if latest_processed_l1_batch_number.is_none() {
-            return Ok(false);
-        }
-
-        let last_sent_successfully_eth_tx = storage
-            .eth_sender_dal()
-            .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                L1BatchNumber::from(latest_processed_l1_batch_number.unwrap()),
-                L1BatchAggregatedActionType::Commit,
-            )
-            .await;
-
-        if last_sent_successfully_eth_tx
-            .is_some_and(|tx| tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized)
-        {
-            return Ok(false);
-        }
-
-        Ok(true)
+        Ok(has_uncommitted_batches)
     }
 }
 

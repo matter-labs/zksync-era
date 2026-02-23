@@ -2,7 +2,6 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BytesLike } from 'ethers';
 import { INTEROP_BUNDLE_ABI, MESSAGE_INCLUSION_PROOF_ABI, L2_INTEROP_CENTER_ADDRESS } from './constants';
-// import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
 
 export interface Output {
     output: any;
@@ -72,7 +71,8 @@ export async function getInteropBundleData(
         calls: calls,
         bundleAttributes: {
             executionAddress: decodedRequest[0][5][0],
-            unbundlerAddress: decodedRequest[0][5][1]
+            unbundlerAddress: decodedRequest[0][5][1],
+            useFixedFee: decodedRequest[0][5][2]
         }
     };
     // console.log("response.proof", proof_fee)

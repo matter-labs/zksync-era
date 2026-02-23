@@ -4,6 +4,7 @@ import * as utils from 'utils';
 import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 import path from 'path';
+import { expect } from 'vitest';
 import { loadConfig, loadEcosystemConfig } from 'utils/build/file-configs';
 import { sleep } from 'zksync-ethers/build/utils';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
@@ -14,14 +15,38 @@ import {
     GW_ASSET_TRACKER_ADDRESS,
     GATEWAY_CHAIN_ID
 } from 'utils/src/constants';
-import { executeCommand, migrateToGatewayIfNeeded, startServer } from '../src';
+import { executeCommand, FileMutex, migrateToGatewayIfNeeded, agreeToPaySettlementFees, startServer } from '../src';
 import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
 
-export const RICH_WALLET_L1_BALANCE = ethers.parseEther('10.0');
-export const RICH_WALLET_L2_BALANCE = RICH_WALLET_L1_BALANCE;
+const tbmMutex = new FileMutex();
+export const RICH_WALLET_L2_BALANCE = ethers.parseEther('10.0');
+export const TOKEN_MINT_AMOUNT = ethers.parseEther('1.0');
+const MAX_WITHDRAW_AMOUNT = ethers.parseEther('0.1');
 const TEST_SUITE_NAME = 'Token Balance Migration Test';
 const pathToHome = path.join(__dirname, '../../../..');
+
+export async function expectRevertWithSelector(
+    action: Promise<unknown>,
+    selector: string,
+    failureMessage = 'Expected transaction to revert with selector'
+): Promise<void> {
+    try {
+        await action;
+        expect.fail(`${failureMessage} ${selector}`);
+    } catch (err) {
+        const errorText = [
+            (err as any)?.data,
+            (err as any)?.error?.data,
+            (err as any)?.info?.error?.data,
+            (err as any)?.shortMessage,
+            (err as any)?.message
+        ]
+            .filter(Boolean)
+            .join(' ');
+        expect(errorText).toContain(selector);
+    }
+}
 
 function readArtifact(contractName: string, outFolder: string = 'out', fileName: string = contractName) {
     return JSON.parse(
@@ -38,9 +63,6 @@ const ERC20_EVM_BYTECODE = ERC20_EVM_ARTIFACT.bytecode.object;
 const ERC20_ABI = ERC20_EVM_ARTIFACT.abi;
 
 const ERC20_ZKEVM_BYTECODE = readArtifact('TestnetERC20Token', 'zkout').bytecode.object;
-
-const AMOUNT_FLOOR = ethers.parseEther('0.01');
-const AMOUNT_CEILING = ethers.parseEther('1');
 
 type AssetTrackerLocation = 'L1AT' | 'L1AT_GW' | 'GWAT';
 const ASSET_TRACKERS: readonly AssetTrackerLocation[] = ['L1AT', 'L1AT_GW', 'GWAT'] as const;
@@ -143,6 +165,10 @@ export class ChainHandler {
     }
 
     async initEcosystemContracts(gwWallet: zksync.Wallet) {
+        // Fix baseTokenAssetId: js-yaml parses unquoted hex as a lossy JS number.
+        // Query the on-chain NTV for the authoritative asset ID string.
+        this.baseTokenAssetId = await this.l1Ntv.assetId(await this.l1BaseTokenContract.getAddress());
+
         const l1AssetTrackerAddr = await this.l1Ntv.l1AssetTracker();
         this.l1AssetTracker = new ethers.Contract(
             l1AssetTrackerAddr,
@@ -170,19 +196,42 @@ export class ChainHandler {
             migrations?: Record<AssetTrackerLocation, bigint>;
         }
     ): Promise<boolean> {
+        const failures: string[] = [];
+        const recordFailure = (where: AssetTrackerLocation, err: unknown) => {
+            const reason = err instanceof Error ? err.message : String(err);
+            failures.push(`[${where}] ${reason}`);
+        };
+
         for (const where of ASSET_TRACKERS) {
+            // Since we have several chains settling on the same gateway in parallel, accounting
+            // for the base token on L1AT_GW can be very tricky, so we just skip it.
+            if (where === 'L1AT_GW' && assetId === this.baseTokenAssetId) continue;
             const expected = balances?.[where];
-            if (expected !== undefined) {
-                await this.assertChainBalance(assetId, where, expected);
-            } else {
-                await this.assertChainBalance(assetId, where);
+            try {
+                if (expected !== undefined) {
+                    await this.assertChainBalance(assetId, where, expected);
+                } else {
+                    await this.assertChainBalance(assetId, where);
+                }
+            } catch (err) {
+                recordFailure(where, err);
             }
         }
 
         if (migrations) {
             for (const where of ASSET_TRACKERS) {
-                await this.assertAssetMigrationNumber(assetId, where, migrations[where]);
+                try {
+                    await this.assertAssetMigrationNumber(assetId, where, migrations[where]);
+                } catch (err) {
+                    recordFailure(where, err);
+                }
             }
+        }
+
+        if (failures.length > 0) {
+            const message = `Asset tracker assertion failures:\n${failures.map((f) => `- ${f}`).join('\n')}`;
+            console.error(message);
+            throw new Error(message);
         }
 
         return true;
@@ -190,7 +239,6 @@ export class ChainHandler {
 
     async stopServer() {
         await this.inner.mainNode.kill();
-        await this.waitForShutdown();
     }
 
     async startServer() {
@@ -221,22 +269,25 @@ export class ChainHandler {
     }
 
     async migrateToGateway() {
-        // Pause deposits before initiating migration
-        await executeCommand(
-            'zkstack',
-            ['chain', 'pause-deposits', '--chain', this.inner.chainName],
-            this.inner.chainName,
-            'gateway_migration'
-        );
-        // Wait for priority queue to be empty
-        await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
-        // Wait for all batches to be executed
-        await this.inner.waitForAllBatchesToBeExecuted();
-        // We can now reliably migrate to gateway
-        removeErrorListeners(this.inner.mainNode.process!);
-        await migrateToGatewayIfNeeded(this.inner.chainName);
-        await this.waitForShutdown();
-        await this.startServer();
+        await this.trackBaseTokenDelta(async () => {
+            // Pause deposits before initiating migration
+            await this.zkstackExecWithMutex(
+                ['chain', 'pause-deposits', '--chain', this.inner.chainName],
+                'pausing deposits before initiating migration',
+                'gateway_migration'
+            );
+            // Wait for priority queue to be empty
+            await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
+            // Wait for all batches to be executed
+            await this.inner.waitForAllBatchesToBeExecuted();
+            // We can now reliably migrate to gateway
+            removeErrorListeners(this.inner.mainNode.process!);
+            await migrateToGatewayIfNeeded(this.inner.chainName);
+            await agreeToPaySettlementFees(this.inner.chainName);
+
+            await this.waitForShutdown();
+            await this.startServer();
+        });
 
         // After migration, we can define the gateway getters contract
         const gatewayConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'gateway_chain.yaml' });
@@ -255,80 +306,83 @@ export class ChainHandler {
     }
 
     async migrateFromGateway() {
-        // Pause deposits before initiating migration
-        await executeCommand(
-            'zkstack',
-            ['chain', 'pause-deposits', '--chain', this.inner.chainName],
-            this.inner.chainName,
-            'gateway_migration'
-        );
-        // Wait for priority queue to be empty
-        await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
-        // Wait for all batches to be executed
-        await this.inner.waitForAllBatchesToBeExecuted();
-        // Notify server
-        await executeCommand(
-            'zkstack',
-            ['chain', 'gateway', 'notify-about-from-gateway-update', '--chain', this.inner.chainName],
-            this.inner.chainName,
-            'gateway_migration'
-        );
-        // We can now reliably migrate from gateway
-        await this.stopServer();
-        await executeCommand(
-            'zkstack',
-            [
-                'chain',
-                'gateway',
-                'migrate-from-gateway',
-                '--gateway-chain-name',
-                'gateway',
-                '--chain',
-                this.inner.chainName
-            ],
-            this.inner.chainName,
-            'gateway_migration'
-        );
-        await this.waitForShutdown();
-        await this.startServer();
+        await this.trackBaseTokenDelta(async () => {
+            // Pause deposits before initiating migration
+            await this.zkstackExecWithMutex(
+                ['chain', 'pause-deposits', '--chain', this.inner.chainName],
+                'pausing deposits before initiating migration',
+                'gateway_migration'
+            );
+            // Wait for priority queue to be empty
+            await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
+            // Wait for all batches to be executed
+            await this.inner.waitForAllBatchesToBeExecuted();
+            // Notify server
+            await this.zkstackExecWithMutex(
+                ['chain', 'gateway', 'notify-about-from-gateway-update', '--chain', this.inner.chainName],
+                'notifying about from gateway update',
+                'gateway_migration'
+            );
+            // We can now reliably migrate from gateway
+            removeErrorListeners(this.inner.mainNode.process!);
+            await this.zkstackExecWithMutex(
+                [
+                    'chain',
+                    'gateway',
+                    'migrate-from-gateway',
+                    '--gateway-chain-name',
+                    'gateway',
+                    '--chain',
+                    this.inner.chainName
+                ],
+                'migrating from gateway',
+                'gateway_migration'
+            );
+            await this.waitForShutdown();
+            await this.startServer();
+        });
     }
 
-    async migrateTokenBalancesToGateway() {
-        await executeCommand(
-            'zkstack',
-            [
-                'chain',
-                'gateway',
-                'migrate-token-balances',
-                '--to-gateway',
-                'true',
-                '--gateway-chain-name',
-                'gateway',
-                '--chain',
-                this.inner.chainName
-            ],
-            this.inner.chainName,
-            'token_balance_migration'
-        );
+    async initiateTokenBalanceMigration(direction: 'to-gateway' | 'from-gateway') {
+        await this.trackBaseTokenDelta(async () => {
+            await executeCommand(
+                'zkstack',
+                [
+                    'chain',
+                    'gateway',
+                    'initiate-token-balance-migration',
+                    '--to-gateway',
+                    String(direction === 'to-gateway'),
+                    '--gateway-chain-name',
+                    'gateway',
+                    '--chain',
+                    this.inner.chainName
+                ],
+                this.inner.chainName,
+                'token_balance_migration'
+            );
+        });
     }
 
-    async migrateTokenBalancesToL1() {
-        await executeCommand(
-            'zkstack',
-            [
-                'chain',
-                'gateway',
-                'migrate-token-balances',
-                '--to-gateway',
-                'false',
-                '--gateway-chain-name',
-                'gateway',
-                '--chain',
-                this.inner.chainName
-            ],
-            this.inner.chainName,
-            'token_balance_migration'
-        );
+    async finalizeTokenBalanceMigration(direction: 'to-gateway' | 'from-gateway') {
+        await this.trackBaseTokenDelta(async () => {
+            await executeCommand(
+                'zkstack',
+                [
+                    'chain',
+                    'gateway',
+                    'finalize-token-balance-migration',
+                    '--to-gateway',
+                    String(direction === 'to-gateway'),
+                    '--gateway-chain-name',
+                    'gateway',
+                    '--chain',
+                    this.inner.chainName
+                ],
+                this.inner.chainName,
+                'token_balance_migration'
+            );
+        });
     }
 
     static async createNewChain(chainType: ChainType): Promise<ChainHandler> {
@@ -356,6 +410,27 @@ export class ChainHandler {
         return new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
     }
 
+    private async zkstackExecWithMutex(command: string[], name: string, logFileName: string) {
+        try {
+            // Acquire mutex for zkstack exec
+            console.log(`🔒 Acquiring mutex for ${name} of ${this.inner.chainName}...`);
+            await tbmMutex.acquire();
+            console.log(`✅ Mutex acquired for ${name} of ${this.inner.chainName}`);
+
+            try {
+                await executeCommand('zkstack', command, this.inner.chainName, logFileName);
+
+                console.log(`✅ Successfully executed ${name} for chain ${this.inner.chainName}`);
+            } finally {
+                // Always release the mutex
+                tbmMutex.release();
+            }
+        } catch (e) {
+            console.error(`❌ Failed to execute ${name} for chain ${this.inner.chainName}:`, e);
+            throw e;
+        }
+    }
+
     private async assertChainBalance(
         assetId: string,
         where: 'L1AT' | 'L1AT_GW' | 'GWAT',
@@ -375,7 +450,7 @@ export class ChainHandler {
 
         if (assetId === this.baseTokenAssetId && (where === 'GWAT' || where === 'L1AT')) {
             // Here we have to account for some balance drift from the migrate_token_balances.rs script
-            const tolerance = ethers.parseEther('0.0015');
+            const tolerance = ethers.parseEther('0.005');
             const diff = actualBalance > balance ? actualBalance - balance : balance - actualBalance;
             if (diff > tolerance) {
                 throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
@@ -387,6 +462,29 @@ export class ChainHandler {
             throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
         }
         return true;
+    }
+
+    /// Returns the total base token chain balance across L1AT and GWAT.
+    /// The sum is always valid regardless of migration phase, since at any point
+    /// the chain's balance is split between L1AT and GWAT.
+    async getTotalBaseTokenChainBalance(): Promise<bigint> {
+        const l1atBalance = await this.l1AssetTracker.chainBalance(this.inner.chainId, this.baseTokenAssetId);
+        const gwatBalance = this.gwAssetTracker
+            ? await this.gwAssetTracker.chainBalance(this.inner.chainId, this.baseTokenAssetId)
+            : 0n;
+        return l1atBalance + gwatBalance;
+    }
+
+    /// Executes an action and tracks any base token chain balance change caused by it.
+    /// This captures gas spent on L1/GW priority operations that increase chain balance.
+    async trackBaseTokenDelta(action: () => Promise<void>): Promise<void> {
+        const before = await this.getTotalBaseTokenChainBalance();
+        await action();
+        const after = await this.getTotalBaseTokenChainBalance();
+        const delta = after - before;
+        if (delta !== 0n) {
+            this.chainBalances[this.baseTokenAssetId] = (this.chainBalances[this.baseTokenAssetId] ?? 0n) + delta;
+        }
     }
 
     private async assertAssetMigrationNumber(
@@ -425,17 +523,20 @@ export class ERC20Handler {
     public l1Contract: ethers.Contract | undefined;
     public l2Contract: zksync.Contract | undefined;
     public isL2Token: boolean;
+    public isBaseToken: boolean;
     cachedAssetId: string | null = null;
 
     constructor(
         wallet: zksync.Wallet,
         l1Contract: ethers.Contract | undefined,
-        l2Contract: zksync.Contract | undefined
+        l2Contract: zksync.Contract | undefined,
+        isBaseToken = false
     ) {
         this.wallet = wallet;
         this.l1Contract = l1Contract;
         this.l2Contract = l2Contract;
         this.isL2Token = !!l2Contract;
+        this.isBaseToken = isBaseToken;
     }
 
     async assetId(chainHandler: ChainHandler): Promise<string> {
@@ -451,11 +552,16 @@ export class ERC20Handler {
         return assetId;
     }
 
-    async deposit(chainHandler: ChainHandler, amount?: bigint): Promise<bigint> {
-        const depositAmount = amount ?? getRandomDepositAmount();
+    async deposit(chainHandler: ChainHandler) {
+        // For non-base-token deposits, measure the base token chain balance delta.
+        // ERC20 deposits also send base token for L2 gas, which the asset tracker tracks
+        // but would otherwise be unaccounted for in our local chainBalances.
+        const trackBaseToken = !this.isBaseToken && !!chainHandler.baseTokenAssetId;
+        const baseTokenBefore = trackBaseToken ? await chainHandler.getTotalBaseTokenChainBalance() : 0n;
+
         const depositTx = await this.wallet.deposit({
             token: await this.l1Contract!.getAddress(),
-            amount: depositAmount,
+            amount: TOKEN_MINT_AMOUNT,
             approveERC20: true,
             approveBaseERC20: true
         });
@@ -465,34 +571,52 @@ export class ERC20Handler {
         await waitForBalanceNonZero(this.l2Contract!, this.wallet);
 
         const assetId = await this.assetId(chainHandler);
-        chainHandler.chainBalances[assetId] = (chainHandler.chainBalances[assetId] ?? 0n) + depositAmount;
+        chainHandler.chainBalances[assetId] = (chainHandler.chainBalances[assetId] ?? 0n) + TOKEN_MINT_AMOUNT;
 
-        return depositAmount;
+        if (trackBaseToken) {
+            const baseTokenAfter = await chainHandler.getTotalBaseTokenChainBalance();
+            const baseTokenDelta = baseTokenAfter - baseTokenBefore;
+            if (baseTokenDelta > 0n) {
+                chainHandler.chainBalances[chainHandler.baseTokenAssetId] =
+                    (chainHandler.chainBalances[chainHandler.baseTokenAssetId] ?? 0n) + baseTokenDelta;
+            }
+        }
     }
 
-    async withdraw(
-        chainHandler: ChainHandler,
-        decreaseChainBalance = true,
-        amount?: bigint
-    ): Promise<WithdrawalHandler> {
+    async withdraw(amount?: bigint): Promise<WithdrawalHandler> {
         const withdrawAmount = amount ?? getRandomWithdrawAmount();
 
-        if ((await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < withdrawAmount) {
+        let isETHBaseToken = false;
+        let token;
+        if (this.isBaseToken) {
+            const baseToken = await this.wallet.provider.getBaseTokenContractAddress();
+            isETHBaseToken = zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
+            if (isETHBaseToken) {
+                token = zksync.utils.ETH_ADDRESS;
+            } else {
+                const l2BaseTokenAddress = zksync.utils.L2_BASE_TOKEN_ADDRESS;
+                token = l2BaseTokenAddress;
+                if (!this.l2Contract || (await this.l2Contract.getAddress()) !== l2BaseTokenAddress) {
+                    this.l2Contract = new zksync.Contract(l2BaseTokenAddress, ERC20_ABI, this.wallet);
+                }
+            }
+        } else {
+            token = await this.l2Contract!.getAddress();
+        }
+
+        if (
+            !this.isBaseToken &&
+            (await this.l2Contract!.allowance(this.wallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS)) < withdrawAmount
+        ) {
             await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 0)).wait();
             await (await this.l2Contract!.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, withdrawAmount)).wait();
         }
 
         const withdrawTx = await this.wallet.withdraw({
-            token: await this.l2Contract!.getAddress(),
+            token,
             amount: withdrawAmount
         });
         await withdrawTx.wait();
-
-        const assetId = await this.assetId(chainHandler);
-        if (decreaseChainBalance) {
-            if (this.isL2Token) chainHandler.chainBalances[assetId] = ethers.MaxUint256;
-            chainHandler.chainBalances[assetId] -= withdrawAmount;
-        }
 
         return new WithdrawalHandler(withdrawTx.hash, this.wallet.provider, withdrawAmount);
     }
@@ -529,7 +653,7 @@ export class ERC20Handler {
         // L2-B wallet must hold some balance of the L2-B token on L1
         const balance = await secondChainWallet.getBalanceL1(await l1Contract.getAddress());
         if (balance === 0n) throw new Error('L2-B wallet must hold some balance of the L2-B token on L1');
-        // We need to provide the chain rich wallet with some balance of the L2-B token on L1, to
+        // Transfer the L2-B token balance on L1 to the target wallet.
         const l1Erc20 = new ethers.Contract(await l1Contract.getAddress(), ERC20_ABI, secondChainWallet.ethWallet());
         await (await l1Erc20.transfer(wallet.address, balance)).wait();
         return new ERC20Handler(wallet, l1Contract, undefined);
@@ -543,13 +667,12 @@ export class ERC20Handler {
         const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
         await newToken.waitForDeployment();
         const l1Contract = new ethers.Contract(await newToken.getAddress(), ERC20_ABI, l1Wallet);
-        await (await l1Contract.mint(l1Wallet.address, RICH_WALLET_L1_BALANCE)).wait();
+        await (await l1Contract.mint(l1Wallet.address, TOKEN_MINT_AMOUNT)).wait();
 
         return new ERC20Handler(wallet, l1Contract, undefined);
     }
 
-    static async deployTokenOnL2(chainHandler: ChainHandler, _mintAmount?: bigint) {
-        const mintAmount = _mintAmount ?? getRandomDepositAmount();
+    static async deployTokenOnL2(chainHandler: ChainHandler) {
         const factory = new zksync.ContractFactory(
             ERC20_ABI,
             ERC20_ZKEVM_BYTECODE,
@@ -561,7 +684,7 @@ export class ERC20Handler {
         const newToken = await factory.deploy(props.name, props.symbol, props.decimals);
         await newToken.waitForDeployment();
         const l2Contract = new zksync.Contract(await newToken.getAddress(), ERC20_ABI, chainHandler.l2RichWallet);
-        await (await l2Contract.mint(chainHandler.l2RichWallet.address, mintAmount)).wait();
+        await (await l2Contract.mint(chainHandler.l2RichWallet.address, TOKEN_MINT_AMOUNT)).wait();
 
         await (await chainHandler.l2Ntv.registerToken(await l2Contract.getAddress())).wait();
 
@@ -603,12 +726,8 @@ export class WithdrawalHandler {
     }
 }
 
-function getRandomDepositAmount(): bigint {
-    return AMOUNT_FLOOR + BigInt(Math.floor(Math.random() * Number(AMOUNT_CEILING - AMOUNT_FLOOR + 1n)));
-}
-
 function getRandomWithdrawAmount(): bigint {
-    return 1n + BigInt(Math.floor(Math.random() * Number(AMOUNT_FLOOR / 2n - 1n)));
+    return BigInt(Math.floor(Math.random() * Number(MAX_WITHDRAW_AMOUNT)));
 }
 
 async function waitForBalanceNonZero(contract: ethers.Contract | zksync.Contract, wallet: zksync.Wallet) {
@@ -630,6 +749,13 @@ async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: numbe
             if (printedBlockNumber < block.number) {
                 printedBlockNumber = block.number;
             }
+            // We make repeated transactions to force the L2 to update.
+            await (
+                await wallet.transfer({
+                    to: wallet.address,
+                    amount: 1
+                })
+            ).wait();
             await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
     }

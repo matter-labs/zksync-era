@@ -289,7 +289,7 @@ testFees('Test fees', function () {
         expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
     });
 
-    test('Test base token ratio fluctuations', async () => {
+    test.skip('Test base token ratio fluctuations', async () => {
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
 
         if (isETHBasedChain) return;

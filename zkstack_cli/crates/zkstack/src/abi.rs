@@ -13,14 +13,14 @@ abigen!(
 );
 
 abigen!(
-    ZkChainAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IZKChain.sol/IZKChain.json",
+    IChainTypeManagerAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IChainTypeManager.sol/IChainTypeManager.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
-    IChainTypeManagerAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IChainTypeManager.sol/IChainTypeManager.json",
+    ZkChainAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IZKChain.sol/IZKChain.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
@@ -32,7 +32,7 @@ abigen!(
 
 abigen!(
     IChainAssetHandlerAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IChainAssetHandler.sol/IChainAssetHandler.json",
+    "../../../contracts/l1-contracts/zkstack-out/IChainAssetHandler.sol/IChainAssetHandlerBase.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
@@ -43,16 +43,27 @@ abigen!(
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
-// Using IAdmin for the diamondCut function
+abigen!(
+    AdminAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IAdmin.sol/IAdmin.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
 abigen!(
     DiamondCutAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IAdmin.sol/IAdmin.json",
+    "../../../contracts/l1-contracts/zkstack-out/IDiamondCut.sol/IDiamondCut.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
     ChainAdminOwnableAbi,
     "../../../contracts/l1-contracts/zkstack-out/IChainAdminOwnable.sol/IChainAdminOwnable.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IChainAdminAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IChainAdmin.sol/IChainAdmin.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
@@ -135,8 +146,20 @@ abigen!(
 );
 
 abigen!(
+    IL1NativeTokenVaultAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL1NativeTokenVault.sol/IL1NativeTokenVault.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
     IL2NativeTokenVaultAbi,
     "../../../contracts/l1-contracts/zkstack-out/IL2NativeTokenVault.sol/IL2NativeTokenVault.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IL1AssetRouterAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL1AssetRouter.sol/IL1AssetRouter.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
@@ -153,6 +176,12 @@ abigen!(
 );
 
 abigen!(
+    IL1AssetTrackerAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IL1AssetTracker.sol/IL1AssetTracker.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
     IL2AssetTrackerAbi,
     "../../../contracts/l1-contracts/zkstack-out/IL2AssetTracker.sol/IL2AssetTracker.json",
     event_derives(serde::Deserialize, serde::Serialize)
@@ -161,12 +190,6 @@ abigen!(
 abigen!(
     IGWAssetTrackerAbi,
     "../../../contracts/l1-contracts/zkstack-out/IGWAssetTracker.sol/IGWAssetTracker.json",
-    event_derives(serde::Deserialize, serde::Serialize)
-);
-
-abigen!(
-    IChainAdminAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IChainAdmin.sol/IChainAdmin.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 

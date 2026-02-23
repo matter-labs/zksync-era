@@ -53,6 +53,8 @@ pub struct SyncBlock {
     /// Interop roots for this block
     pub interop_roots: Option<Vec<InteropRoot>>,
     pub settlement_layer: Option<SettlementLayer>,
+    /// Interop fee used for the L1 batch corresponding to this L2 block.
+    pub interop_fee: Option<u64>,
 }
 
 /// Global configuration of the consensus served by the main node to the external nodes.

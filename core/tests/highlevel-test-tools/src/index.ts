@@ -18,5 +18,6 @@ export { generateLoad } from './generate-load';
 export { getRpcUrl, queryJsonRpc, getL1BatchNumber, getL1BatchDetails } from './rpc-utils';
 export { waitForAllBatchesToBeExecuted, generateRealisticLoad } from './wait-for-batches';
 export { TESTED_CHAIN_TYPE } from './chain-types';
-export { migrateToGatewayIfNeeded } from './gateway';
+export { migrateToGatewayIfNeeded, agreeToPaySettlementFees, waitForMigrationReadyForFinalize } from './gateway';
 export { getMainWalletPk } from './wallets';
+export { withDeadline, checkRpcHealth, isConnectionError, RpcHealthGuard, type HealthStatus } from './deadline';

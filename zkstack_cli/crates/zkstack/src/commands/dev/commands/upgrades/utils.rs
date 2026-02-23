@@ -2,10 +2,10 @@ use ethers::contract::BaseContract;
 use lazy_static::lazy_static;
 use zkstack_cli_common::logger;
 
-use crate::abi::ICHAINADMINABI_ABI;
+use crate::abi::CHAINADMINOWNABLEABI_ABI;
 
 lazy_static! {
-    static ref CHAIN_ADMIN_ABI: BaseContract = BaseContract::from(ICHAINADMINABI_ABI.clone());
+    static ref CHAIN_ADMIN_ABI: BaseContract = BaseContract::from(CHAINADMINOWNABLEABI_ABI.clone());
 }
 
 pub(crate) fn print_error(err: anyhow::Error) {
