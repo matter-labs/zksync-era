@@ -200,12 +200,20 @@ if (shouldSkip) {
         await expectRevertWithSelector(
             sendInteropBundle(
                 chainRichWallet,
-                1337, // Chain that does not exist, and thus is not registered
+                secondChainHandler.inner.chainId,
                 await tokens.L2BToken.l2Contract?.getAddress()
             ),
             '0x2d159f39', // DestinationChainNotRegistered
             'Initiate to non registered chains should revert'
         );
+    });
+
+    it('Can initiate token balance migration to Gateway', async () => {
+        await chainHandler.initiateTokenBalanceMigration('to-gateway');
+    });
+
+    it('Can migrate the second chain to gateway', async () => {
+        await secondChainHandler.migrateToGateway();
     });
 
     it('Cannot initiate interop for non migrated tokens', async () => {
@@ -222,18 +230,14 @@ if (shouldSkip) {
         );
     });
 
-    it('Can initiate interop to chains that are registered on this chain, but not migrated to gateway', async () => {
+    it('Can initiate interop of migrated tokens', async () => {
         // Since L2BToken was deposited after the chain migrated to gateway, its balance gets effectively migrated
-        bundles.beforeGatewayRegistrationOfSecondChain = await sendInteropBundle(
+        bundles.afterChainMigrationToGateway = await sendInteropBundle(
             chainRichWallet,
             secondChainHandler.inner.chainId,
             await tokens.L2BToken.l2Contract?.getAddress()
         );
         // TODO: Reduce the balance of the L2-B token on the sending chain
-    });
-
-    it('Can initiate token balance migration to Gateway', async () => {
-        await chainHandler.initiateTokenBalanceMigration('to-gateway');
     });
 
     it('Cannot withdraw tokens that have not been migrated', async () => {
@@ -305,6 +309,15 @@ if (shouldSkip) {
         gatewayEraWithdrawals.L1NativeDepositedToL2 = await tokens.L1NativeDepositedToL2.withdraw();
     });
 
+    it('Can initiate interop of migrated tokens', async () => {
+        bundles.afterChainMigrationToGateway = await sendInteropBundle(
+            chainRichWallet,
+            secondChainHandler.inner.chainId,
+            await tokens.L1NativeDepositedToL2.l2Contract?.getAddress()
+        );
+        // TODO: Reduce the balance of the token on the sending chain
+    });
+
     it('Correctly assigns chain token balances after migrating token balances to gateway', async () => {
         for (const tokenName of Object.keys(tokens)) {
             if (tokenName === 'L2BTokenNotDepositedToL2A') continue;
@@ -331,19 +344,6 @@ if (shouldSkip) {
         }
     });
 
-    it('Can migrate the second chain to gateway', async () => {
-        await secondChainHandler.migrateToGateway();
-    });
-
-    it('Can initiate interop of migrated tokens', async () => {
-        bundles.afterChainMigrationToGateway = await sendInteropBundle(
-            chainRichWallet,
-            secondChainHandler.inner.chainId,
-            await tokens.L2BToken.l2Contract?.getAddress()
-        );
-        // TODO: Reduce the balance of the L2-B token on the sending chain
-    });
-
     it('Can finalize interop of migrated tokens', async () => {
         for (const bundleName of Object.keys(bundles)) {
             await awaitInteropBundle(chainRichWallet, gwRichWallet, secondChainRichWallet, bundles[bundleName].hash);
@@ -353,6 +353,19 @@ if (shouldSkip) {
                 bundles[bundleName].hash
             );
         }
+    });
+
+    it('Can migrate the second chain from gateway', async () => {
+        await secondChainHandler.migrateFromGateway();
+    });
+
+    it('Can initiate interop to chains that are registered on this chain, but migrated from gateway', async () => {
+        bundles.beforeGatewayRegistrationOfSecondChain = await sendInteropBundle(
+            chainRichWallet,
+            secondChainHandler.inner.chainId,
+            await tokens.L1NativeDepositedToL2.l2Contract?.getAddress()
+        );
+        // TODO: Reduce the balance of the token on the sending chain
     });
 
     it('Can migrate the chain from gateway', async () => {
@@ -445,6 +458,10 @@ if (shouldSkip) {
             await unfinalizedWithdrawals[tokenName].finalizeWithdrawal(chainRichWallet.ethWallet());
             delete unfinalizedWithdrawals[tokenName];
         }
+    });
+
+    it('Cannot finalize interop on L1', async () => {
+        // TODO
     });
 
     afterAll(async () => {

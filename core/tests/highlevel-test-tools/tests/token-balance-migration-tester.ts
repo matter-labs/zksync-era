@@ -823,6 +823,10 @@ export function indirectCallAttr(callValue: bigint = 0n): string {
     return ERC7786_ATTR_INTERFACE.encodeFunctionData('indirectCall', [callValue]);
 }
 
+export function useFixedFeeAttr(useFixedFee: boolean): string {
+    return ERC7786_ATTR_INTERFACE.encodeFunctionData('useFixedFee', [useFixedFee]);
+}
+
 export function executionAddressAttr(executionAddress: string, chainId: bigint): string {
     return ERC7786_ATTR_INTERFACE.encodeFunctionData('executionAddress', [
         formatEvmV1Address(executionAddress, chainId)
@@ -854,9 +858,10 @@ export async function sendInteropBundle(
     tokenAddress?: string
 ): Promise<ethers.TransactionReceipt> {
     const interopCenter = new zksync.Contract(L2_INTEROP_CENTER_ADDRESS, INTEROP_CENTER_ABI, senderWallet);
+    const protocolFee = (await interopCenter.interopProtocolFee()) as bigint;
 
     let callStarters: InteropCallStarter[];
-    let overrides: ethers.Overrides = {};
+    let callValue = 0n;
 
     if (!tokenAddress) {
         callStarters = [
@@ -866,7 +871,7 @@ export async function sendInteropBundle(
                 callAttributes: [interopCallValueAttr(INTEROP_TEST_AMOUNT)]
             }
         ];
-        overrides = { value: INTEROP_TEST_AMOUNT };
+        callValue = INTEROP_TEST_AMOUNT;
     } else {
         const l2Ntv = getL2Ntv(senderWallet);
         const assetId = await l2Ntv.assetId(tokenAddress);
@@ -885,10 +890,16 @@ export async function sendInteropBundle(
         ];
     }
 
+    // InteropCenter now requires explicit fee mode via bundle attributes.
+    // We use protocol fee in msg.value (useFixedFee=false), plus direct-call value when present.
+    const bundleAttributes = [useFixedFeeAttr(false)];
+    const msgValue = protocolFee * BigInt(callStarters.length) + callValue;
+    const overrides: ethers.Overrides = { value: msgValue };
+
     const tx = await interopCenter.sendBundle(
         formatEvmV1Chain(BigInt(destinationChainId)),
         callStarters,
-        [],
+        bundleAttributes,
         overrides
     );
     return await tx.wait();
