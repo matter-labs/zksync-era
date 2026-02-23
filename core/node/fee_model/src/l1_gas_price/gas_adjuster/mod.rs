@@ -294,9 +294,15 @@ impl GasAdjuster {
                 (self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64) as f64,
             ),
             PubdataSendingMode::Custom => {
-                // Fix this when we have a better understanding of dynamic pricing for custom DA layers.
+                // For Validium/Custom DA, we need to return a minimum gas per pubdata price
+                // to ensure that transactions settling on this gateway can calculate a valid
+                // gas_per_pubdata value. Without this, chains trying to settle on a Validium
+                // gateway will fail with "gas per pub data limit is zero" error.
+                // We use REQUIRED_L2_GAS_PRICE_PER_PUBDATA (800) as the minimum.
+                // TODO: We still need to have a better understanding of dynamic pricing for custom DA layers.
                 // GitHub issue: https://github.com/matter-labs/zksync-era/issues/2105
-                0
+                const MIN_PUBDATA_PRICE_FOR_VALIDIUM: u64 = 800; // Same as REQUIRED_L2_GAS_PRICE_PER_PUBDATA
+                MIN_PUBDATA_PRICE_FOR_VALIDIUM
             }
             PubdataSendingMode::RelayedL2Calldata => {
                 self.cap_pubdata_fee(self.l2_pubdata_price_statistics.median().as_u64() as f64)
@@ -308,7 +314,17 @@ impl GasAdjuster {
         // We will treat the max blob base fee as the maximal fee that we can take for each byte of pubdata.
         let max_blob_base_fee = self.config.max_blob_base_fee;
         match self.commitment_mode {
-            L1BatchCommitmentMode::Validium => 0,
+            L1BatchCommitmentMode::Validium => {
+                // For Validium mode, we still need to return the pubdata fee
+                // to ensure chains settling on this gateway can function properly.
+                // We don't cap it to 0 as that would break settlement transactions.
+                // We apply the same max fee cap as for Rollup mode.
+                if pubdata_fee > max_blob_base_fee as f64 {
+                    tracing::warn!("Pubdata fee for Validium is high: {pubdata_fee}, using max allowed: {max_blob_base_fee}");
+                    return max_blob_base_fee;
+                }
+                pubdata_fee as u64
+            }
             L1BatchCommitmentMode::Rollup => {
                 if pubdata_fee > max_blob_base_fee as f64 {
                     tracing::error!("Blob base fee is too high: {pubdata_fee}, using max allowed: {max_blob_base_fee}");
