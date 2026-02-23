@@ -57,7 +57,7 @@ export async function expectRevertWithSelector(
     }
 }
 
-export function readArtifact(contractName: string, outFolder: string = 'out', fileName: string = contractName) {
+function readArtifact(contractName: string, outFolder: string = 'out', fileName: string = contractName) {
     return JSON.parse(
         fs
             .readFileSync(
@@ -77,10 +77,6 @@ export const INTEROP_TEST_AMOUNT = 1_000_000_000n;
 const INTEROP_CENTER_ABI = readArtifact('InteropCenter').abi;
 const INTEROP_HANDLER_ABI = readArtifact('InteropHandler').abi;
 const ERC7786_ATTR_INTERFACE = new ethers.Interface(readArtifact('IERC7786Attributes').abi);
-const CHAIN_REGISTRATION_SENDER_ABI = [
-    'function registerChain(uint256 chainToBeRegistered, uint256 chainRegisteredOn)',
-    'function chainRegisteredOnChain(uint256 chainToBeRegistered, uint256 chainRegisteredOn) view returns (bool)'
-];
 
 type AssetTrackerLocation = 'L1AT' | 'L1AT_GW' | 'GWAT';
 const ASSET_TRACKERS: readonly AssetTrackerLocation[] = ['L1AT', 'L1AT_GW', 'GWAT'] as const;
