@@ -70,19 +70,29 @@ Migration is considered allowed when:
 
 Current constants set both start windows to `0`, so both conditions are immediate.
 
-## Unpause behavior
+### Unpause behavior
 
 - `forwardedBridgeConfirmTransferResult` unpauses deposits during migration result handling.
 - `forwardedBridgeMint` also unpauses deposits on successful migration completion.
 - `unpauseDeposits` remains available to the chain admin, but only if `isMigrationInProgress(chainId) == false`. This is only used to allow chains to have their deposits paused (and so migrate to Gatewat) right after the chain is created.
 
-## Stage1 note
+### Stage1 note
 
 Since stage1 is not yet supported for chains that settle on top of Gateway, in this release the delay before pausing deposits is 0. However, the code should be ready to be able to jump bump those constants in one of the future releases.
 
 Additionally, there is a risk that the chain admin may abuse this functionality by disabling deposits to prevent users from executing any deposits, while actually not even trying to migrate to ZK Gateway. It is a known issue and will be resolved in one of the future upgrades. Right now it is considered acceptable, since:
 - A malicious chain admin can set `transactionFilterer` that would achieve the same goal anyway.
 - This functionality (as well as the `transactionFilterer` one) is disabled for chains that aim to support stage1, i.e. `s.priorityModeInfo.canBeActivated = true`. 
+
+### Conclusion
+
+If a chain uses our DiamondProxy implementation, then it is enforced that when the chain starts its migration to L1:
+- The deposits have been paused + no priority transactions are left unprocessed. 
+- The only way to enable those back is to provide the proof that the migration has either succeeded or failed.
+
+When it migrates back from GW similarly we enforce that the deposits have been paused + no priority transactions are left unprocessed. It is assumed that GW->L1 migration never fails and so the only way the deposits will be enabled is after the chain completes its migration to L1.
+
+Both of the situations above perfectly ensure that the deposit invairant (TOOD link) that is required for asset migration holds even in the case of a malicious chain admin.
 
 ## Risk model update
 
