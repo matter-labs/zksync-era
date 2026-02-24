@@ -850,6 +850,13 @@ async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: numbe
             if (printedBlockNumber < block.number) {
                 printedBlockNumber = block.number;
             }
+            // We make repeated transactions to force the L2 to update.
+            await (
+                await wallet.transfer({
+                    to: wallet.address,
+                    amount: 1
+                })
+            ).wait();
             await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
     }
