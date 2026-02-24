@@ -61,8 +61,9 @@ if (shouldSkip) {
     const unfinalizedWithdrawalsSecondChain: Record<string, WithdrawalHandler> = {};
     // Withdrawals initiated while the chain is on Gateway
     const gatewayEraWithdrawals: Record<string, WithdrawalHandler> = {};
-    // Bundles sent to from chain to custom token chain
-    const bundles: Record<string, ethers.TransactionReceipt> = {};
+    // Bundles sent to from chain to second chain
+    const bundlesExecutedOnGateway: Record<string, ethers.TransactionReceipt> = {};
+    const bundlesExecutedOnL1: Record<string, ethers.TransactionReceipt> = {};
 
     beforeAll(async () => {
         // Initialize gateway chain
@@ -322,36 +323,40 @@ if (shouldSkip) {
         }
     });
 
+    const tokenNames = ['L1NativeDepositedToL2', 'L2NativeNotWithdrawnToL1', 'L2BToken'];
     it('Can initiate interop of migrated tokens', async () => {
-        bundles.L1NativeDepositedToL2 = await sendInteropBundle(
-            chainRichWallet,
-            secondChainHandler.inner.chainId,
-            await tokens.L1NativeDepositedToL2.l2Contract?.getAddress()
-        );
-        await chainHandler.accountForSentInterop(tokens.L1NativeDepositedToL2);
-        bundles.L2NativeNotWithdrawnToL1 = await sendInteropBundle(
-            chainRichWallet,
-            secondChainHandler.inner.chainId,
-            await tokens.L2NativeNotWithdrawnToL1.l2Contract?.getAddress()
-        );
-        await chainHandler.accountForSentInterop(tokens.L2NativeNotWithdrawnToL1);
-        bundles.L2BToken = await sendInteropBundle(
-            chainRichWallet,
-            secondChainHandler.inner.chainId,
-            await tokens.L2BToken.l2Contract?.getAddress()
-        );
-        await chainHandler.accountForSentInterop(tokens.L2BToken);
+        const sendBundles = async (executedBundles: Record<string, ethers.TransactionReceipt>) => {
+            for (const tokenName of tokenNames) {
+                executedBundles[tokenName] = await sendInteropBundle(
+                    chainRichWallet,
+                    secondChainHandler.inner.chainId,
+                    await tokens[tokenName].l2Contract?.getAddress()
+                );
+                await chainHandler.accountForSentInterop(tokens[tokenName]);
+            }
+        };
+
+        // We send bundles that will be executed while settling on Gateway, and after we migrate back to L1.
+        // By the time we execute `bundlesExecutedOnGateway`, the interop roots for `bundlesExecutedOnL1` will
+        // have been imported in the destination chain, making them executable even after we migrate back to L1.
+        await sendBundles(bundlesExecutedOnL1);
+        await sendBundles(bundlesExecutedOnGateway);
     });
 
     it('Can finalize interop of migrated tokens', async () => {
-        // TODO (with new tbm flow): also check interop execution AFTER we migrate from gateway,
-        // for interop bundles whose containing roots were imported before the migration
-        for (const bundleName of Object.keys(bundles)) {
-            await awaitInteropBundle(chainRichWallet, gwRichWallet, secondChainRichWallet, bundles[bundleName].hash);
+        // We wait for the last of these bundles to be executable on the destination chain.
+        // By then, all of the bundles should be executable.
+        await awaitInteropBundle(
+            chainRichWallet,
+            gwRichWallet,
+            secondChainRichWallet,
+            bundlesExecutedOnGateway[tokenNames[tokenNames.length - 1]].hash
+        );
+        for (const bundleName of Object.keys(bundlesExecutedOnGateway)) {
             await readAndBroadcastInteropBundle(
                 secondChainRichWallet,
                 chainRichWallet.provider,
-                bundles[bundleName].hash
+                bundlesExecutedOnGateway[bundleName].hash
             );
         }
     });
@@ -469,8 +474,16 @@ if (shouldSkip) {
         }
     });
 
-    it('Cannot finalize interop on L1', async () => {
-        // TODO
+    it('Can finalize old interop bundles on L1', async () => {
+        // Note that this is only possible if the containing interop root was imported BEFORE we migrated back to L1.
+        for (const bundleName of Object.keys(bundlesExecutedOnL1)) {
+            // We do not need to await the interop bundle as it was already executed on Gateway before we migrated back to L1.
+            await readAndBroadcastInteropBundle(
+                secondChainRichWallet,
+                chainRichWallet.provider,
+                bundlesExecutedOnL1[bundleName].hash
+            );
+        }
     });
 
     afterAll(async () => {
