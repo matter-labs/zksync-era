@@ -23,7 +23,14 @@ import {
     ArtifactIBridgehubBase,
     ArtifactIGetters
 } from 'utils/src/constants';
-import { executeCommand, FileMutex, migrateToGatewayIfNeeded, agreeToPaySettlementFees, startServer } from '../src';
+import {
+    executeCommand,
+    FileMutex,
+    migrateToGatewayIfNeeded,
+    agreeToPaySettlementFees,
+    startServer,
+    RpcHealthGuard
+} from '../src';
 import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
 import { formatEvmV1Address, formatEvmV1Chain, getInteropBundleData } from '../src/temp-sdk';
@@ -355,29 +362,75 @@ export class ChainHandler {
             );
             // Wait for priority queue to be empty
             await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
-            // Wait for all batches to be executed
-            await this.inner.waitForAllBatchesToBeExecuted();
             // Notify server
             await this.zkstackExecWithMutex(
                 ['chain', 'gateway', 'notify-about-from-gateway-update', '--chain', this.inner.chainName],
                 'notifying about from gateway update',
                 'gateway_migration'
             );
-            // We can now reliably migrate from gateway
+            // Retry migration until the server becomes ready
             removeErrorListeners(this.inner.mainNode.process!);
-            await this.zkstackExecWithMutex(
-                [
-                    'chain',
-                    'gateway',
-                    'migrate-from-gateway',
-                    '--gateway-chain-name',
-                    'gateway',
-                    '--chain',
-                    this.inner.chainName
-                ],
-                'migrating from gateway',
-                'gateway_migration'
-            );
+            const generalConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'general.yaml' });
+            const secretsConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'secrets.yaml' });
+            const chainRpcUrl = generalConfig.api.web3_json_rpc.http_url;
+            const gatewayRpcUrl = secretsConfig.l1.gateway_rpc_url;
+            const chainHealth = new RpcHealthGuard(chainRpcUrl, 3, 'chain server');
+            const gwHealth = new RpcHealthGuard(gatewayRpcUrl, 3, 'gateway');
+
+            let migrationSucceeded = false;
+            let tryCount = 0;
+            while (!migrationSucceeded && tryCount < 60) {
+                if (tryCount > 0) {
+                    const chainStatus = await chainHealth.check();
+                    if (chainStatus === 'dead') {
+                        console.log(
+                            `Migration was likely already initiated and chain server shut down as expected. Proceeding to restart.`
+                        );
+                        migrationSucceeded = true;
+                        break;
+                    }
+                    if (chainStatus === 'failing') {
+                        await utils.sleep(10);
+                        tryCount++;
+                        continue;
+                    }
+
+                    const gwStatus = await gwHealth.check();
+                    if (gwStatus === 'dead') {
+                        throw new Error(`Gateway server unreachable at ${gatewayRpcUrl}. Aborting migration retries.`);
+                    }
+                    if (gwStatus === 'failing') {
+                        await utils.sleep(10);
+                        tryCount++;
+                        continue;
+                    }
+                }
+
+                try {
+                    await this.zkstackExecWithMutex(
+                        [
+                            'chain',
+                            'gateway',
+                            'migrate-from-gateway',
+                            '--gateway-chain-name',
+                            'gateway',
+                            '--chain',
+                            this.inner.chainName
+                        ],
+                        'migrating from gateway',
+                        'gateway_migration'
+                    );
+                    migrationSucceeded = true;
+                } catch (e) {
+                    tryCount++;
+                    console.log(`Migration attempt ${tryCount}/60 failed with error: ${e}`);
+                    await utils.sleep(10);
+                }
+            }
+
+            if (!migrationSucceeded) {
+                throw new Error('Migration from gateway did not succeed after 60 attempts');
+            }
             await this.waitForShutdown();
             await this.startServer();
         });
