@@ -43,6 +43,7 @@ use crate::{
             migrate_to_gateway_calldata::check_permanent_rollup_and_set_da_validator_via_gateway,
         },
         init::send_priority_txs,
+        register_on_all_chains::register_on_all_chains,
     },
     messages::{
         msg_initializing_chain, MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_INITIALIZED,
@@ -247,6 +248,21 @@ pub async fn run_inner(
         l1_rpc_url.clone(),
         args.deploy_paymaster,
         args.validium_type.clone(),
+    )
+    .await?;
+
+    // Register chain on all other chains
+    register_on_all_chains(
+        shell,
+        &chain_config.path_to_foundry_scripts(),
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        chain_config.chain_id,
+        &chain_config
+            .get_wallets_config()?
+            .deployer
+            .expect("Deployer wallet not set"),
+        &args.forge_args,
+        l1_rpc_url.clone(),
     )
     .await?;
 

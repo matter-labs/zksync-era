@@ -13,11 +13,27 @@ import {
     L2_NATIVE_TOKEN_VAULT_ADDRESS,
     L2_ASSET_TRACKER_ADDRESS,
     GW_ASSET_TRACKER_ADDRESS,
-    GATEWAY_CHAIN_ID
+    GATEWAY_CHAIN_ID,
+    L2_BRIDGEHUB_ADDRESS,
+    L2_INTEROP_ROOT_STORAGE_ADDRESS,
+    L2_ASSET_ROUTER_ADDRESS,
+    L2_INTEROP_CENTER_ADDRESS,
+    L2_INTEROP_HANDLER_ADDRESS,
+    ArtifactL2InteropRootStorage,
+    ArtifactIBridgehubBase,
+    ArtifactIGetters
 } from 'utils/src/constants';
-import { executeCommand, FileMutex, migrateToGatewayIfNeeded, agreeToPaySettlementFees, startServer } from '../src';
+import {
+    executeCommand,
+    FileMutex,
+    migrateToGatewayIfNeeded,
+    agreeToPaySettlementFees,
+    startServer,
+    RpcHealthGuard
+} from '../src';
 import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
+import { formatEvmV1Address, formatEvmV1Chain, getInteropBundleData } from '../src/temp-sdk';
 
 const tbmMutex = new FileMutex();
 export const RICH_WALLET_L2_BALANCE = ethers.parseEther('10.0');
@@ -64,8 +80,37 @@ const ERC20_ABI = ERC20_EVM_ARTIFACT.abi;
 
 const ERC20_ZKEVM_BYTECODE = readArtifact('TestnetERC20Token', 'zkout').bytecode.object;
 
+export const INTEROP_TEST_AMOUNT = 1_000_000_000n;
+const INTEROP_CENTER_ABI = readArtifact('InteropCenter').abi;
+const INTEROP_HANDLER_ABI = readArtifact('InteropHandler').abi;
+const ERC7786_ATTR_INTERFACE = new ethers.Interface(readArtifact('IERC7786Attributes').abi);
+
 type AssetTrackerLocation = 'L1AT' | 'L1AT_GW' | 'GWAT';
 const ASSET_TRACKERS: readonly AssetTrackerLocation[] = ['L1AT', 'L1AT_GW', 'GWAT'] as const;
+
+export interface InteropCallStarter {
+    to: string;
+    data: string;
+    callAttributes: string[];
+}
+
+export type MessageInclusionProof = {
+    chainId: bigint;
+    l1BatchNumber: number;
+    l2MessageIndex: number;
+    message: [number, string, string];
+    proof: string[];
+};
+
+export type InteropBundleData = {
+    rawData: string | null;
+    bundleHash: string;
+    output: any | null;
+    l1BatchNumber: number;
+    l2TxNumberInBlock: number;
+    l2MessageIndex: number;
+    proof: MessageInclusionProof | null;
+};
 
 export async function generateChainRichWallet(chainName: string): Promise<zksync.Wallet> {
     const generalConfig = loadConfig({ pathToHome, chain: chainName, config: 'general.yaml' });
@@ -132,6 +177,8 @@ export class ChainHandler {
 
     // Records expected chain balances for each token asset ID
     public chainBalances: Record<string, bigint> = {};
+    // Interop sends increase the recipient-side balance tracked on L1AT_GW for each asset.
+    public interopGatewayIncreases: Record<string, bigint> = {};
 
     constructor(inner: TestChain, l2RichWallet: zksync.Wallet) {
         const contractsConfig = loadConfig({ pathToHome, chain: inner.chainName, config: 'contracts.yaml' });
@@ -315,29 +362,75 @@ export class ChainHandler {
             );
             // Wait for priority queue to be empty
             await this.waitForPriorityQueueToBeEmpty(this.l1GettersContract);
-            // Wait for all batches to be executed
-            await this.inner.waitForAllBatchesToBeExecuted();
             // Notify server
             await this.zkstackExecWithMutex(
                 ['chain', 'gateway', 'notify-about-from-gateway-update', '--chain', this.inner.chainName],
                 'notifying about from gateway update',
                 'gateway_migration'
             );
-            // We can now reliably migrate from gateway
+            // Retry migration until the server becomes ready
             removeErrorListeners(this.inner.mainNode.process!);
-            await this.zkstackExecWithMutex(
-                [
-                    'chain',
-                    'gateway',
-                    'migrate-from-gateway',
-                    '--gateway-chain-name',
-                    'gateway',
-                    '--chain',
-                    this.inner.chainName
-                ],
-                'migrating from gateway',
-                'gateway_migration'
-            );
+            const generalConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'general.yaml' });
+            const secretsConfig = loadConfig({ pathToHome, chain: this.inner.chainName, config: 'secrets.yaml' });
+            const chainRpcUrl = generalConfig.api.web3_json_rpc.http_url;
+            const gatewayRpcUrl = secretsConfig.l1.gateway_rpc_url;
+            const chainHealth = new RpcHealthGuard(chainRpcUrl, 3, 'chain server');
+            const gwHealth = new RpcHealthGuard(gatewayRpcUrl, 3, 'gateway');
+
+            let migrationSucceeded = false;
+            let tryCount = 0;
+            while (!migrationSucceeded && tryCount < 60) {
+                if (tryCount > 0) {
+                    const chainStatus = await chainHealth.check();
+                    if (chainStatus === 'dead') {
+                        console.log(
+                            `Migration was likely already initiated and chain server shut down as expected. Proceeding to restart.`
+                        );
+                        migrationSucceeded = true;
+                        break;
+                    }
+                    if (chainStatus === 'failing') {
+                        await utils.sleep(10);
+                        tryCount++;
+                        continue;
+                    }
+
+                    const gwStatus = await gwHealth.check();
+                    if (gwStatus === 'dead') {
+                        throw new Error(`Gateway server unreachable at ${gatewayRpcUrl}. Aborting migration retries.`);
+                    }
+                    if (gwStatus === 'failing') {
+                        await utils.sleep(10);
+                        tryCount++;
+                        continue;
+                    }
+                }
+
+                try {
+                    await this.zkstackExecWithMutex(
+                        [
+                            'chain',
+                            'gateway',
+                            'migrate-from-gateway',
+                            '--gateway-chain-name',
+                            'gateway',
+                            '--chain',
+                            this.inner.chainName
+                        ],
+                        'migrating from gateway',
+                        'gateway_migration'
+                    );
+                    migrationSucceeded = true;
+                } catch (e) {
+                    tryCount++;
+                    console.log(`Migration attempt ${tryCount}/60 failed with error: ${e}`);
+                    await utils.sleep(10);
+                }
+            }
+
+            if (!migrationSucceeded) {
+                throw new Error('Migration from gateway did not succeed after 60 attempts');
+            }
             await this.waitForShutdown();
             await this.startServer();
         });
@@ -485,6 +578,14 @@ export class ChainHandler {
         if (delta !== 0n) {
             this.chainBalances[this.baseTokenAssetId] = (this.chainBalances[this.baseTokenAssetId] ?? 0n) + delta;
         }
+    }
+
+    async accountForSentInterop(token: ERC20Handler, amount: bigint = INTEROP_TEST_AMOUNT): Promise<void> {
+        const assetId = await token.assetId(this);
+        // For L2-native tokens we use MaxUint256 as the starting expected balance when not tracked yet.
+        const currentBalance = this.chainBalances[assetId] ?? (token.isL2Token ? ethers.MaxUint256 : 0n);
+        this.chainBalances[assetId] = currentBalance - amount;
+        this.interopGatewayIncreases[assetId] = (this.interopGatewayIncreases[assetId] ?? 0n) + amount;
     }
 
     private async assertAssetMigrationNumber(
@@ -771,4 +872,192 @@ async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number,
         await zksync.utils.sleep(wallet.provider.pollingInterval);
         i++;
     }
+}
+
+export function interopCallValueAttr(amount: bigint): string {
+    return ERC7786_ATTR_INTERFACE.encodeFunctionData('interopCallValue', [amount]);
+}
+
+export function indirectCallAttr(callValue: bigint = 0n): string {
+    return ERC7786_ATTR_INTERFACE.encodeFunctionData('indirectCall', [callValue]);
+}
+
+export function useFixedFeeAttr(useFixedFee: boolean): string {
+    return ERC7786_ATTR_INTERFACE.encodeFunctionData('useFixedFee', [useFixedFee]);
+}
+
+export function executionAddressAttr(executionAddress: string, chainId: bigint): string {
+    return ERC7786_ATTR_INTERFACE.encodeFunctionData('executionAddress', [
+        formatEvmV1Address(executionAddress, chainId)
+    ]);
+}
+
+export function unbundlerAddressAttr(unbundlerAddress: string, chainId: bigint): string {
+    return ERC7786_ATTR_INTERFACE.encodeFunctionData('unbundlerAddress', [
+        formatEvmV1Address(unbundlerAddress, chainId)
+    ]);
+}
+
+export function getTokenTransferSecondBridgeData(assetId: string, amount: bigint, recipient: string) {
+    return ethers.concat([
+        '0x01',
+        new ethers.AbiCoder().encode(
+            ['bytes32', 'bytes'],
+            [
+                assetId,
+                new ethers.AbiCoder().encode(['uint256', 'address', 'address'], [amount, recipient, ethers.ZeroAddress])
+            ]
+        )
+    ]);
+}
+
+export async function sendInteropBundle(
+    senderWallet: zksync.Wallet,
+    destinationChainId: number,
+    tokenAddress?: string
+): Promise<ethers.TransactionReceipt> {
+    const interopCenter = new zksync.Contract(L2_INTEROP_CENTER_ADDRESS, INTEROP_CENTER_ABI, senderWallet);
+    const protocolFee = (await interopCenter.interopProtocolFee()) as bigint;
+
+    let callStarters: InteropCallStarter[];
+    let callValue = 0n;
+
+    if (!tokenAddress) {
+        callStarters = [
+            {
+                to: formatEvmV1Address(senderWallet.address),
+                data: '0x',
+                callAttributes: [interopCallValueAttr(INTEROP_TEST_AMOUNT)]
+            }
+        ];
+        callValue = INTEROP_TEST_AMOUNT;
+    } else {
+        const l2Ntv = getL2Ntv(senderWallet);
+        const assetId = await l2Ntv.assetId(tokenAddress);
+        const tokenContract = new zksync.Contract(tokenAddress, ERC20_ABI, senderWallet);
+        const allowance = await tokenContract.allowance(senderWallet.address, L2_NATIVE_TOKEN_VAULT_ADDRESS);
+        if (allowance < INTEROP_TEST_AMOUNT) {
+            await (await tokenContract.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, INTEROP_TEST_AMOUNT)).wait();
+        }
+
+        callStarters = [
+            {
+                to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
+                data: getTokenTransferSecondBridgeData(assetId, INTEROP_TEST_AMOUNT, senderWallet.address),
+                callAttributes: [indirectCallAttr()]
+            }
+        ];
+    }
+
+    // InteropCenter now requires explicit fee mode via bundle attributes.
+    // We use protocol fee in msg.value (useFixedFee=false), plus direct-call value when present.
+    const bundleAttributes = [useFixedFeeAttr(false)];
+    const msgValue = protocolFee * BigInt(callStarters.length) + callValue;
+    const overrides: ethers.Overrides = { value: msgValue };
+
+    const tx = await interopCenter.sendBundle(
+        formatEvmV1Chain(BigInt(destinationChainId)),
+        callStarters,
+        bundleAttributes,
+        overrides
+    );
+    return await tx.wait();
+}
+
+export async function awaitInteropBundle(
+    senderWallet: zksync.Wallet,
+    gwWallet: zksync.Wallet,
+    destinationWallet: zksync.Wallet,
+    txHash: string
+) {
+    const txReceipt = await senderWallet.provider.getTransactionReceipt(txHash);
+    await waitUntilBlockFinalized(senderWallet, txReceipt!.blockNumber);
+
+    await waitUntilBlockExecutedOnGateway(senderWallet, gwWallet, txReceipt!.blockNumber);
+    await utils.sleep(1); // Additional delay to avoid flakiness
+    const params = await senderWallet.getFinalizeWithdrawalParams(txHash, 0, 'proof_based_gw');
+    await waitForInteropRootNonZero(destinationWallet.provider, destinationWallet, getGWBlockNumber(params));
+}
+
+export async function readAndBroadcastInteropBundle(
+    wallet: zksync.Wallet,
+    senderProvider: zksync.Provider,
+    txHash: string
+) {
+    // Get interop trigger and bundle data from the sender chain.
+    const executionBundle = await getInteropBundleData(senderProvider, txHash, 0);
+    if (executionBundle.output == null) return;
+
+    const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
+    const receipt = await interopHandler.executeBundle(executionBundle.rawData, executionBundle.proofDecoded);
+    await receipt.wait();
+}
+
+/**
+ * Waits until the requested block is executed on the gateway.
+ *
+ * @param wallet Wallet to use to poll the server.
+ * @param gwWallet Gateway wallet.
+ * @param blockNumber Number of block.
+ * @param timeoutMs Maximum time to wait (default 10 min).
+ */
+export async function waitUntilBlockExecutedOnGateway(
+    wallet: zksync.Wallet,
+    gwWallet: zksync.Wallet,
+    blockNumber: number,
+    timeoutMs: number = 10 * 60 * 1000
+) {
+    const start = Date.now();
+    const bridgehub = new ethers.Contract(L2_BRIDGEHUB_ADDRESS, ArtifactIBridgehubBase.abi, gwWallet);
+    const zkChainAddr = await bridgehub.getZKChain(await wallet.provider.getNetwork().then((net: any) => net.chainId));
+    const gettersFacet = new ethers.Contract(zkChainAddr, ArtifactIGetters.abi, gwWallet);
+
+    let batchNumber = (await wallet.provider.getBlockDetails(blockNumber)).l1BatchNumber;
+    let currentExecutedBatchNumber = 0;
+    while (currentExecutedBatchNumber < batchNumber) {
+        if (Date.now() - start > timeoutMs) {
+            throw new Error(
+                `waitUntilBlockExecutedOnGateway: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} (batch ${batchNumber}, current executed: ${currentExecutedBatchNumber})`
+            );
+        }
+        currentExecutedBatchNumber = await gettersFacet.getTotalBatchesExecuted();
+        if (currentExecutedBatchNumber >= batchNumber) {
+            break;
+        } else {
+            await zksync.utils.sleep(wallet.provider.pollingInterval);
+        }
+    }
+}
+
+export async function waitForInteropRootNonZero(
+    provider: zksync.Provider,
+    wallet: zksync.Wallet,
+    l1BatchNumber: number
+) {
+    const interopRootStorageAbi = ArtifactL2InteropRootStorage.abi;
+    const l2InteropRootStorage = new zksync.Contract(L2_INTEROP_ROOT_STORAGE_ADDRESS, interopRootStorageAbi, provider);
+    const baseTokenAddress = await provider.getBaseTokenContractAddress();
+
+    let currentRoot = ethers.ZeroHash;
+    let count = 0;
+    while (currentRoot === ethers.ZeroHash && count < 60) {
+        // We make repeated transactions to force the L2 to update the interop root.
+        const tx = await wallet.transfer({
+            to: wallet.address,
+            amount: 1,
+            token: baseTokenAddress
+        });
+        await tx.wait();
+
+        currentRoot = await l2InteropRootStorage.interopRoots(GATEWAY_CHAIN_ID, l1BatchNumber);
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
+
+        count++;
+    }
+}
+
+export function getGWBlockNumber(params: zksync.types.FinalizeWithdrawalParams): number {
+    /// see hashProof in MessageHashing.sol for this logic.
+    let gwProofIndex = 1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
+    return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
 }

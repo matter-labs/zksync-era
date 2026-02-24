@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::{bail, Context};
 use clap::Parser;
 use ethers::{
-    abi::{AbiParser, Address, ParamType, Token},
+    abi::{Address, ParamType, Token},
     contract::{BaseContract, Contract},
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
@@ -398,39 +398,6 @@ async fn finalize_token_balance_migration(
             .unwrap()
             .with_chain_id(l1_chain_id);
         let l1_client = Arc::new(SignerMiddleware::new(l1_provider.clone(), l1_signer));
-
-        let bridgehub = BridgehubAbi::new(l1_bridgehub_addr, l1_provider.clone());
-        let l1_asset_router_addr = bridgehub.asset_router().call().await?;
-        let l1_asset_router = Contract::new(
-            l1_asset_router_addr,
-            IL1ASSETROUTERABI_ABI.clone(),
-            l1_provider.clone(),
-        );
-        let l1_native_token_vault_addr: Address = l1_asset_router
-            .method::<_, Address>("nativeTokenVault", ())?
-            .call()
-            .await?;
-        let l1_native_token_vault = Contract::new(
-            l1_native_token_vault_addr,
-            IL1NATIVETOKENVAULTABI_ABI.clone(),
-            l1_provider.clone(),
-        );
-        let l1_asset_tracker_addr: Address = l1_native_token_vault
-            .method::<_, Address>("l1AssetTracker", ())?
-            .call()
-            .await?;
-
-        let l1_asset_tracker = Contract::new(
-            l1_asset_tracker_addr,
-            IL1ASSETTRACKERABI_ABI.clone(),
-            l1_client.clone(),
-        );
-        let l1_asset_tracker_base = Contract::new(
-            l1_asset_tracker_addr,
-            crate::abi::IASSETTRACKERBASEABI_ABI.clone(),
-            l1_provider.clone(),
-        );
-
         let (expected_selector, receive_method): ([u8; 4], &str) = if to_gateway {
             (
                 keccak256("receiveL1ToGatewayMigrationOnL1((bytes1,address,uint256,bytes32,uint256,uint256,uint256,uint256,uint256,uint256))")[0..4]
