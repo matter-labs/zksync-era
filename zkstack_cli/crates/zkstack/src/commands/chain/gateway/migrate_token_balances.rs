@@ -353,7 +353,7 @@ async fn finalize_token_balance_migration(
     let (tracker_addr, event_signature, migration_rpc_url, source_chain_id) = if to_gateway {
         (
             L2_ASSET_TRACKER_ADDRESS,
-            "L1ToGatewayMigrationInitiated(bytes32,uint256,uint256)",
+            "L1ToGatewayMigrationInitiated(bytes32,uint256)",
             l2_rpc_url.as_str(),
             l2_chain_id,
         )
