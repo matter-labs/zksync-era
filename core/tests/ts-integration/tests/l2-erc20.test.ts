@@ -185,11 +185,13 @@ describe('L2 native ERC20 contract checks', () => {
         }
 
         const tokenAddressOnL1 = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
-        if (tokenAddressOnL1 === ethers.ZeroAddress) {
-            const registerTx = await l2NativeTokenVault.registerToken(await aliceErc20.getAddress());
+        const tokenAddressOnL2 = await aliceErc20.getAddress();
+        const assetId = await l2NativeTokenVault.assetId(tokenAddressOnL2);
+        if (tokenAddressOnL1 === ethers.ZeroAddress && assetId === ethers.ZeroHash) {
+            const registerTx = await l2NativeTokenVault.registerToken(tokenAddressOnL2);
             await registerTx.wait();
         }
-
+        tokenDetails.l2Address = tokenAddressOnL2;
         const amount = 10n;
 
         const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
