@@ -1,7 +1,7 @@
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { BytesLike } from 'ethers';
-import { INTEROP_BUNDLE_ABI, MESSAGE_INCLUSION_PROOF_ABI, L2_INTEROP_CENTER_ADDRESS } from './constants';
+import { INTEROP_BUNDLE_ABI, MESSAGE_INCLUSION_PROOF_ABI, L2_INTEROP_CENTER_ADDRESS } from 'utils/src/constants';
 
 export interface Output {
     output: any;
@@ -25,6 +25,53 @@ export enum BundleStatus {
     Verified = 1,
     FullyExecuted = 2,
     Unbundled = 3
+}
+
+/**
+ * Formats an Ethereum address as ERC-7930 InteroperableAddress bytes
+ * Format: version (2 bytes) + chain type (2 bytes) + chain ref len (1 byte) + chain ref + addr len (1 byte) + address
+ */
+export function formatEvmV1Address(address: string, chainId?: bigint): string {
+    const version = '0001'; // ERC-7930 version
+    const chainType = '0000'; // EIP-155 chain type
+
+    let result = version + chainType;
+
+    if (chainId !== undefined) {
+        // Convert chainId to minimal bytes representation
+        const chainIdHex = chainId.toString(16);
+        const chainIdBytes = chainIdHex.length % 2 === 0 ? chainIdHex : '0' + chainIdHex;
+        const chainRefLen = (chainIdBytes.length / 2).toString(16).padStart(2, '0');
+        result += chainRefLen + chainIdBytes;
+    } else {
+        result += '00'; // Empty chain reference
+    }
+
+    result += '14'; // Address length (20 bytes)
+    result += address.slice(2); // Remove '0x' prefix
+
+    return '0x' + result;
+}
+
+/**
+ * Formats a chain ID as ERC-7930 InteroperableAddress bytes (without specific address)
+ * This is used for destination chain specification in sendBundle
+ */
+export function formatEvmV1Chain(chainId: bigint): string {
+    const version = '0001'; // ERC-7930 version
+    const chainType = '0000'; // EIP-155 chain type
+
+    let result = version + chainType;
+
+    // Convert chainId to minimal bytes representation
+    const chainIdHex = chainId.toString(16);
+    const chainIdBytes = chainIdHex.length % 2 === 0 ? chainIdHex : '0' + chainIdHex;
+    const chainRefLen = (chainIdBytes.length / 2).toString(16).padStart(2, '0');
+    result += chainRefLen + chainIdBytes;
+
+    result += '00'; // Empty address (0 length)
+
+    return '0x' + result;
 }
 
 export async function getInteropBundleData(
@@ -51,14 +98,14 @@ export async function getInteropBundleData(
     const decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([INTEROP_BUNDLE_ABI], '0x' + message.slice(4));
 
     let calls = [];
-    for (let i = 0; i < decodedRequest[0][4].length; i++) {
+    for (let i = 0; i < decodedRequest[0][5].length; i++) {
         calls.push({
-            version: decodedRequest[0][4][i][0],
-            shadowAccount: decodedRequest[0][4][i][1],
-            to: decodedRequest[0][4][i][2],
-            from: decodedRequest[0][4][i][3],
-            value: decodedRequest[0][4][i][4],
-            data: decodedRequest[0][4][i][5]
+            version: decodedRequest[0][5][i][0],
+            shadowAccount: decodedRequest[0][5][i][1],
+            to: decodedRequest[0][5][i][2],
+            from: decodedRequest[0][5][i][3],
+            value: decodedRequest[0][5][i][4],
+            data: decodedRequest[0][5][i][5]
         });
     }
     // console.log(decodedRequest);
@@ -67,12 +114,13 @@ export async function getInteropBundleData(
         version: decodedRequest[0][0],
         sourceChainId: decodedRequest[0][1],
         destinationChainId: decodedRequest[0][2],
-        interopBundleSalt: decodedRequest[0][3],
+        destinationBaseTokenAssetId: decodedRequest[0][3],
+        interopBundleSalt: decodedRequest[0][4],
         calls: calls,
         bundleAttributes: {
-            executionAddress: decodedRequest[0][5][0],
-            unbundlerAddress: decodedRequest[0][5][1],
-            useFixedFee: decodedRequest[0][5][2]
+            executionAddress: decodedRequest[0][6][0],
+            unbundlerAddress: decodedRequest[0][6][1],
+            useFixedFee: decodedRequest[0][6][2]
         }
     };
     // console.log("response.proof", proof_fee)

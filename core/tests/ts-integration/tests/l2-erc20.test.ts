@@ -183,6 +183,15 @@ describe('L2 native ERC20 contract checks', () => {
         if (testMaster.isFastMode()) {
             return;
         }
+
+        const tokenAddressOnL1 = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
+        const tokenAddressOnL2 = await aliceErc20.getAddress();
+        const assetId = await l2NativeTokenVault.assetId(tokenAddressOnL2);
+        if (tokenAddressOnL1 === ethers.ZeroAddress && assetId === ethers.ZeroHash) {
+            const registerTx = await l2NativeTokenVault.registerToken(tokenAddressOnL2);
+            await registerTx.wait();
+        }
+        tokenDetails.l2Address = tokenAddressOnL2;
         const amount = 10n;
 
         const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
@@ -265,8 +274,8 @@ describe('L2 native ERC20 contract checks', () => {
         // `waitFinalize` is not used because it doesn't work as expected for failed transactions.
         // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
-        const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
-        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, l2Hash);
+        const l2TxReceipt = await waitForPriorityOp(alice, l1Receipt);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt.blockNumber, l2Hash);
 
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();

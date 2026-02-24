@@ -5,10 +5,16 @@
 
 import * as zksync from 'zksync-ethers';
 import { InteropTestContext } from '../src/interop-setup';
-import { formatEvmV1Address, waitForL2ToL1LogProof } from '../src/helpers';
+import { waitForL2ToL1LogProof } from '../src/helpers';
 import { ArtifactInteropHandler, L2_ASSET_ROUTER_ADDRESS, L2_INTEROP_HANDLER_ADDRESS } from '../src/constants';
 import { TransactionReceipt } from 'ethers';
-import { BundleStatus, CallStatus, getInteropBundleData, Output } from '../src/temp-sdk';
+import {
+    BundleStatus,
+    CallStatus,
+    getInteropBundleData,
+    Output,
+    formatEvmV1Address
+} from 'highlevel-test-tools/src/temp-sdk';
 
 describe('Interop-B Unbundle behavior checks', () => {
     const ctx = new InteropTestContext();
