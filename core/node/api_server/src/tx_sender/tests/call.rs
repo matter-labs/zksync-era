@@ -12,6 +12,7 @@ use zksync_types::{
     bytecode::{BytecodeHash, BytecodeMarker},
     get_code_key,
     transaction_request::CallRequest,
+    Address,
 };
 
 use super::*;
@@ -237,6 +238,29 @@ async fn eth_call_deployment_returns_deployed_bytecode() {
 
     let tx_sender = create_real_tx_sender(pool.clone()).await;
 
+    StateBuilder::default()
+        .enable_evm_deployments()
+        .apply(pool.connection().await.unwrap())
+        .await;
+
+    let output = test_call(&tx_sender, state_override, call).await.unwrap();
+    assert_eq!(output, TestEvmContract::counter().deployed_bytecode);
+}
+
+#[tokio::test]
+async fn eth_call_deployment_without_from_returns_deployed_bytecode() {
+    let mut alice = Account::random();
+    let state_override = StateBuilder::default()
+        .with_balance(Address::zero(), u64::MAX.into())
+        .build();
+
+    let mut call: CallRequest = alice.create_evm_counter_deployment(42.into()).into();
+    call.from = None;
+    assert!(call.to.is_none());
+    assert!(call.from.is_none());
+
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool.clone()).await;
     StateBuilder::default()
         .enable_evm_deployments()
         .apply(pool.connection().await.unwrap())
