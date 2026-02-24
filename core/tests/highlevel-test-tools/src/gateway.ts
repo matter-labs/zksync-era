@@ -1,7 +1,9 @@
 import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
 import { findHome } from './zksync-home';
+import { withDeadline } from './deadline';
 import * as utils from 'utils';
+import { GW_ASSET_TRACKER_ADDRESS, ArtifactWrappedBaseToken, ArtifactGWAssetTracker } from 'utils/src/constants';
 import { loadConfig } from 'utils/build/file-configs';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
@@ -94,6 +96,65 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
     }
 }
 
+/**
+ * Sets up the payment of settlement fees for a chain
+ * @dev On CI, Gateway is an ETH-based chain, meaning settlement fees are paid in wrapped ETH
+ * @param chainName - The name of the chain to set up payment of settlement fees for
+ * @returns Promise that resolves when set up of settlement fees is complete
+ */
+export async function agreeToPaySettlementFees(chainName: string): Promise<void> {
+    const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
+
+    if (useGatewayChain !== 'WITH_GATEWAY') {
+        console.log(`⏭️ Skipping payment of settlement fees for ${chainName} (USE_GATEWAY_CHAIN=${useGatewayChain})`);
+        return;
+    }
+
+    console.log(`🔄 Setting up payment of settlement fees for ${chainName}...`);
+
+    const pathToHome = findHome();
+    const gatewayGeneralConfig = loadConfig({
+        pathToHome,
+        chain: 'gateway',
+        config: 'general.yaml'
+    });
+    const genesisConfig = loadConfig({
+        pathToHome,
+        chain: chainName,
+        config: 'genesis.yaml'
+    });
+    const secretsConfig = loadConfig({
+        pathToHome,
+        chain: chainName,
+        config: 'secrets.yaml'
+    });
+    const walletsConfig = loadConfig({
+        pathToHome,
+        chain: chainName,
+        config: 'wallets.yaml'
+    });
+
+    const l2ChainId = Number(genesisConfig?.l2_chain_id);
+    const l1RpcUrl = secretsConfig.l1.l1_rpc_url;
+    const gatewayRpcUrl = gatewayGeneralConfig.api.web3_json_rpc.http_url;
+    const operator = new zksync.Wallet(
+        walletsConfig.operator.private_key,
+        new zksync.Provider(gatewayRpcUrl),
+        new ethers.JsonRpcProvider(l1RpcUrl)
+    );
+    const gwAssetTracker = new zksync.Contract(GW_ASSET_TRACKER_ADDRESS, ArtifactGWAssetTracker.abi, operator);
+
+    const gwWrappedZkTokenAddress = await gwAssetTracker.wrappedZKToken();
+    const gwWrappedZkToken = new zksync.Contract(gwWrappedZkTokenAddress, ArtifactWrappedBaseToken.abi, operator);
+
+    // Wrap 1 ETH to the operator, approve spending to GWAT, and agree to pay settlement fees for the chain
+    await (await gwWrappedZkToken.deposit({ value: ethers.parseEther('1') })).wait();
+    await (await gwWrappedZkToken.approve(GW_ASSET_TRACKER_ADDRESS, ethers.parseEther('1'))).wait();
+    await (await gwAssetTracker.agreeToPaySettlementFees(l2ChainId)).wait();
+
+    console.log(`✅ Successfully set up payment of settlement fees for ${chainName}`);
+}
+
 function loadMigrationFinalizeCheckConfig(chainName: string) {
     const pathToHome = findHome();
     const contractsConfig = loadConfig({
@@ -182,10 +243,15 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
 
     const migrationTxHash = await findLatestMigrationTxHash(l1Provider, chainAssetHandlerAddr, config.l2ChainId);
     if (!migrationTxHash) {
+        console.log(
+            `[${chainName}] MigrationStarted event not found on chainAssetHandler=${chainAssetHandlerAddr} ` +
+                `for chainId=${config.l2ChainId}, topic=${MIGRATION_STARTED_TOPIC}`
+        );
         return false;
     }
     const receipt = await l1Provider.getTransactionReceipt(migrationTxHash);
     if (!receipt) {
+        console.log(`[${chainName}] No receipt for migrationTxHash=${migrationTxHash}`);
         return false;
     }
 
@@ -193,6 +259,10 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
     const priorityOpHash = zksync.utils.getL2HashFromPriorityOp(receipt, gatewayMainContract);
     const l2Receipt = await gatewayProvider.getTransactionReceipt(priorityOpHash);
     if (!l2Receipt?.l1BatchNumber) {
+        console.log(
+            `[${chainName}] L2 receipt not ready: priorityOpHash=${priorityOpHash}, ` +
+                `l1BatchNumber=${l2Receipt?.l1BatchNumber ?? 'null'}`
+        );
         return false;
     }
 
@@ -204,21 +274,22 @@ async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> 
 
     const totalExecuted = BigInt(await gatewayDiamondProxy.getTotalBatchesExecuted());
     const batchNumber = BigInt(l2Receipt.l1BatchNumber);
+    if (totalExecuted < batchNumber) {
+        console.log(`[${chainName}] Batch not yet executed: totalExecuted=${totalExecuted}, needed=${batchNumber}`);
+    }
     return totalExecuted >= batchNumber;
 }
 
 export async function waitForMigrationReadyForFinalize(chainName: string): Promise<void> {
-    while (true) {
-        try {
+    await withDeadline(
+        async () => {
             if (await isMigrationReadyForFinalize(chainName)) {
                 console.log(`✅ Migration is ready to finalize for ${chainName}`);
-                return;
+                return true;
             }
-
             console.log(`⏳ Migration not ready to finalize for ${chainName}, retrying...`);
-        } catch (error) {
-            console.warn(`⚠️ Failed to check migration readiness for ${chainName}: ${error}`);
-        }
-        await utils.sleep(5);
-    }
+            return null;
+        },
+        { timeoutMs: 10 * 60 * 1000, intervalMs: 2000, label: `waitForMigrationReadyForFinalize(${chainName})` }
+    );
 }

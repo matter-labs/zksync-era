@@ -249,7 +249,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 51] = [
         ContractLanguage::Sol,
     ),
     (
-        "",
+        "../../l1-contracts/zkout/",
         "L2InteropRootStorage",
         L2_INTEROP_ROOT_STORAGE_ADDRESS,
         ContractLanguage::Sol,

@@ -14,7 +14,7 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     settlement::SettlementLayer,
-    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
@@ -62,6 +62,7 @@ pub(crate) struct StorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub interop_fee: i64,
 
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_chain_id: Option<i64>,
@@ -115,6 +116,7 @@ impl StorageL1BatchHeader {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
+            interop_fee: U256::from(self.interop_fee as u64),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         }
@@ -188,6 +190,7 @@ pub(crate) struct StorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub interop_fee: i64,
 
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_chain_id: Option<i64>,
@@ -241,6 +244,7 @@ impl StorageL1Batch {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
+            interop_fee: U256::from(self.interop_fee as u64),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         }
@@ -331,6 +335,7 @@ pub(crate) struct UnsealedStorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub interop_fee: i64,
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_chain_id: Option<i64>,
     pub settlement_layer_type: Option<String>,
@@ -355,6 +360,7 @@ impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
+            interop_fee: U256::from(batch.interop_fee as u64),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         }

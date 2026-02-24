@@ -11,7 +11,11 @@ import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 import { getEcosystemContracts } from 'utils/build/tokens';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
-import { waitForAllBatchesToBeExecuted, waitForMigrationReadyForFinalize } from 'highlevel-test-tools/src';
+import {
+    waitForAllBatchesToBeExecuted,
+    waitForMigrationReadyForFinalize,
+    RpcHealthGuard
+} from 'highlevel-test-tools/src';
 import { FileMutex } from 'highlevel-test-tools/src/file-mutex';
 
 async function logsPath(name: string): Promise<string> {
@@ -53,6 +57,7 @@ describe('Migration from gateway test', function () {
     let web3JsonRpc: string | undefined;
 
     let mainNodeSpawner: utils.NodeSpawner;
+    let gatewayRpcUrl: string;
 
     before('Create test wallet', async () => {
         direction = process.env.DIRECTION || 'TO';
@@ -96,7 +101,7 @@ describe('Migration from gateway test', function () {
 
         await mainNodeSpawner.killAndSpawnMainNode();
 
-        const gatewayRpcUrl = secretsConfig.l1.gateway_rpc_url;
+        gatewayRpcUrl = secretsConfig.l1.gateway_rpc_url;
         tester = await Tester.init(ethProviderAddress!, web3JsonRpc!, gatewayRpcUrl!);
         alice = tester.emptyWallet();
 
@@ -135,9 +140,7 @@ describe('Migration from gateway test', function () {
             to: alice.address
         });
         await firstDepositHandle.wait();
-        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
-            await utils.sleep(1);
-        }
+        await waitForBatchAdvance(tester, initialL1BatchNumber, 'first deposit');
 
         const secondDepositHandle = await tester.syncWallet.deposit({
             token: baseToken,
@@ -145,9 +148,7 @@ describe('Migration from gateway test', function () {
             to: alice.address
         });
         await secondDepositHandle.wait();
-        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
-            await utils.sleep(1);
-        }
+        await waitForBatchAdvance(tester, initialL1BatchNumber + 1, 'second deposit');
 
         const balance = await alice.getBalance();
         expect(balance === depositAmount * 2n, 'Incorrect balance after deposits').to.be.true;
@@ -165,9 +166,7 @@ describe('Migration from gateway test', function () {
             to: alice.address
         });
         await thirdDepositHandle.wait();
-        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
-            await utils.sleep(1);
-        }
+        await waitForBatchAdvance(tester, initialL1BatchNumber, 'third deposit');
 
         // kl todo add an L2 token and withdrawal here, to check token balance migration properly.
 
@@ -233,7 +232,39 @@ describe('Migration from gateway test', function () {
         } else {
             let migrationSucceeded = false;
             let tryCount = 0;
+            // Health guards detect dead servers early instead of burning through all 60 retries.
+            // Chain server: dies when migration is initiated (expected) → treat as success.
+            // Gateway: dies independently (unexpected) → abort immediately.
+            const chainHealth = new RpcHealthGuard(web3JsonRpc!, 3, 'chain server');
+            const gwHealth = new RpcHealthGuard(gatewayRpcUrl, 3, 'gateway');
+
             while (!migrationSucceeded && tryCount < 60) {
+                if (tryCount > 0) {
+                    const chainStatus = await chainHealth.check();
+                    if (chainStatus === 'dead') {
+                        console.log(
+                            `Migration was likely already initiated and chain server shut down as expected. Proceeding to restart.`
+                        );
+                        migrationSucceeded = true;
+                        break;
+                    }
+                    if (chainStatus === 'failing') {
+                        await utils.sleep(10);
+                        tryCount++;
+                        continue;
+                    }
+
+                    const gwStatus = await gwHealth.check();
+                    if (gwStatus === 'dead') {
+                        throw new Error(`Gateway server unreachable at ${gatewayRpcUrl}. Aborting migration retries.`);
+                    }
+                    if (gwStatus === 'failing') {
+                        await utils.sleep(10);
+                        tryCount++;
+                        continue;
+                    }
+                }
+
                 try {
                     // Acquire mutex for migration attempt
                     console.log(`🔒 Acquiring mutex for migration attempt ${tryCount}...`);
@@ -250,9 +281,9 @@ describe('Migration from gateway test', function () {
                         migrationMutex.release();
                     }
                 } catch (e) {
-                    console.log(`Migration attempt ${tryCount} failed with error: ${e}`);
                     tryCount++;
-                    await utils.sleep(2);
+                    console.log(`Migration attempt ${tryCount}/60 failed with error: ${e}`);
+                    await utils.sleep(10);
                 }
             }
 
@@ -336,10 +367,18 @@ describe('Migration from gateway test', function () {
     /// Verify that the precommits are enabled on the gateway. This check is enough for making sure
     // precommits are working correctly. The rest of the checks are done by contract.
     step('Verify precommits', async () => {
+        const precommitStart = Date.now();
+        const precommitTimeoutMs = 5 * 60 * 1000;
         let gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
         while (gwCommittedBatches === 1) {
+            if (Date.now() - precommitStart > precommitTimeoutMs) {
+                throw new Error(
+                    `Verify precommits: timed out after ${(precommitTimeoutMs / 1000).toFixed(0)}s waiting for gateway batch commits (stuck at ${gwCommittedBatches})`
+                );
+            }
             console.log(`Waiting for at least one batch committed batch on gateway... ${gwCommittedBatches}`);
             await utils.sleep(1);
+            gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
         }
 
         // Now we sure that we have at least one batch was committed from the gateway
@@ -363,7 +402,7 @@ describe('Migration from gateway test', function () {
 
         // Wait until the priority queue is empty
         let tryCount = 0;
-        while ((await getPriorityQueueSize()) > 0 && tryCount < 100) {
+        while ((await getPriorityQueueSizeOnL1()) > 0 && tryCount < 100) {
             tryCount += 1;
             await utils.sleep(1);
         }
@@ -387,6 +426,10 @@ describe('Migration from gateway test', function () {
             mainNodeSpawner.mainNode?.terminate();
         } catch (_) {}
     });
+
+    async function getPriorityQueueSizeOnL1() {
+        return await l1MainContract.getPriorityQueueSize();
+    }
 
     async function getPriorityQueueSize() {
         if (direction == 'TO') {
@@ -457,6 +500,24 @@ async function zkstackExecWithMutex(command: string, name: string) {
     } catch (e) {
         console.error(`❌ Failed to execute ${name} for chain ${fileConfig.chain}:`, e);
         throw e;
+    }
+}
+
+async function waitForBatchAdvance(
+    tester: Tester,
+    pastBatchNumber: number,
+    label: string,
+    timeoutMs: number = 5 * 60 * 1000
+): Promise<void> {
+    const start = Date.now();
+    while ((await tester.web3Provider.getL1BatchNumber()) <= pastBatchNumber) {
+        if (Date.now() - start > timeoutMs) {
+            const current = await tester.web3Provider.getL1BatchNumber();
+            throw new Error(
+                `waitForBatchAdvance(${label}): timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for batch > ${pastBatchNumber} (current: ${current})`
+            );
+        }
+        await utils.sleep(1);
     }
 }
 

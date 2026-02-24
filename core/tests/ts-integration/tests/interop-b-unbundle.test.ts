@@ -5,10 +5,16 @@
 
 import * as zksync from 'zksync-ethers';
 import { InteropTestContext } from '../src/interop-setup';
-import { formatEvmV1Address, waitForL2ToL1LogProof } from '../src/helpers';
+import { waitForL2ToL1LogProof } from '../src/helpers';
 import { ArtifactInteropHandler, L2_ASSET_ROUTER_ADDRESS, L2_INTEROP_HANDLER_ADDRESS } from '../src/constants';
 import { TransactionReceipt } from 'ethers';
-import { BundleStatus, CallStatus, getInteropBundleData, Output } from '../src/temp-sdk';
+import {
+    BundleStatus,
+    CallStatus,
+    getInteropBundleData,
+    Output,
+    formatEvmV1Address
+} from 'highlevel-test-tools/src/temp-sdk';
 
 describe('Interop-B Unbundle behavior checks', () => {
     const ctx = new InteropTestContext();
@@ -48,50 +54,41 @@ describe('Interop-B Unbundle behavior checks', () => {
         {
             const baseAmount = ctx.getTransferAmount();
             const tokenAmount = await ctx.getAndApproveTokenTransferAmount();
+            const before = await ctx.captureInterop1BalanceSnapshot(ctx.tokenA.l2Address);
 
-            const balanceBefore = ctx.isSameBaseToken
-                ? await ctx.interop1Wallet.getBalance()
-                : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
-            const tokenBalanceBefore = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
-
-            const msgValue = ctx.isSameBaseToken ? baseAmount : 0n;
+            const execCallStarters = [
+                {
+                    to: formatEvmV1Address(ctx.dummyInteropRecipient),
+                    data: '0x',
+                    callAttributes: [ctx.interopCallValueAttr(baseAmount)]
+                },
+                {
+                    to: formatEvmV1Address(failingCallContract),
+                    data: failingCallCalldata,
+                    callAttributes: []
+                },
+                {
+                    to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
+                    data: ctx.getTokenTransferSecondBridgeData(
+                        ctx.tokenA.assetId!,
+                        tokenAmount,
+                        ctx.interop2Recipient.address
+                    ),
+                    callAttributes: [ctx.indirectCallAttr()]
+                }
+            ];
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length, baseAmount);
             const receipt = await ctx.fromInterop1RequestInterop(
-                [
-                    {
-                        to: formatEvmV1Address(ctx.dummyInteropRecipient),
-                        data: '0x',
-                        callAttributes: [ctx.interopCallValueAttr(baseAmount)]
-                    },
-                    {
-                        to: formatEvmV1Address(failingCallContract),
-                        data: failingCallCalldata,
-                        callAttributes: []
-                    },
-                    {
-                        to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
-                        data: ctx.getTokenTransferSecondBridgeData(
-                            ctx.tokenA.assetId!,
-                            tokenAmount,
-                            ctx.interop2Recipient.address
-                        ),
-                        callAttributes: [ctx.indirectCallAttr()]
-                    }
-                ],
+                execCallStarters,
                 { executionAddress: ctx.interop2RichWallet.address, unbundlerAddress: ctx.interop2RichWallet.address },
                 { value: msgValue }
             );
 
-            const balanceAfter = ctx.isSameBaseToken
-                ? await ctx.interop1Wallet.getBalance()
-                : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
-            if (ctx.isSameBaseToken) {
-                const feePaid = BigInt(receipt.gasUsed) * BigInt(receipt.gasPrice);
-                expect((balanceAfter + feePaid).toString()).toBe((balanceBefore - msgValue).toString());
-            } else {
-                expect((balanceAfter - balanceBefore).toString()).toBe((-baseAmount).toString());
-            }
-            const tokenBalanceAfter = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
-            expect((tokenBalanceAfter - tokenBalanceBefore).toString()).toBe((-tokenAmount).toString());
+            await ctx.assertInterop1BalanceChanges(receipt, before, {
+                msgValue,
+                baseTokenAmount: baseAmount,
+                tokenAmount
+            });
 
             bundles.fromDestinationChain = {
                 receipt,
@@ -104,51 +101,42 @@ describe('Interop-B Unbundle behavior checks', () => {
         {
             const baseAmount = ctx.getTransferAmount();
             const tokenAmount = await ctx.getAndApproveTokenTransferAmount();
+            const before = await ctx.captureInterop1BalanceSnapshot(ctx.tokenA.l2Address);
 
-            const balanceBefore = ctx.isSameBaseToken
-                ? await ctx.interop1Wallet.getBalance()
-                : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
-            const tokenBalanceBefore = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
-
-            const msgValue = ctx.isSameBaseToken ? baseAmount : 0n;
+            const execCallStarters = [
+                {
+                    to: formatEvmV1Address(ctx.dummyInteropRecipient),
+                    data: '0x',
+                    callAttributes: [ctx.interopCallValueAttr(baseAmount)]
+                },
+                {
+                    to: formatEvmV1Address(failingCallContract),
+                    data: failingCallCalldata,
+                    callAttributes: []
+                },
+                {
+                    to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
+                    data: ctx.getTokenTransferSecondBridgeData(
+                        ctx.tokenA.assetId!,
+                        tokenAmount,
+                        ctx.interop2Recipient.address
+                    ),
+                    callAttributes: [ctx.indirectCallAttr()]
+                }
+            ];
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length, baseAmount);
             const receipt = await ctx.fromInterop1RequestInterop(
-                [
-                    {
-                        to: formatEvmV1Address(ctx.dummyInteropRecipient),
-                        data: '0x',
-                        callAttributes: [ctx.interopCallValueAttr(baseAmount)]
-                    },
-                    {
-                        to: formatEvmV1Address(failingCallContract),
-                        data: failingCallCalldata,
-                        callAttributes: []
-                    },
-                    {
-                        to: formatEvmV1Address(L2_ASSET_ROUTER_ADDRESS),
-                        data: ctx.getTokenTransferSecondBridgeData(
-                            ctx.tokenA.assetId!,
-                            tokenAmount,
-                            ctx.interop2Recipient.address
-                        ),
-                        callAttributes: [ctx.indirectCallAttr()]
-                    }
-                ],
+                execCallStarters,
                 // The unbundler address defaults to the sending address on the destination chain
                 { executionAddress: ctx.interop2RichWallet.address },
                 { value: msgValue }
             );
 
-            const balanceAfter = ctx.isSameBaseToken
-                ? await ctx.interop1Wallet.getBalance()
-                : await ctx.getTokenBalance(ctx.interop1Wallet, ctx.baseToken2.l2AddressSecondChain!);
-            if (ctx.isSameBaseToken) {
-                const feePaid = BigInt(receipt.gasUsed) * BigInt(receipt.gasPrice);
-                expect((balanceAfter + feePaid).toString()).toBe((balanceBefore - msgValue).toString());
-            } else {
-                expect((balanceAfter - balanceBefore).toString()).toBe((-baseAmount).toString());
-            }
-            const tokenBalanceAfter = await ctx.getTokenBalance(ctx.interop1Wallet, ctx.tokenA.l2Address!);
-            expect((tokenBalanceAfter - tokenBalanceBefore).toString()).toBe((-tokenAmount).toString());
+            await ctx.assertInterop1BalanceChanges(receipt, before, {
+                msgValue,
+                baseTokenAmount: baseAmount,
+                tokenAmount
+            });
 
             bundles.fromSourceChain = {
                 receipt,
@@ -179,6 +167,8 @@ describe('Interop-B Unbundle behavior checks', () => {
         // We send another bundle from the source chain, verifying the failing bundle and then unbundling it
         // We send this bundle directly to make testing faster.
         {
+            const before = await ctx.captureInterop1BalanceSnapshot();
+
             const verifyBundleData = ctx.interop2InteropHandler.interface.encodeFunctionData('verifyBundle', [
                 bundles.fromSourceChain.data!.rawData,
                 bundles.fromSourceChain.data!.proofDecoded
@@ -188,22 +178,27 @@ describe('Interop-B Unbundle behavior checks', () => {
                 bundles.fromSourceChain.data!.rawData,
                 finalCallStatuses
             ]);
+
+            const execCallStarters = [
+                {
+                    to: formatEvmV1Address(L2_INTEROP_HANDLER_ADDRESS),
+                    data: verifyBundleData,
+                    callAttributes: []
+                },
+                {
+                    to: formatEvmV1Address(L2_INTEROP_HANDLER_ADDRESS),
+                    data: unbundleBundleData,
+                    callAttributes: []
+                }
+            ];
+            const msgValue = await ctx.calculateMsgValue(execCallStarters.length);
             const receipt = await ctx.fromInterop1RequestInterop(
-                [
-                    {
-                        to: formatEvmV1Address(L2_INTEROP_HANDLER_ADDRESS),
-                        data: verifyBundleData,
-                        callAttributes: []
-                    },
-                    {
-                        to: formatEvmV1Address(L2_INTEROP_HANDLER_ADDRESS),
-                        data: unbundleBundleData,
-                        callAttributes: []
-                    }
-                ],
-                { executionAddress: ctx.interop2RichWallet.address, unbundlerAddress: ctx.interop2RichWallet.address }
+                execCallStarters,
+                { executionAddress: ctx.interop2RichWallet.address, unbundlerAddress: ctx.interop2RichWallet.address },
+                { value: msgValue }
             );
 
+            await ctx.assertInterop1BalanceChanges(receipt, before, { msgValue });
             bundles.unbundlingBundleReceipt = { receipt };
         }
 
