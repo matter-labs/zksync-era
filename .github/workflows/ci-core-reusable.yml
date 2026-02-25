@@ -29,6 +29,8 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
 
+      
+
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
         run: |
@@ -50,6 +52,22 @@ jobs:
       - name: Init
         run: |
           ci_run run_retried rustup show
+
+      - name: Echo foundry
+        run: |
+          ci_run forge --version
+
+      - name: Install foundry-zksync
+        run: |
+          ci_run mkdir ./foundry-zksync
+          ci_run curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz
+          ci_run tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          ci_run chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
+          ci_run echo "$PWD/foundry-zksync" >> $GITHUB_PATH
+
+      - name: Echo foundry 2
+        run: |
+          ci_run forge --version
 
       - name: Build contracts
         run: |
