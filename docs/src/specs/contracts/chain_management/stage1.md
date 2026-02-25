@@ -16,7 +16,7 @@ Some clarification of the requirements:
 
 ## Proposed Solution
 
-Some terminology I will be using:
+Some terminology we will be using:
 
 - **Escape Hatch:** A general term for the L2 mechanism that enables users to withdraw their funds via L1 in the event of L2 disruptions.
 - **Priority Mode:** ZKsync’s escape hatch. It is a special state of the system in which censorship resistance is enforced by Ethereum. In other words, valid transactions can be executed on the ZK chain as long as Ethereum remains censorship-resistant.
