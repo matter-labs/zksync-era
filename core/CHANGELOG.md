@@ -1,5 +1,12 @@
 # Changelog
 
+## [29.11.1](https://github.com/matter-labs/zksync-era/compare/core-v29.11.0...core-v29.11.1) (2026-02-24)
+
+
+### Bug Fixes
+
+* Fix eth_call deployment behavior when from is 0x0 ([#4679](https://github.com/matter-labs/zksync-era/issues/4679)) ([1eac0be](https://github.com/matter-labs/zksync-era/commit/1eac0bec2a90ae629e8c2eb8fc918c05a2829c10))
+
 ## [29.11.0](https://github.com/matter-labs/zksync-era/compare/core-v29.10.0...core-v29.11.0) (2026-02-23)
 
 
