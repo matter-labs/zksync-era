@@ -333,7 +333,7 @@ preUpgradeChainBalance + totalWithdrawnToL1 + totalDepositedFromL1 - totalSucces
     So by making `preUpgradeChainBalance + totalDepositedFromL1 - totalClaimedOnL1` we calculate the
     `(d1 + ... + dm) - (c1 + ... + cv)` part
     
-    Similarly, `preUpgradeTotalSupply = (s1 + ... + st*) - (w1 + ... + wn*)` and by adding the values after the upgrade I get `(s1 + ... + st) - (w1 + ... + wn)`
+    Similarly, `preUpgradeTotalSupply = (s1 + ... + st*) - (w1 + ... + wn*)` and by adding the values after the upgrade we get `(s1 + ... + st) - (w1 + ... + wn)`
     
 
 > Implementation note: all the properties on L1 discussed above: chainBalance,totalSupply, preUpgradeChainBalance, states, etc are all for pairs (chain, token) and for “token” as a global entity. If a token has been present on 5 chains prior to v31, each chain will have to go through the procedure.
