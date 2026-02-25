@@ -21,7 +21,7 @@ Some terminology we will be using:
 - **Escape Hatch:** A general term for the L2 mechanism that enables users to withdraw their funds via L1 in the event of L2 disruptions.
 - **Priority Mode:** ZKsync’s escape hatch. It is a special state of the system in which censorship resistance is enforced by Ethereum. In other words, valid transactions can be executed on the ZK chain as long as Ethereum remains censorship-resistant.
 
-Usually, we want only the permissioned validators to have the ability to submit new batches for the best UX. And only if censorship actually happens - allow users to permissionlesly withdraw. This approach allows minimal code changes and also stays efficient in the day-to-day operations. 
+Usually, we want only the permissioned validators to have the ability to submit new batches for the best UX. And only if censorship actually happens - allow users to permissionlessly withdraw. This approach allows minimal code changes and also stays efficient in the day-to-day operations. 
 
 Under normal operation, user may send signed transactions to operator RPC or request L1 -> L2 transactions on `L1BridgeHub` contract. The requested transactions will be eventually executed on L2. However, if an operator starts censoring for whatever reason - the special mode should be activated (Priority Mode). In the Priority Mode, the system should allow users to request transactions on L1, and only those transactions should be included in the consequent batches. After some time of operating the escape hatch mechanism, the ZK Governance should be able to restore normal mode operation.
 
