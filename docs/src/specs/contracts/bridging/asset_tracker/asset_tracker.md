@@ -14,7 +14,7 @@ The `AssetTracker` is the main component that is used to ensure that even if a m
 ## Security assumptions
 
 - All settlement layers are whitelisted and are trusted to be "ZK compromised" at most, i.e. their implementation is controlled by the decentralized governance, however the system should be robust in cases the ZK proof system of a settlement layer is compromised. More about it can be read [here](../../gateway/trust_assumptions.md).
-- What's more, until stage1 is reached, chains that migrate on top of Gateway should assume that Gateway's operator is reasonably trusted, e.g. he will not censor transactions unnecessarily for prolonged periods of time. Note that, in this release, stage1 is available only for chains that settle on L1. More on it [here](../../chain_management/stage1.md).
+- What's more, until Stage 1 is reached, chains that migrate on top of Gateway should assume that Gateway's operator is reasonably trusted, e.g. he will not censor transactions unnecessarily for prolonged periods of time. Note that, in this release, Stage 1 is available only for chains that settle on L1. More on it [here](../../chain_management/stage1.md).
 
 > In the future, we want to allow completely untrusted settlement layers, however the scope of this release includes only trusted settlement layers. Any places that disallow it for now should be clearly marked with comments in the codebase.
 

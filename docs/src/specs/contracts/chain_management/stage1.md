@@ -2,7 +2,7 @@
 
 The goal is to achieve a simple, efficient, and secure solution that ensures users can withdraw their funds via L1, even if issues arise on L2 due to operator censorship, technical failures, or other disruptions.
 
-## Requirements for a stage1 chain
+## Requirements for a Stage 1 chain
 
 1. Users are able to exit without the help of the permissioned operators.
 2. In case of an unwanted upgrade by actors more centralized than a [Security Council](https://l2beat.com/glossary#security-council), users have at least 7d to exit.
@@ -103,15 +103,15 @@ This way, after the malicious upgrade is submitted to L1, users have 7 days to r
 
 ### BaseToken
 
-Firstly, it is important to clarify that in order to perform an L1->L2 one needs the base token of the chain. It implies that the token should be easy enough to get hold of. This will have to be checked offchain before determining whether a chain is "truly" a stage1.
+Firstly, it is important to clarify that in order to perform an L1->L2 one needs the base token of the chain. It implies that the token should be easy enough to get hold of. This will have to be checked offchain before determining whether a chain is "truly" a Stage 1.
 
 ### Fee accounting and base token moves price modifications
 
 One of the ways a malicious admin could prevent deposits is by setting an absurdly high fee for each L1->L2 making it impossible for most users to leave the system. In order to prevent this, there is a speed limit on how fast the price can change (at most 30% in a day).
 
-Note, that even after the priority mode is activated, the chain admin is the only entity that can continue updating the fees for priority transactions. It means that after the stage1 is activated, the fee can in theory become very small and uneconomical for a permissionless validator service to process the priority transactions. It is assumed that in case this event happens, the community will provide fees for their priority transactions in some way offchain or build batches themselves.
+Note, that even after the priority mode is activated, the chain admin is the only entity that can continue updating the fees for priority transactions. It means that after the Stage 1 is activated, the fee can in theory become very small and uneconomical for a permissionless validator service to process the priority transactions. It is assumed that in case this event happens, the community will provide fees for their priority transactions in some way offchain or build batches themselves.
 
-Also, note that before the chain is allowed to become stage1, the chain admin has more freedom at setting the fee params for the chain. So before treating a chain as "stage1" it is important to double check that no tampering has been done with the fee params before the transition.
+Also, note that before the chain is allowed to become Stage 1, the chain admin has more freedom at setting the fee params for the chain. So before treating a chain as "Stage 1" it is important to double check that no tampering has been done with the fee params before the transition.
 
 ## Known issues
 

@@ -50,7 +50,7 @@ To enforce this invariant, deposits are paused before migration and enable them 
 ### Flow
 
 1. Chain admin calls `pauseDepositsBeforeInitiatingMigration`.
-2. Deposits become paused after the `PAUSE_DEPOSITS_TIME_WINDOW_START`. In this release, since stage1 compatibility is not yet enabled for chains that settle on ZK Gateway, `PAUSE_DEPOSITS_TIME_WINDOW_START` is set to 0.
+2. Deposits become paused after the `PAUSE_DEPOSITS_TIME_WINDOW_START`. In this release, since Stage 1 compatibility is not yet enabled for chains that settle on ZK Gateway, `PAUSE_DEPOSITS_TIME_WINDOW_START` is set to 0.
 3. Migration can be initiated immediately after pause.
 4. Deposits stay paused until the migration status is confirmed (`forwardedBridgeConfirmTransferResult`)
 
@@ -76,13 +76,13 @@ Current constants set both start windows to `0`, so both conditions are immediat
 - `forwardedBridgeMint` also unpauses deposits on successful migration completion.
 - `unpauseDeposits` remains available to the chain admin, but only if `isMigrationInProgress(chainId) == false`. This is only used to allow chains to have their deposits paused (and to migrate to Gateway) right after the chain is created.
 
-### Stage1 note
+### Stage 1 note
 
-Since stage1 is not yet supported for chains that settle on top of Gateway, in this release the delay before pausing deposits is 0. However, the code should be ready to be able to jump bump those constants in one of the future releases.
+Since Stage 1 is not yet supported for chains that settle on top of Gateway, in this release the delay before pausing deposits is 0. However, the code should be ready to be able to jump bump those constants in one of the future releases.
 
 Additionally, there is a risk that the chain admin may abuse this functionality by disabling deposits to prevent users from executing any deposits, while actually not even trying to migrate to ZK Gateway. It is a known issue and will be resolved in one of the future upgrades. Right now it is considered acceptable, since:
 - A malicious chain admin can set `transactionFilterer` that would achieve the same goal anyway.
-- This functionality (as well as the `transactionFilterer` one) is disabled for chains that aim to support stage1, i.e. `s.priorityModeInfo.canBeActivated = true`. 
+- This functionality (as well as the `transactionFilterer` one) is disabled for chains that aim to support Stage 1, i.e. `s.priorityModeInfo.canBeActivated = true`. 
 
 ### Conclusion
 

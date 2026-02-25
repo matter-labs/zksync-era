@@ -2,7 +2,7 @@
 
 ## When settling on top of Gateway
 
-When a chain migrates on top of a settlement layer, it necessarily puts some trust into it. While the chain settles on top of Gateway, it manages the funds that the chain has given to it via [token balance migration](../bridging/asset_tracker/asset_tracker.md#migrating-and-settling-on-gateway). While ZK proofs do ensure the correctness of the state transitions of Gateway, lack of stage1 support means that in theory a malicious chain admin of the settlement layer could block chains from withdrawing from the ZK Gateway. 
+When a chain migrates on top of a settlement layer, it necessarily puts some trust into it. While the chain settles on top of Gateway, it manages the funds that the chain has given to it via [token balance migration](../bridging/asset_tracker/asset_tracker.md#migrating-and-settling-on-gateway). While ZK proofs do ensure the correctness of the state transitions of Gateway, lack of Stage 1 support means that in theory a malicious chain admin of the settlement layer could block chains from withdrawing from the ZK Gateway. 
 
 Note, that while a chain settles on Gateway, the L1 does not have any view of the chain and so the chain trusts the Gateway proof system to ensure that the withdrawal messages it sends to L1 are correct. When the chain migrates back to L1, the ZK Gateway will provide data such as the last batch number of the chain at it settled on top of ZK Gateway. All-in-all, chains should be careful to ensure that they trust the settlement layers they migrate to.
 
