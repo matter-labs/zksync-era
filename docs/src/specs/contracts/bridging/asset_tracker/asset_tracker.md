@@ -274,7 +274,7 @@ The moment the ecosystem is upgraded, whenever the L1AssetTracker balance is inc
 - `totalDepositedFromL1`
 - If a token had any chainBalance prior to the upgrade, we just remember it as `preUpgradeChainBalance` for the pair of (chain, token).
 
-**Step 1. migrate balances to AssetTracker**
+**Step 1. Migrate balances to AssetTracker**
 
 Note, that if we just assume that `L1AssetTracker.chainBalance` includes all deposits so far, then we are **wrong.** Since at the moment of the upgrade, all the previous deposits are actually inside *L1NativeTokenVault*. So whenever we are thinking about  `L1AssetTracker.chainBalance` and forget about migrating the token balance from L1NativeTokenVault, we are shooting ourselves in the foot.
 
