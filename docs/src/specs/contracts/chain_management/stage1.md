@@ -103,7 +103,7 @@ This way, after the malicious upgrade is submitted to L1, users have 7 days to r
 
 ### BaseToken
 
-Firstly, it is important to clarify that in order to perform an L1->L2 one needs the base token of the chain. It implies that the token should be easy enough to get hold off. This will have to be checked offchain before determining wether a chain is "truly" a stage1.
+Firstly, it is important to clarify that in order to perform an L1->L2 one needs the base token of the chain. It implies that the token should be easy enough to get hold off. This will have to be checked offchain before determining whether a chain is "truly" a stage1.
 
 ### Fee accounting and base token moves price modifications
 

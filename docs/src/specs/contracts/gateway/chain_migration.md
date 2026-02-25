@@ -20,7 +20,7 @@ Currently, it can only be done by the owner of the CTMDeployer, but in the futur
 
 ## Chain migration GW → L1
 
-Chain migration from from L1 to GW works similar to how NFT bridging from L1 to another chain would work. Migrating back will use the same mechanism as for withdrawals.
+Chain migration from GW to L1 works similar to how NFT bridging from L1 to another chain would work. Migrating back will use the same mechanism as for withdrawals.
 
 Note, that for L2→L1 withdrawals via bridges we never provide a recovery mechanism. The same is the case with GW → L1 messaging, i.e. it is assumed that such migrations are always executable on L1.
 
@@ -74,7 +74,7 @@ Current constants set both start windows to `0`, so both conditions are immediat
 
 - `forwardedBridgeConfirmTransferResult` unpauses deposits during migration result handling.
 - `forwardedBridgeMint` also unpauses deposits on successful migration completion.
-- `unpauseDeposits` remains available to the chain admin, but only if `isMigrationInProgress(chainId) == false`. This is only used to allow chains to have their deposits paused (and so migrate to Gatewat) right after the chain is created.
+- `unpauseDeposits` remains available to the chain admin, but only if `isMigrationInProgress(chainId) == false`. This is only used to allow chains to have their deposits paused (and so migrate to Gateway) right after the chain is created.
 
 ### Stage1 note
 
@@ -92,7 +92,7 @@ If a chain uses our DiamondProxy implementation, then it is enforced that when t
 
 When it migrates back from GW similarly we enforce that the deposits have been paused + no priority transactions are left unprocessed. It is assumed that GW->L1 migration never fails and so the only way the deposits will be enabled is after the chain completes its migration to L1.
 
-Both of the situations above perfectly ensure that the deposit invairant (TOOD link) that is required for asset migration holds even in the case of a malicious chain admin.
+Both of the situations above perfectly ensure that the deposit invariant that is required for asset migration holds even in the case of a malicious chain admin.
 
 ## Risk model update
 
