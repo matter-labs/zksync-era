@@ -55,7 +55,7 @@ From now, not only the whitelisted operator can commit/verify/execute batches. I
 
 ### PermissionlessValidator
 
-`PermissionlessValidator` is a simple smart contract that implements one function `settleBatchesSharedBridge`. The function is not restricted and anyone can call it. It simply forward the `commit` / `prove` / `execute` to the chain contract. It is expected that the chain contract knows about permissionless validator contract and allow it to settle batches when and only when the Priority Mode is activated.
+`PermissionlessValidator` is a simple smart contract that implements one function `settleBatchesSharedBridge`. The function is not restricted and anyone can call it. It simply forwards the `commit` / `prove` / `execute` to the chain contract. It is expected that the chain contract knows about permissionless validator contract and allow it to settle batches when and only when the Priority Mode is activated.
 
 ### Only L1 → L2 transactions can be executed in Priority Mode
 
