@@ -253,7 +253,7 @@ While on L1 we need to track:
 
 On L1, we will calculate the following:
 
-```solidity
+```
 totalFailedDeposits = totalDepositsFromL1 - message.totalSuccessfulDepositsFromL1
 l1BalanceToKeep = message.totalWithdrawalsToL1 + totalFailedDeposits - totalClaimedSoFar
 ```
@@ -298,7 +298,7 @@ Whenever we need to perform a migration of balance from L1 to GW, we send a mess
 
 The amount of tokens to keep on L1 is:
 
-```jsx
+```
 preUpgradeChainBalance + totalWithdrawnToL1 + totalDepositedFromL1 - totalSuccessfulDeposits - preUpgradeTotalSupply - totalClaimedOnL1
 ```
 
