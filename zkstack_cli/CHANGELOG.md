@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.2](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.2.1...zkstack_cli-v0.2.2) (2026-02-25)
+
+
+### Features
+
+* add support for eip-7594 blob format ([#4542](https://github.com/matter-labs/zksync-era/issues/4542)) ([b57d6f6](https://github.com/matter-labs/zksync-era/commit/b57d6f6eb2c908692f356f584a8e3b0158ef2969))
+* **crypto:** Update crypto deps ([#4587](https://github.com/matter-labs/zksync-era/issues/4587)) ([c5e7152](https://github.com/matter-labs/zksync-era/commit/c5e7152c7908b8f253f111b359d0fa9f4548da62))
+* **zkstack:** ensure priority queue is empty before migrating to gateway ([#4539](https://github.com/matter-labs/zksync-era/issues/4539)) ([a5e1133](https://github.com/matter-labs/zksync-era/commit/a5e1133e4974bde5e2dad81b211e5a205f6a65f5))
+* **zkstack:** support genesis for zksync os ([#4536](https://github.com/matter-labs/zksync-era/issues/4536)) ([c577d86](https://github.com/matter-labs/zksync-era/commit/c577d867cc3081b4ce12c59351e0a32c2fdfe241))
+
+
+### Bug Fixes
+
+* **gateway_migration:** Add wait for starting migration ([#4613](https://github.com/matter-labs/zksync-era/issues/4613)) ([31564c2](https://github.com/matter-labs/zksync-era/commit/31564c286942a514e8c71cfb143064f7225c03b2))
+* update ownerships of contracts for upgrade testing ([#4627](https://github.com/matter-labs/zksync-era/issues/4627)) ([f579999](https://github.com/matter-labs/zksync-era/commit/f57999997f581b557cf8e36e3a9be5650d992022))
+* **zkstack:** fix `--update-submodules` flag to accept explicit values ([#4559](https://github.com/matter-labs/zksync-era/issues/4559)) ([88481ce](https://github.com/matter-labs/zksync-era/commit/88481cefa8e1536c95698cd7b07d37fd0e4bbe43))
+* **zkstack:** fix total_executed ([#4628](https://github.com/matter-labs/zksync-era/issues/4628)) ([584f01a](https://github.com/matter-labs/zksync-era/commit/584f01a81ac90fa7ce84dc3516e8c648090d090c))
+* **zkstack:** get rid of more dependencies from config ([#4554](https://github.com/matter-labs/zksync-era/issues/4554)) ([9e59509](https://github.com/matter-labs/zksync-era/commit/9e595099746fae6e216431270075dfa44d805b71))
+* **zkstack:** Use --dev for init config properly ([#4661](https://github.com/matter-labs/zksync-era/issues/4661)) ([e393d40](https://github.com/matter-labs/zksync-era/commit/e393d409412be614f140a09a5330f12fef0e77fb))
+
 ## [0.2.1](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.2.0...zkstack_cli-v0.2.1) (2025-10-09)
 
 
