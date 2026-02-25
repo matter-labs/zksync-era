@@ -74,14 +74,14 @@ abigen!(
 );
 
 abigen!(
-    IDeployL2ContractsAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IDeployL2Contracts.sol/IDeployL2Contracts.json",
+    IDeployPaymasterAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IDeployPaymaster.sol/IDeployPaymaster.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
 abigen!(
-    IDeployPaymasterAbi,
-    "../../../contracts/l1-contracts/zkstack-out/IDeployPaymaster.sol/IDeployPaymaster.json",
+    IDeployL2ContractsAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IDeployL2Contracts.sol/IDeployL2Contracts.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 
