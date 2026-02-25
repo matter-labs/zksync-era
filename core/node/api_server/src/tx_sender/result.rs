@@ -69,7 +69,7 @@ pub enum SubmitTxError {
     /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
-    #[error("contract deployer address {0} is not in the allow list")]
+    #[error("contract deployer address {0:?} is not in the allow list")]
     DeployerNotInAllowList(Address),
 }
 
