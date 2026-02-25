@@ -3,7 +3,7 @@
 ## Intro and prerequisites
 
 This document explores what the upgrade to v31 will look like for chains. This document assumes your overall
-understanding of our system prior to v29 and what the system looks like after v31 (note V30 is skipped on Era, as it is
+understanding of our system prior to v29 and what the system looks like after v31 (note v31 is skipped on Era, as it is
 used on ZKSync OS).
 
 Especially the following documents must be read first:

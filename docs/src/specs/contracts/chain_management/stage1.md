@@ -25,7 +25,7 @@ Usually, we want only the permissioned validators to have the ability to submit 
 
 Under normal operation, user may send signed transactions to operator RPC or request L1 -> L2 transactions on `L1BridgeHub` contract. The requested transactions will be eventually executed on L2. However, if an operator starts censoring for whatever reason - the special mode should be activated (Priority Mode). In the Priority Mode, the system should allow users to request transactions on L1, and only those transactions should be included in the consequent batches. After some time of operating the escape hatch mechanism, the ZK Governance should be able to restore normal mode operation.
 
-### 🚫 Limitations
+### Limitations
 
 - Only chains that settle to L1 have the support for "Stage 1".
 - Actions that can only be created by executing L2 transactions and will not be possible in Priority Mode:

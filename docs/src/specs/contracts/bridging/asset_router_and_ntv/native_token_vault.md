@@ -1,6 +1,6 @@
 # Native Token Vault
 
-> WARNING: the document is outdated after v30.
+> WARNING: the document is outdated after v31.
 
 ### NativeTokenVault (L1/L2)
 
