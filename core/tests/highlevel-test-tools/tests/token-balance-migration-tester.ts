@@ -33,7 +33,7 @@ import {
 } from '../src';
 import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
-import { formatEvmV1Address, formatEvmV1Chain, getInteropBundleData } from '../src/temp-sdk';
+import { CallStatus, formatEvmV1Address, formatEvmV1Chain, getInteropBundleData } from '../src/temp-sdk';
 
 const tbmMutex = new FileMutex();
 export const RICH_WALLET_L2_BALANCE = ethers.parseEther('10.0');
@@ -850,6 +850,13 @@ async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: numbe
             if (printedBlockNumber < block.number) {
                 printedBlockNumber = block.number;
             }
+            // We make repeated transactions to force the L2 to update.
+            await (
+                await wallet.transfer({
+                    to: wallet.address,
+                    amount: 1
+                })
+            ).wait();
             await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
     }
@@ -907,7 +914,8 @@ export function getTokenTransferSecondBridgeData(assetId: string, amount: bigint
 export async function sendInteropBundle(
     senderWallet: zksync.Wallet,
     destinationChainId: number,
-    tokenAddress?: string
+    tokenAddress?: string,
+    unbundlerAddress?: string
 ): Promise<ethers.TransactionReceipt> {
     const interopCenter = new zksync.Contract(L2_INTEROP_CENTER_ADDRESS, INTEROP_CENTER_ABI, senderWallet);
     const protocolFee = (await interopCenter.interopProtocolFee()) as bigint;
@@ -945,6 +953,9 @@ export async function sendInteropBundle(
     // InteropCenter now requires explicit fee mode via bundle attributes.
     // We use protocol fee in msg.value (useFixedFee=false), plus direct-call value when present.
     const bundleAttributes = [useFixedFeeAttr(false)];
+    if (unbundlerAddress) {
+        bundleAttributes.push(unbundlerAddressAttr(unbundlerAddress, BigInt(destinationChainId)));
+    }
     const msgValue = protocolFee * BigInt(callStarters.length) + callValue;
     const overrides: ethers.Overrides = { value: msgValue };
 
@@ -978,12 +989,29 @@ export async function readAndBroadcastInteropBundle(
     txHash: string
 ) {
     // Get interop trigger and bundle data from the sender chain.
-    const executionBundle = await getInteropBundleData(senderProvider, txHash, 0);
+    const executionBundle = await getInteropBundleData(senderProvider, txHash);
     if (executionBundle.output == null) return;
 
     const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
     const receipt = await interopHandler.executeBundle(executionBundle.rawData, executionBundle.proofDecoded);
     await receipt.wait();
+}
+
+export async function readAndUnbundleInteropBundle(
+    sourceChainId: number,
+    wallet: zksync.Wallet,
+    senderProvider: zksync.Provider,
+    txHash: string
+) {
+    const data = await getInteropBundleData(senderProvider, txHash);
+    if (data.output == null) return;
+
+    const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
+    // Verify the bundle
+    await (await interopHandler.verifyBundle(data.rawData, data.proofDecoded)).wait();
+    // Unbundle the bundle, we will just set the call to `Executed`
+    const callStatuses = [CallStatus.Executed];
+    await (await interopHandler.unbundleBundle(sourceChainId, data.rawData, callStatuses)).wait();
 }
 
 /**

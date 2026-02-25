@@ -49,7 +49,7 @@ async function migrateTokenBalanceFromL1ToGateway(
     };
 
     // Finalize the migration on L1.
-    const l1ReceiveTx = await l1AssetTracker.receiveMigrationOnL1(finalizeDepositParams);
+    const l1ReceiveTx = await l1AssetTracker.receiveL1ToGatewayMigrationOnL1(finalizeDepositParams);
     await expect(l1ReceiveTx).toBeAccepted();
     const l1Receipt = await l1ReceiveTx.wait();
 
@@ -184,14 +184,13 @@ describe('L2 native ERC20 contract checks', () => {
             return;
         }
 
-        const tokenAddressOnL1 = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
-        const tokenAddressOnL2 = await aliceErc20.getAddress();
-        const assetId = await l2NativeTokenVault.assetId(tokenAddressOnL2);
-        if (tokenAddressOnL1 === ethers.ZeroAddress && assetId === ethers.ZeroHash) {
-            const registerTx = await l2NativeTokenVault.registerToken(tokenAddressOnL2);
-            await registerTx.wait();
+        if (process.env.USE_GATEWAY_CHAIN !== 'WITH_GATEWAY') {
+            const tokenAddressOnL1 = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
+            if (tokenAddressOnL1 === ethers.ZeroAddress) {
+                const registerTx = await l2NativeTokenVault.registerToken(await aliceErc20.getAddress());
+                await registerTx.wait();
+            }
         }
-        tokenDetails.l2Address = tokenAddressOnL2;
         const amount = 10n;
 
         const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
