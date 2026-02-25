@@ -187,6 +187,15 @@ jobs:
           ci_run forge --version
           ci_run rm -rf ./foundry-temp foundry_zksync_v0.1.5_linux_amd64.tar.gz
 
+      - name: (TEMPORARY) Update Node in ci_run container
+        run: |
+          ci_run bash -lc "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -"
+          ci_run apt-get install -y nodejs
+          echo "Node version after update:"
+          ci_run node -v
+          ci_run npm -v
+          (ci_run yarn -v || ci_run npm install -g yarn) && ci_run yarn -v
+
       - name: Build test dependencies
         run: |
           ci_run zkstack dev test build
