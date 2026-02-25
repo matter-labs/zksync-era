@@ -30,6 +30,7 @@ pub struct ProofRequestProven {
     pub block_number: U256,
     pub proof: Vec<u8>,
     pub assigned_to: ProvingNetwork,
+    pub requested_reward: U256,
 }
 
 pub struct ProofRequestProvenHandler {
@@ -66,6 +67,7 @@ impl EventHandler for ProofRequestProvenHandler {
                 ethabi::ParamType::Bytes,
                 // ProvingNetwork is enum, encoded as uint8
                 ethabi::ParamType::Uint(8),
+                ethabi::ParamType::Uint(256),
             ],
         )
     }
@@ -119,13 +121,15 @@ impl EventHandler for ProofRequestProvenHandler {
             block_number,
             proof: proof.clone(),
             assigned_to,
+            requested_reward,
         };
 
         tracing::info!(
-            "Received ProofRequestProvenEvent for batch {}, chain_id: {}, assigned_to: {:?}",
+            "Received ProofRequestProvenEvent for batch {}, chain_id: {}, assigned_to: {:?}, requested_reward: {}",
             event.block_number,
             event.chain_id,
             event.assigned_to,
+            event.requested_reward,
         );
 
         let batch_number = L1BatchNumber(event.block_number.as_u32());
@@ -179,7 +183,11 @@ impl EventHandler for ProofRequestProvenHandler {
             .connection()
             .await?
             .eth_proof_manager_dal()
-            .mark_batch_as_proven(batch_number, verification_result)
+            .mark_batch_as_proven(
+                batch_number,
+                verification_result,
+                event.requested_reward.as_u64(),
+            )
             .await?;
 
         Ok(())
