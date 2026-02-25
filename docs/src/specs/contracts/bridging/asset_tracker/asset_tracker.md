@@ -339,7 +339,7 @@ preUpgradeChainBalance + totalWithdrawnToL1 + totalDepositedFromL1 - totalSucces
 > Implementation note: all the properties on L1 discussed above: chainBalance,totalSupply, preUpgradeChainBalance, states, etc are all for pairs (chain, token) and for “token” as a global entity. If a token has been present on 5 chains prior to v31, each chain will have to go through the procedure.
 > 
 
-> ⚠️ Important note: zksync os chains do NOT have totalSupply for the base token provided by default. So the base token migration is only possible after the chain has migrated.
+> ⚠️ Important note: ZKsync OS chains do NOT have totalSupply for the base token provided by default. So the base token migration is only possible after the chain has migrated.
 
 > A small note: we assume that the set of deposits that if failed may be claimed from the chain's balance directly and not its settlement layer is the same as the set of deposits that were sent when the chain settled on L1. I.e. we rely on the deposit invariant (see [Disabling deposits during migrations](../../gateway/chain_migration.md#deposit-pausing)).
 
