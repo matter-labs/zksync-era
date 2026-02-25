@@ -82,7 +82,7 @@ So in case of a compromised ZK, the `L1NativeTokenVault` and its `chainBalance` 
 
 However, it becomes a big issue for interop: what if a compromised malicious chain that only holds 100 USC sends two messages, where each is worth 80 USDC? Only one of those messages could be processed. Putting the responsibility of accounting for each individual message on the recipient is hard and error prone, so it was decided that if chains are to use interop, *each and every message* has be validated whenever it is added to the shared message tree.
 
-Also, note that the previous way of using `chainBalance` stored on L1 for withdrawas is not an option, since a chain might have never deposited funds to the shared bridge, but only received those from the other chains via interop. Its `chainBalance` on L1 would be zero, but it does have the funds. In such cases, ZK Gateway, who approved the withdrawal via `GWAssetTracker` should be held responsible (and so its `chainBalance` should be reduced).
+Also, note that the previous way of using `chainBalance` stored on L1 for withdrawals is not an option, since a chain might have never deposited funds to the shared bridge, but only received those from the other chains via interop. Its `chainBalance` on L1 would be zero, but it does have the funds. In such cases, ZK Gateway, who approved the withdrawal via `GWAssetTracker` should be held responsible (and so its `chainBalance` should be reduced).
 
 #### Invariants on L1
 
