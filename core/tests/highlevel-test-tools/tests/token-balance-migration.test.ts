@@ -498,7 +498,6 @@ if (shouldSkip) {
         for (const bundleName of Object.keys(bundlesUnbundledOnL1)) {
             // We do not need to await the interop bundle as it was already executed on Gateway before we migrated back to L1.
             await readAndUnbundleInteropBundle(
-                chainHandler.inner.chainId,
                 secondChainRichWallet,
                 chainRichWallet.provider,
                 bundlesUnbundledOnL1[bundleName].hash

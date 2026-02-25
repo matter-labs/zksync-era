@@ -998,7 +998,6 @@ export async function readAndBroadcastInteropBundle(
 }
 
 export async function readAndUnbundleInteropBundle(
-    sourceChainId: number,
     wallet: zksync.Wallet,
     senderProvider: zksync.Provider,
     txHash: string
@@ -1011,7 +1010,7 @@ export async function readAndUnbundleInteropBundle(
     await (await interopHandler.verifyBundle(data.rawData, data.proofDecoded)).wait();
     // Unbundle the bundle, we will just set the call to `Executed`
     const callStatuses = [CallStatus.Executed];
-    await (await interopHandler.unbundleBundle(sourceChainId, data.rawData, callStatuses)).wait();
+    await (await interopHandler.unbundleBundle(data.rawData, callStatuses)).wait();
 }
 
 /**
