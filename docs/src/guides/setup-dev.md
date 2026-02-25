@@ -8,24 +8,25 @@ initializing the workspace, it's recommended that you read the whole guide below
 If you run on 'clean' Ubuntu on GCP:
 
 ```bash
+
+# All necessary stuff
+sudo apt-get update
+sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common git
+
 # For VMs only! They don't have SSH keys, so we override SSH with HTTPS
 git config --global url."https://github.com/".insteadOf git@github.com:
 git config --global url."https://".insteadOf git://
 
 # Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
 # NVM
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 
-# All necessary stuff
-sudo apt-get update
-sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev libpq-dev apt-transport-https ca-certificates curl software-properties-common
-
 # Install docker
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
-sudo apt install docker-ce
+sudo apt install -y docker-ce
 sudo usermod -aG docker ${USER}
 
 # Start docker.
@@ -33,8 +34,11 @@ sudo systemctl start docker
 
 ## You might need to re-connect (due to usermod change).
 
+source ~/.bashrc
+
 # Node & yarn
 nvm install 20
+
 # Important: there will be a note in the output to load
 # new paths in your local session, either run it or reload the terminal.
 npm install -g yarn
@@ -47,12 +51,7 @@ cargo install sqlx-cli --version 0.8.1
 
 # Foundry ZKsync
 curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
-foundryup-zksync
-
-# Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
-# Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
-echo "export ZKSYNC_USE_CUDA_STUBS=true" >> ~/.bashrc
-# You will need to reload your `*rc` file here
+~/.foundry/bin/foundryup-zksync
 
 # Clone the repo to the desired location
 git clone git@github.com:matter-labs/zksync-era.git
@@ -60,7 +59,19 @@ cd zksync-era
 git submodule update --init --recursive
 ```
 
+For NON-GPU setup:
+```shell
+# Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
+# Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
+echo "export ZKSYNC_USE_CUDA_STUBS=true" >> ~/.bashrc
+# You will need to reload your `*rc` file here
+```
+
+**Remember to re-connect after all the commands above - to make sure that stuff like Docker permissions get propagated**
+
 Don't forget to look at [tips](#tips).
+
+Next step: install zkstack-cli.
 
 ## Supported operating systems
 
