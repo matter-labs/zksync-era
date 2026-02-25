@@ -16,12 +16,12 @@ Some clarification of the requirements:
 
 ## Proposed Solution
 
-Some terminology I will be using:
+Some terminology we will be using:
 
 - **Escape Hatch:** A general term for the L2 mechanism that enables users to withdraw their funds via L1 in the event of L2 disruptions.
 - **Priority Mode:** ZKsync’s escape hatch. It is a special state of the system in which censorship resistance is enforced by Ethereum. In other words, valid transactions can be executed on the ZK chain as long as Ethereum remains censorship-resistant.
 
-Usually, we want only the permissioned validators to have the ability to submit new batches for the best UX. And only if censorship actually happens - allow users to permissionlesly withdraw. This approach allows minimal code changes and also stays efficient in the day-to-day operations. 
+Usually, we want only the permissioned validators to have the ability to submit new batches for the best UX. And only if censorship actually happens - allow users to permissionlessly withdraw. This approach allows minimal code changes and also stays efficient in the day-to-day operations. 
 
 Under normal operation, user may send signed transactions to operator RPC or request L1 -> L2 transactions on `L1BridgeHub` contract. The requested transactions will be eventually executed on L2. However, if an operator starts censoring for whatever reason - the special mode should be activated (Priority Mode). In the Priority Mode, the system should allow users to request transactions on L1, and only those transactions should be included in the consequent batches. After some time of operating the escape hatch mechanism, the ZK Governance should be able to restore normal mode operation.
 
@@ -55,7 +55,7 @@ From now, not only the whitelisted operator can commit/verify/execute batches. I
 
 ### PermissionlessValidator
 
-`PermissionlessValidator` is a simple smart contract that implements one function `settleBatchesSharedBridge`. The function is not restricted and anyone can call it. It simply forward the `commit` / `prove` / `execute` to the chain contract. It is expected that the chain contract knows about permissionless validator contract and allow it to settle batches when and only when the Priority Mode is activated.
+`PermissionlessValidator` is a simple smart contract that implements one function `settleBatchesSharedBridge`. The function is not restricted and anyone can call it. It simply forwards the `commit` / `prove` / `execute` to the chain contract. It is expected that the chain contract knows about permissionless validator contract and allow it to settle batches when and only when the Priority Mode is activated.
 
 ### Only L1 → L2 transactions can be executed in Priority Mode
 
@@ -103,7 +103,7 @@ This way, after the malicious upgrade is submitted to L1, users have 7 days to r
 
 ### BaseToken
 
-Firstly, it is important to clarify that in order to perform an L1->L2 one needs the base token of the chain. It implies that the token should be easy enough to get hold off. This will have to be checked offchain before determining whether a chain is "truly" a stage1.
+Firstly, it is important to clarify that in order to perform an L1->L2 one needs the base token of the chain. It implies that the token should be easy enough to get hold of. This will have to be checked offchain before determining whether a chain is "truly" a stage1.
 
 ### Fee accounting and base token moves price modifications
 

@@ -14,7 +14,7 @@ The `AssetTracker` is the main component that is used to ensure that even if a m
 ## Security assumptions
 
 - All settlement layers are whitelisted and are trusted to be "ZK compromised" at most, i.e. their implementation is controlled by the decentralized governance, however the system should be robust in cases the ZK proof system of a settlement layer is compromised. More about it can be read [here](../../gateway/trust_assumptions.md).
-- What's more, until stage1 is reached, hains that migrate on top of Gateway should assume that Gateway's operator is reasonably trusted, e.g. he will not censor transactions unnecessarily for prolonged periods of time. Note that, in this release, stage1 is available only for chains that settle on L1. More on it [here](../../chain_management/stage1.md).
+- What's more, until stage1 is reached, chains that migrate on top of Gateway should assume that Gateway's operator is reasonably trusted, e.g. he will not censor transactions unnecessarily for prolonged periods of time. Note that, in this release, stage1 is available only for chains that settle on L1. More on it [here](../../chain_management/stage1.md).
 
 > In the future, we want to allow completely untrusted settlement layers, however the scope of this release includes only trusted settlement layers. Any places that disallow it for now should be clearly marked with comments in the codebase.
 
@@ -57,7 +57,7 @@ To enable interop, while keeping the old 2FA mechanism, we would need a contract
 There are three types of asset trackers:
 
 - `L1AssetTracker`. It took over the job of tracking chain balances on L1, that was previously held by `L1NativeTokenVault`. Note that due to costs, it does not support interop.
-- `GWAssetTracker`. Its job is to ensure that chains that settle on top of a ZK Gateway do not send more funds in outgoing messages, than they have.
+- `GWAssetTracker`. Its job is to ensure that chains that settle on top of a ZK Gateway do not send more funds in outgoing messages than they have.
 - `L2AssetTracker`. It is predeployed on all L2 chains. Its main purpose is to facilitate migration of chain between L1 and ZK Gateway as well as ensuring the secure behavior of tokens, native to their respective chains. More on it [here](#l2assettracker).
 
 ### Restrictions
@@ -80,9 +80,9 @@ Note, that the `chainBalance` for a chain was tracked *lazily*, i.e. the `chainB
 
 So in case of a compromised ZK, the `L1NativeTokenVault` and its `chainBalance` tracking protected the shared bridge, but it gave no guarantee about the validity of all the messages sent from the chain. The above is very neat for chains that only communicate with L1 as it is very cheap and provides easy isolation between the chains.
 
-However, it becomes a big issue for interop: what if a compromised malicious chain that only holds 100 USC sends two messages, where each is worth 80 USDC? Only one of those messages could be processed. Putting the responsibility of accounting for each individual message on the recipient is hard and error prone, so it was decided that if chains are to use interop, *each and every message* has be validated whenever it is added to the shared message tree.
+However, it becomes a big issue for interop: what if a compromised malicious chain that only holds 100 USC sends two messages, where each is worth 80 USDC? Only one of those messages could be processed. Putting the responsibility of accounting for each individual message on the recipient is hard and error prone, so it was decided that if chains are to use interop, *each and every message* has to be validated whenever it is added to the shared message tree.
 
-Also, note that the previous way of using `chainBalance` stored on L1 for withdrawas is not an option, since a chain might have never deposited funds to the shared bridge, but only received those from the other chains via interop. Its `chainBalance` on L1 would be zero, but it does have the funds. In such cases, ZK Gateway, who approved the withdrawal via `GWAssetTracker` should be held responsible (and so its `chainBalance` should be reduced).
+Also, note that the previous way of using `chainBalance` stored on L1 for withdrawals is not an option, since a chain might have never deposited funds to the shared bridge, but only received those from the other chains via interop. Its `chainBalance` on L1 would be zero, but it does have the funds. In such cases, ZK Gateway, who approved the withdrawal via `GWAssetTracker` should be held responsible (and so its `chainBalance` should be reduced).
 
 #### Invariants on L1
 
@@ -274,7 +274,7 @@ The moment the ecosystem is upgraded, whenever the L1AssetTracker balance is inc
 - `totalDepositedFromL1`
 - If a token had any chainBalance prior to the upgrade, we just remember it as `preUpgradeChainBalance` for the pair of (chain, token).
 
-**Step 1. migrate balances to AssetTracker**
+**Step 1. Migrate balances to AssetTracker**
 
 Note, that if we just assume that `L1AssetTracker.chainBalance` includes all deposits so far, then we are **wrong.** Since at the moment of the upgrade, all the previous deposits are actually inside *L1NativeTokenVault*. So whenever we are thinking about  `L1AssetTracker.chainBalance` and forget about migrating the token balance from L1NativeTokenVault, we are shooting ourselves in the foot.
 
@@ -333,13 +333,13 @@ preUpgradeChainBalance + totalWithdrawnToL1 + totalDepositedFromL1 - totalSucces
     So by making `preUpgradeChainBalance + totalDepositedFromL1 - totalClaimedOnL1` we calculate the
     `(d1 + ... + dm) - (c1 + ... + cv)` part
     
-    Similarly, `preUpgradeTotalSupply = (s1 + ... + st*) - (w1 + ... + wn*)` and by adding the values after the upgrade I get `(s1 + ... + st) - (w1 + ... + wn)`
+    Similarly, `preUpgradeTotalSupply = (s1 + ... + st*) - (w1 + ... + wn*)` and by adding the values after the upgrade we get `(s1 + ... + st) - (w1 + ... + wn)`
     
 
 > Implementation note: all the properties on L1 discussed above: chainBalance,totalSupply, preUpgradeChainBalance, states, etc are all for pairs (chain, token) and for “token” as a global entity. If a token has been present on 5 chains prior to v31, each chain will have to go through the procedure.
 > 
 
-> ⚠️ Important note: zksync os chains do NOT have totalSupply for the base token provided by default. So the base token migration is only possible after the chain has migrated.
+> ⚠️ Important note: ZKsync OS chains do NOT have totalSupply for the base token provided by default. So the base token migration is only possible after the chain has migrated.
 
 > A small note: we assume that the set of deposits that if failed may be claimed from the chain's balance directly and not its settlement layer is the same as the set of deposits that were sent when the chain settled on L1. I.e. we rely on the deposit invariant (see [Disabling deposits during migrations](../../gateway/chain_migration.md#deposit-pausing)).
 
@@ -358,7 +358,7 @@ On Gateway all withdrawals are processed in the `processLogsAndMessages` functio
 - The `L1AssetTracker` will receive the message and increase the `chainBalance` of the Chain and decrease the balance of the Gateway.
 
 In the future the following scheme could be supported:
-- If a chain does not settle on ZK Gateway, anyway can call `GWAssetTracker.initiateGatewayToL1MigrationOnGateway` as many times as anyone likes and the balance can be migrated to L1 as many times as needed to ensure that any incoming interops could be received.
+- If a chain does not settle on ZK Gateway, anyone is able to call `GWAssetTracker.initiateGatewayToL1MigrationOnGateway` as many times as anyone likes and the balance can be migrated to L1 as many times as needed to ensure that any incoming interops could be received.
 - However, the scheme above would require is to manage replay protection properly, so for a now a simplified version is used that allows to withdraw chains balance to L1 *once* and only after the chain has migrated from ZK Gateway. We use `assetMigrationNumber` as a replay protection. 
 
 #### Disabling deposits during migrations
