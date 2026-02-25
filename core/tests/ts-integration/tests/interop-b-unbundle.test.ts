@@ -174,7 +174,6 @@ describe('Interop-B Unbundle behavior checks', () => {
                 bundles.fromSourceChain.data!.proofDecoded
             ]);
             const unbundleBundleData = ctx.interop2InteropHandler.interface.encodeFunctionData('unbundleBundle', [
-                ctx.interop1ChainId,
                 bundles.fromSourceChain.data!.rawData,
                 finalCallStatuses
             ]);
@@ -211,7 +210,7 @@ describe('Interop-B Unbundle behavior checks', () => {
         if (ctx.skipInteropTests) return;
 
         await expect(
-            ctx.interop2InteropHandler.unbundleBundle(ctx.interop1ChainId, bundles.fromDestinationChain.data!.rawData, [
+            ctx.interop2InteropHandler.unbundleBundle(bundles.fromDestinationChain.data!.rawData, [
                 CallStatus.Executed,
                 CallStatus.Cancelled,
                 CallStatus.Executed
@@ -247,7 +246,7 @@ describe('Interop-B Unbundle behavior checks', () => {
             ctx.interop2Recipient
         );
         await expect(
-            altInterop2InteropHandler.unbundleBundle(ctx.interop1ChainId, bundles.fromDestinationChain.data!.rawData, [
+            altInterop2InteropHandler.unbundleBundle(bundles.fromDestinationChain.data!.rawData, [
                 CallStatus.Executed,
                 CallStatus.Unprocessed,
                 CallStatus.Executed
@@ -258,7 +257,7 @@ describe('Interop-B Unbundle behavior checks', () => {
     test('Cannot unbundle a failing call', async () => {
         if (ctx.skipInteropTests) return;
         await expect(
-            ctx.interop2InteropHandler.unbundleBundle(ctx.interop1ChainId, bundles.fromDestinationChain.data!.rawData, [
+            ctx.interop2InteropHandler.unbundleBundle(bundles.fromDestinationChain.data!.rawData, [
                 CallStatus.Unprocessed,
                 CallStatus.Executed,
                 CallStatus.Unprocessed
@@ -274,7 +273,6 @@ describe('Interop-B Unbundle behavior checks', () => {
         // Leave call 0 as unprocessed (base token transfer), cancel call 1, and execute call 2 (token transfer)
         const firstCallStatuses = [CallStatus.Unprocessed, CallStatus.Cancelled, CallStatus.Executed];
         const firstUnbundleReceipt = await ctx.interop2InteropHandler.unbundleBundle(
-            ctx.interop1ChainId,
             bundles.fromDestinationChain.data!.rawData,
             firstCallStatuses
         );
@@ -298,7 +296,6 @@ describe('Interop-B Unbundle behavior checks', () => {
         // Unbundle again and process call 0 (base token transfer)
         const balanceBefore = await ctx.getInterop2Balance(ctx.dummyInteropRecipient);
         const secondUnbundleReceipt = await ctx.interop2InteropHandler.unbundleBundle(
-            ctx.interop1ChainId,
             bundles.fromDestinationChain.data!.rawData,
             [CallStatus.Executed, CallStatus.Unprocessed, CallStatus.Unprocessed]
         );
@@ -321,7 +318,7 @@ describe('Interop-B Unbundle behavior checks', () => {
     test('Cannot unbundle a processed call', async () => {
         if (ctx.skipInteropTests) return;
         await expect(
-            ctx.interop2InteropHandler.unbundleBundle(ctx.interop1ChainId, bundles.fromDestinationChain.data!.rawData, [
+            ctx.interop2InteropHandler.unbundleBundle(bundles.fromDestinationChain.data!.rawData, [
                 CallStatus.Executed,
                 CallStatus.Cancelled,
                 CallStatus.Executed
@@ -332,7 +329,7 @@ describe('Interop-B Unbundle behavior checks', () => {
     test('Cannot unbundle a cancelled call', async () => {
         if (ctx.skipInteropTests) return;
         await expect(
-            ctx.interop2InteropHandler.unbundleBundle(ctx.interop1ChainId, bundles.fromDestinationChain.data!.rawData, [
+            ctx.interop2InteropHandler.unbundleBundle(bundles.fromDestinationChain.data!.rawData, [
                 CallStatus.Unprocessed,
                 CallStatus.Executed,
                 CallStatus.Unprocessed
@@ -343,7 +340,7 @@ describe('Interop-B Unbundle behavior checks', () => {
     test('Cannot cancel a processed call', async () => {
         if (ctx.skipInteropTests) return;
         await expect(
-            ctx.interop2InteropHandler.unbundleBundle(ctx.interop1ChainId, bundles.fromDestinationChain.data!.rawData, [
+            ctx.interop2InteropHandler.unbundleBundle(bundles.fromDestinationChain.data!.rawData, [
                 CallStatus.Cancelled,
                 CallStatus.Cancelled,
                 CallStatus.Cancelled
