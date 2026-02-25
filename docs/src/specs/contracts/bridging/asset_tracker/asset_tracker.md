@@ -359,7 +359,8 @@ On Gateway all withdrawals are processed in the `processLogsAndMessages` functio
 
 In the future the following scheme could be supported:
 - If a chain does not settle on ZK Gateway, anyone is able to call `GWAssetTracker.initiateGatewayToL1MigrationOnGateway` as many times as anyone likes and the balance can be migrated to L1 as many times as needed to ensure that any incoming interops could be received.
-- However, the scheme above would require is to manage replay protection properly, so for a now a simplified version is used that allows to withdraw chains balance to L1 *once* and only after the chain has migrated from ZK Gateway. We use `assetMigrationNumber` as a replay protection. 
+
+In order to implement the logic above, we would have to manage replay protection properly. In this release, as a temporary simplification, the system allows the chain's balance to be withdrawn to L1 *once* and only after the chain has migrated from ZK Gateway. For now, we use `assetMigrationNumber` as the replay protection mechanism until a better version is implemented.
 
 #### Disabling deposits during migrations
 
