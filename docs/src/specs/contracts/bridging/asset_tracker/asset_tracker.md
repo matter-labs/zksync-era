@@ -57,7 +57,7 @@ To enable interop, while keeping the old 2FA mechanism, we would need a contract
 There are three types of asset trackers:
 
 - `L1AssetTracker`. It took over the job of tracking chain balances on L1, that was previously held by `L1NativeTokenVault`. Note that due to costs, it does not support interop.
-- `GWAssetTracker`. Its job is to ensure that chains that settle on top of a ZK Gateway do not send more funds in outgoing messages, than they have.
+- `GWAssetTracker`. Its job is to ensure that chains that settle on top of a ZK Gateway do not send more funds in outgoing messages than they have.
 - `L2AssetTracker`. It is predeployed on all L2 chains. Its main purpose is to facilitate migration of chain between L1 and ZK Gateway as well as ensuring the secure behavior of tokens, native to their respective chains. More on it [here](#l2assettracker).
 
 ### Restrictions
