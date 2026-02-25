@@ -39,6 +39,8 @@ When a ZKsync chain's batch gets executed on the settlement layer, the chain cal
 
 Note, that the above only happens on Gateway. On L1, chains can append hashes of their batches without any additional checks. The `L1MessageRoot` contract serves mainly as a source of truth for appended batches' data.
 
+> Note, that on ZKsync OS, `L1Messenger` is not a system contract and so it does not read the aggregated root via a getter, but reads it directly from storage within the zksync-os code.
+
 ## Proving that a message belongs to a MessageRoot
 
 ### Concepts
@@ -123,21 +125,21 @@ Another notable example of the redundancy of data, is that we also have total `M
 
 ## MessageRoot as global source of batches
 
-Before v30, we used to simply store the chain batch roots for chains inside their DiamondProxy and then, whenever someone needed to check whether a message was present, we queried its Mailbox (see the [`Mailbox.sol` facet](https://github.com/matter-labs/era-contracts/blob/a6a51b69e5456841993c05d1f7f254406b6da637/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L70)).
+Before v31, we used to simply store the chain batch roots for chains inside their DiamondProxy and then, whenever someone needed to check whether a message was present, we queried its Mailbox (see the [`Mailbox.sol` facet](https://github.com/matter-labs/era-contracts/blob/a6a51b69e5456841993c05d1f7f254406b6da637/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L70)).
 
-However, the logic above relies on the fact that this getter will never be malicious. This is no longer acceptable taking into account that potentially malicious chains could be present. Starting from v30 each chain (whether it settles on L1 or GW) is expected to store its batch roots inside `MessageRoot` (`chainBatchRoots` mapping). To ensure that the chain does append only blocks in the sequential order, we also maintain `currentChainBatchNumber`.
+However, the logic above relies on the fact that this getter will never be malicious. This is no longer acceptable taking into account that potentially malicious chains could be present. Starting from v31 each chain (whether it settles on L1 or GW) is expected to store its batch roots inside `MessageRoot` (`chainBatchRoots` mapping). To ensure that the chain does append only blocks in the sequential order, we also maintain `currentChainBatchNumber`.
 
 The `currentChainBatchNumber` mapping is expected to always have the up-to-date value on the chain's settlement layer and these are cloned to the new settlement layer whenever a chain migrates.
 
 Maintaining `chainBatchRoots` inside a global contract allows to verify messages within the MessageRoot, which provides an easy interface for verification that always works the standard way and now it is guaranteed that once a batch hash is stored there, it will remain the same in perpetuity.
 
-## `v30UpgradeChainBatchNumber`
+## `v31UpgradeChainBatchNumber`
 
-For all chains we also store `v30UpgradeChainBatchNumber`, the batch number when the chain has upgraded to v30. You can read more about its usage [here](../bridging/asset_tracker/asset_tracker.md).
+For all chains we also store `v31UpgradeChainBatchNumber`, the batch number when the chain has upgraded to v31. You can read more about its usage [here](../bridging/asset_tracker/asset_tracker.md).
 
-This means that it is important that a settlement layer knows what is the canonical `v30UpgradeChainBatchNumber` is and ensure that any chain's batch that it appends to its shared tree is at least of this number. The original number is stored on `L1MessageRoot`, and copied to all the settlement layers whenever a chain migrates there. Note, that for Era chains it is possible that the value is stored on GW if chains settled there at the time they upgraded to v30. It will then be copied on L1 when a chain migrates to L1.
+This means that it is important that the L1 knows what the canonical `v31UpgradeChainBatchNumber` is and ensure that any chain's batch that it appends to its shared tree is at least of this number. The original number is stored on `L1MessageRoot`, and copied to all the settlement layers whenever a chain migrates there. Note, that for Era chains it is possible that the value is stored on GW if chains settled there at the time they upgraded to v31. It will then be copied on L1 when a chain migrates to L1.
 
-You can also read more on the v30 upgrade process [here](../../upgrade_history/v30-bundles/upgrade_process_v30.md#ecosystem-upgrade-process).
+You can also read more on the v31 upgrade process [here](../../upgrade_history/v31-bundles/upgrade_process_v31.md#ecosystem-upgrade-process).
 
 <!-- The `sendToL1` method is part of a system contract that gathers all messages during a batch, constructs a Merkle tree
 from them at the end of the batch, and sends this tree to the SettlementLayer (Gateway) when the batch is committed.
