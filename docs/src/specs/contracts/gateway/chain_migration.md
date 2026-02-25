@@ -74,7 +74,7 @@ Current constants set both start windows to `0`, so both conditions are immediat
 
 - `forwardedBridgeConfirmTransferResult` unpauses deposits during migration result handling.
 - `forwardedBridgeMint` also unpauses deposits on successful migration completion.
-- `unpauseDeposits` remains available to the chain admin, but only if `isMigrationInProgress(chainId) == false`. This is only used to allow chains to have their deposits paused (and so migrate to Gateway) right after the chain is created.
+- `unpauseDeposits` remains available to the chain admin, but only if `isMigrationInProgress(chainId) == false`. This is only used to allow chains to have their deposits paused (and to migrate to Gateway) right after the chain is created.
 
 ### Stage1 note
 
