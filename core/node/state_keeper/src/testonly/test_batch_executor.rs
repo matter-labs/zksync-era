@@ -28,8 +28,8 @@ use zksync_node_test_utils::create_l2_transaction;
 use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
-    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
-    OrStopped, ProtocolVersionId, Transaction, H256,
+    protocol_upgrade::ProtocolUpgradeTx, settlement::SettlementLayer, Address, L1BatchNumber,
+    L2BlockNumber, L2ChainId, OrStopped, ProtocolVersionId, Transaction, H256, U256,
 };
 
 use crate::{
@@ -246,6 +246,7 @@ impl TestScenario {
             sealer,
             Arc::new(MockReadStorageFactory),
             None,
+            SettlementLayer::L1(zksync_types::SLChainId(69)),
         );
         if !block_numbers_to_rollback.is_empty() {
             builder = builder.with_leader_rotation(true);
@@ -816,9 +817,11 @@ impl StateKeeperIO for TestIO {
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             operator_address: self.fee_account,
             fee_input: self.fee_input,
+            interop_fee: U256::zero(),
             first_l2_block: L2BlockParams::new(self.timestamp * 1000),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
+            settlement_layer: SettlementLayer::for_tests(),
         };
         self.l2_block_number += 1;
         self.timestamp += 1;

@@ -6,18 +6,20 @@ use crate::traits::{FileConfigTrait, FileConfigWithDefaultName};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct EcosystemUpgradeOutput {
-    pub create2_factory_addr: Address,
-    pub create2_factory_salt: H256,
-    pub deployer_addr: Address,
-    pub era_chain_id: u32,
-    pub l1_chain_id: u32,
-    pub owner_address: Address,
+    // pub create2_factory_addr: Address,
+    // pub create2_factory_salt: H256,
+    // pub deployer_addr: Address,
+    // pub era_chain_id: u32,
+    // pub l1_chain_id: u32,
+    // pub owner_address: Address,
+    #[serde(default)]
     pub chain_upgrade_diamond_cut: Bytes,
     pub governance_calls: GovernanceCalls,
 
-    pub ecosystem_admin_calls: EcosystemAdminCalls,
-    pub contracts_config: EcosystemUpgradeContractsOutput,
-    pub deployed_addresses: EcosystemUpgradeDeployedAddresses,
+    // pub ecosystem_admin_calls: EcosystemAdminCalls,
+    // pub contracts_config: EcosystemUpgradeContractsOutput,
+    #[serde(default)]
+    pub state_transition: Option<EcosystemUpgradeStateTransition>,
     /// List of transactions that were executed during the upgrade.
     /// This is added later by the zkstack and not present in the toml file that solidity creates.
     #[serde(default)]
@@ -25,7 +27,7 @@ pub struct EcosystemUpgradeOutput {
 }
 
 impl FileConfigWithDefaultName for EcosystemUpgradeOutput {
-    const FILE_NAME: &'static str = "../contracts/l1-contracts/script-out/v29_local_output.yaml";
+    const FILE_NAME: &'static str = "../contracts/l1-contracts/script-out/v31-local-output.yaml";
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -42,7 +44,6 @@ pub struct EcosystemUpgradeContractsOutput {
     pub diamond_init_max_pubdata_per_batch: u64,
     pub diamond_init_minimal_l2_gas_price: u64,
     pub diamond_init_priority_tx_max_pubdata: u64,
-    pub expected_rollup_l2_da_validator: Address,
     pub expected_validium_l2_da_validator: Address,
 
     // Probably gonna need it to add new chains
@@ -102,6 +103,8 @@ pub struct EcosystemUpgradeStateTransition {
     pub mailbox_facet_addr: Address,
     pub state_transition_implementation_addr: Address,
     pub verifier_addr: Address,
+    #[serde(default)]
+    pub bytecodes_supplier_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

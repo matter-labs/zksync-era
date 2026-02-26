@@ -8,7 +8,7 @@ use zksync_config::configs::contracts::{
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockSettlementLayer;
 use zksync_health_check::AppHealthCheck;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_types::{
     api, api::BridgeAddresses, block::L2BlockHeader, ethabi, Address, L2BlockNumber,
     ProtocolVersionId, H256,
@@ -79,9 +79,10 @@ impl TestEnvironment {
         let mut storage = connection_pool.connection().await.unwrap();
         let genesis_needed = storage.blocks_dal().is_genesis_needed().await.unwrap();
         let (genesis_root_hash, genesis_commitment) = if genesis_needed {
-            let genesis_batch_params = insert_genesis_batch(&mut storage, &GenesisParams::mock())
-                .await
-                .unwrap();
+            let genesis_batch_params =
+                insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
+                    .await
+                    .unwrap();
             (
                 genesis_batch_params.root_hash,
                 genesis_batch_params.commitment,

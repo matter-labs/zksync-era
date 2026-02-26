@@ -28,18 +28,18 @@ use zksync_node_test_utils::{
 };
 use zksync_types::{
     block::L2BlockHeader,
-    commitment::L1BatchCommitmentMode,
+    commitment::{L1BatchCommitmentMode, L2DACommitmentScheme},
     fee_model::{BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
     system_contracts::get_system_smart_contracts,
-    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, SLChainId,
-    TransactionTimeRangeConstraint, H256,
+    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, TransactionTimeRangeConstraint,
+    H256, U256,
 };
 
-use crate::{MempoolGuard, MempoolIO};
+use crate::{interop_fee::ConstantInteropFeeInputProvider, MempoolGuard, MempoolIO};
 
 #[derive(Debug)]
 pub struct Tester {
@@ -142,7 +142,6 @@ impl Tester {
             }),
         );
 
-        let chain_id = SLChainId(505);
         let mempool = MempoolGuard::new(PriorityOpId(0), 100, None, None);
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
@@ -150,17 +149,21 @@ impl Tester {
             ..StateKeeperConfig::for_tests()
         };
         let wallets = Wallets::for_tests();
+        let interop_fee_input_provider =
+            Arc::new(ConstantInteropFeeInputProvider::new(U256::zero()));
         let io = MempoolIO::new(
             mempool.clone(),
             Arc::new(batch_fee_input_provider),
+            interop_fee_input_provider,
             pool,
             &config,
             wallets.fee_account.unwrap().address(),
             Duration::from_secs(1),
             L2ChainId::from(270),
             Some(Default::default()),
+            Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
             Default::default(),
-            Some(SettlementLayer::L1(chain_id)),
+            SettlementLayer::for_tests(),
         )
         .unwrap();
 

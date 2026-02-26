@@ -22,11 +22,14 @@ jobs:
         with:
           fetch-depth: 2
           submodules: "recursive"
+          # FIXME: Temporarily needed for CI
+          fetch-additional-submodule-history: true
 
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47
         with:
+          fetch_additional_submodule_history: true
           files_yaml: |
             prover:
               - 'prover/**'
@@ -44,6 +47,8 @@ jobs:
             core:
               - 'core/**'
               - '!core/CHANGELOG.md'
+              - 'contracts'
+              - 'contracts/**'
               - 'docker/contract-verifier/**'
               - 'docker/external-node/**'
               - 'docker/server/**'

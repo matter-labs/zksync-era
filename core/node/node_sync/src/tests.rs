@@ -7,7 +7,7 @@ use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot,
 };
@@ -21,9 +21,11 @@ use zksync_state_keeper::{
 use zksync_types::{
     api,
     block::{L2BlockHasher, UnsealedL1BatchHeader},
+    commitment::PubdataParams,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    settlement::SettlementLayer,
     snapshots::SnapshotRecoveryStatus,
-    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
 
 use super::{
@@ -41,9 +43,11 @@ fn open_l1_batch(number: u32, timestamp: u64, first_l2_block_number: u32) -> Syn
             validation_computational_gas_limit: u32::MAX,
             operator_address: OPERATOR_ADDRESS,
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
+            interop_fee: U256::zero(),
             first_l2_block: L2BlockParams::new(timestamp * 1000),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
+            settlement_layer: SettlementLayer::for_tests(),
         },
         number: L1BatchNumber(number),
         first_l2_block_number: L2BlockNumber(first_l2_block_number),
@@ -67,9 +71,11 @@ impl MockMainNodeClient {
             virtual_blocks: Some(0),
             hash: Some(snapshot.l2_block_hash),
             protocol_version: ProtocolVersionId::latest(),
-            pubdata_params: Default::default(),
+            pubdata_params: Some(PubdataParams::genesis()),
             pubdata_limit: Some(100_000),
             interop_roots: Some(vec![]),
+            settlement_layer: Some(SettlementLayer::for_tests()),
+            interop_fee: Some(0),
         };
 
         Self {
@@ -139,6 +145,7 @@ impl StateKeeperHandles {
             Arc::new(NoopSealer),
             Arc::new(MockReadStorageFactory),
             None,
+            SettlementLayer::for_tests(),
         );
         let state_keeper = builder.build(&stop_receiver).await.unwrap();
 
@@ -173,7 +180,7 @@ impl StateKeeperHandles {
 
 async fn ensure_genesis(storage: &mut Connection<'_, Core>) {
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        insert_genesis_batch(storage, &GenesisParams::mock())
+        insert_genesis_batch(storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
     }

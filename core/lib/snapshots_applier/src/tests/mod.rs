@@ -13,7 +13,9 @@ use zksync_object_store::MockObjectStore;
 use zksync_types::{
     api::{BlockDetails, L1BatchDetails},
     block::L1BatchHeader,
-    get_code_key, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+    get_code_key,
+    settlement::SettlementLayer,
+    L1BatchNumber, ProtocolVersion, ProtocolVersionId,
 };
 
 use self::utils::{
@@ -521,6 +523,7 @@ async fn applier_errors_after_genesis() {
         0,
         Default::default(),
         ProtocolVersionId::latest(),
+        SettlementLayer::for_tests(),
     );
     storage
         .blocks_dal()

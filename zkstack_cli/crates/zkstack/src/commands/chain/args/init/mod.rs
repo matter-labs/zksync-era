@@ -52,6 +52,8 @@ pub struct InitArgs {
     pub no_genesis: bool,
     #[clap(long, default_value_t = false, default_missing_value = "true")]
     pub skip_priority_txs: bool,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub pause_deposits: bool,
 }
 
 impl InitArgs {
@@ -104,7 +106,13 @@ impl InitArgs {
 
         let validium_config = match config.l1_batch_commit_data_generator_mode {
             L1BatchCommitmentMode::Validium => match self.validium_args.validium_type {
-                None => Some(ValidiumType::read()),
+                None => {
+                    if self.dev {
+                        Some(ValidiumType::NoDA)
+                    } else {
+                        Some(ValidiumType::read())
+                    }
+                }
                 Some(da_configs::ValidiumTypeInternal::NoDA) => Some(ValidiumType::NoDA),
                 Some(da_configs::ValidiumTypeInternal::Avail) => panic!(
                     "Avail is not supported via CLI args, use interactive mode" // TODO: Add support for configuration via CLI args
@@ -123,6 +131,7 @@ impl InitArgs {
             validium_config,
             make_permanent_rollup: self.make_permanent_rollup,
             skip_priority_txs: self.skip_priority_txs,
+            pause_deposits: self.pause_deposits,
         }
     }
 }
@@ -137,4 +146,5 @@ pub struct InitArgsFinal {
     pub validium_config: Option<ValidiumType>,
     pub make_permanent_rollup: bool,
     pub skip_priority_txs: bool,
+    pub pause_deposits: bool,
 }

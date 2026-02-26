@@ -127,7 +127,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             &system_env.base_system_smart_contracts.bootloader,
             true,
         );
-        let bootloader_memory = BootloaderState::initial_memory(&batch_env);
+        let bootloader_memory = BootloaderState::initial_memory(vm_version.into(), &batch_env);
 
         let mut inner = VirtualMachine::new(
             BOOTLOADER_ADDRESS,

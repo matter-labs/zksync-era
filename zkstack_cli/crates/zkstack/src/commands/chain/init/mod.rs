@@ -6,14 +6,17 @@ use zkstack_cli_config::{
     traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, EcosystemConfig, ZkStackConfig,
     ZkStackConfigTrait,
 };
-use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode};
-use zksync_basic_types::Address;
+use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, VMOption};
+use zksync_basic_types::{commitment::L2DACommitmentScheme, Address};
 
 use crate::{
-    admin_functions::{accept_admin, make_permanent_rollup, set_da_validator_pair},
+    admin_functions::{
+        accept_admin, make_permanent_rollup, set_da_validator_pair, unpause_deposits,
+    },
     commands::chain::{
         args::init::{
             configs::{InitConfigsArgs, InitConfigsArgsFinal},
+            da_configs::{ValidiumType, ValidiumTypeInternal},
             InitArgs, InitArgsFinal,
         },
         common::{distribute_eth, mint_base_token},
@@ -29,7 +32,8 @@ use crate::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOYING_PAYMASTER,
         MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
+        MSG_UNPAUSING_DEPOSITS_SPINNER, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
+        MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
 
@@ -120,6 +124,24 @@ pub async fn init(
     .await?;
     spinner.finish();
 
+    if !init_args.pause_deposits {
+        // Deposits are paused by default to allow immediate Gateway migration. If specified, unpause them.
+        let spinner = Spinner::new(MSG_UNPAUSING_DEPOSITS_SPINNER);
+        unpause_deposits(
+            shell,
+            &init_args.forge_args,
+            &chain_config.path_to_foundry_scripts(),
+            crate::admin_functions::AdminScriptMode::Broadcast(
+                chain_config.get_wallets_config()?.governor,
+            ),
+            chain_config.chain_id.as_u64(),
+            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        spinner.finish();
+    }
+
     // Set token multiplier setter address (run by L2 Governor)
     if chain_config.base_token != BaseToken::eth() {
         let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
@@ -148,6 +170,13 @@ pub async fn init(
     }
 
     if !init_args.skip_priority_txs {
+        // Convert ValidiumType to ValidiumTypeInternal to avoid reading from general config
+        let validium_type = init_args.validium_config.as_ref().map(|v| match v {
+            ValidiumType::NoDA => ValidiumTypeInternal::NoDA,
+            ValidiumType::Avail(_) => ValidiumTypeInternal::Avail,
+            ValidiumType::EigenDA => ValidiumTypeInternal::EigenDA,
+        });
+
         send_priority_txs(
             shell,
             chain_config,
@@ -156,6 +185,7 @@ pub async fn init(
             &init_args.forge_args,
             init_args.l1_rpc_url.clone(),
             init_args.deploy_paymaster,
+            validium_type,
         )
         .await?;
     }
@@ -168,7 +198,7 @@ pub async fn init(
             contracts_config.l1.chain_admin_addr,
             &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.diamond_proxy_addr,
-            &init_args.forge_args,
+            &init_args.forge_args.clone(),
             init_args.l1_rpc_url.clone(),
         )
         .await?;
@@ -204,6 +234,7 @@ pub async fn send_priority_txs(
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
     deploy_paymaster: bool,
+    validium_type: Option<ValidiumTypeInternal>,
 ) -> anyhow::Result<()> {
     // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
     deploy_l2_contracts::deploy_l2_contracts(
@@ -218,9 +249,31 @@ pub async fn send_priority_txs(
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
-    let l1_da_validator_addr = get_l1_da_validator(chain_config)
+    let l1_da_validator_addr = get_l1_da_validator(chain_config, validium_type.clone())
         .await
         .context("l1_da_validator_addr")?;
+    let commitment_scheme =
+        if chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+            match chain_config.vm_option {
+                VMOption::EraVM => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                VMOption::ZKSyncOsVM => L2DACommitmentScheme::BlobsZksyncOS,
+            }
+        } else {
+            // For Validium, use CLI param if provided, otherwise read from general config
+            let da_client_type = if let Some(x) = validium_type {
+                Some(x.as_str().to_string())
+            } else {
+                chain_config.get_general_config().await?.da_client_type()
+            };
+
+            match da_client_type.as_deref() {
+                Some("Avail") | Some("Eigen") => L2DACommitmentScheme::PubdataKeccak256,
+                Some("NoDA") | None => L2DACommitmentScheme::EmptyNoDA,
+                Some(unsupported) => {
+                    anyhow::bail!("DA client config is not supported: {unsupported:?}");
+                }
+            }
+        };
 
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
     set_da_validator_pair(
@@ -233,10 +286,7 @@ pub async fn send_priority_txs(
         chain_config.chain_id.as_u64(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         l1_da_validator_addr,
-        contracts_config
-            .l2
-            .da_validator_addr
-            .context("da_validator_addr")?,
+        commitment_scheme,
         l1_rpc_url.clone(),
     )
     .await?;
@@ -276,14 +326,26 @@ pub async fn send_priority_txs(
     Ok(())
 }
 
-pub(crate) async fn get_l1_da_validator(chain_config: &ChainConfig) -> anyhow::Result<Address> {
+pub(crate) async fn get_l1_da_validator(
+    chain_config: &ChainConfig,
+    validium_type: Option<ValidiumTypeInternal>,
+) -> anyhow::Result<Address> {
     let contracts_config = chain_config.get_contracts_config()?;
 
     let l1_da_validator_contract = match chain_config.l1_batch_commit_data_generator_mode {
-        L1BatchCommitmentMode::Rollup => contracts_config.l1.rollup_l1_da_validator_addr,
+        L1BatchCommitmentMode::Rollup => match chain_config.vm_option {
+            VMOption::EraVM => contracts_config.l1.rollup_l1_da_validator_addr,
+            VMOption::ZKSyncOsVM => contracts_config.l1.blobs_zksync_os_l1_da_validator_addr,
+        },
         L1BatchCommitmentMode::Validium => {
-            let general_config = chain_config.get_general_config().await?;
-            match general_config.da_client_type().as_deref() {
+            // Use CLI param if provided, otherwise read from general config
+            let da_client_type = if let Some(x) = validium_type {
+                Some(x.as_str().to_string())
+            } else {
+                chain_config.get_general_config().await?.da_client_type()
+            };
+
+            match da_client_type.as_deref() {
                 Some("Avail") => contracts_config.l1.avail_l1_da_validator_addr,
                 Some("NoDA") | None => contracts_config.l1.no_da_validium_l1_validator_addr,
                 Some("Eigen") => contracts_config.l1.no_da_validium_l1_validator_addr, // TODO: change for eigenda l1 validator for M1

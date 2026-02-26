@@ -7,7 +7,7 @@ use zkstack_cli_common::{
     ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger, spinner::Spinner,
 };
 use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
-use zksync_basic_types::Address;
+use zksync_basic_types::{commitment::L2DACommitmentScheme, Address};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
 
@@ -31,6 +31,8 @@ pub struct SetDAValidatorPairArgs {
     /// The address of the DA validator be to used on the settlement layer.
     /// It is a contract that is deployed on the corresponding settlement layer (either L1 or GW).
     pub l1_da_validator: Address,
+
+    pub l2_da_commitment_scheme: L2DACommitmentScheme,
 
     /// Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway)
     pub max_l1_gas_price: Option<u64>,
@@ -98,7 +100,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             chain_id,
             gw_chain_id,
             args.l1_da_validator,
-            l2_da_validator_address,
+            args.l2_da_commitment_scheme,
             chain_diamond_proxy_on_gateway,
             refund_recipient,
             l1_rpc_url,
@@ -116,11 +118,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
 
         logger::note(
             "DA validator pair on Gateway:",
-            format!(
-                "L1: {}, L2: {}",
-                hex::encode(l1_da_validator),
-                hex::encode(l2_da_validator)
-            ),
+            format!("L1: {:?}, L2: {:?}", l1_da_validator, l2_da_validator),
         );
     } else {
         let diamond_proxy_address = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
@@ -133,7 +131,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             chain_id,
             diamond_proxy_address,
             args.l1_da_validator,
-            l2_da_validator_address,
+            args.l2_da_commitment_scheme,
             l1_rpc_url,
         )
         .await?;

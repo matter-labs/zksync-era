@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use tokio::sync::Mutex;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::create_l2_block;
 use zksync_types::{
     aggregated_operations::{AggregatedActionType, L2BlockAggregatedActionType},
@@ -106,7 +106,7 @@ fn precommit_details_for_block(block_number: L2BlockNumber) -> MiniblockPrecommi
 async fn fetcher_cursor_initialization() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     // Test with no precommits in storage
@@ -177,7 +177,7 @@ async fn assert_blocks_in_range(
 async fn normal_fetcher_operation() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     // Insert some L2 blocks without precommits
@@ -209,7 +209,7 @@ async fn normal_fetcher_operation() {
 async fn fetcher_with_incremental_safe_block() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     // Insert L2 blocks without precommits
@@ -271,7 +271,7 @@ async fn fetcher_with_incremental_safe_block() {
 async fn fetcher_ignores_unsynced_blocks() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap(); // Generate a transaction hash for precommit
 

@@ -4,8 +4,8 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 use zksync_types::{
     api::en::SyncBlock, block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
-    helpers::unix_timestamp_ms, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, H256,
+    helpers::unix_timestamp_ms, settlement::SettlementLayer, Address, InteropRoot, L1BatchNumber,
+    L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 use super::{
@@ -57,6 +57,8 @@ pub struct FetchedBlock {
     pub pubdata_params: PubdataParams,
     pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
+    pub settlement_layer: Option<SettlementLayer>,
+    pub interop_fee: u64,
 }
 
 impl FetchedBlock {
@@ -84,7 +86,9 @@ impl TryFrom<SyncBlock> for FetchedBlock {
         }
 
         let pubdata_params = if block.protocol_version.is_pre_gateway() {
-            block.pubdata_params.unwrap_or_default()
+            block
+                .pubdata_params
+                .unwrap_or_else(PubdataParams::pre_gateway)
         } else {
             block
                 .pubdata_params
@@ -110,6 +114,8 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             pubdata_params,
             pubdata_limit: block.pubdata_limit,
             interop_roots: block.interop_roots.clone().unwrap_or_default(),
+            settlement_layer: block.settlement_layer,
+            interop_fee: block.interop_fee.unwrap_or(0),
         })
     }
 }
@@ -178,6 +184,7 @@ impl IoCursorExt for IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
+                    interop_fee: U256::from(block.interop_fee),
                     // It's ok that we lose info about millis since it's only used for sealing criteria.
                     first_l2_block: L2BlockParams::new_raw(
                         block.timestamp * 1000,
@@ -186,6 +193,10 @@ impl IoCursorExt for IoCursor {
                     ),
                     pubdata_params: block.pubdata_params,
                     pubdata_limit: block.pubdata_limit,
+                    // TODO check this default
+                    settlement_layer: block
+                        .settlement_layer
+                        .unwrap_or(SettlementLayer::L1(SLChainId(10))),
                 },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,

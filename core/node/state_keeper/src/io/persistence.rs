@@ -435,11 +435,11 @@ mod tests {
     use test_casing::{test_casing, Product};
     use zksync_dal::CoreDal;
     use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_node_test_utils::{default_l1_batch_env, default_system_env};
     use zksync_types::{
-        api::TransactionStatus, h256_to_u256, writes::StateDiffRecord, L1BatchNumber,
-        L2BlockNumber, StorageLogKind, H256, U256,
+        api::TransactionStatus, commitment::PubdataParams, h256_to_u256, writes::StateDiffRecord,
+        L1BatchNumber, L2BlockNumber, StorageLogKind, H256, U256,
     };
 
     use super::*;
@@ -455,7 +455,7 @@ mod tests {
         sync_block_data_and_header_persistence: bool,
     ) {
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         let initial_writes_in_genesis_batch = storage
@@ -549,7 +549,7 @@ mod tests {
             &BatchInitParams {
                 l1_batch_env: l1_batch_env.clone(),
                 system_env: default_system_env(),
-                pubdata_params: Default::default(),
+                pubdata_params: PubdataParams::genesis(),
                 pubdata_limit,
                 timestamp_ms,
             },
@@ -638,7 +638,7 @@ mod tests {
     async fn l2_block_and_l1_batch_processing_on_full_node() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
@@ -768,7 +768,7 @@ mod tests {
         // Preparation
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         storage
@@ -791,7 +791,7 @@ mod tests {
             &BatchInitParams {
                 l1_batch_env: l1_batch_env.clone(),
                 system_env: default_system_env(),
-                pubdata_params: Default::default(),
+                pubdata_params: PubdataParams::genesis(),
                 timestamp_ms,
                 pubdata_limit,
             },

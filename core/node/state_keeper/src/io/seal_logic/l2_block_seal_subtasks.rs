@@ -514,6 +514,7 @@ mod tests {
         commitment::PubdataParams,
         h256_to_u256,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+        settlement::SettlementLayer,
         AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
         StorageLogKind, StorageLogWithPreviousValue,
     };
@@ -592,9 +593,10 @@ mod tests {
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_legacy_shared_bridge_addr: Default::default(),
             pre_insert_data: false,
-            pubdata_params: PubdataParams::default(),
+            pubdata_params: PubdataParams::genesis(),
             insert_header: false, // Doesn't matter for this test.
             rolling_txs_hash: Default::default(),
+            settlement_layer: SettlementLayer::for_tests(),
         };
 
         // Run.

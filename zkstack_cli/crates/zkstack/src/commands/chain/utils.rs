@@ -1,3 +1,5 @@
+use std::process::Command;
+
 use anyhow::Context;
 use ethers::{
     middleware::SignerMiddleware,
@@ -65,6 +67,38 @@ pub(crate) async fn send_tx(
     let receipt: TransactionReceipt = pending_tx.await?.context("Receipt not found")?;
 
     spinner.finish();
+
+    if let Some(status) = receipt.status {
+        if status.as_u64() == 0 {
+            let tx_hash = format!("{:#?}", receipt.transaction_hash);
+            logger::error(format!("Transaction {} failed (reverted)!", tx_hash));
+            logger::info(format!(
+                "Running `cast run {} --rpc-url {}` to get the execution trace...",
+                tx_hash, l1_rpc_url
+            ));
+            match Command::new("cast")
+                .args(["run", &tx_hash, "--rpc-url", &l1_rpc_url])
+                .output()
+            {
+                Ok(output) => {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    if !stdout.is_empty() {
+                        println!("=== cast run trace ===\n{stdout}\n=== end trace ===");
+                    }
+                    if !stderr.is_empty() {
+                        eprintln!("=== cast run stderr ===\n{stderr}\n=== end stderr ===");
+                    }
+                }
+                Err(e) => {
+                    logger::warn(format!(
+                        "Failed to run `cast run` (is foundry installed?): {e}"
+                    ));
+                }
+            }
+            anyhow::bail!("Transaction {} failed (reverted)!", tx_hash);
+        }
+    }
 
     logger::info(format!(
         "Transaction {:#?} completed!",

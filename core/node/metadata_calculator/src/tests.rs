@@ -14,7 +14,7 @@ use zksync_config::configs::{
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, generate_storage_logs, insert_initial_writes_for_batch,
 };
@@ -87,7 +87,7 @@ async fn low_level_genesis_creation() {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     insert_genesis_batch(
         &mut pool.connection().await.unwrap(),
-        &GenesisParams::mock(),
+        &GenesisParamsInitials::mock(),
     )
     .await
     .unwrap();
@@ -696,7 +696,7 @@ async fn setup_calculator_with_options(
     let pruning_info = storage.pruning_dal().get_pruning_info().await.unwrap();
     let has_pruning_logs = pruning_info.last_hard_pruned.is_some();
     if !has_pruning_logs && storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
     }
@@ -915,7 +915,7 @@ async fn remove_l1_batches(
 async fn deduplication_works_as_expected() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 

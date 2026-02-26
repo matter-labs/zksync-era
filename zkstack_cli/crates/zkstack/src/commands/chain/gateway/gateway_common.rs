@@ -26,11 +26,11 @@ use zksync_types::{
 use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
 use super::{
-    migrate_from_gateway::check_whether_gw_transaction_is_finalized,
+    migrate_from_gateway::{check_whether_gw_transaction_is_finalized, GatewayTransactionType},
     notify_server_calldata::{get_notify_server_calls, NotifyServerCallsArgs},
 };
 use crate::{
-    abi::{BridgehubAbi, ChainTypeManagerAbi, IChainAssetHandlerAbi, ZkChainAbi},
+    abi::{BridgehubAbi, IChainAssetHandlerAbi, IChainTypeManagerAbi, ZkChainAbi},
     commands::chain::{admin_call_builder::AdminCallBuilder, utils::send_tx},
     consts::DEFAULT_EVENTS_BLOCK_RANGE,
 };
@@ -48,6 +48,17 @@ impl MigrationDirection {
             Self::ToGateway => GatewayMigrationNotification::ToGateway,
         }
     }
+}
+
+#[derive(Debug, clap::Parser)]
+pub struct NotifyServerArgs {
+    /// All ethereum environment related arguments
+    #[clap(flatten)]
+    pub forge_args: ForgeScriptArgs,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -193,7 +204,7 @@ pub(crate) async fn get_gateway_migration_state(
     let l1_bridgehub = BridgehubAbi::new(l1_bridgehub_addr, l1_provider.clone());
 
     let l1_ctm_address = l1_bridgehub.chain_type_manager(l2_chain_id.into()).await?;
-    let l1_ctm = ChainTypeManagerAbi::new(l1_ctm_address, l1_provider.clone());
+    let l1_ctm = IChainTypeManagerAbi::new(l1_ctm_address, l1_provider.clone());
 
     let current_sl_from_l1 = l1_bridgehub
         .settlement_layer(l2_chain_id.into())
@@ -371,6 +382,7 @@ pub(crate) async fn get_gateway_migration_state(
         l1_provider,
         l1_bridgehub.get_zk_chain(gw_chain_id).await?,
         migration_transaction,
+        GatewayTransactionType::Withdrawal,
     )
     .await?;
 
@@ -386,7 +398,7 @@ pub(crate) async fn get_gateway_migration_state(
 
 async fn get_latest_notification_event_from_l1(
     l2_chain_id: u64,
-    l1_ctm: ChainTypeManagerAbi<Provider<Http>>,
+    l1_ctm: IChainTypeManagerAbi<Provider<Http>>,
     l1_provider: Arc<Provider<Http>>,
 ) -> anyhow::Result<Option<GatewayMigrationNotification>> {
     logger::info("Searching for the latest migration notifications...");
@@ -468,18 +480,21 @@ pub(crate) async fn await_for_tx_to_complete(
 }
 
 pub(crate) async fn notify_server(
-    args: ForgeScriptArgs,
+    args: NotifyServerArgs,
     shell: &Shell,
     direction: MigrationDirection,
 ) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
     let contracts = chain_config.get_contracts_config()?;
 
     let calls = get_notify_server_calls(
         shell,
-        &args,
+        &args.forge_args,
         &chain_config.path_to_foundry_scripts(),
         NotifyServerCallsArgs {
             l1_bridgehub_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,

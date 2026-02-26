@@ -1,12 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use ethers::{
-    abi::{parse_abi, Address},
-    contract::BaseContract,
-    types::U256,
-    utils::hex,
-};
-use lazy_static::lazy_static;
+use ethers::{abi::Address, contract::BaseContract, types::U256, utils::hex};
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -16,7 +10,6 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{
     forge_interface::{
-        deploy_ecosystem::input::GenesisInput,
         gateway_vote_preparation::{
             input::GatewayVotePreparationConfig, output::DeployGatewayCTMOutput,
         },
@@ -29,7 +22,7 @@ use zkstack_cli_config::{
 use zkstack_cli_types::ProverMode;
 
 use crate::{
-    abi::BridgehubAbi,
+    abi::{BridgehubAbi, IGATEWAYVOTEPREPARATIONABI_ABI},
     admin_functions::{
         governance_execute_calls, grant_gateway_whitelist, revoke_gateway_whitelist,
         AdminScriptMode,
@@ -39,12 +32,6 @@ use crate::{
     messages::MSG_CHAIN_NOT_INITIALIZED,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
-
-lazy_static! {
-    static ref GATEWAY_VOTE_PREPARATION_ABI: BaseContract = BaseContract::from(
-        parse_abi(&["function prepareForGWVoting(uint256 ctmChainId) public"]).unwrap(),
-    );
-}
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ConvertToGatewayArgs {
@@ -63,6 +50,15 @@ pub struct ConvertToGatewayArgs {
 
     #[clap(long, default_value_t = false)]
     pub only_save_calldata: bool,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// Skip applying gateway config overrides (overrides/gateway.yaml).
+    /// By default, the gateway.yaml file is required.
+    #[clap(long, default_value_t = false)]
+    pub no_gateway_overrides: bool,
 }
 
 fn parse_decimal_u256(s: &str) -> Result<U256, String> {
@@ -73,22 +69,26 @@ fn parse_decimal_u256(s: &str) -> Result<U256, String> {
 }
 
 pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
-    let args = convert_to_gw_args.forge_args;
+    let args = convert_to_gw_args.forge_args.clone();
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = match convert_to_gw_args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
     let chain_contracts_config = chain_config.get_contracts_config()?;
-    let chain_genesis_config = chain_config.get_genesis_config().await?;
-    let genesis_input = GenesisInput::new(&chain_genesis_config, chain_config.vm_option)?;
-    override_config(
-        shell,
-        &ecosystem_config
-            .default_configs_path_for_ctm(chain_config.vm_option)
-            .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
-        &chain_config,
-    )?;
+
+    if !convert_to_gw_args.no_gateway_overrides {
+        override_config(
+            shell,
+            &ecosystem_config
+                .default_configs_path_for_ctm(chain_config.vm_option)
+                .join(PATH_TO_GATEWAY_OVERRIDE_CONFIG),
+            &chain_config,
+        )?;
+    }
 
     let chain_deployer_wallet = chain_config
         .get_wallets_config()?
@@ -155,21 +155,13 @@ pub async fn run(convert_to_gw_args: ConvertToGatewayArgs, shell: &Shell) -> any
         &chain_deployer_wallet,
         GatewayVotePreparationConfig::new(
             &ecosystem_config.get_initial_deployment_config().unwrap(),
-            &genesis_input,
             &chain_contracts_config,
             ecosystem_config.era_chain_id.as_u64().into(),
             chain_config.chain_id.as_u64().into(),
             ecosystem_config.get_contracts_config()?.l1.governance_addr,
             ecosystem_config.prover_version == ProverMode::NoProofs,
+            chain_config.vm_option.is_zksync_os(),
             chain_deployer_wallet.address,
-            // Safe to unwrap, because the chain is always post gateway
-            chain_config
-                .get_contracts_config()?
-                .l2
-                .da_validator_addr
-                .unwrap(),
-            // This address is not present on local deployments
-            Address::zero(),
         ),
         l1_url.clone(),
         convert_to_gw_args
@@ -232,8 +224,15 @@ pub async fn gateway_vote_preparation(
         GATEWAY_VOTE_PREPARATION.input(&chain_config.path_to_foundry_scripts()),
     )?;
 
-    let calldata = GATEWAY_VOTE_PREPARATION_ABI
-        .encode("prepareForGWVoting", ctm_chain_id)
+    let bridgehub_proxy = chain_config
+        .get_contracts_config()?
+        .ecosystem_contracts
+        .bridgehub_proxy_addr;
+
+    let gateway_vote_preparation_contract =
+        BaseContract::from(IGATEWAYVOTEPREPARATIONABI_ABI.clone());
+    let calldata = gateway_vote_preparation_contract
+        .encode("run", (bridgehub_proxy, ctm_chain_id))
         .unwrap();
 
     let mut forge: zkstack_cli_common::forge::ForgeScript =

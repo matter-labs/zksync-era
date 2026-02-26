@@ -50,7 +50,8 @@ describe('L1 ERC20 contract checks', () => {
             tokenDetails.l1Address,
             [{ wallet: alice, change: -amount }],
             {
-                l1: true
+                l1: true,
+                checkChainBalance: true
             }
         );
         const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
@@ -184,7 +185,8 @@ describe('L1 ERC20 contract checks', () => {
             tokenDetails.l1Address,
             [{ wallet: alice, change: amount }],
             {
-                l1: true
+                l1: true,
+                checkChainBalance: true
             }
         );
 

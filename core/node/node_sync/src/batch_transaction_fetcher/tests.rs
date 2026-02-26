@@ -6,7 +6,7 @@ use chrono::TimeZone;
 use test_casing::{test_casing, Product};
 use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_types::{eth_sender::EthTxFinalityStatus, L2BlockNumber};
 
@@ -261,7 +261,7 @@ fn mock_updater(
 async fn updater_cursor_for_storage_with_genesis_block() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     for number in [1, 2] {
@@ -319,7 +319,7 @@ async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) 
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
         L1BatchNumber(24)
     } else {
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         L1BatchNumber(1)
@@ -391,7 +391,7 @@ async fn updater_with_gradual_main_node_updates(snapshot_recovery: bool) {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
         L1BatchNumber(24)
     } else {
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         L1BatchNumber(1)

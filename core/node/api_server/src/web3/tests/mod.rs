@@ -35,7 +35,7 @@ use zksync_types::{
     eth_sender::EthTxFinalityStatus,
     fee_model::{BatchFeeInput, FeeParams},
     get_deployer_key, get_nonce_key,
-    settlement::SettlementLayer,
+    settlement::WorkingSettlementLayer,
     storage::get_code_key,
     system_contracts::get_system_smart_contracts,
     tx::IncludedTxLocation,
@@ -209,7 +209,8 @@ impl StorageInitialization {
                     base_system_contracts,
                     get_system_smart_contracts(),
                 )
-                .unwrap();
+                .unwrap()
+                .into();
 
                 if storage.blocks_dal().is_genesis_needed().await? {
                     insert_genesis_batch(storage, &params).await?;
@@ -286,7 +287,7 @@ async fn test_http_server(test: impl HttpTest) {
         &contracts_config.l1_specific_contracts(),
         &contracts_config.l2_contracts(),
         &genesis,
-        SettlementLayer::for_tests(),
+        WorkingSettlementLayer::for_tests(),
     );
 
     let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)

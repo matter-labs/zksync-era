@@ -10,7 +10,9 @@ use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-pub use zksync_basic_types::commitment::{L1BatchCommitmentMode, PubdataParams, PubdataType};
+pub use zksync_basic_types::commitment::{
+    L1BatchCommitmentMode, L2DACommitmentScheme, L2PubdataValidator, PubdataParams, PubdataType,
+};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::MiniMerkleTree;

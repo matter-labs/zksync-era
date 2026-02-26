@@ -7,8 +7,7 @@ use assert_matches::assert_matches;
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::l2_rollup_da_validator_bytecode;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
@@ -25,10 +24,8 @@ use zksync_test_contracts::{
 };
 use zksync_types::{
     block::L2BlockHasher,
-    bytecode::BytecodeHash,
-    commitment::PubdataParams,
+    commitment::{L2DACommitmentScheme, L2PubdataValidator, PubdataParams},
     ethabi::Token,
-    get_code_key, get_known_code_key,
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     system_contracts::get_system_smart_contracts,
@@ -42,7 +39,7 @@ use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
-    testonly::{self, apply_genesis_logs, BASE_SYSTEM_CONTRACTS},
+    testonly::{self, BASE_SYSTEM_CONTRACTS},
     AsyncRocksdbCache,
 };
 
@@ -270,7 +267,17 @@ impl Tester {
             self.config.validation_computational_gas_limit;
         let mut batch_params = default_l1_batch_env(l1_batch_number.0, timestamp, self.fee_account);
         batch_params.previous_batch_hash = Some(H256::zero()); // Not important in this context.
-        (batch_params, system_params, PubdataParams::default())
+        (
+            batch_params,
+            system_params,
+            PubdataParams::new(
+                L2PubdataValidator::CommitmentScheme(
+                    L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                ),
+                Default::default(),
+            )
+            .unwrap(),
+        )
     }
 
     /// Performs the genesis in the storage.
@@ -289,9 +296,6 @@ impl Tester {
             )
             .await
             .unwrap();
-
-            // Also setting up the DA for tests
-            Self::setup_da(&mut storage).await;
         }
     }
 
@@ -328,33 +332,6 @@ impl Tester {
                     .unwrap();
             }
         }
-    }
-
-    async fn setup_contract(conn: &mut Connection<'_, Core>, address: Address, code: Vec<u8>) {
-        let hash: H256 = BytecodeHash::for_bytecode(&code).value();
-        let known_code_key = get_known_code_key(&hash);
-        let code_key = get_code_key(&address);
-
-        let logs = [
-            StorageLog::new_write_log(known_code_key, H256::from_low_u64_be(1)),
-            StorageLog::new_write_log(code_key, hash),
-        ];
-        apply_genesis_logs(conn, &logs).await;
-
-        let factory_deps = HashMap::from([(hash, code)]);
-        conn.factory_deps_dal()
-            .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-            .await
-            .unwrap();
-    }
-
-    async fn setup_da(conn: &mut Connection<'_, Core>) {
-        Self::setup_contract(
-            conn,
-            Address::repeat_byte(0x23),
-            l2_rollup_da_validator_bytecode(),
-        )
-        .await;
     }
 
     pub(super) async fn wait_for_tasks(&mut self) {

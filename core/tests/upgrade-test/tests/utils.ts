@@ -41,6 +41,9 @@ export interface Contracts {
     complexUpgraderAbi: any;
     counterBytecode: any;
     chainTypeManager: any;
+    bytecodesSupplierAbi: any;
+    bridgehubAbi: any;
+    chainAssetHandlerAbi: any;
 }
 
 export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
@@ -63,13 +66,22 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
                 require(`${CONTRACTS_FOLDER}/l2-contracts/zkout/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
             ),
             complexUpgraderAbi: new ethers.Interface(
-                require(`${CONTRACTS_FOLDER}/system-contracts/zkout/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
+                require(`${CONTRACTS_FOLDER}/l1-contracts/zkout/L2ComplexUpgrader.sol/L2ComplexUpgrader.json`).abi
             ),
             counterBytecode: require(
                 `${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`
             ).deployedBytecode,
             chainTypeManager: new ethers.Interface(
-                require(`${CONTRACTS_FOLDER}/l1-contracts/out/ChainTypeManager.sol/ChainTypeManager.json`).abi
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/EraChainTypeManager.sol/EraChainTypeManager.json`).abi
+            ),
+            bytecodesSupplierAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/BytecodesSupplier.sol/BytecodesSupplier.json`).abi
+            ),
+            bridgehubAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/IBridgehubBase.sol/IBridgehubBase.json`).abi
+            ),
+            chainAssetHandlerAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/IChainAssetHandler.sol/IChainAssetHandlerBase.json`).abi
             )
         };
     } else {
@@ -93,12 +105,23 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
                 ).abi
             ),
             complexUpgraderAbi: new ethers.Interface(
-                require(`${pathToHome}/contracts/system-contracts/zkout/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
+                require(`${pathToHome}/contracts/l1-contracts/zkout/L2ComplexUpgrader.sol/L2ComplexUpgrader.json`).abi
             ),
             counterBytecode: require(`${pathToHome}/core/tests/ts-integration/zkout/counter.sol/Counter.json`)
                 .deployedBytecode,
             chainTypeManager: new ethers.Interface(
                 require(`${L1_CONTRACTS_FOLDER}/state-transition/ChainTypeManager.sol/ChainTypeManager.json`).abi
+            ),
+            bytecodesSupplierAbi: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/upgrades/BytecodesSupplier.sol/BytecodesSupplier.json`).abi
+            ),
+            bridgehubAbi: new ethers.Interface(
+                require(`${L1_CONTRACTS_FOLDER}/core/bridgehub/IBridgehubBase.sol/IBridgehubBase.json`).abi
+            ),
+            chainAssetHandlerAbi: new ethers.Interface(
+                require(
+                    `${L1_CONTRACTS_FOLDER}/core/chain-asset-handler/IChainAssetHandler.sol/IChainAssetHandlerBase.json`
+                ).abi
             )
         };
     }

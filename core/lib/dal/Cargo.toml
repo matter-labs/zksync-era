@@ -40,16 +40,16 @@ prost.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["full"] }
 sqlx = { workspace = true, features = [
-    "runtime-tokio",
-    "tls-native-tls",
-    "macros",
-    "postgres",
-    "bigdecimal",
-    "rust_decimal",
-    "chrono",
-    "json",
-    "migrate",
-    "ipnetwork",
+  "runtime-tokio",
+  "tls-native-tls",
+  "macros",
+  "postgres",
+  "bigdecimal",
+  "rust_decimal",
+  "chrono",
+  "json",
+  "migrate",
+  "ipnetwork",
 ] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true

@@ -9,7 +9,6 @@ const REVERT_TESTS_PATH: &str = "core/tests/revert-test";
 
 pub async fn run(shell: &Shell, args: RevertArgs) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
-    shell.change_dir(ecosystem_config.link_to_code().join(REVERT_TESTS_PATH));
 
     logger::info(MSG_REVERT_TEST_RUN_INFO);
 
@@ -17,6 +16,7 @@ pub async fn run(shell: &Shell, args: RevertArgs) -> anyhow::Result<()> {
         install_and_build_dependencies(shell, &ecosystem_config.link_to_code())?;
     }
 
+    shell.change_dir(ecosystem_config.link_to_code().join(REVERT_TESTS_PATH));
     run_test(shell, &args, &ecosystem_config).await?;
     logger::outro(MSG_REVERT_TEST_RUN_SUCCESS);
 

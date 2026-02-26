@@ -155,6 +155,12 @@ impl ForgeScript {
         self
     }
 
+    pub fn with_gas_per_pubdata(mut self, gas_per_pubdata: u64) -> Self {
+        self.args
+            .add_arg(ForgeScriptArg::GasPerPubdata { gas_per_pubdata });
+        self
+    }
+
     /// Makes sure a transaction is sent, only after its previous one has been confirmed and succeeded.
     pub fn with_slow(mut self) -> Self {
         self.args.add_arg(ForgeScriptArg::Slow);
@@ -283,6 +289,10 @@ pub enum ForgeScriptArg {
     #[strum(to_string = "gas-limit={gas_limit}")]
     GasLimit {
         gas_limit: u64,
+    },
+    #[strum(to_string = "zk-gas-per-pubdata={gas_per_pubdata}")]
+    GasPerPubdata {
+        gas_per_pubdata: u64,
     },
     Zksync,
     #[strum(to_string = "skip={skip_path}")]

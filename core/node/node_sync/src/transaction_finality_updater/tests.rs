@@ -266,7 +266,7 @@ async fn setup_test_environment() -> anyhow::Result<(
 
     // Create genesis batch
     let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut storage, &genesis_params).await?;
+    insert_genesis_batch(&mut storage, &genesis_params.clone().into()).await?;
 
     // Create a batch and seal it
     let batch_number = L1BatchNumber(1);

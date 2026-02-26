@@ -22,11 +22,12 @@ use zksync_multivm::{
 };
 use zksync_types::{
     block::L2BlockHasher, bytecode::BytecodeHash, ethabi::Token, fee::Fee,
-    fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx, u256_to_h256, utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, Execute, K256PrivateKey, L1BatchNumber, L1TxCommonData, L2BlockNumber,
-    L2ChainId, Nonce, ProtocolVersionId, StorageKey, Transaction, BOOTLOADER_ADDRESS,
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION, SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
-    U256, ZKPORTER_IS_AVAILABLE,
+    fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx, settlement::SettlementLayer, u256_to_h256,
+    utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,
+    L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, SLChainId,
+    StorageKey, Transaction, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_GAS_PRICE_POSITION, SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256,
+    ZKPORTER_IS_AVAILABLE,
 };
 
 use crate::intrinsic_costs::VmSpentResourcesResult;
@@ -183,6 +184,7 @@ fn default_l1_batch() -> L1BatchEnv {
             50_000_000_000, // 50 gwei
             250_000_000,    // 0.25 gwei
         ),
+        interop_fee: U256::zero(),
         fee_account: Address::random(),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {
@@ -192,6 +194,7 @@ fn default_l1_batch() -> L1BatchEnv {
             max_virtual_blocks_to_create: 100,
             interop_roots: vec![],
         },
+        settlement_layer: SettlementLayer::L1(SLChainId(1)),
     }
 }
 
