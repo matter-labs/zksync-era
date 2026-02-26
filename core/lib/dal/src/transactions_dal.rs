@@ -163,7 +163,11 @@ impl TransactionsDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_l1_transactions_hashes(&mut self, start_id: usize) -> DalResult<Vec<H256>> {
+    pub async fn get_l1_transactions_hashes(
+        &mut self,
+        start_id: usize,
+        end_id: usize,
+    ) -> DalResult<Vec<H256>> {
         let hashes = sqlx::query!(
             r#"
             SELECT
@@ -172,11 +176,13 @@ impl TransactionsDal<'_, '_> {
                 transactions
             WHERE
                 priority_op_id >= $1
+                AND priority_op_id <= $2
                 AND is_priority = TRUE
             ORDER BY
                 priority_op_id
             "#,
-            start_id as i64
+            start_id as i64,
+            end_id as i64
         )
         .instrument("get_l1_transactions_hashes")
         .with_arg("start_id", &start_id)

@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MIN(priority_op_id) AS \"min_id?\",\n                MAX(priority_op_id) AS \"max_id?\"\n            FROM\n                transactions\n            WHERE\n                miniblock_number BETWEEN $1 AND $2\n                AND is_priority = TRUE\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "min_id?",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "max_id?",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "67900a620c2d550d1363eb561bf1f8c6ce4d4da76ad750e7233c3cbc9891804f"
+}

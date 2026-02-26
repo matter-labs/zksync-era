@@ -1,5 +1,39 @@
 # Changelog
 
+## [29.11.1](https://github.com/matter-labs/zksync-era/compare/core-v29.11.0...core-v29.11.1) (2026-02-24)
+
+
+### Bug Fixes
+
+* Fix eth_call deployment behavior when from is 0x0 ([#4679](https://github.com/matter-labs/zksync-era/issues/4679)) ([1eac0be](https://github.com/matter-labs/zksync-era/commit/1eac0bec2a90ae629e8c2eb8fc918c05a2829c10))
+
+## [29.11.0](https://github.com/matter-labs/zksync-era/compare/core-v29.10.0...core-v29.11.0) (2026-02-23)
+
+
+### Features
+
+* **crypto:** update crypto deps server ([#4649](https://github.com/matter-labs/zksync-era/issues/4649)) ([cd6faf0](https://github.com/matter-labs/zksync-era/commit/cd6faf0ab8fdc73e8586f30dbd68dad7055a07cc))
+* Update crypto prover deps ([#4650](https://github.com/matter-labs/zksync-era/issues/4650)) ([0ce00c0](https://github.com/matter-labs/zksync-era/commit/0ce00c0a7c7ef4a88702906519b07fb610acd7ee))
+
+
+### Bug Fixes
+
+* Fix eth_call output for deployments ([#4673](https://github.com/matter-labs/zksync-era/issues/4673)) ([3d2205d](https://github.com/matter-labs/zksync-era/commit/3d2205da11cd628a8615c6c1ba24d18c625dd9d3))
+
+## [29.10.0](https://github.com/matter-labs/zksync-era/compare/core-v29.9.0...core-v29.10.0) (2026-02-06)
+
+
+### Features
+
+* Expose TEE jobs without having to lock them ([#4646](https://github.com/matter-labs/zksync-era/issues/4646)) ([fdaeec3](https://github.com/matter-labs/zksync-era/commit/fdaeec3870ef5c52065aa492cfa96713b42c6756))
+
+## [29.9.0](https://github.com/matter-labs/zksync-era/compare/core-v29.8.0...core-v29.9.0) (2026-02-02)
+
+
+### Features
+
+* **eth_sender:** Make mini merkle tree determenistic ([#4638](https://github.com/matter-labs/zksync-era/issues/4638)) ([adf7b13](https://github.com/matter-labs/zksync-era/commit/adf7b1360b00abcb98e0f504d78f085f437bb71a))
+
 ## [29.8.0](https://github.com/matter-labs/zksync-era/compare/core-v29.7.1...core-v29.8.0) (2026-01-23)
 
 

@@ -12,7 +12,8 @@ use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerkleP
 use zksync_tee_prover_interface::{
     api::{
         RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitTeeProofRequest,
-        SubmitTeeProofResponse, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
+        SubmitTeeProofResponse, TeePresentBatchesResponse, TeeProofGenerationDataRequest,
+        TeeProofGenerationDataResponse,
     },
     inputs::{TeeVerifierInput, V1TeeVerifierInput},
 };
@@ -109,6 +110,54 @@ impl TeeRequestProcessor {
         }
     }
 
+    pub(crate) async fn get_proof_generation_data_no_lock(
+        &self,
+        Path(l1_batch_number): Path<u32>,
+    ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, TeeProcessorError> {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
+
+        if !self
+            .is_batch_present_for_tee_proof_inputs(l1_batch_number)
+            .await?
+        {
+            return Ok(None);
+        }
+
+        match self
+            .tee_verifier_input_for_existing_batch(l1_batch_number)
+            .await
+        {
+            Ok(input) => Ok(Some(Json(TeeProofGenerationDataResponse(Box::new(input))))),
+            Err(TeeProcessorError::ObjectStore {
+                source: ObjectStoreError::KeyNotFound(_),
+                ..
+            }) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub(crate) async fn get_present_batches(
+        &self,
+    ) -> Result<Json<TeePresentBatchesResponse>, TeeProcessorError> {
+        let bounds = self
+            .pool
+            .connection_tagged("tee_request_processor")
+            .await?
+            .proof_generation_dal()
+            .get_present_batch_bounds_for_tee_proof_inputs(self.config.first_processed_batch)
+            .await?;
+
+        let (oldest_batch, latest_batch) = match bounds {
+            Some((oldest_batch, latest_batch)) => (Some(oldest_batch.0), Some(latest_batch.0)),
+            None => (None, None),
+        };
+
+        Ok(Json(TeePresentBatchesResponse {
+            oldest_batch,
+            latest_batch,
+        }))
+    }
+
     #[tracing::instrument(skip(self))]
     async fn tee_verifier_input_for_existing_batch(
         &self,
@@ -189,6 +238,22 @@ impl TeeRequestProcessor {
                 tee_type,
                 self.config.proof_generation_timeout,
                 min_batch_number,
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn is_batch_present_for_tee_proof_inputs(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<bool, TeeProcessorError> {
+        self.pool
+            .connection_tagged("tee_request_processor")
+            .await?
+            .proof_generation_dal()
+            .is_batch_present_for_tee_proof_inputs(
+                l1_batch_number,
+                self.config.first_processed_batch,
             )
             .await
             .map_err(Into::into)

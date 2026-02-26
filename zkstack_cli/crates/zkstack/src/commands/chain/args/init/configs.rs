@@ -4,6 +4,7 @@ use url::Url;
 use zkstack_cli_common::Prompt;
 use zkstack_cli_config::ChainConfig;
 use zkstack_cli_types::L1Network;
+use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
     commands::chain::args::{
@@ -39,10 +40,9 @@ pub struct InitConfigsArgsFinal {
 impl InitConfigsArgs {
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitConfigsArgsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
-            if self.genesis_args.dev && config.l1_network == L1Network::Localhost {
+            if self.genesis_args.dev {
                 return LOCAL_RPC_URL.to_string();
             }
-
             let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
             if config.l1_network == L1Network::Localhost {
                 prompt = prompt.default(LOCAL_RPC_URL);
@@ -56,17 +56,18 @@ impl InitConfigsArgs {
                 .ask()
         });
 
-        let validium_config = if self.genesis_args.dev {
-            ValidiumType::NoDA
-        } else {
-            ValidiumType::read()
-        };
+        let validium_config =
+            if config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+                None
+            } else {
+                Some(ValidiumType::read())
+            };
 
         InitConfigsArgsFinal {
             genesis_args: Some(self.genesis_args.fill_values_with_prompt(config)),
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
-            validium_config: Some(validium_config),
+            validium_config,
         }
     }
 }
