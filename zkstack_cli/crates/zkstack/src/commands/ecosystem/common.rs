@@ -63,10 +63,10 @@ pub async fn deploy_l1_core_contracts(
         .with_ffi()
         .with_rpc_url(l1_rpc_url.to_string());
 
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
+    // if config.l1_network == L1Network::Localhost {
+    //     // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
+    //     forge = forge.with_slow();
+    // }
 
     if let Some(address) = sender {
         forge = forge.with_sender(address);
