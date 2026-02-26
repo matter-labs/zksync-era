@@ -1,7 +1,13 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
-use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
+use axum::{
+    extract::Path,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+    Json, Router,
+};
 use tee_request_processor::TeeRequestProcessor;
 use tokio::sync::watch;
 use zksync_config::configs::TeeProofDataHandlerConfig;
@@ -64,6 +70,8 @@ fn create_proof_processing_router(
         TeeRequestProcessor::new(blob_store, connection_pool, config.clone(), l2_chain_id);
     let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();
     let register_tee_attestation_processor = get_tee_proof_gen_processor.clone();
+    let observe_tee_proof_gen_processor = get_tee_proof_gen_processor.clone();
+    let present_batches_processor = get_tee_proof_gen_processor.clone();
 
     let router = Router::new()
         .route(
@@ -81,6 +89,31 @@ fn create_proof_processing_router(
                     }
                 },
             ),
+        )
+        .route(
+            "/tee/proof_inputs_no_lock/{batch}",
+            get(move |batch: Path<u32>| async move {
+                let result = observe_tee_proof_gen_processor
+                    .get_proof_generation_data_no_lock(batch)
+                    .await;
+
+                match result {
+                    Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                    Ok(None) => StatusCode::NOT_FOUND.into_response(),
+                    Err(e) => e.into_response(),
+                }
+            }),
+        )
+        .route(
+            "/tee/present_batches",
+            get(move || async move {
+                let result = present_batches_processor.get_present_batches().await;
+
+                match result {
+                    Ok(data) => (StatusCode::OK, data).into_response(),
+                    Err(e) => e.into_response(),
+                }
+            }),
         )
         .route(
             "/tee/submit_proofs/{l1_batch_number}",

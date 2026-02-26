@@ -2336,10 +2336,40 @@ impl BlocksDal<'_, '_> {
             .context("map_l1_batches()")
     }
 
-    pub async fn get_batch_first_priority_op_id(
+    pub async fn get_last_executed_priority_op_id(&mut self) -> DalResult<Option<usize>> {
+        let lat_executed_l1_batch = self
+            .storage
+            .blocks_dal()
+            .get_number_of_last_l1_batch_with_tx(L1BatchAggregatedActionType::Execute)
+            .await?;
+        let Some(lat_executed_l1_batch) = lat_executed_l1_batch else {
+            return Ok(None);
+        };
+
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(priority_op_id) AS "id?"
+            FROM
+                transactions
+            WHERE
+                l1_batch_number = $1
+                AND is_priority = TRUE
+            "#,
+            i64::from(lat_executed_l1_batch.0),
+        )
+        .instrument("get_last_executed_priority_op_id")
+        .with_arg("batch_number", &lat_executed_l1_batch)
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.id.map(|id| id as usize))
+    }
+
+    pub async fn get_batch_first_and_last_priority_op_id(
         &mut self,
         batch_number: L1BatchNumber,
-    ) -> DalResult<Option<usize>> {
+    ) -> DalResult<Option<(usize, usize)>> {
         let Some((from_l2_block, to_l2_block)) = self
             .storage
             .blocks_web3_dal()
@@ -2351,7 +2381,8 @@ impl BlocksDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             SELECT
-                MIN(priority_op_id) AS "id?"
+                MIN(priority_op_id) AS "min_id?",
+                MAX(priority_op_id) AS "max_id?"
             FROM
                 transactions
             WHERE
@@ -2365,8 +2396,10 @@ impl BlocksDal<'_, '_> {
         .with_arg("batch_number", &batch_number)
         .fetch_one(self.storage)
         .await?;
-
-        Ok(row.id.map(|id| id as usize))
+        match (row.min_id, row.max_id) {
+            (Some(min_id), Some(max_id)) => Ok(Some((min_id as usize, max_id as usize))),
+            _ => Ok(None),
+        }
     }
 
     async fn raw_ready_for_execute_l1_batches(

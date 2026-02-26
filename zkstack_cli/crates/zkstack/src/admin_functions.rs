@@ -92,6 +92,37 @@ pub async fn accept_owner(
     accept_ownership(shell, governor, forge).await
 }
 
+pub async fn accept_owner_aggregated(
+    shell: &Shell,
+    foundry_contracts_path: PathBuf,
+    governor_contract: Address,
+    governor: &Wallet,
+    target_address: Address,
+    forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    // resume doesn't properly work here.
+    let mut forge_args = forge_args.clone();
+    forge_args.resume = false;
+
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "governanceAcceptOwnerAggregated",
+            (governor_contract, target_address),
+        )
+        .unwrap();
+    let forge = Forge::new(&foundry_contracts_path)
+        .script(
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_broadcast()
+        .with_calldata(&calldata);
+    accept_ownership(shell, governor, forge).await
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn make_permanent_rollup(
     shell: &Shell,
