@@ -232,9 +232,13 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
     let (_, l2_da_validator_commitment_scheme) =
         context.l1_zk_chain.get_da_validator_pair().await?;
-    let l2_da_validator_commitment_scheme =
+    let mut l2_da_validator_commitment_scheme =
         L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
             .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
+    if l2_da_validator_commitment_scheme == L2DACommitmentScheme::BlobsZksyncOS {
+        // ZK OS Gateway does not support Blobs, so chain should settle via calldata.
+        l2_da_validator_commitment_scheme = L2DACommitmentScheme::BlobsAndPubdataKeccak256;
+    }
     if !l2_da_validator_commitment_scheme.is_none() {
         let da_validator_encoding_result = check_permanent_rollup_and_set_da_validator_via_gateway(
             shell,
