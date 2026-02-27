@@ -1,6 +1,11 @@
 use anyhow::Context as _;
+use tokio::runtime::Handle;
 use zksync_dal::{CoreDal, DalError};
-use zksync_multivm::interface::{Call, CallType, ExecutionResult, OneshotTracingParams};
+use zksync_multivm::interface::{
+    BatchTransactionExecutionResult, Call, CallType, ExecutionResult, L2BlockEnv,
+    OneshotTracingParams,
+};
+use zksync_state::PostgresStorage;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{
@@ -13,7 +18,12 @@ use zksync_types::{
     web3,
     web3::Bytes,
     zk_evm_types::FarCallOpcode,
-    H256, U256,
+    H256, L1BatchNumber, L2BlockNumber, ProtocolVersionId, U256,
+};
+use zksync_vm_executor::{
+    batch::{MainBatchExecutorFactory, TraceCalls},
+    interface::BatchExecutorFactory,
+    storage::{L1BatchParamsProvider, RestoredL1BatchEnv},
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -247,9 +257,190 @@ impl DebugNamespace {
             .get_call_trace(tx_hash)
             .await
             .map_err(DalError::generalize)?;
-        Ok(call_trace.map(|(call_trace, meta)| {
-            Self::map_call(call_trace, meta, options.unwrap_or_default())
-        }))
+
+        if let Some((call_trace, meta)) = call_trace {
+            return Ok(Some(Self::map_call(
+                call_trace,
+                meta,
+                options.unwrap_or_default(),
+            )));
+        }
+
+        // Trace not found in DB. Check if the transaction exists in a sealed L1 batch.
+        let Some((l1_batch_number, index_in_block, miniblock_number, block_hash, protocol_version)) =
+            connection
+                .transactions_dal()
+                .get_tx_trace_metadata(tx_hash)
+                .await
+                .map_err(DalError::generalize)?
+        else {
+            // Transaction doesn't exist or hasn't been sealed in a batch yet.
+            return Ok(None);
+        };
+        drop(connection);
+
+        // Replay the L1 batch up to this transaction to generate the missing trace.
+        let (call, meta) = self
+            .replay_batch_for_tx_trace(
+                tx_hash,
+                l1_batch_number,
+                index_in_block,
+                miniblock_number,
+                block_hash,
+                protocol_version,
+            )
+            .await?;
+        Ok(Some(Self::map_call(call, meta, options.unwrap_or_default())))
+    }
+
+    /// Replays the L1 batch containing `tx_hash` with call tracing enabled, executes all
+    /// transactions up to and including `tx_hash`, persists the generated traces to the
+    /// database, and returns the trace for the requested transaction.
+    async fn replay_batch_for_tx_trace(
+        &self,
+        tx_hash: H256,
+        l1_batch_number: L1BatchNumber,
+        index_in_block: usize,
+        miniblock_number: L2BlockNumber,
+        block_hash: H256,
+        protocol_version: ProtocolVersionId,
+    ) -> Result<(Call, CallTraceMeta), Web3Error> {
+        let chain_id = self.state.api_config.l2_chain_id;
+
+        let mut connection = self.state.acquire_connection().await?;
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
+            .await
+            .context("failed to create L1BatchParamsProvider")?;
+
+        let Some(RestoredL1BatchEnv {
+            l1_batch_env,
+            system_env,
+            pubdata_params,
+            ..
+        }) = l1_batch_params_provider
+            .load_l1_batch_env(&mut connection, l1_batch_number, u32::MAX, chain_id)
+            .await
+            .context("failed to load L1 batch env")?
+        else {
+            return Err(anyhow::anyhow!(
+                "L1 batch #{l1_batch_number} not found in storage while replaying trace"
+            )
+            .into());
+        };
+
+        let l2_blocks = connection
+            .transactions_dal()
+            .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number)
+            .await
+            .map_err(DalError::generalize)?;
+
+        // The storage snapshot must reflect state at the end of the previous batch.
+        // The first L2 block of the current batch is `l1_batch_env.first_l2_block.number`,
+        // so the last L2 block of the previous batch is one before it.
+        let storage_l2_block =
+            L2BlockNumber(l1_batch_env.first_l2_block.number.saturating_sub(1));
+        drop(connection);
+
+        let vm_permit = self
+            .state
+            .tx_sender
+            .vm_concurrency_limiter()
+            .acquire()
+            .await;
+        let vm_permit = vm_permit.context("cannot acquire VM permit")?;
+
+        let connection = self.state.acquire_connection().await?;
+        let storage = PostgresStorage::new_async(
+            Handle::current(),
+            connection,
+            storage_l2_block,
+            false,
+        )
+        .await
+        .context("cannot create PostgresStorage for batch replay")?;
+
+        let mut executor_factory = MainBatchExecutorFactory::<TraceCalls>::new(true);
+        let mut batch_executor =
+            executor_factory.init_batch(storage, l1_batch_env, system_env, pubdata_params);
+
+        let mut collected_traces: Vec<(H256, Call)> = vec![];
+        let mut target_call: Option<Call> = None;
+
+        'outer: for (block_idx, l2_block) in l2_blocks.into_iter().enumerate() {
+            let block_env = L2BlockEnv::from_l2_block_data(&l2_block);
+            if block_idx > 0 {
+                // The first L2 block in a batch is preloaded; subsequent ones must be started.
+                batch_executor
+                    .start_next_l2_block(block_env)
+                    .await
+                    .context("failed starting next L2 block in batch replay")?;
+            }
+
+            for tx in l2_block.txs {
+                let cur_tx_hash = tx.hash();
+                let exec_result = batch_executor
+                    .execute_tx(tx.clone())
+                    .await
+                    .with_context(|| {
+                        format!("failed executing transaction {cur_tx_hash:?} in batch replay")
+                    })?;
+
+                let BatchTransactionExecutionResult {
+                    tx_result,
+                    call_traces,
+                    ..
+                } = exec_result;
+                let gas_limit = tx.gas_limit().as_u64();
+                let gas_used = gas_limit.saturating_sub(tx_result.refunds.gas_refunded);
+                let (output, revert_reason) = match tx_result.result {
+                    ExecutionResult::Success { output } => (output, None),
+                    ExecutionResult::Revert { output } => (vec![], Some(output.to_string())),
+                    ExecutionResult::Halt { reason } => (vec![], Some(reason.to_string())),
+                };
+                let call = Call::new_high_level(
+                    gas_limit,
+                    gas_used,
+                    tx.execute.value,
+                    tx.execute.calldata.clone(),
+                    output,
+                    revert_reason,
+                    call_traces,
+                );
+                collected_traces.push((cur_tx_hash, call.clone()));
+
+                if cur_tx_hash == tx_hash {
+                    target_call = Some(call);
+                    break 'outer;
+                }
+            }
+        }
+
+        drop(batch_executor);
+        drop(vm_permit);
+
+        // Persist all collected traces to avoid replaying the batch again in the future.
+        if !collected_traces.is_empty() {
+            let mut connection = self.state.acquire_connection().await?;
+            connection
+                .transactions_dal()
+                .insert_call_traces(&collected_traces, protocol_version)
+                .await
+                .map_err(DalError::generalize)?;
+        }
+
+        let call = target_call.ok_or_else(|| {
+            anyhow::anyhow!(
+                "Transaction {tx_hash:?} not found in L1 batch #{l1_batch_number} during batch replay"
+            )
+        })?;
+        let meta = CallTraceMeta {
+            index_in_block,
+            tx_hash,
+            block_number: miniblock_number.0,
+            block_hash,
+            internal_error: None,
+        };
+        Ok((call, meta))
     }
 
     pub async fn debug_trace_call_impl(

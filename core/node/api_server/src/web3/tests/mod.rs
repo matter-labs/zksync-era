@@ -60,7 +60,7 @@ use zksync_web3_decl::{
 
 use super::*;
 use crate::{
-    testonly::{mock_execute_transaction, store_custom_l2_block},
+    testonly::{mock_execute_transaction, persist_sealed_batch_with_call_trace, store_custom_l2_block},
     tx_sender::SandboxExecutorOptions,
     web3::{state::InternalApiConfigBase, testonly::TestServerBuilder},
 };
