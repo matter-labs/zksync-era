@@ -379,8 +379,6 @@ pub(crate) async fn get_gateway_migration_state(
     let gw_zk_client = get_zk_client(&gw_rpc_url, gw_chain_id.as_u64())?;
     let is_tx_finalized = check_whether_gw_transaction_is_finalized(
         &gw_zk_client,
-        l1_provider,
-        l1_bridgehub.get_zk_chain(gw_chain_id).await?,
         migration_transaction,
         GatewayTransactionType::Withdrawal,
     )

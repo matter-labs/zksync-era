@@ -304,8 +304,6 @@ async fn await_for_migration_to_finalize(
 ) -> anyhow::Result<()> {
     while !check_whether_gw_transaction_is_finalized(
         gateway_provider,
-        l1_provider.clone(),
-        gateway_diamond_proxy,
         hash,
         GatewayTransactionType::Migration,
     )
