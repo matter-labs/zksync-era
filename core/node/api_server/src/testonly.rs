@@ -774,8 +774,12 @@ pub(crate) async fn persist_sealed_batch_with_call_trace(
     .await
     .unwrap();
 
-    let mut batch_executor = MainBatchExecutorFactory::<TraceCalls>::new(true)
-        .init_batch(executor_storage, l1_batch_env, system_env, PubdataParams::default());
+    let mut batch_executor = MainBatchExecutorFactory::<TraceCalls>::new(true).init_batch(
+        executor_storage,
+        l1_batch_env,
+        system_env,
+        PubdataParams::default(),
+    );
 
     let BatchTransactionExecutionResult {
         tx_result,

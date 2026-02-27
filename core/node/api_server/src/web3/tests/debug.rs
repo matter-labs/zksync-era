@@ -388,8 +388,7 @@ impl HttpTest for TraceTransactionMissingCallTraceTest {
     ) -> anyhow::Result<()> {
         // Execute a real transaction in a sealed L1 batch and store the call trace.
         let tx = create_l2_transaction(1, 2);
-        let (tx_hash, original_call) =
-            persist_sealed_batch_with_call_trace(pool, tx.into()).await;
+        let (tx_hash, original_call) = persist_sealed_batch_with_call_trace(pool, tx.into()).await;
 
         // Confirm the trace is present in the DB.
         let mut storage = pool.connection().await?;
