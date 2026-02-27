@@ -574,14 +574,10 @@ impl TransactionsDal<'_, '_> {
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
 
-        let mut call_traces_tx_hashes = Vec::with_capacity(transactions.len());
-        let mut bytea_call_traces = Vec::with_capacity(transactions.len());
-        for tx_res in transactions {
-            if let Some(call_trace) = tx_res.call_trace() {
-                bytea_call_traces.push(serialize_call_into_bytes(call_trace, protocol_version));
-                call_traces_tx_hashes.push(tx_res.hash.as_bytes());
-            }
-        }
+        let call_traces: Vec<(H256, Call)> = transactions
+            .iter()
+            .filter_map(|tx_res| tx_res.call_trace().map(|trace| (tx_res.hash, trace)))
+            .collect();
 
         if insert_txs {
             // There can be transactions in the DB in case of block rollback or if the DB was restored from a dump.
@@ -655,25 +651,10 @@ impl TransactionsDal<'_, '_> {
                 .await?;
         }
 
-        if !bytea_call_traces.is_empty() {
-            sqlx::query!(
-                r#"
-                INSERT INTO
-                call_traces (tx_hash, call_trace)
-                SELECT
-                    u.tx_hash,
-                    u.call_trace
-                FROM
-                    UNNEST($1::bytea [], $2::bytea []) AS u (tx_hash, call_trace)
-                "#,
-                &call_traces_tx_hashes as &[&[u8]],
-                &bytea_call_traces
-            )
-            .instrument("insert_call_tracer")
-            .report_latency()
-            .execute(&mut transaction)
+        transaction
+            .transactions_dal()
+            .insert_call_traces(&call_traces, protocol_version)
             .await?;
-        }
 
         transaction.commit().await
     }
@@ -2314,6 +2295,89 @@ impl TransactionsDal<'_, '_> {
                 },
             )
         }))
+    }
+
+    /// Returns the metadata needed to replay a batch and generate a missing call trace.
+    ///
+    /// Returns `None` if the transaction doesn't exist or hasn't been sealed in a batch yet.
+    pub async fn get_tx_trace_metadata(
+        &mut self,
+        tx_hash: H256,
+    ) -> DalResult<Option<(L1BatchNumber, usize, L2BlockNumber, H256, ProtocolVersionId)>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                transactions.l1_batch_number,
+                transactions.index_in_block,
+                miniblocks.number AS "miniblock_number!",
+                miniblocks.hash AS "block_hash!",
+                miniblocks.protocol_version
+            FROM
+                transactions
+            INNER JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
+            WHERE
+                transactions.hash = $1
+                AND transactions.l1_batch_number IS NOT NULL
+            "#,
+            tx_hash.as_bytes()
+        )
+        .instrument("get_tx_trace_metadata")
+        .with_arg("tx_hash", &tx_hash)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| {
+            let protocol_version = row
+                .protocol_version
+                .map(|v| (v as u16).try_into().unwrap())
+                .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+            (
+                L1BatchNumber(row.l1_batch_number.unwrap() as u32),
+                row.index_in_block.unwrap_or_default() as usize,
+                L2BlockNumber(row.miniblock_number as u32),
+                H256::from_slice(&row.block_hash),
+                protocol_version,
+            )
+        }))
+    }
+
+    /// Inserts call traces for the given transactions. Silently ignores transactions that
+    /// already have a trace saved (ON CONFLICT DO NOTHING).
+    pub async fn insert_call_traces(
+        &mut self,
+        traces: &[(H256, Call)],
+        protocol_version: ProtocolVersionId,
+    ) -> DalResult<()> {
+        if traces.is_empty() {
+            return Ok(());
+        }
+
+        let tx_hashes: Vec<&[u8]> = traces.iter().map(|(h, _)| h.as_bytes() as &[u8]).collect();
+        let serialized: Vec<Vec<u8>> = traces
+            .iter()
+            .map(|(_, call)| serialize_call_into_bytes(call.clone(), protocol_version))
+            .collect();
+
+        sqlx::query!(
+            r#"
+            INSERT INTO
+            call_traces (tx_hash, call_trace)
+            SELECT
+                u.tx_hash,
+                u.call_trace
+            FROM
+                UNNEST($1::bytea [], $2::bytea []) AS u (tx_hash, call_trace)
+            ON CONFLICT (tx_hash) DO NOTHING
+            "#,
+            &tx_hashes as &[&[u8]],
+            &serialized
+        )
+        .instrument("insert_call_traces")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> DalResult<Option<Transaction>> {
