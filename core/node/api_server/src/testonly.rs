@@ -10,8 +10,9 @@ use zksync_dal::{
 };
 use zksync_multivm::{
     interface::{
-        tracer::ValidationTraces, ExecutionResult, TransactionExecutionMetrics,
-        TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
+        tracer::ValidationTraces, BatchTransactionExecutionResult, Call, ExecutionResult,
+        TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus,
+        VmExecutionMetrics,
     },
     utils::{derive_base_fee_and_gas_per_pubdata, StorageWritesDeduplicator},
 };
@@ -45,7 +46,10 @@ use zksync_types::{
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
     StorageLog, Transaction, EIP_712_TX_TYPE, H256, U256,
 };
-use zksync_vm_executor::{batch::MainBatchExecutorFactory, interface::BatchExecutorFactory};
+use zksync_vm_executor::{
+    batch::{MainBatchExecutorFactory, TraceCalls},
+    interface::BatchExecutorFactory,
+};
 
 use crate::execution_sandbox::testonly::apply_state_overrides;
 
@@ -726,6 +730,133 @@ pub(crate) async fn persist_block_with_transactions(
     store_custom_l2_block(&mut storage, &block_header, &all_tx_results)
         .await
         .unwrap();
+}
+
+/// Executes `tx` through a real VM with call tracing, stores it in a sealed L1 batch #1,
+/// and persists the generated call trace in the `call_traces` table.
+///
+/// Returns the `(tx_hash, Call)` pair so the caller can inspect or delete the stored trace.
+///
+/// Precondition: storage must contain exactly genesis (L2 block #0 / L1 batch #0).
+pub(crate) async fn persist_sealed_batch_with_call_trace(
+    pool: &ConnectionPool<Core>,
+    tx: Transaction,
+) -> (H256, Call) {
+    let tx_hash = tx.hash();
+    let mut storage = pool.connection().await.unwrap();
+
+    let prev_block = storage
+        .blocks_dal()
+        .get_last_sealed_l2_block_header()
+        .await
+        .unwrap()
+        .expect("no blocks in storage");
+    assert_eq!(prev_block.number, L2BlockNumber(0));
+
+    let prev_batch_hash = storage
+        .blocks_dal()
+        .get_l1_batch_state_root(L1BatchNumber(0))
+        .await
+        .unwrap()
+        .expect("no root hash for genesis L1 batch");
+
+    let system_env = default_system_env();
+    let mut l1_batch_env = default_l1_batch_env(1, 1, Address::repeat_byte(1));
+    l1_batch_env.first_l2_block.prev_block_hash = prev_block.hash;
+    l1_batch_env.previous_batch_hash = Some(prev_batch_hash);
+
+    let executor_storage = PostgresStorage::new_async(
+        tokio::runtime::Handle::current(),
+        pool.connection().await.unwrap(),
+        L2BlockNumber(0),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let mut batch_executor = MainBatchExecutorFactory::<TraceCalls>::new(true).init_batch(
+        executor_storage,
+        l1_batch_env,
+        system_env,
+        PubdataParams::default(),
+    );
+
+    let BatchTransactionExecutionResult {
+        tx_result,
+        call_traces,
+        ..
+    } = batch_executor.execute_tx(tx.clone()).await.unwrap();
+
+    let gas_limit = tx.gas_limit().as_u64();
+    let gas_used = gas_limit.saturating_sub(tx_result.refunds.gas_refunded);
+    let (output, revert_reason) = match tx_result.result {
+        ExecutionResult::Success { output } => (output, None),
+        ExecutionResult::Revert { output } => (vec![], Some(output.to_string())),
+        ExecutionResult::Halt { reason } => (vec![], Some(reason.to_string())),
+    };
+    let call = Call::new_high_level(
+        gas_limit,
+        gas_used,
+        tx.execute.value,
+        tx.execute.calldata.clone(),
+        output,
+        revert_reason,
+        call_traces,
+    );
+
+    drop(batch_executor);
+
+    // The block header must use real system contract hashes so that L1BatchParamsProvider
+    // can reload them from factory_deps during a batch replay triggered by the debug API.
+    let real_hashes = zksync_contracts::BaseSystemContracts::load_from_disk().hashes();
+    let mut block_header = create_l2_block(1);
+    block_header.base_system_contracts_hashes = real_hashes;
+
+    let tx_result = mock_execute_transaction(tx);
+    store_custom_l2_block(&mut storage, &block_header, &[tx_result])
+        .await
+        .unwrap();
+
+    storage
+        .transactions_dal()
+        .insert_call_traces(&[(tx_hash, call.clone())], ProtocolVersionId::latest())
+        .await
+        .unwrap();
+
+    // Seal batch #1 and mark the transaction with its L1 batch number so that
+    // `get_tx_trace_metadata` can find it.
+    let batch_header = zksync_node_test_utils::create_l1_batch(1);
+    storage
+        .blocks_dal()
+        .insert_mock_l1_batch(&batch_header)
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(1))
+        .await
+        .unwrap();
+    let metadata = zksync_node_test_utils::create_l1_batch_metadata(1);
+    storage
+        .blocks_dal()
+        .save_l1_batch_tree_data(L1BatchNumber(1), &metadata.tree_data())
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(
+            L1BatchNumber(1),
+            &zksync_node_test_utils::l1_batch_metadata_to_commitment_artifacts(&metadata),
+        )
+        .await
+        .unwrap();
+    storage
+        .transactions_dal()
+        .mark_txs_as_executed_in_l1_batch(L1BatchNumber(1), &[tx_hash])
+        .await
+        .unwrap();
+
+    (tx_hash, call)
 }
 
 #[cfg(test)]

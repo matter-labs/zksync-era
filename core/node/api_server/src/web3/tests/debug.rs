@@ -372,3 +372,67 @@ impl HttpTest for GetRawTransactionsTest {
 async fn get_raw_transactions() {
     test_http_server(GetRawTransactionsTest(L2BlockNumber(1))).await;
 }
+
+/// Tests that `debug_traceTransaction` falls back to replaying the L1 batch when the call
+/// trace is absent from the `call_traces` table, and that the replayed trace is then
+/// persisted so a second call returns the cached result without another replay.
+#[derive(Debug)]
+struct TraceTransactionMissingCallTraceTest;
+
+#[async_trait]
+impl HttpTest for TraceTransactionMissingCallTraceTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        // Execute a real transaction in a sealed L1 batch and store the call trace.
+        let tx = create_l2_transaction(1, 2);
+        let (tx_hash, original_call) = persist_sealed_batch_with_call_trace(pool, tx.into()).await;
+
+        // Confirm the trace is present in the DB.
+        let mut storage = pool.connection().await?;
+        assert!(
+            storage
+                .transactions_dal()
+                .get_call_trace(tx_hash)
+                .await?
+                .is_some(),
+            "call trace should be in the DB after persist_sealed_batch_with_call_trace"
+        );
+
+        // Remove the trace to simulate it being absent (e.g. migrated from an older node).
+        sqlx::query("DELETE FROM call_traces WHERE tx_hash = $1")
+            .bind(tx_hash.as_bytes())
+            .execute(storage.conn())
+            .await?;
+        drop(storage);
+
+        // No trace in the DB → the implementation should replay the L1 batch.
+        let result = client
+            .trace_transaction(tx_hash, None)
+            .await?
+            .context("no trace returned after batch replay")?
+            .unwrap_default();
+
+        // The replayed trace must have the same top-level structure as the original.
+        assert_eq!(result.from, Address::zero());
+        assert_eq!(result.to, BOOTLOADER_ADDRESS);
+        assert_eq!(result.gas, original_call.gas.into());
+
+        // A second call must return the identical cached trace (persisted during the replay).
+        let result2 = client
+            .trace_transaction(tx_hash, None)
+            .await?
+            .context("no trace on second call")?
+            .unwrap_default();
+        assert_eq!(result, result2);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn tracing_transaction_with_missing_call_trace() {
+    test_http_server(TraceTransactionMissingCallTraceTest).await;
+}
