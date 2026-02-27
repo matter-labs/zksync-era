@@ -278,9 +278,13 @@ pub async fn run_inner(
 
     let (_, l2_da_validator_commitment_scheme) =
         context.l1_zk_chain.get_da_validator_pair().await?;
-    let l2_da_validator_commitment_scheme =
+    let mut l2_da_validator_commitment_scheme =
         L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
             .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
+    if l2_da_validator_commitment_scheme == L2DACommitmentScheme::BlobsZksyncOS {
+        // ZK OS Gateway does not support Blobs, so chain should settle via calldata.
+        l2_da_validator_commitment_scheme = L2DACommitmentScheme::BlobsAndPubdataKeccak256;
+    }
     check_permanent_rollup_and_set_da_validator_via_gateway(
         shell,
         &args.forge_args,
@@ -304,8 +308,6 @@ async fn await_for_migration_to_finalize(
 ) -> anyhow::Result<()> {
     while !check_whether_gw_transaction_is_finalized(
         gateway_provider,
-        l1_provider.clone(),
-        gateway_diamond_proxy,
         hash,
         GatewayTransactionType::Migration,
     )

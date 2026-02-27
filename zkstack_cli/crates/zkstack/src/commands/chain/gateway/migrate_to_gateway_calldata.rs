@@ -44,6 +44,8 @@ pub(crate) struct MigrateToGatewayConfig {
     pub(crate) gateway_rpc_url: String,
     pub(crate) new_sl_da_validator: Address,
     pub(crate) validator: Address,
+    pub(crate) prove_operator: Option<Address>,
+    pub(crate) execute_operator: Option<Address>,
     pub(crate) min_validator_balance: U256,
     pub(crate) refund_recipient: Option<Address>,
 }
@@ -59,6 +61,8 @@ pub(crate) struct MigrateToGatewayContext {
     pub(crate) gateway_rpc_url: String,
     pub(crate) new_sl_da_validator: Address,
     pub(crate) validator: Address,
+    pub(crate) prove_operator: Option<Address>,
+    pub(crate) execute_operator: Option<Address>,
     pub(crate) min_validator_balance: U256,
     pub(crate) l1_provider: Arc<Provider<Http>>,
     pub(crate) gw_provider: Arc<Provider<Http>>,
@@ -184,6 +188,8 @@ impl MigrateToGatewayConfig {
             gateway_rpc_url: self.gateway_rpc_url,
             new_sl_da_validator: self.new_sl_da_validator,
             validator: self.validator,
+            prove_operator: self.prove_operator,
+            execute_operator: self.execute_operator,
             min_validator_balance: self.min_validator_balance,
             l1_provider,
             gw_provider,
@@ -226,9 +232,13 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
     let (_, l2_da_validator_commitment_scheme) =
         context.l1_zk_chain.get_da_validator_pair().await?;
-    let l2_da_validator_commitment_scheme =
+    let mut l2_da_validator_commitment_scheme =
         L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
             .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
+    if l2_da_validator_commitment_scheme == L2DACommitmentScheme::BlobsZksyncOS {
+        // ZK OS Gateway does not support Blobs, so chain should settle via calldata.
+        l2_da_validator_commitment_scheme = L2DACommitmentScheme::BlobsAndPubdataKeccak256;
+    }
     if !l2_da_validator_commitment_scheme.is_none() {
         let da_validator_encoding_result = check_permanent_rollup_and_set_da_validator_via_gateway(
             shell,
@@ -242,85 +252,89 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         result.extend(da_validator_encoding_result.calls.into_iter());
     }
 
-    let is_validator_enabled = if get_minor_protocol_version(context.protocol_version)?
-        .is_pre_interop_fast_blocks()
-    {
-        // In previous versions, we need to check if the validator is enabled
-        let legacy_validator_timelock = Contract::new(
+    // fixme: temporarily assign all roles to commit/prove/execute validators (needed for ZKsync OS)
+    let mut validators = vec![context.validator];
+    validators.extend(context.prove_operator);
+    validators.extend(context.execute_operator);
+
+    for validator in validators {
+        let is_validator_enabled = if get_minor_protocol_version(context.protocol_version)?
+            .is_pre_interop_fast_blocks()
+        {
+            // In previous versions, we need to check if the validator is enabled
+            let legacy_validator_timelock = Contract::new(
                 context.gw_validator_timelock_addr,
                 parse_abi(&[
                     "function validators(uint256 _chainId, address _validator) external view returns (bool)",
                 ])?,
                 context.gw_provider.clone(),
             );
-        legacy_validator_timelock
-            .method::<_, bool>("validators", (context.l2_chain_id, context.validator))?
-            .call()
-            .await?
-    } else {
-        context
-            .gw_validator_timelock
-            .has_role_for_chain_id(
-                context.l2_chain_id.into(),
-                context
-                    .gw_validator_timelock
-                    .committer_role()
-                    .call()
-                    .await?,
-                context.validator,
+            legacy_validator_timelock
+                .method::<_, bool>("validators", (context.l2_chain_id, validator))?
+                .call()
+                .await?
+        } else {
+            context
+                .gw_validator_timelock
+                .has_role_for_chain_id(
+                    context.l2_chain_id.into(),
+                    context
+                        .gw_validator_timelock
+                        .committer_role()
+                        .call()
+                        .await?,
+                    validator,
+                )
+                .await?
+        };
+
+        // 4. If validator is not yet present, please include.
+        if !is_validator_enabled {
+            let enable_validator_calls = enable_validator_via_gateway(
+                shell,
+                forge_args,
+                foundry_contracts_path,
+                crate::admin_functions::AdminScriptMode::OnlySave,
+                context.l1_bridgehub_addr,
+                context.max_l1_gas_price.into(),
+                context.l2_chain_id,
+                context.gateway_chain_id,
+                validator,
+                context.gw_validator_timelock_addr,
+                context.refund_recipient,
+                context.l1_rpc_url.clone(),
             )
-            .await?
-    };
+            .await?;
+            result.extend(enable_validator_calls.calls);
+        }
 
-    // 4. If validator is not yet present, please include.
-    if !is_validator_enabled {
-        let enable_validator_calls = enable_validator_via_gateway(
-            shell,
-            forge_args,
-            foundry_contracts_path,
-            crate::admin_functions::AdminScriptMode::OnlySave,
-            context.l1_bridgehub_addr,
-            context.max_l1_gas_price.into(),
-            context.l2_chain_id,
-            context.gateway_chain_id,
-            context.validator,
-            context.gw_validator_timelock_addr,
-            context.refund_recipient,
-            context.l1_rpc_url.clone(),
-        )
-        .await?;
-        result.extend(enable_validator_calls.calls);
-    }
-
-    let current_validator_balance = context
-        .gw_provider
-        .get_balance(context.validator, None)
-        .await?;
-    logger::info(format!(
-        "Current balance of {:#?} = {}",
-        context.validator, current_validator_balance
-    ));
-    if current_validator_balance < context.min_validator_balance {
+        let current_validator_balance = context.gw_provider.get_balance(validator, None).await?;
         logger::info(format!(
-            "Will send {} of the ZK Gateway base token",
-            context.min_validator_balance - current_validator_balance
+            "Current balance of {:#?} = {}",
+            validator, current_validator_balance
         ));
-        let supply_validator_balance_calls = admin_l1_l2_tx(
-            shell,
-            forge_args,
-            foundry_contracts_path,
-            crate::admin_functions::AdminScriptMode::OnlySave,
-            context.l1_bridgehub_addr,
-            context.max_l1_gas_price,
-            context.gateway_chain_id,
-            context.validator,
-            context.min_validator_balance - current_validator_balance,
-            Default::default(),
-            context.refund_recipient,
-            context.l1_rpc_url.clone(),
-        )
-        .await?;
-        result.extend(supply_validator_balance_calls.calls);
+        if current_validator_balance < context.min_validator_balance {
+            logger::info(format!(
+                "Will send {} of the ZK Gateway base token",
+                context.min_validator_balance - current_validator_balance
+            ));
+            let supply_validator_balance_calls = admin_l1_l2_tx(
+                shell,
+                forge_args,
+                foundry_contracts_path,
+                crate::admin_functions::AdminScriptMode::OnlySave,
+                context.l1_bridgehub_addr,
+                context.max_l1_gas_price,
+                context.gateway_chain_id,
+                validator,
+                context.min_validator_balance - current_validator_balance,
+                Default::default(),
+                context.refund_recipient,
+                context.l1_rpc_url.clone(),
+            )
+            .await?;
+            result.extend(supply_validator_balance_calls.calls);
+        }
     }
 
     Ok((context.chain_admin_address, result))
@@ -413,6 +427,8 @@ impl MigrateToGatewayCalldataArgs {
             gateway_rpc_url: self.gateway_rpc_url,
             new_sl_da_validator: self.new_sl_da_validator,
             validator: self.validator,
+            prove_operator: None,
+            execute_operator: None,
             min_validator_balance: self.min_validator_balance.into(),
             refund_recipient: self.refund_recipient,
         }
