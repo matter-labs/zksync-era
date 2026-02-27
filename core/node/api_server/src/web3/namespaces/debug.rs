@@ -18,7 +18,7 @@ use zksync_types::{
     web3,
     web3::Bytes,
     zk_evm_types::FarCallOpcode,
-    H256, L1BatchNumber, L2BlockNumber, ProtocolVersionId, U256,
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
 };
 use zksync_vm_executor::{
     batch::{MainBatchExecutorFactory, TraceCalls},
@@ -290,7 +290,11 @@ impl DebugNamespace {
                 protocol_version,
             )
             .await?;
-        Ok(Some(Self::map_call(call, meta, options.unwrap_or_default())))
+        Ok(Some(Self::map_call(
+            call,
+            meta,
+            options.unwrap_or_default(),
+        )))
     }
 
     /// Replays the L1 batch containing `tx_hash` with call tracing enabled, executes all
@@ -337,8 +341,7 @@ impl DebugNamespace {
         // The storage snapshot must reflect state at the end of the previous batch.
         // The first L2 block of the current batch is `l1_batch_env.first_l2_block.number`,
         // so the last L2 block of the previous batch is one before it.
-        let storage_l2_block =
-            L2BlockNumber(l1_batch_env.first_l2_block.number.saturating_sub(1));
+        let storage_l2_block = L2BlockNumber(l1_batch_env.first_l2_block.number.saturating_sub(1));
         drop(connection);
 
         let vm_permit = self
@@ -350,14 +353,10 @@ impl DebugNamespace {
         let vm_permit = vm_permit.context("cannot acquire VM permit")?;
 
         let connection = self.state.acquire_connection().await?;
-        let storage = PostgresStorage::new_async(
-            Handle::current(),
-            connection,
-            storage_l2_block,
-            false,
-        )
-        .await
-        .context("cannot create PostgresStorage for batch replay")?;
+        let storage =
+            PostgresStorage::new_async(Handle::current(), connection, storage_l2_block, false)
+                .await
+                .context("cannot create PostgresStorage for batch replay")?;
 
         let mut executor_factory = MainBatchExecutorFactory::<TraceCalls>::new(true);
         let mut batch_executor =
@@ -378,12 +377,13 @@ impl DebugNamespace {
 
             for tx in l2_block.txs {
                 let cur_tx_hash = tx.hash();
-                let exec_result = batch_executor
-                    .execute_tx(tx.clone())
-                    .await
-                    .with_context(|| {
-                        format!("failed executing transaction {cur_tx_hash:?} in batch replay")
-                    })?;
+                let exec_result =
+                    batch_executor
+                        .execute_tx(tx.clone())
+                        .await
+                        .with_context(|| {
+                            format!("failed executing transaction {cur_tx_hash:?} in batch replay")
+                        })?;
 
                 let BatchTransactionExecutionResult {
                     tx_result,
