@@ -17,7 +17,7 @@ jobs:
       PASSED_ENV_VARS: "CUDA_ARCH,CUDAARCHS"
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -150,7 +150,7 @@ jobs:
           ci_run ./bin/prover_checkers/batch_l1_status_checker
 
       - name: Upload logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: prover_logs_${{matrix.compressor-mode}}

@@ -30,7 +30,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - run: |
           DIRS=$(find -not \( -path \*node_modules -prune \) -type f -name yarn.lock  | xargs dirname | awk -v RS='' -v OFS='","' 'NF { $1 = $1; print "\"" $0 "\"" }')
           echo "matrix=[${DIRS}]" >> $GITHUB_OUTPUT
@@ -44,12 +44,12 @@ jobs:
         dir: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     steps:
       - name: Checkout latest code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Use Node.js
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
-          node-version: 18
+          node-version: 24
 
       - name: Install yarn
         run: npm install -g yarn license-checker
