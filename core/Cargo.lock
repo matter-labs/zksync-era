@@ -14488,7 +14488,6 @@ dependencies = [
  "reqwest 0.12.22",
  "serde",
  "serde_json",
- "sqlx",
  "strum 0.26.3",
  "tempfile",
  "test-casing",

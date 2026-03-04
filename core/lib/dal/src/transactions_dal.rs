@@ -2380,6 +2380,22 @@ impl TransactionsDal<'_, '_> {
         Ok(())
     }
 
+    /// Removes the call trace for a single transaction. Should only be used in tests.
+    pub async fn delete_call_trace(&mut self, tx_hash: H256) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            DELETE FROM call_traces
+            WHERE
+                tx_hash = $1
+            "#,
+            tx_hash.as_bytes()
+        )
+        .instrument("delete_call_trace")
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
     pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> DalResult<Option<Transaction>> {
         sqlx::query_as!(
             StorageTransaction,

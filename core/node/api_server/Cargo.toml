@@ -60,7 +60,6 @@ reqwest.workspace = true
 
 [dev-dependencies]
 zk_evm_1_5_0.workspace = true
-sqlx.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
 zksync_test_contracts.workspace = true

@@ -402,9 +402,9 @@ impl HttpTest for TraceTransactionMissingCallTraceTest {
         );
 
         // Remove the trace to simulate it being absent (e.g. migrated from an older node).
-        sqlx::query("DELETE FROM call_traces WHERE tx_hash = $1")
-            .bind(tx_hash.as_bytes())
-            .execute(storage.conn())
+        storage
+            .transactions_dal()
+            .delete_call_trace(tx_hash)
             .await?;
         drop(storage);
 
