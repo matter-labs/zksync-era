@@ -275,6 +275,14 @@ fn compile_eravm_contracts(temp_dir: &Path) {
         })
         .remapping(Remapping {
             context: None,
+            name: "system-contracts".into(),
+            path: format!(
+                "{}/contract-libs/system-contracts",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+        })
+        .remapping(Remapping {
+            context: None,
             name: "@openzeppelin/contracts-upgradeable-v4".into(),
             path: format!(
                 "{}/contract-libs/openzeppelin-contracts-upgradeable-v4/contracts",
