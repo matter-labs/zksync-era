@@ -11,10 +11,7 @@ use zksync_contracts::{
     hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
     GENESIS_UPGRADE_EVENT,
 };
-use zksync_dal::{
-    blocks_dal::SealL1BatchParams, custom_genesis_export_dal::GenesisState, Connection, Core,
-    CoreDal, DalError,
-};
+use zksync_dal::{custom_genesis_export_dal::GenesisState, Connection, Core, CoreDal, DalError};
 use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
@@ -583,15 +580,15 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         .await?;
     transaction
         .blocks_dal()
-        .mark_l1_batch_as_sealed(SealL1BatchParams {
-            header: &genesis_l1_batch_header,
-            initial_bootloader_contents: &[],
-            storage_refunds: &[],
-            pubdata_costs: &[],
-            predicted_circuits_by_type: Default::default(),
-            bytes_per_blob: ZK_SYNC_BYTES_PER_BLOB as u64,
-            interop_fee: U256::zero(),
-        })
+        .mark_l1_batch_as_sealed(
+            &genesis_l1_batch_header,
+            &[],
+            &[],
+            &[],
+            Default::default(),
+            ZK_SYNC_BYTES_PER_BLOB as u64,
+            U256::zero(),
+        )
         .await?;
     transaction
         .blocks_dal()
