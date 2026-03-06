@@ -98,10 +98,6 @@ impl AdminCallBuilder {
         }
     }
 
-    pub fn extend_with_calls(&mut self, calls: Vec<AdminCall>) {
-        self.calls.extend(calls);
-    }
-
     pub fn is_empty(&self) -> bool {
         self.calls.is_empty()
     }

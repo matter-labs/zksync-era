@@ -187,6 +187,7 @@ async fn load_migration_context(
     ))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn initiate_token_balance_migration(
     shell: &Shell,
     skip_funding: bool,
@@ -338,6 +339,7 @@ async fn initiate_token_balance_migration(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn finalize_token_balance_migration(
     wallet: Wallet,
     l1_bridgehub_addr: Address,

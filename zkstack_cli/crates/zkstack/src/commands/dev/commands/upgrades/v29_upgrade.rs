@@ -1,8 +1,7 @@
 use xshell::Shell;
 
 use crate::commands::dev::commands::upgrades::{
-    args::v29_chain::V29ChainUpgradeArgs,
-    default_chain_upgrade::run_chain_upgrade,
+    args::v29_chain::V29ChainUpgradeArgs, default_chain_upgrade::run_chain_upgrade,
 };
 
 pub(crate) async fn run(

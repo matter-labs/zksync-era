@@ -226,6 +226,7 @@ pub async fn init(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn send_priority_txs(
     shell: &Shell,
     chain_config: &ChainConfig,
