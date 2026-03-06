@@ -94,7 +94,7 @@ DefaultCoreUpgrade          CTMUpgrade_v31
 When you encounter "missing revert data" or unclear transaction failures, use this method to get the full execution
 trace:
 
-**Step 1: Extract transaction details from error**
+#### Step 1: Extract Transaction Details From Error
 
 From an error like:
 
@@ -102,7 +102,7 @@ From an error like:
 transaction={ "data": "0xd52471c1...", "from": "0x97D2A9...", "to": "0xfe3EE966..." }
 ```
 
-**Step 2: Send the transaction manually with sufficient gas**
+#### Step 2: Send The Transaction Manually With Sufficient Gas
 
 ```bash
 TX_HASH=$(cast send <TO_ADDRESS> \
@@ -117,7 +117,7 @@ TX_HASH=$(cast send <TO_ADDRESS> \
 **Important**: Use `--gas-limit 10000000` to ensure the transaction gets mined even if it reverts. This allows us to
 trace it.
 
-**Step 3: Trace the transaction to see where it failed**
+#### Step 3: Trace The Transaction To See Where It Failed
 
 ```bash
 cast run $TX_HASH --rpc-url http://127.0.0.1:8545
@@ -169,7 +169,7 @@ Traces:
 
 ### NEVER USE try-catch OR staticcall in Upgrade Scripts
 
-**THIS IS AN ABSOLUTE RULE - NO EXCEPTIONS**
+#### This Is an Absolute Rule - No Exceptions
 
 ❌ **FORBIDDEN PATTERNS:**
 

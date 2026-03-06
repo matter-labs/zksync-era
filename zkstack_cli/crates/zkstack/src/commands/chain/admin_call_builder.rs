@@ -168,7 +168,7 @@ impl AdminCallBuilder {
         // Get the parameter type for DiamondCutData from the diamondCut function
         let diamond_cut_param_type = diamond_cut_fn
             .inputs
-            .get(0)
+            .first()
             .expect("diamondCut function has no parameters")
             .kind
             .clone();

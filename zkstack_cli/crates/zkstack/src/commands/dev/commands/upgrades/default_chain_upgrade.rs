@@ -9,7 +9,6 @@ use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
     forge::{Forge, ForgeScriptArgs},
     logger,
-    wallets::Wallet,
 };
 use zkstack_cli_config::{
     forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
@@ -335,7 +334,7 @@ pub(crate) async fn run_chain_upgrade(
     }
 
     let (calldata, total_value) = if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
-        let mut admin_calls_gw = AdminCallBuilder::new(vec![]);
+        let admin_calls_gw = AdminCallBuilder::new(vec![]);
 
         // admin_calls_gw.append_execute_upgrade(
         //     chain_info.hyperchain_addr,

@@ -2,7 +2,6 @@ import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
 import { findHome } from './zksync-home';
 import { withDeadline } from './deadline';
-import * as utils from 'utils';
 import { GW_ASSET_TRACKER_ADDRESS, ArtifactWrappedBaseToken, ArtifactGWAssetTracker } from 'utils/src/constants';
 import { loadConfig } from 'utils/build/file-configs';
 import * as ethers from 'ethers';

@@ -281,6 +281,14 @@ fn compile_eravm_contracts(temp_dir: &Path) {
                 env!("CARGO_MANIFEST_DIR")
             ),
         })
+        .remapping(Remapping {
+            context: None,
+            name: "system-contracts".into(),
+            path: format!(
+                "{}/contract-libs/system-contracts",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+        })
         .artifacts(temp_dir.join("artifacts"))
         .cache(temp_dir.join("cache"))
         .build()

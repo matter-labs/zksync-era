@@ -10,8 +10,7 @@ import {
     ArtifactL1BridgeHub,
     ArtifactL1AssetRouter,
     ArtifactNativeTokenVault,
-    ArtifactL1NativeTokenVault,
-    ArtifactInteropCenter
+    ArtifactL1NativeTokenVault
 } from './constants';
 
 export interface EcosystemContracts {
