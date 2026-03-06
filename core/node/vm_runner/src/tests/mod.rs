@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use rand::{prelude::SliceRandom, Rng};
 use tokio::sync::RwLock;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{blocks_dal::SealL1BatchParams, Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
@@ -340,7 +340,15 @@ async fn store_l1_batches(
             .collect();
 
         conn.blocks_dal()
-            .mark_l1_batch_as_sealed(&header, &[], &[], &[], Default::default(), 1, U256::zero())
+            .mark_l1_batch_as_sealed(SealL1BatchParams {
+                header: &header,
+                initial_bootloader_contents: &[],
+                storage_refunds: &[],
+                pubdata_costs: &[],
+                predicted_circuits_by_type: Default::default(),
+                bytes_per_blob: 1,
+                interop_fee: U256::zero(),
+            })
             .await?;
         conn.blocks_dal()
             .mark_l2_blocks_as_executed_in_l1_batch(l1_batch_number)

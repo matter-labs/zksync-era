@@ -64,6 +64,16 @@ pub struct TxForPrecommit {
     pub is_success: bool,
 }
 
+pub struct SealL1BatchParams<'a> {
+    pub header: &'a L1BatchHeader,
+    pub initial_bootloader_contents: &'a [(usize, U256)],
+    pub storage_refunds: &'a [u32],
+    pub pubdata_costs: &'a [i32],
+    pub predicted_circuits_by_type: CircuitStatistic,
+    pub bytes_per_blob: u64,
+    pub interop_fee: U256,
+}
+
 impl BlocksDal<'_, '_> {
     pub async fn get_consistency_checker_last_processed_l1_batch(
         &mut self,
@@ -1242,14 +1252,18 @@ impl BlocksDal<'_, '_> {
     /// Errors if the batch does not exist.
     pub async fn mark_l1_batch_as_sealed(
         &mut self,
-        header: &L1BatchHeader,
-        initial_bootloader_contents: &[(usize, U256)],
-        storage_refunds: &[u32],
-        pubdata_costs: &[i32],
-        predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
-        bytes_per_blob: u64,
-        interop_fee: U256,
+        params: SealL1BatchParams<'_>,
     ) -> anyhow::Result<()> {
+        let SealL1BatchParams {
+            header,
+            initial_bootloader_contents,
+            storage_refunds,
+            pubdata_costs,
+            predicted_circuits_by_type,
+            bytes_per_blob,
+            interop_fee,
+        } = params;
+
         let initial_bootloader_contents_len = initial_bootloader_contents.len();
         let instrumentation = Instrumented::new("mark_l1_batch_as_sealed")
             .with_arg("number", &header.number)
@@ -3918,8 +3932,16 @@ impl BlocksDal<'_, '_> {
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
         self.insert_l1_batch(header.to_unsealed_header()).await?;
-        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1, U256::zero())
-            .await
+        self.mark_l1_batch_as_sealed(SealL1BatchParams {
+            header,
+            initial_bootloader_contents: &[],
+            storage_refunds: &[],
+            pubdata_costs: &[],
+            predicted_circuits_by_type: Default::default(),
+            bytes_per_blob: 1,
+            interop_fee: U256::zero(),
+        })
+        .await
     }
 
     /// Deletes all L2 blocks and L1 batches, including the genesis ones. Should only be used in tests.

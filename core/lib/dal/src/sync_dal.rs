@@ -150,6 +150,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        blocks_dal::SealL1BatchParams,
         tests::{
             create_l2_block_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
@@ -278,15 +279,15 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_l1_batch_as_sealed(
-                &l1_batch_header,
-                &[],
-                &[],
-                &[],
-                Default::default(),
-                1,
-                U256::zero(),
-            )
+            .mark_l1_batch_as_sealed(SealL1BatchParams {
+                header: &l1_batch_header,
+                initial_bootloader_contents: &[],
+                storage_refunds: &[],
+                pubdata_costs: &[],
+                predicted_circuits_by_type: Default::default(),
+                bytes_per_blob: 1,
+                interop_fee: U256::zero(),
+            })
             .await
             .unwrap();
         conn.blocks_dal()

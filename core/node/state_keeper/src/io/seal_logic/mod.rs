@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use itertools::Itertools;
 use kzg::ZK_SYNC_BYTES_PER_BLOB;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{blocks_dal::SealL1BatchParams, Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{DeduplicatedWritesMetrics, TransactionExecutionResult, VmEvent},
     utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte, StorageWritesDeduplicator},
@@ -145,15 +145,15 @@ impl UpdatesManager {
 
         transaction
             .blocks_dal()
-            .mark_l1_batch_as_sealed(
-                &l1_batch,
-                &final_bootloader_memory,
-                &finished_batch.final_execution_state.storage_refunds,
-                &finished_batch.final_execution_state.pubdata_costs,
-                self.pending_execution_metrics().circuit_statistic,
-                ZK_SYNC_BYTES_PER_BLOB as u64,
-                self.interop_fee(),
-            )
+            .mark_l1_batch_as_sealed(SealL1BatchParams {
+                header: &l1_batch,
+                initial_bootloader_contents: &final_bootloader_memory,
+                storage_refunds: &finished_batch.final_execution_state.storage_refunds,
+                pubdata_costs: &finished_batch.final_execution_state.pubdata_costs,
+                predicted_circuits_by_type: self.pending_execution_metrics().circuit_statistic,
+                bytes_per_blob: ZK_SYNC_BYTES_PER_BLOB as u64,
+                interop_fee: self.interop_fee(),
+            })
             .await?;
         progress.observe(None);
 
