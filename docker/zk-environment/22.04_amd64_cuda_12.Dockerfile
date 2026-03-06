@@ -79,7 +79,7 @@ RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
 RUN rustup install nightly-2024-09-01
 RUN rustup default stable
 RUN cargo install --version=0.8.0 sqlx-cli
-RUN cargo install cargo-nextest
+RUN cargo install --locked cargo-nextest
 
 RUN git clone https://github.com/matter-labs/foundry-zksync
 RUN cd foundry-zksync && git reset --hard 27360d4c8d12beddbb730dae07ad33a206b38f4b && cargo build --release --bins

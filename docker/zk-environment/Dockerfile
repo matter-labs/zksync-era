@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install -y \
     git
 
 RUN cargo install --version=0.8.0 sqlx-cli
-RUN cargo install cargo-nextest
+RUN cargo install --locked cargo-nextest
 RUN cargo install cargo-spellcheck
 RUN cargo install sccache
 
