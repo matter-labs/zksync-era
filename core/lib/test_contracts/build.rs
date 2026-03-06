@@ -255,8 +255,16 @@ fn zksolc_settings() -> ZkSolcSettings {
 
 fn compile_eravm_contracts(temp_dir: &Path) {
     let settings = zksolc_settings();
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let local_system_contracts = manifest_dir.join("contract-libs/system-contracts");
+    let system_contracts_path = if local_system_contracts.exists() {
+        local_system_contracts
+    } else {
+        // In CI `contract-libs/system-contracts` symlink may be absent; use the repo path directly.
+        manifest_dir.join("../../../contracts/system-contracts")
+    };
     let paths = ProjectPathsConfig::builder()
-        .sources(Path::new(env!("CARGO_MANIFEST_DIR")).join("contracts"))
+        .sources(manifest_dir.join("contracts"))
         .remapping(Remapping {
             context: None,
             name: "@openzeppelin/contracts-v4".into(),
@@ -284,10 +292,7 @@ fn compile_eravm_contracts(temp_dir: &Path) {
         .remapping(Remapping {
             context: None,
             name: "system-contracts".into(),
-            path: format!(
-                "{}/contract-libs/system-contracts",
-                env!("CARGO_MANIFEST_DIR")
-            ),
+            path: system_contracts_path.to_string_lossy().into_owned(),
         })
         .artifacts(temp_dir.join("artifacts"))
         .cache(temp_dir.join("cache"))
