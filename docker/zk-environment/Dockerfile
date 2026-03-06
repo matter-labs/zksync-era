@@ -46,10 +46,13 @@ RUN cargo install --locked cargo-nextest
 RUN cargo install cargo-spellcheck
 RUN cargo install sccache
 
-RUN git clone https://github.com/matter-labs/foundry-zksync
-RUN cd foundry-zksync && git reset --hard 27360d4c8d12beddbb730dae07ad33a206b38f4b && cargo build --release --bins
-RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
-RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
+RUN mkdir ./foundry-zksync && \
+    curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_${ARCH}.tar.gz && \
+    tar zxf foundry_nightly_linux_${ARCH}.tar.gz -C ./foundry-zksync && \
+    chmod +x ./foundry-zksync/forge ./foundry-zksync/cast && \
+    mv ./foundry-zksync/forge /usr/local/cargo/bin/ && \
+    mv ./foundry-zksync/cast /usr/local/cargo/bin/ && \
+    rm -rf ./foundry-zksync foundry_nightly_linux_${ARCH}.tar.gz
 
 # Main builder.
 FROM debian:bookworm as rust-lightweight-base

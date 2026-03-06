@@ -83,10 +83,13 @@ RUN rustup default stable
 RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install --locked cargo-nextest
 
-RUN git clone https://github.com/matter-labs/foundry-zksync
-RUN cd foundry-zksync && git reset --hard 27360d4c8d12beddbb730dae07ad33a206b38f4b && cargo build --release --bins
-RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
-RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
+RUN mkdir ./foundry-zksync && \
+    curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz && \
+    tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync && \
+    chmod +x ./foundry-zksync/forge ./foundry-zksync/cast && \
+    mv ./foundry-zksync/forge /usr/local/cargo/bin/ && \
+    mv ./foundry-zksync/cast /usr/local/cargo/bin/ && \
+    rm -rf ./foundry-zksync foundry_nightly_linux_amd64.tar.gz
 
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
