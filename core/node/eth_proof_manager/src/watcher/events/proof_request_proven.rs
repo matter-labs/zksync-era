@@ -104,7 +104,7 @@ impl EventHandler for ProofRequestProvenHandler {
 
         let block_number = h256_to_u256(*log.topics.get(2).context("missing topic 2")?);
 
-        let decoded = decode(&[ParamType::Bytes, ParamType::Uint(8)], &log.data.0)?;
+        let decoded = decode(&[ParamType::Bytes, ParamType::Uint(8), ParamType::Uint(256)], &log.data.0)?;
 
         let proof = match &decoded[0] {
             Token::Bytes(b) => b.clone(),
@@ -114,6 +114,11 @@ impl EventHandler for ProofRequestProvenHandler {
         let assigned_to = match &decoded[1] {
             Token::Uint(u) => ProvingNetwork::from_u256(*u),
             _ => panic!("Expected uint8"),
+        };
+
+        let requested_reward = match decoded[2] {
+            Token::Uint(u) => u,
+            _ => panic!("Expected uint256"),
         };
 
         let event = ProofRequestProven {
