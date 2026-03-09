@@ -1,5 +1,17 @@
 # Changelog
 
+## [25.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v24.1.0...prover-v25.0.0) (2026-02-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* Update docs for new version ([#4660](https://github.com/matter-labs/zksync-era/issues/4660))
+
+### Features
+
+* Update crypto prover deps ([#4650](https://github.com/matter-labs/zksync-era/issues/4650)) ([0ce00c0](https://github.com/matter-labs/zksync-era/commit/0ce00c0a7c7ef4a88702906519b07fb610acd7ee))
+* Update docs for new version ([#4660](https://github.com/matter-labs/zksync-era/issues/4660)) ([f1255a5](https://github.com/matter-labs/zksync-era/commit/f1255a5f175755087ea77165075fff54ab82aad8))
+
 ## [24.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v24.0.0...prover-v24.1.0) (2026-01-27)
 
 

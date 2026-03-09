@@ -6,13 +6,14 @@ use assert_matches::assert_matches;
 use test_casing::test_casing;
 use zksync_multivm::interface::ExecutionResult;
 use zksync_node_test_utils::create_l2_transaction;
-use zksync_test_contracts::{Account, TestContract};
+use zksync_test_contracts::{Account, TestContract, TestEvmContract};
 use zksync_types::{
     api::state_override::OverrideAccount,
     bytecode::{BytecodeHash, BytecodeMarker},
     get_code_key,
     settlement::SettlementLayer,
     transaction_request::CallRequest,
+    Address,
 };
 
 use super::*;
@@ -223,6 +224,80 @@ async fn eth_call_out_of_gas() {
     let tx_sender = create_real_tx_sender(pool).await;
     let tx_as_call = alice.create_infinite_loop_tx().into();
     let err = test_call(&tx_sender, state_override, tx_as_call)
+        .await
+        .unwrap_err();
+    assert_matches!(err, SubmitTxError::ExecutionReverted(..));
+}
+
+#[tokio::test]
+async fn eth_call_deployment_returns_deployed_bytecode() {
+    let mut alice = Account::random();
+    let state_override = StateBuilder::default()
+        .with_balance(alice.address(), u64::MAX.into())
+        .build();
+
+    let call: CallRequest = alice.create_evm_counter_deployment(42.into()).into();
+    assert!(call.to.is_none());
+
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+
+    let tx_sender = create_real_tx_sender(pool.clone()).await;
+
+    StateBuilder::default()
+        .enable_evm_deployments()
+        .apply(pool.connection().await.unwrap())
+        .await;
+
+    let output = test_call(&tx_sender, state_override, call).await.unwrap();
+    assert_eq!(output, TestEvmContract::counter().deployed_bytecode);
+}
+
+#[tokio::test]
+async fn eth_call_deployment_without_from_returns_deployed_bytecode() {
+    let mut alice = Account::random();
+    let state_override = StateBuilder::default()
+        .with_balance(Address::zero(), u64::MAX.into())
+        .build();
+
+    let mut call: CallRequest = alice.create_evm_counter_deployment(42.into()).into();
+    call.from = None;
+    assert!(call.to.is_none());
+    assert!(call.from.is_none());
+
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool.clone()).await;
+    StateBuilder::default()
+        .enable_evm_deployments()
+        .apply(pool.connection().await.unwrap())
+        .await;
+
+    let output = test_call(&tx_sender, state_override, call).await.unwrap();
+    assert_eq!(output, TestEvmContract::counter().deployed_bytecode);
+}
+
+#[tokio::test]
+async fn eth_call_reverting_deployment_returns_error() {
+    let mut alice = Account::random();
+    let state_override = StateBuilder::default()
+        .with_balance(alice.address(), u64::MAX.into())
+        .build();
+
+    let tx = alice.get_evm_deploy_tx(
+        vec![0xFE], // INVALID
+        &TestEvmContract::counter().abi,
+        &[zksync_types::ethabi::Token::Uint(42.into())],
+    );
+    let call: CallRequest = tx.into();
+    assert!(call.to.is_none());
+
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool.clone()).await;
+    StateBuilder::default()
+        .enable_evm_deployments()
+        .apply(pool.connection().await.unwrap())
+        .await;
+
+    let err = test_call(&tx_sender, state_override, call)
         .await
         .unwrap_err();
     assert_matches!(err, SubmitTxError::ExecutionReverted(..));
