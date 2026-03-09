@@ -104,7 +104,10 @@ impl EventHandler for ProofRequestProvenHandler {
 
         let block_number = h256_to_u256(*log.topics.get(2).context("missing topic 2")?);
 
-        let decoded = decode(&[ParamType::Bytes, ParamType::Uint(8), ParamType::Uint(256)], &log.data.0)?;
+        let decoded = decode(
+            &[ParamType::Bytes, ParamType::Uint(8), ParamType::Uint(256)],
+            &log.data.0,
+        )?;
 
         let proof = match &decoded[0] {
             Token::Bytes(b) => b.clone(),
