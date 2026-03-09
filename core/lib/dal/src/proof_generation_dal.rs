@@ -1,6 +1,7 @@
 #![doc = include_str!("../doc/ProofGenerationDal.md")]
 use std::time::Duration;
 
+use sqlx::Row;
 use strum::{Display, EnumString};
 use zksync_config::configs::proof_data_handler::ProvingMode;
 use zksync_db_connection::{
@@ -456,6 +457,74 @@ impl ProofGenerationDal<'_, '_> {
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
         Ok(result)
+    }
+
+    pub async fn is_batch_present_for_tee_proof_inputs(
+        &mut self,
+        batch_number: L1BatchNumber,
+        min_batch_number: L1BatchNumber,
+    ) -> DalResult<bool> {
+        let row = sqlx::query(
+            r#"
+            SELECT EXISTS(
+                SELECT
+                    1
+                FROM
+                    proof_generation_details
+                WHERE
+                    l1_batch_number = $1
+                    AND l1_batch_number >= $2
+                    AND vm_run_data_blob_url IS NOT NULL
+                    AND proof_gen_data_blob_url IS NOT NULL
+            ) AS present
+            "#,
+        )
+        .bind(i64::from(batch_number.0))
+        .bind(i64::from(min_batch_number.0))
+        .instrument("is_batch_present_for_tee_proof_inputs")
+        .with_arg("batch_number", &batch_number)
+        .with_arg("min_batch_number", &min_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .expect("EXISTS check failed");
+
+        Ok(row.try_get("present").unwrap())
+    }
+
+    pub async fn get_present_batch_bounds_for_tee_proof_inputs(
+        &mut self,
+        min_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<(L1BatchNumber, L1BatchNumber)>> {
+        let row = sqlx::query(
+            r#"
+            SELECT
+                MIN(l1_batch_number) AS oldest_batch,
+                MAX(l1_batch_number) AS latest_batch
+            FROM
+                proof_generation_details
+            WHERE
+                l1_batch_number >= $1
+                AND vm_run_data_blob_url IS NOT NULL
+                AND proof_gen_data_blob_url IS NOT NULL
+            "#,
+        )
+        .bind(i64::from(min_batch_number.0))
+        .instrument("get_present_batch_bounds_for_tee_proof_inputs")
+        .with_arg("min_batch_number", &min_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .unwrap();
+
+        let oldest_batch: Option<i64> = row.try_get("oldest_batch").expect("must be present");
+        let latest_batch: Option<i64> = row.try_get("latest_batch").expect("must be present");
+
+        Ok(match (oldest_batch, latest_batch) {
+            (Some(oldest_batch), Some(latest_batch)) => Some((
+                L1BatchNumber(oldest_batch as u32),
+                L1BatchNumber(latest_batch as u32),
+            )),
+            _ => None,
+        })
     }
 }
 

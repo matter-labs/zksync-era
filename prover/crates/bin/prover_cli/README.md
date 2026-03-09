@@ -128,7 +128,7 @@ Node Witness Generator: In progress ⌛️
 -- Aggregation Round 3 --
 Recursion Tip: In progress ⌛️
 > Prover Jobs: Waiting for proofs ⏱️
--- Aggregation Round 3 --
+-- Aggregation Round 4 --
 Scheduler: In progress ⌛️
 > Prover Jobs: Waiting for proofs ⏱️
 -- Compressor --

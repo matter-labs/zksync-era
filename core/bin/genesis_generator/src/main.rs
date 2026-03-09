@@ -11,9 +11,7 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_types::{
-    protocol_version::ProtocolSemanticVersion, url::SensitiveUrl, ProtocolVersionId,
-};
+use zksync_types::url::SensitiveUrl;
 
 const DEFAULT_GENESIS_FILE_PATH: &str = "../etc/env/file_based/genesis.yaml";
 
@@ -74,10 +72,7 @@ async fn generate_new_config(
 
     let base_system_contracts = BaseSystemContracts::load_from_disk().hashes();
     let mut updated_genesis = GenesisConfig {
-        protocol_version: Some(ProtocolSemanticVersion {
-            minor: ProtocolVersionId::latest(),
-            patch: 0.into(), // genesis generator proposes some new valid config, so patch 0 works here.
-        }),
+        protocol_version: genesis_config.protocol_version,
         genesis_root_hash: None,
         rollup_last_leaf_index: None,
         genesis_commitment: None,

@@ -1,4 +1,3 @@
-use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
 use zkstack_cli_config::{
@@ -8,7 +7,7 @@ use zkstack_cli_config::{
 use zkstack_cli_types::VMOption;
 
 use crate::{
-    admin_functions::{accept_admin, accept_owner},
+    admin_functions::{accept_admin, accept_owner_aggregated},
     commands::ecosystem::{
         args::init::{InitCoreContractsArgs, InitCoreContractsArgsFinal},
         common::{deploy_erc20, deploy_l1_core_contracts},
@@ -113,18 +112,6 @@ pub async fn deploy_ecosystem(
     .await?;
     spinner.finish();
 
-    accept_owner(
-        shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        contracts_config.l1.governance_addr,
-        &ecosystem_config.get_wallets()?.governor,
-        contracts_config
-            .core_ecosystem_contracts
-            .bridgehub_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
     accept_admin(
         shell,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
@@ -138,28 +125,14 @@ pub async fn deploy_ecosystem(
     )
     .await?;
 
-    // Note, that there is no admin in L1 asset router, so we do
-    // need to accept it
-    accept_owner(
-        shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        contracts_config.l1.governance_addr,
-        &ecosystem_config.get_wallets()?.governor,
-        contracts_config.bridges.shared.l1_address,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    accept_owner(
+    accept_owner_aggregated(
         shell,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
             .core_ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr
-            .context("stm_deployment_tracker_proxy_addr")?,
+            .bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url,
     )

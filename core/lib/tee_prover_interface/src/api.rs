@@ -13,6 +13,12 @@ use crate::{inputs::TeeVerifierInput, outputs::L1BatchTeeProofForL1};
 pub struct TeeProofGenerationDataResponse(pub Box<TeeVerifierInput>);
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct TeePresentBatchesResponse {
+    pub oldest_batch: Option<u32>,
+    pub latest_batch: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitTeeProofResponse {
     Success,
     Error(String),

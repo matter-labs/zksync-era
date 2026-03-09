@@ -58,6 +58,10 @@ impl Manager {
             scale_errors_duration: chrono::Duration::seconds(
                 config.scale_errors_duration.as_secs() as i64,
             ),
+            aggressive_mode_threshold: config.aggressive_mode_threshold,
+            aggressive_mode_cooldown: chrono::Duration::seconds(
+                config.aggressive_mode_cooldown.as_secs() as i64,
+            ),
         });
 
         for c in &config.scaler_targets {

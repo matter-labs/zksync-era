@@ -1,5 +1,36 @@
 # Changelog
 
+## [25.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v24.1.0...prover-v25.0.0) (2026-02-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* Update docs for new version ([#4660](https://github.com/matter-labs/zksync-era/issues/4660))
+
+### Features
+
+* Update crypto prover deps ([#4650](https://github.com/matter-labs/zksync-era/issues/4650)) ([0ce00c0](https://github.com/matter-labs/zksync-era/commit/0ce00c0a7c7ef4a88702906519b07fb610acd7ee))
+* Update docs for new version ([#4660](https://github.com/matter-labs/zksync-era/issues/4660)) ([f1255a5](https://github.com/matter-labs/zksync-era/commit/f1255a5f175755087ea77165075fff54ab82aad8))
+
+## [24.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v24.0.0...prover-v24.1.0) (2026-01-27)
+
+
+### Features
+
+* **prover:** Add aggressive mode for prover_autoscaler ([#4605](https://github.com/matter-labs/zksync-era/issues/4605)) ([f5471a3](https://github.com/matter-labs/zksync-era/commit/f5471a3348a6c53280ee770b19bf98053a9db8b5))
+
+## [24.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v23.2.0...prover-v24.0.0) (2026-01-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* Force update prover release ([#4626](https://github.com/matter-labs/zksync-era/issues/4626))
+
+### Features
+
+* Force update prover release ([#4626](https://github.com/matter-labs/zksync-era/issues/4626)) ([296a74e](https://github.com/matter-labs/zksync-era/commit/296a74ea4bece1e0181ed8a3e04275468cc2b340))
+* Update crypto dependencies ([#4618](https://github.com/matter-labs/zksync-era/issues/4618)) ([1524b9b](https://github.com/matter-labs/zksync-era/commit/1524b9ba3437106c752f09cc0739876a01e38b77))
+
 ## [23.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v23.1.0...prover-v23.2.0) (2025-12-17)
 
 

@@ -297,19 +297,17 @@ impl Watcher {
                                     }
 
                                     let reason = e.reason.clone().unwrap_or_default();
-                                    if reason == "FailedScaleUp" {
+                                    if reason == "FailedScaleUp" && event_message.contains("GCE out of resources") {
                                         let name = e.name_any();
                                         let time: DateTime<Utc> = match e.last_timestamp {
                                             Some(t) => t.0,
                                             None => Utc::now(),
                                         };
-                                        tracing::debug!(
-                                            "Got FailedScaleUp event: {}/{}, message: {:?}; action: {:?}, reason: {:?}",
+                                        tracing::info!(
+                                            "Got FailedScaleUp with GCE out of resources: {}/{}, message: {:?}",
                                             namespace,
                                             name,
-                                            event_message,
-                                            e.action.unwrap_or_default(),
-                                            reason
+                                            event_message
                                         );
                                         let mut cluster_guard = self.cluster.lock().await;
                                         if let Some(v) = cluster_guard.namespaces.get_mut(&namespace) {

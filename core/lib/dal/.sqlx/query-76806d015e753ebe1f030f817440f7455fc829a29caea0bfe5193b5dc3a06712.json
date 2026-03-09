@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MAX(priority_op_id) AS \"id?\"\n            FROM\n                transactions\n            WHERE\n                l1_batch_number = $1\n                AND is_priority = TRUE\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id?",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "76806d015e753ebe1f030f817440f7455fc829a29caea0bfe5193b5dc3a06712"
+}
