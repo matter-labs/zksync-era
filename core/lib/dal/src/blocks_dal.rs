@@ -1240,6 +1240,7 @@ impl BlocksDal<'_, '_> {
     /// Marks provided L1 batch as sealed and populates it with all the runtime information.
     ///
     /// Errors if the batch does not exist.
+    #[allow(clippy::too_many_arguments)]
     pub async fn mark_l1_batch_as_sealed(
         &mut self,
         header: &L1BatchHeader,
