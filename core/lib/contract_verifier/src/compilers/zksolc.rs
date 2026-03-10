@@ -247,8 +247,18 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 contract_name,
                 file_name,
             } => {
+                // Restrict solc (invoked internally by zksolc) to an empty temp dir
+                // so that any import not provided inline is denied at the filesystem
+                // level rather than resolved against the host filesystem.
+                let compile_dir =
+                    tempfile::tempdir().context("failed to create temp dir for zksolc")?;
+
                 let mut child = command
                     .arg("--standard-json")
+                    .arg("--base-path")
+                    .arg(compile_dir.path())
+                    .arg("--allow-paths")
+                    .arg(compile_dir.path())
                     .stdin(Stdio::piped())
                     .spawn()
                     .context("failed spawning zksolc")?;

@@ -129,9 +129,21 @@ impl Compiler<SolcInput> for Solc {
         self: Box<Self>,
         input: SolcInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        // Create an empty temp dir and restrict the compiler to it.
+        // All sources are passed inline via the standard JSON `content` field, so
+        // the compiler never needs to read from the filesystem.  Any import that is
+        // not covered by the sources map will therefore fail with "File not found"
+        // rather than silently reading an arbitrary host path.
+        let compile_dir =
+            tempfile::tempdir().context("failed to create temp dir for solc")?;
+
         let mut command = tokio::process::Command::new(&self.path);
         let mut child = command
             .arg("--standard-json")
+            .arg("--base-path")
+            .arg(compile_dir.path())
+            .arg("--allow-paths")
+            .arg(compile_dir.path())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
