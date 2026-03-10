@@ -207,7 +207,7 @@ async fn test_fallbacking_invalid_proof() {
 
     connection
         .eth_proof_manager_dal()
-        .mark_batch_as_proven(L1BatchNumber(1), false)
+        .mark_batch_as_proven(L1BatchNumber(1), false, 0)
         .await
         .unwrap();
 
