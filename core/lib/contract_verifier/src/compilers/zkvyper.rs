@@ -117,10 +117,6 @@ impl Compiler<VyperInput> for ZkVyper {
             .write_files(temp_dir.path())
             .await
             .context("failed writing Vyper files to temp dir")?;
-        // Pass the same temp dir as the only Vyper import search path so that any
-        // inter-file import resolves only within the files we wrote above, not
-        // against arbitrary host filesystem paths.
-        command.arg("-p").arg(temp_dir.path());
         command.args(file_paths);
 
         let child = command.spawn().context("cannot spawn zkvyper")?;
