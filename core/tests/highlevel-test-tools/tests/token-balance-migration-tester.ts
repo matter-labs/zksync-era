@@ -867,10 +867,8 @@ async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number,
     await waitUntilBlockFinalized(wallet, blockNumber);
 
     // Second, we wait for the log proof.
-    let i = 0;
     while ((await wallet.provider.getLogProof(txHash)) == null) {
         await zksync.utils.sleep(wallet.provider.pollingInterval);
-        i++;
     }
 }
 

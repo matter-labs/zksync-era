@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM call_traces\n            WHERE\n                tx_hash = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3639d4f00a7ad440a82c6998342bb16c3e51cc3cfca334aa7ee6390e8ec11c75"
+}

@@ -1,5 +1,12 @@
 # Changelog
 
+## [29.12.0](https://github.com/matter-labs/zksync-era/compare/core-v29.11.1...core-v29.12.0) (2026-03-04)
+
+
+### Features
+
+* **traces:** Add traces to the old txs  ([#4689](https://github.com/matter-labs/zksync-era/issues/4689)) ([334ff2d](https://github.com/matter-labs/zksync-era/commit/334ff2d4926abafd5bdf51f003a480d962cfa262))
+
 ## [29.11.1](https://github.com/matter-labs/zksync-era/compare/core-v29.11.0...core-v29.11.1) (2026-02-24)
 
 
