@@ -30,6 +30,7 @@ pub struct ProofRequestProven {
     pub block_number: U256,
     pub proof: Vec<u8>,
     pub assigned_to: ProvingNetwork,
+    pub requested_reward: U256,
 }
 
 pub struct ProofRequestProvenHandler {
@@ -66,6 +67,7 @@ impl EventHandler for ProofRequestProvenHandler {
                 ethabi::ParamType::Bytes,
                 // ProvingNetwork is enum, encoded as uint8
                 ethabi::ParamType::Uint(8),
+                ethabi::ParamType::Uint(256),
             ],
         )
     }
@@ -102,7 +104,10 @@ impl EventHandler for ProofRequestProvenHandler {
 
         let block_number = h256_to_u256(*log.topics.get(2).context("missing topic 2")?);
 
-        let decoded = decode(&[ParamType::Bytes, ParamType::Uint(8)], &log.data.0)?;
+        let decoded = decode(
+            &[ParamType::Bytes, ParamType::Uint(8), ParamType::Uint(256)],
+            &log.data.0,
+        )?;
 
         let proof = match &decoded[0] {
             Token::Bytes(b) => b.clone(),
@@ -114,18 +119,25 @@ impl EventHandler for ProofRequestProvenHandler {
             _ => panic!("Expected uint8"),
         };
 
+        let requested_reward = match decoded[2] {
+            Token::Uint(u) => u,
+            _ => panic!("Expected uint256"),
+        };
+
         let event = ProofRequestProven {
             chain_id,
             block_number,
             proof: proof.clone(),
             assigned_to,
+            requested_reward,
         };
 
         tracing::info!(
-            "Received ProofRequestProvenEvent for batch {}, chain_id: {}, assigned_to: {:?}",
+            "Received ProofRequestProvenEvent for batch {}, chain_id: {}, assigned_to: {:?}, requested_reward: {}",
             event.block_number,
             event.chain_id,
             event.assigned_to,
+            event.requested_reward,
         );
 
         let batch_number = L1BatchNumber(event.block_number.as_u32());
@@ -179,7 +191,11 @@ impl EventHandler for ProofRequestProvenHandler {
             .connection()
             .await?
             .eth_proof_manager_dal()
-            .mark_batch_as_proven(batch_number, verification_result)
+            .mark_batch_as_proven(
+                batch_number,
+                verification_result,
+                event.requested_reward.as_u64(),
+            )
             .await?;
 
         Ok(())
