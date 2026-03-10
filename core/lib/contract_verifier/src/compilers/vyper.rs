@@ -94,8 +94,7 @@ impl Compiler<VyperInput> for Vyper {
         // the compiler never needs to read from the filesystem.  Limiting the search
         // path to this empty dir means any import not covered by the sources map
         // will fail with "file not found" rather than resolving against the host FS.
-        let compile_dir =
-            tempfile::tempdir().context("failed to create temp dir for vyper")?;
+        let compile_dir = tempfile::tempdir().context("failed to create temp dir for vyper")?;
 
         let mut command = tokio::process::Command::new(&self.path);
         let mut child = command

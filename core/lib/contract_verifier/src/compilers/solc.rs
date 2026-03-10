@@ -134,8 +134,7 @@ impl Compiler<SolcInput> for Solc {
         // the compiler never needs to read from the filesystem.  Any import that is
         // not covered by the sources map will therefore fail with "File not found"
         // rather than silently reading an arbitrary host path.
-        let compile_dir =
-            tempfile::tempdir().context("failed to create temp dir for solc")?;
+        let compile_dir = tempfile::tempdir().context("failed to create temp dir for solc")?;
 
         let mut command = tokio::process::Command::new(&self.path);
         let mut child = command
