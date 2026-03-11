@@ -1,5 +1,17 @@
 # Changelog
 
+## [29.13.0](https://github.com/matter-labs/zksync-era/compare/core-v29.12.0...core-v29.13.0) (2026-03-11)
+
+
+### Features
+
+* **proving networks:** add reward tracking ([#4609](https://github.com/matter-labs/zksync-era/issues/4609)) ([7726eb8](https://github.com/matter-labs/zksync-era/commit/7726eb87dcf0a601e62ad74ea0f4a35ce0e05e4e))
+
+
+### Bug Fixes
+
+* **contract_verifier:** Optimize DB space usage ([#4701](https://github.com/matter-labs/zksync-era/issues/4701)) ([510df0d](https://github.com/matter-labs/zksync-era/commit/510df0ddbf711dddde2998b726a02377111317e4))
+
 ## [29.12.0](https://github.com/matter-labs/zksync-era/compare/core-v29.11.1...core-v29.12.0) (2026-03-04)
 
 
