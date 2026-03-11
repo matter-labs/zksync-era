@@ -101,4 +101,6 @@ COPY --from=builder /usr/src/zksync/core/target/release/zksync_contract_verifier
 COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
 
 # CMD tail -f /dev/null
+RUN useradd --system --uid 1000 --no-create-home contract-verifier
+USER contract-verifier
 ENTRYPOINT ["zksync_contract_verifier"]
