@@ -625,7 +625,7 @@ impl EthTxManager {
         {
             storage
                 .eth_proof_manager_dal()
-                .mark_batch_as_proven(batch_number, false)
+                .mark_batch_as_proven(batch_number, false, 0)
                 .await
                 .unwrap();
             storage

@@ -319,7 +319,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_v1_serialization() {
+    fn test_v1_json_serialization_roundtrip() {
         let tvi = V1TeeVerifierInput::new(
             VMRunWitnessInputData {
                 l1_batch_number: Default::default(),
@@ -380,9 +380,9 @@ mod tests {
             .unwrap(),
         );
         let tvi = TeeVerifierInput::new(tvi);
-        let serialized = bincode::serialize(&tvi).expect("Failed to serialize TeeVerifierInput.");
+        let serialized = serde_json::to_vec(&tvi).expect("Failed to serialize TeeVerifierInput.");
         let deserialized: TeeVerifierInput =
-            bincode::deserialize(&serialized).expect("Failed to deserialize TeeVerifierInput.");
+            serde_json::from_slice(&serialized).expect("Failed to deserialize TeeVerifierInput.");
 
         assert_eq!(tvi, deserialized);
     }

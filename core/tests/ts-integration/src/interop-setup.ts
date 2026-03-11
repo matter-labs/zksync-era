@@ -13,7 +13,6 @@ import { RetryableWallet } from './retry-provider';
 import {
     scaledGasPrice,
     deployContract,
-    readContract,
     waitUntilBlockFinalized,
     waitForInteropRootNonZero,
     getGWBlockNumber,
@@ -26,7 +25,6 @@ import {
     L2_INTEROP_HANDLER_ADDRESS,
     L2_INTEROP_CENTER_ADDRESS,
     ETH_ADDRESS_IN_CONTRACTS,
-    ARTIFACTS_PATH,
     ArtifactInteropCenter,
     ArtifactInteropHandler,
     ArtifactNativeTokenVault,

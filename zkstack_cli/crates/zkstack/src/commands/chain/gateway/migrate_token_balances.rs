@@ -187,6 +187,7 @@ async fn load_migration_context(
     ))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn initiate_token_balance_migration(
     shell: &Shell,
     skip_funding: bool,
@@ -291,7 +292,7 @@ async fn initiate_token_balance_migration(
         match call_result {
             Ok(mut call) => {
                 call.tx.set_nonce(next_nonce);
-                next_nonce = next_nonce + U256::from(1u64);
+                next_nonce += U256::from(1u64);
 
                 pending_txs.push(async move {
                     match call.send().await {
@@ -338,6 +339,7 @@ async fn initiate_token_balance_migration(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn finalize_token_balance_migration(
     wallet: Wallet,
     l1_bridgehub_addr: Address,
@@ -523,7 +525,7 @@ async fn finalize_token_balance_migration(
                         std::cmp::max(gas_estimate * U256::from(2u64), U256::from(1_500_000u64));
                     call.tx.set_gas(gas_limit);
                     call.tx.set_nonce(next_nonce);
-                    next_nonce = next_nonce + U256::from(1u64);
+                    next_nonce += U256::from(1u64);
                     pending_txs.push(async move {
                         match call.send().await {
                             Ok(pending_tx) => (asset_id, pending_tx.await),

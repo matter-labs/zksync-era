@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_proof_manager SET\n                proof_validation_result = $2,\n                updated_at = NOW(),\n                status = $3,\n                requested_reward = $4\n            WHERE l1_batch_number = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bool",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6945efee0505068578c8a28b8a79d039ac3c1a5b46414ee7e7283a05a63c7e61"
+}

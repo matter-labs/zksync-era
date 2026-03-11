@@ -156,6 +156,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: "recursive"
+          fetch-depth: 0
 
       - name: Prepare ENV
         shell: bash
@@ -172,7 +173,7 @@ jobs:
         shell: bash
         run: |
           # for now these contracts will be pinned to specific commit
-          git checkout 5ec1e69
+          git checkout 6deed75
           git submodule update --init --recursive
       
       - name: Install foundry-zksync

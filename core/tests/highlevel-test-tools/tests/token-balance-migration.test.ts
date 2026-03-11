@@ -49,7 +49,6 @@ if (shouldSkip) {
     let chainHandler: ChainHandler;
     let secondChainHandler: ChainHandler;
 
-    let l1RichWallet: ethers.Wallet;
     let gwRichWallet: zksync.Wallet;
     let chainRichWallet: zksync.Wallet;
     let secondChainRichWallet: zksync.Wallet;
@@ -72,7 +71,6 @@ if (shouldSkip) {
         console.log('Initializing rich wallet for gateway chain...');
         await initTestWallet(GATEWAY_CHAIN_NAME);
         gwRichWallet = await generateChainRichWallet(GATEWAY_CHAIN_NAME);
-        l1RichWallet = gwRichWallet.ethWallet();
         console.log('Gateway rich wallet private key:', gwRichWallet.privateKey);
 
         // Initialize tested chain
