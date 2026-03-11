@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt, rc::Rc};
 
 use zksync_contracts::BaseSystemContracts;
-use zksync_system_constants::L2_ASSET_TRACKER_ADDRESS;
+use zksync_system_constants::{BASE_TOKEN_HOLDER_ADDRESS, L2_ASSET_TRACKER_ADDRESS};
 use zksync_test_contracts::{Account, TestContract, TxType};
 use zksync_types::{
     get_deployer_key,
@@ -253,6 +253,11 @@ fn l1_base_token_minting_storage_slots(base_token_asset_id: H256) -> Vec<(Storag
         (
             mapping_key(L2_ASSET_TRACKER_ADDRESS, base_token_asset_id, 153),
             H256::from_low_u64_be(1),
+        ),
+        // L2BaseTokenEra.eraAccountBalance[BaseTokenHolder] (mapping at slot 0)
+        (
+            storage_key_for_eth_balance(&BASE_TOKEN_HOLDER_ADDRESS),
+            H256::from_low_u64_be(10_u64.pow(19)),
         ),
     ]
 }
