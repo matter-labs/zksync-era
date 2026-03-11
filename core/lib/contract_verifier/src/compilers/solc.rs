@@ -7,8 +7,14 @@ use zksync_types::contract_verification::api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
-use super::{parse_standard_json_output, process_contract_name, Settings, Source, StandardJson};
-use crate::{error::ContractVerifierError, resolver::Compiler};
+use crate::{
+    compilers::{
+        has_dangerous_imports, parse_standard_json_output, process_contract_name,
+        sanitize_compiler_stderr, validate_source_paths, Settings, Source, StandardJson,
+    },
+    error::ContractVerifierError,
+    resolver::Compiler,
+};
 
 // Here and below, fields are public for testing purposes.
 #[derive(Debug)]
@@ -41,6 +47,11 @@ impl Solc {
 
         let standard_json = match req.source_code_data {
             SourceCodeData::SolSingleFile(source_code) => {
+                if has_dangerous_imports(&source_code) {
+                    return Err(ContractVerifierError::InvalidSourcePath(
+                        "import with absolute or traversal path".to_owned(),
+                    ));
+                }
                 let source = Source {
                     content: source_code,
                 };
@@ -70,6 +81,14 @@ impl Solc {
                 let mut compiler_input: StandardJson =
                     serde_json::from_value(serde_json::Value::Object(map))
                         .map_err(|_| ContractVerifierError::FailedToDeserializeInput)?;
+                validate_source_paths(&compiler_input.sources)?;
+                for source in compiler_input.sources.values() {
+                    if has_dangerous_imports(&source.content) {
+                        return Err(ContractVerifierError::InvalidSourcePath(
+                            "import with absolute or traversal path".to_owned(),
+                        ));
+                    }
+                }
                 // Set default output selection even if it is different in request.
                 compiler_input.settings.output_selection = Some(default_output_selection);
                 compiler_input
@@ -110,9 +129,18 @@ impl Compiler<SolcInput> for Solc {
         self: Box<Self>,
         input: SolcInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        // Create an empty temp dir and restrict the compiler to it.
+        // All sources are passed inline via the standard JSON `content` field, so
+        // the compiler never needs to read from the filesystem.  Any import that is
+        // not covered by the sources map will therefore fail with "File not found"
+        // rather than silently reading an arbitrary host path.
+        let compile_dir = tempfile::tempdir().context("failed to create temp dir for solc")?;
+
         let mut command = tokio::process::Command::new(&self.path);
         let mut child = command
             .arg("--standard-json")
+            .arg("--allow-paths")
+            .arg(compile_dir.path())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -138,7 +166,7 @@ impl Compiler<SolcInput> for Solc {
         } else {
             Err(ContractVerifierError::CompilerError(
                 "solc",
-                String::from_utf8_lossy(&output.stderr).to_string(),
+                sanitize_compiler_stderr(&String::from_utf8_lossy(&output.stderr)),
             ))
         }
     }
