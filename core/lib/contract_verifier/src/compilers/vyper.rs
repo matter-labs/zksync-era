@@ -7,8 +7,14 @@ use zksync_types::contract_verification::api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
-use super::{parse_standard_json_output, process_contract_name, Settings, Source, StandardJson};
-use crate::{error::ContractVerifierError, resolver::Compiler};
+use crate::{
+    compilers::{
+        parse_standard_json_output, process_contract_name, sanitize_compiler_stderr,
+        validate_source_paths, Settings, Source, StandardJson,
+    },
+    error::ContractVerifierError,
+    resolver::Compiler,
+};
 
 #[derive(Debug)]
 pub(crate) struct VyperInput {
@@ -26,6 +32,12 @@ impl VyperInput {
             SourceCodeData::VyperMultiFile(s) => s,
             other => unreachable!("unexpected `SourceCodeData` variant: {other:?}"),
         };
+        // Validate path keys before writing files to the temp directory.
+        let sources_as_map: HashMap<String, Source> = sources
+            .iter()
+            .map(|(k, v)| (k.clone(), Source { content: v.clone() }))
+            .collect();
+        validate_source_paths(&sources_as_map)?;
         Ok(Self {
             contract_name,
             file_name,
@@ -77,9 +89,18 @@ impl Compiler<VyperInput> for Vyper {
         self: Box<Self>,
         mut input: VyperInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        // Create an empty temp dir and pass it as the only import search path (-p).
+        // All sources are provided inline via the standard JSON `content` field, so
+        // the compiler never needs to read from the filesystem.  Limiting the search
+        // path to this empty dir means any import not covered by the sources map
+        // will fail with "file not found" rather than resolving against the host FS.
+        let compile_dir = tempfile::tempdir().context("failed to create temp dir for vyper")?;
+
         let mut command = tokio::process::Command::new(&self.path);
         let mut child = command
             .arg("--standard-json")
+            .arg("-p")
+            .arg(compile_dir.path())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -107,7 +128,7 @@ impl Compiler<VyperInput> for Vyper {
         } else {
             Err(ContractVerifierError::CompilerError(
                 "vyper",
-                String::from_utf8_lossy(&output.stderr).to_string(),
+                sanitize_compiler_stderr(&String::from_utf8_lossy(&output.stderr)),
             ))
         }
     }

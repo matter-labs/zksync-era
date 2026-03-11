@@ -26,6 +26,8 @@ pub enum ContractVerifierError {
     AbstractContract(String),
     #[error("Failed to deserialize standard JSON input")]
     FailedToDeserializeInput,
+    #[error("Source path is not allowed: {0}")]
+    InvalidSourcePath(String),
 }
 
 impl From<DalError> for ContractVerifierError {
