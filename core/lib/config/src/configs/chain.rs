@@ -328,6 +328,7 @@ mod tests {
             CHAIN_STATE_KEEPER_TRANSACTION_SLOTS="50"
             CHAIN_STATE_KEEPER_MAX_SINGLE_TX_GAS="1000000"
             CHAIN_STATE_KEEPER_MAX_ALLOWED_L2_TX_GAS_LIMIT="2000000000"
+            CHAIN_STATE_KEEPER_INTEROP_FEE="0"
             CHAIN_STATE_KEEPER_CLOSE_BLOCK_AT_GEOMETRY_PERCENTAGE="0.5"
             CHAIN_STATE_KEEPER_CLOSE_BLOCK_AT_GAS_PERCENTAGE="0.8"
             CHAIN_STATE_KEEPER_CLOSE_BLOCK_AT_ETH_PARAMS_PERCENTAGE="0.2"
@@ -369,6 +370,7 @@ mod tests {
           l2_block_seal_queue_capacity: 10
           max_single_tx_gas: 1000000
           max_allowed_l2_tx_gas_limit: 2000000000
+          interop_fee: 0
           reject_tx_at_geometry_percentage: 0.3
           reject_tx_at_eth_params_percentage: 0.8
           reject_tx_at_gas_percentage: 0.5
@@ -407,6 +409,7 @@ mod tests {
           l2_block_seal_queue_capacity: 10
           max_single_tx_gas: 1000000
           max_allowed_l2_tx_gas_limit: 2000000000
+          interop_fee: 0
           reject_tx_at_geometry_percentage: 0.3
           reject_tx_at_eth_params_percentage: 0.8
           reject_tx_at_gas_percentage: 0.5

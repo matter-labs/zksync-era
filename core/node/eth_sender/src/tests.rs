@@ -1027,7 +1027,10 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
         data.base_system_contracts_hashes.default_aa,
         H256::repeat_byte(2)
     );
-    assert_eq!(data.base_system_contracts_hashes.evm_emulator, None);
+    assert_eq!(
+        data.base_system_contracts_hashes.evm_emulator,
+        Some(H256::repeat_byte(3))
+    );
     assert_eq!(data.verifier_address, Address::repeat_byte(5));
     assert_eq!(data.chain_protocol_version_id, ProtocolVersionId::Version28);
     assert!(data.da_validator_pair.l2_validator.is_some());
@@ -1053,7 +1056,10 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
         data.base_system_contracts_hashes.default_aa,
         H256::repeat_byte(2)
     );
-    assert_eq!(data.base_system_contracts_hashes.evm_emulator, None);
+    assert_eq!(
+        data.base_system_contracts_hashes.evm_emulator,
+        Some(H256::repeat_byte(3))
+    );
     assert_eq!(data.verifier_address, Address::repeat_byte(5));
     assert_eq!(
         data.da_validator_pair.l2_da_commitment_scheme.unwrap(),

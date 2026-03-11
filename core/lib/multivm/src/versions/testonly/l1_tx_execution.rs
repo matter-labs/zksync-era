@@ -6,7 +6,7 @@ use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
     get_code_key, get_known_code_key, h256_to_u256,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    u256_to_h256, Address, Execute, ExecuteTransactionCommon, U256,
+    u256_to_h256, Address, Execute, ExecuteTransactionCommon, H256, U256,
 };
 
 use super::{tester::VmTesterBuilder, ContractToDeploy, TestedVm, BASE_SYSTEM_CONTRACTS};
@@ -36,9 +36,12 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
     // TODO(PLA-537): right now we are using 5 slots instead of 9 due to 0 fee for transaction.
     let basic_initial_writes = 5;
 
+    let base_token_asset_id = H256::repeat_byte(0x11);
+
     let mut vm = VmTesterBuilder::new()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_l1_base_token_minting(base_token_asset_id)
         .with_rich_accounts(1)
         .build::<VM>();
 
