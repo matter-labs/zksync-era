@@ -47,8 +47,9 @@ describe('Migration from gateway test', function () {
 
     // The diamond proxy contract on the settlement layer.
     let l1MainContract: ethers.Contract;
-    let gwMainContract: ethers.Contract;
-    let chainGatewayContract: ethers.Contract;
+    let gwMainContract: ethers.Contract | null = null;
+    let chainGatewayContract: ethers.Contract | null = null;
+    let chainGatewayConfig: any;
 
     let gatewayChain: string;
     let logs: fs.FileHandle;
@@ -79,11 +80,14 @@ describe('Migration from gateway test', function () {
             chain: fileConfig.chain,
             config: 'contracts.yaml'
         });
-        const chainGatewayConfig = loadConfig({
+        chainGatewayConfig = loadConfig({
             pathToHome,
             chain: fileConfig.chain,
             config: 'gateway_chain.yaml'
         });
+        if (!chainGatewayConfig) {
+            throw new Error(`gateway_chain.yaml config not found for chain ${fileConfig.chain}`);
+        }
         const secretsConfig = loadConfig({
             pathToHome,
             chain: fileConfig.chain,
@@ -109,16 +113,6 @@ describe('Migration from gateway test', function () {
             contractsConfig.l1.diamond_proxy_addr,
             ZK_CHAIN_INTERFACE,
             tester.syncWallet.providerL1
-        );
-
-        let gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
-        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
-        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
-
-        chainGatewayContract = new ethers.Contract(
-            chainGatewayConfig.diamond_proxy_addr,
-            ZK_CHAIN_INTERFACE,
-            tester.gwProvider
         );
     });
 
@@ -367,9 +361,11 @@ describe('Migration from gateway test', function () {
     /// Verify that the precommits are enabled on the gateway. This check is enough for making sure
     // precommits are working correctly. The rest of the checks are done by contract.
     step('Verify precommits', async () => {
+        await ensureGatewayContractsInitialized();
+        const currentGwMainContract = gwMainContract!;
         const precommitStart = Date.now();
         const precommitTimeoutMs = 5 * 60 * 1000;
-        let gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
+        let gwCommittedBatches = await currentGwMainContract.getTotalBatchesCommitted();
         while (gwCommittedBatches === 1) {
             if (Date.now() - precommitStart > precommitTimeoutMs) {
                 throw new Error(
@@ -378,15 +374,15 @@ describe('Migration from gateway test', function () {
             }
             console.log(`Waiting for at least one batch committed batch on gateway... ${gwCommittedBatches}`);
             await utils.sleep(1);
-            gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
+            gwCommittedBatches = await currentGwMainContract.getTotalBatchesCommitted();
         }
 
         // Now we sure that we have at least one batch was committed from the gateway
 
         const currentBlock = await tester.ethProvider.getBlockNumber();
         const fromBlock = Math.max(0, currentBlock - 50000);
-        const filter = gwMainContract.filters.BatchPrecommitmentSet();
-        const events = await gwMainContract.queryFilter(filter, fromBlock, 'latest');
+        const filter = currentGwMainContract.filters.BatchPrecommitmentSet();
+        const events = await currentGwMainContract.queryFilter(filter, fromBlock, 'latest');
         expect(events.length > 0, 'No precommitment events found on the gateway').to.be.true;
     });
 
@@ -435,8 +431,34 @@ describe('Migration from gateway test', function () {
         if (direction == 'TO') {
             return await l1MainContract.getPriorityQueueSize();
         } else {
-            return await chainGatewayContract.getPriorityQueueSize();
+            await ensureGatewayContractsInitialized();
+            return await chainGatewayContract!.getPriorityQueueSize();
         }
+    }
+
+    async function ensureGatewayContractsInitialized(): Promise<void> {
+        if (gwMainContract && chainGatewayContract) {
+            return;
+        }
+
+        const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
+        if (!gatewayInfo) {
+            throw new Error(`Gateway info is missing for chain ${fileConfig.chain}`);
+        }
+
+        const gwMainContractsAddress = await gatewayInfo.gatewayProvider.getMainContractAddress();
+        if (!gwMainContractsAddress || gwMainContractsAddress === ZeroAddress) {
+            throw new Error(
+                `Gateway main contract address is not available yet (chain=${fileConfig.chain}, direction=${direction})`
+            );
+        }
+
+        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
+        chainGatewayContract = new ethers.Contract(
+            chainGatewayConfig.diamond_proxy_addr,
+            ZK_CHAIN_INTERFACE,
+            tester.gwProvider
+        );
     }
 });
 
