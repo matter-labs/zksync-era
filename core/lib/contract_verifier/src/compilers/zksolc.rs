@@ -255,8 +255,6 @@ impl Compiler<ZkSolcInput> for ZkSolc {
 
                 let mut child = command
                     .arg("--standard-json")
-                    .arg("--base-path")
-                    .arg(compile_dir.path())
                     .arg("--allow-paths")
                     .arg(compile_dir.path())
                     .stdin(Stdio::piped())
