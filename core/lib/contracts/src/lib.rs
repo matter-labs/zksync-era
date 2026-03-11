@@ -309,7 +309,7 @@ pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u
 }
 
 pub fn eth_contract() -> Contract {
-    load_sys_contract("L2BaseToken")
+    load_l1_zk_contract("L2BaseTokenEra")
 }
 
 pub fn known_codes_contract() -> Contract {
