@@ -32,6 +32,7 @@ serde_yaml.workspace = true
 slugify-rs.workspace = true
 strum.workspace = true
 sqruff-lib.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 toml.workspace = true

@@ -8012,6 +8012,7 @@ dependencies = [
  "slugify-rs",
  "sqruff-lib",
  "strum 0.26.3",
+ "tempfile",
  "thiserror 2.0.12",
  "tokio",
  "toml",
