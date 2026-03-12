@@ -120,6 +120,26 @@ jobs:
 
           ci_run zkstack ecosystem init --dev --support-l2-legacy-shared-bridge-test true --verbose
 
+      - name: Inspect legacy DA validator pair
+        run: |
+          CONTRACTS_CONFIG=chains/legacy/configs/contracts.yaml
+          GENESIS_CONFIG=chains/legacy/configs/genesis.yaml
+          RPC=http://127.0.0.1:8545
+
+          BRIDGEHUB=$(awk '/bridgehub_proxy_addr:/ {print $2; exit}' "$CONTRACTS_CONFIG")
+          EXPECTED_L1_DA=$(awk '/rollup_l1_da_validator_addr:/ {print $2; exit}' "$CONTRACTS_CONFIG")
+          CHAIN_ID=$(awk '/l2_chain_id:/ {print $2; exit}' "$GENESIS_CONFIG")
+
+          echo "bridgehub=$BRIDGEHUB"
+          echo "expected_rollup_l1_da_validator=$EXPECTED_L1_DA"
+          echo "chain_id=$CHAIN_ID"
+
+          ZKCHAIN=$(ci_run cast call "$BRIDGEHUB" "getZKChain(uint256)(address)" "$CHAIN_ID" --rpc-url "$RPC")
+          echo "zkchain=$ZKCHAIN"
+
+          echo "getDAValidatorPair(address,uint8):"
+          ci_run cast call "$ZKCHAIN" "getDAValidatorPair()(address,uint8)" --rpc-url "$RPC"
+
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
