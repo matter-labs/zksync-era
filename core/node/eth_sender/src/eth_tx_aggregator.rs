@@ -114,6 +114,18 @@ struct TxData {
 const FFLONK_VERIFIER_TYPE: i32 = 1;
 
 impl EthTxAggregator {
+    fn blob_sidecar_kind_and_count(sidecar: Option<&EthTxBlobSidecar>) -> (&'static str, usize) {
+        match sidecar {
+            Some(EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar)) => {
+                ("eip4844_v1", sidecar.blobs.len())
+            }
+            Some(EthTxBlobSidecar::EthTxBlobSidecarV2(sidecar)) => {
+                ("eip7594_v2", sidecar.blobs.len())
+            }
+            None => ("none", 0),
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         pool: ConnectionPool<Core>,
@@ -1078,6 +1090,37 @@ impl EthTxAggregator {
                             pubdata_da: *pubdata_da,
                             mode: *commitment_mode,
                         };
+                        let first_l1_batch_number =
+                            l1_batches.first().map(|batch| batch.header.number);
+                        let first_l1_batch_pubdata_len = l1_batches
+                            .first()
+                            .and_then(|batch| batch.header.pubdata_input.as_ref().map(Vec::len));
+                        let expected_blob_count = l1_batches.first().and_then(|batch| {
+                            batch
+                                .header
+                                .pubdata_input
+                                .as_ref()
+                                .map(|pubdata| pubdata.chunks(ZK_SYNC_BYTES_PER_BLOB).len())
+                        });
+                        tracing::info!(
+                            ?protocol_version,
+                            ?chain_protocol_version_id,
+                            ?pubdata_da,
+                            ?commitment_mode,
+                            use_fusaka_blob_format,
+                            l1_batch_count = l1_batches.len(),
+                            ?first_l1_batch_number,
+                            ?first_l1_batch_pubdata_len,
+                            ?expected_blob_count,
+                            "[commit_diag] Preparing commit operation payload"
+                        );
+                        if *pubdata_da == PubdataSendingMode::Blobs && expected_blob_count.is_none()
+                        {
+                            tracing::error!(
+                                ?first_l1_batch_number,
+                                "[commit_diag] Commit operation uses blobs pubdata mode but pubdata_input is missing"
+                            );
+                        }
                         let commit_data_base = commit_batches.into_tokens();
 
                         args.extend(commit_data_base);
@@ -1191,6 +1234,15 @@ impl EthTxAggregator {
                     .header
                     .pubdata_input
                     .clone()
+                    .inspect(|pubdata| {
+                        tracing::info!(
+                            l1_batch_number = l1_batch.header.number.0,
+                            pubdata_len = pubdata.len(),
+                            expected_blob_count = pubdata.chunks(ZK_SYNC_BYTES_PER_BLOB).len(),
+                            use_eip7594_blobs,
+                            "[commit_diag] Building commit sidecar from L1 batch pubdata"
+                        );
+                    })
                     .unwrap()
                     .chunks(ZK_SYNC_BYTES_PER_BLOB)
                     .map(|blob| {
@@ -1217,6 +1269,14 @@ impl EthTxAggregator {
                 } else {
                     EthTxBlobSidecarV1 { blobs: sidecar }.into()
                 };
+                let (sidecar_kind, sidecar_blob_count) =
+                    Self::blob_sidecar_kind_and_count(Some(&eth_tx_blob_sidecar));
+                tracing::info!(
+                    l1_batch_number = l1_batch.header.number.0,
+                    sidecar_kind,
+                    sidecar_blob_count,
+                    "[commit_diag] Built commit sidecar"
+                );
                 Some(eth_tx_blob_sidecar)
             }
         };
@@ -1252,6 +1312,19 @@ impl EthTxAggregator {
             chain_protocol_version_id,
             use_fusaka_blob_format,
         );
+        if op_type == AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit) {
+            let (sidecar_kind, sidecar_blob_count) =
+                Self::blob_sidecar_kind_and_count(encoded_aggregated_op.sidecar.as_ref());
+            tracing::info!(
+                tx_nonce = nonce,
+                ?sender_addr,
+                calldata_len = encoded_aggregated_op.calldata.len(),
+                sidecar_kind,
+                sidecar_blob_count,
+                use_fusaka_blob_format,
+                "[commit_diag] Prepared commit eth tx before persistence"
+            );
+        }
 
         let eth_tx_predicted_gas = match aggregated_op {
             AggregatedOperation::L2Block(op) => match op {
@@ -1306,6 +1379,18 @@ impl EthTxAggregator {
             .await
             .unwrap();
         eth_tx.chain_id = Some(self.sl_chain_id);
+        if op_type == AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit) {
+            let (sidecar_kind, sidecar_blob_count) =
+                Self::blob_sidecar_kind_and_count(eth_tx.blob_sidecar.as_ref());
+            tracing::info!(
+                eth_tx_id = eth_tx.id,
+                tx_nonce = eth_tx.nonce.0,
+                raw_tx_len = eth_tx.raw_tx.len(),
+                sidecar_kind,
+                sidecar_blob_count,
+                "[commit_diag] Saved commit eth tx"
+            );
+        }
         match aggregated_op {
             AggregatedOperation::L2Block(agg_op) => {
                 transaction

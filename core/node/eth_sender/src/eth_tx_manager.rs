@@ -14,7 +14,7 @@ use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_shared_metrics::L1Stage;
 use zksync_types::{
     aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
-    eth_sender::{EthTx, EthTxFinalityStatus, L1BlockNumbers},
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxFinalityStatus, L1BlockNumbers},
     Address, L1BlockNumber, GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
     L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
@@ -141,6 +141,23 @@ impl EthTxManager {
             .unwrap();
 
         let operator_type = self.operator_type(tx);
+        let is_commit_tx =
+            tx.tx_type == AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit);
+        let (sidecar_kind, sidecar_blob_count) =
+            blob_sidecar_kind_and_count(tx.blob_sidecar.as_ref());
+        if is_commit_tx {
+            tracing::info!(
+                tx_id = tx.id,
+                tx_nonce = tx.nonce.0,
+                ?operator_type,
+                is_gateway = tx.is_gateway,
+                sidecar_kind,
+                sidecar_blob_count,
+                raw_tx_len = tx.raw_tx.len(),
+                time_in_mempool_in_l1_blocks,
+                "[commit_diag] Preparing commit tx send attempt"
+            );
+        }
         let EthFees {
             base_fee_per_gas,
             priority_fee_per_gas,
@@ -224,12 +241,31 @@ impl EthTxManager {
                 max_gas_per_pubdata_price.map(Into::into),
             )
             .await;
+        if is_commit_tx {
+            tracing::info!(
+                tx_id = tx.id,
+                tx_nonce = tx.nonce.0,
+                signed_hash = ?signed_tx.hash,
+                signed_raw_tx_len = signed_tx.raw_tx.as_ref().len(),
+                "[commit_diag] Signed commit tx payload"
+            );
+        }
 
         if let Some(blob_sidecar) = &tx.blob_sidecar {
             signed_tx.raw_tx = RawTransactionBytes::new_unchecked(encode_blob_tx_with_sidecar(
                 signed_tx.raw_tx.as_ref(),
                 blob_sidecar,
             ));
+            if is_commit_tx {
+                tracing::info!(
+                    tx_id = tx.id,
+                    tx_nonce = tx.nonce.0,
+                    sidecar_kind,
+                    sidecar_blob_count,
+                    signed_raw_tx_len_with_sidecar = signed_tx.raw_tx.as_ref().len(),
+                    "[commit_diag] Attached sidecar to commit tx payload"
+                );
+            }
         }
 
         let inserted_tx_history_id = storage
@@ -276,6 +312,8 @@ impl EthTxManager {
                 priority_fee_per_gas {priority_fee_per_gas:?}, \
                 blob_fee_per_gas {blob_base_fee_per_gas:?},\
                 gas_limit {gas_limit:?},
+                sidecar_kind {sidecar_kind},
+                sidecar_blob_count {sidecar_blob_count},
                 error {error}",
                 tx.id,
                 tx.nonce,
@@ -640,12 +678,15 @@ impl EthTxManager {
             .l1_interface
             .failure_reason(tx_status.receipt.transaction_hash, self.operator_type(tx))
             .await;
+        let (sidecar_kind, sidecar_blob_count) =
+            blob_sidecar_kind_and_count(tx.blob_sidecar.as_ref());
 
         tracing::error!(
-            "Eth tx failed {:?}, {:?}, failure reason {:?}",
+            "Eth tx failed {:?}, {:?}, failure reason {:?}, sidecar_kind {sidecar_kind}, sidecar_blob_count {sidecar_blob_count}, raw_tx_len {}",
             tx,
             tx_status.receipt,
-            failure_reason
+            failure_reason,
+            tx.raw_tx.len()
         );
         panic!("We can't operate after tx fail");
     }
@@ -865,6 +906,14 @@ impl EthTxManager {
 
 fn derive_l1_block_cap(multiplier_cap: u32, b: f64) -> u32 {
     (multiplier_cap as f64).log(b).ceil() as u32
+}
+
+fn blob_sidecar_kind_and_count(sidecar: Option<&EthTxBlobSidecar>) -> (&'static str, usize) {
+    match sidecar {
+        Some(EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar)) => ("eip4844_v1", sidecar.blobs.len()),
+        Some(EthTxBlobSidecar::EthTxBlobSidecarV2(sidecar)) => ("eip7594_v2", sidecar.blobs.len()),
+        None => ("none", 0),
+    }
 }
 
 #[cfg(test)]
