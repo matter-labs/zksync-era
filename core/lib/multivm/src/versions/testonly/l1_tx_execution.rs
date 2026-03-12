@@ -137,8 +137,8 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
     assert!(result.result.is_failed(), "The transaction should fail");
 
     let res = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
-    assert_eq!(res.initial_storage_writes, basic_initial_writes + 1);
-    assert_eq!(res.repeated_storage_writes, 1);
+    assert_eq!(res.initial_storage_writes, basic_initial_writes);
+    assert_eq!(res.repeated_storage_writes, 2);
 }
 
 pub(crate) fn test_l1_tx_execution_high_gas_limit<VM: TestedVm>() {

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use zksync_types::contract_verification::api::{CompilationArtifacts, ImmutableReference};
@@ -51,6 +52,66 @@ impl Default for Settings {
 pub(crate) struct Source {
     /// The source code file content.
     pub content: String,
+}
+
+/// Validates that all source path keys are relative and contain no traversal components.
+/// Absolute paths (`/foo`) and parent-directory references (`../foo`) allow the compiler
+/// to read arbitrary files from the container filesystem, so both are rejected here.
+pub(crate) fn validate_source_paths(
+    sources: &HashMap<String, Source>,
+) -> Result<(), ContractVerifierError> {
+    for path in sources.keys() {
+        if path.starts_with('/')
+            || path.starts_with("file://")
+            || path.split('/').any(|component| component == "..")
+        {
+            return Err(ContractVerifierError::InvalidSourcePath(path.clone()));
+        }
+    }
+    Ok(())
+}
+
+/// Returns `true` if `source` contains an `import` directive whose path is absolute (`/…`)
+/// or starts with a parent-directory traversal (`../…`).  Both forms let the compiler
+/// resolve imports against the host filesystem and leak file contents in error messages.
+pub(crate) fn has_dangerous_imports(source: &str) -> bool {
+    // Covers all Solidity import forms:
+    //   import "/path";
+    //   import "../path";
+    //   import {X} from "/path";
+    //   import * as X from "/path";
+    let re = Regex::new(r#"\bimport\b[^;]*?["'](/|\.\.)"#).unwrap();
+    re.is_match(source)
+}
+
+/// Strips pipe-prefixed source-snippet lines from a compiler `formattedMessage`.
+///
+/// The `formattedMessage` format looks like:
+/// ```text
+/// ParserError: Expected ';' but got end of source
+///  --> /etc/shadow:1:5:
+///   |
+/// 1 | root:*:19970:0:99999:7:::
+///   |     ^
+/// ```
+/// Lines starting with optional whitespace followed by `|` contain verbatim file
+/// contents and must be removed.  The ` --> path:line:col` header is kept because
+/// it only reveals the path (which the caller already submitted) and the position.
+fn strip_source_snippets(msg: &str) -> String {
+    msg.lines()
+        .filter(|line| !line.trim_start().starts_with('|'))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Strips source-context lines from raw compiler stderr so that file contents are
+/// not echoed back to the caller.  Used for the non-JSON (exit-code != 0) error path.
+pub(crate) fn sanitize_compiler_stderr(stderr: &str) -> String {
+    stderr
+        .lines()
+        .filter(|line| !line.contains(" --> ") && !line.trim_start().starts_with('|'))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Users may provide either just contract name or source file name and contract name joined with ":".
@@ -119,10 +180,11 @@ fn parse_standard_json_output(
             let error_messages = errors
                 .into_iter()
                 .filter_map(|err| {
-                    // `formattedMessage` is an optional field
-                    err.get("formattedMessage")
-                        .or_else(|| err.get("message"))
-                        .cloned()
+                    let raw = err
+                        .get("formattedMessage")
+                        .or_else(|| err.get("message"))?
+                        .as_str()?;
+                    Some(serde_json::Value::String(strip_source_snippets(raw)))
                 })
                 .collect();
             return Err(ContractVerifierError::CompilationError(

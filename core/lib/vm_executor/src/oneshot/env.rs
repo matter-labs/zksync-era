@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{OneshotEnv, TxExecutionMode};
@@ -20,7 +23,7 @@ pub struct OneshotEnvParameters<C: ContractsKind> {
     pub(super) base_system_contracts: Arc<dyn BaseSystemContractsProvider<C>>,
     pub(super) operator_account: AccountTreeId,
     pub(super) validation_computational_gas_limit: u32,
-    pub(super) interop_fee_fallback: Option<U256>,
+    pub(super) interop_fee_fallback: Option<Arc<AtomicU64>>,
 }
 
 impl<C: ContractsKind> OneshotEnvParameters<C> {
@@ -41,7 +44,17 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
     }
 
     pub fn set_interop_fee_fallback(&mut self, interop_fee: U256) {
+        self.interop_fee_fallback = Some(Arc::new(AtomicU64::new(interop_fee.as_u64())));
+    }
+
+    pub fn set_interop_fee_fallback_provider(&mut self, interop_fee: Arc<AtomicU64>) {
         self.interop_fee_fallback = Some(interop_fee);
+    }
+
+    pub(super) fn interop_fee_fallback(&self) -> Option<U256> {
+        self.interop_fee_fallback
+            .as_ref()
+            .map(|fee| U256::from(fee.load(Ordering::Relaxed)))
     }
 
     /// Returns gas limit for account validation of transactions.

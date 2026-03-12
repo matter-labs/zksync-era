@@ -10,8 +10,11 @@ use zksync_types::contract_verification::api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
 };
 
-use super::{parse_standard_json_output, process_contract_name, Source};
 use crate::{
+    compilers::{
+        has_dangerous_imports, parse_standard_json_output, process_contract_name,
+        sanitize_compiler_stderr, validate_source_paths, Source,
+    },
     error::ContractVerifierError,
     resolver::{Compiler, CompilerPaths},
 };
@@ -96,6 +99,11 @@ impl ZkSolc {
 
         match req.source_code_data {
             SourceCodeData::SolSingleFile(source_code) => {
+                if has_dangerous_imports(&source_code) {
+                    return Err(ContractVerifierError::InvalidSourcePath(
+                        "import with absolute or traversal path".to_owned(),
+                    ));
+                }
                 let source = Source {
                     content: source_code,
                 };
@@ -126,6 +134,14 @@ impl ZkSolc {
                 let mut compiler_input: StandardJson =
                     serde_json::from_value(serde_json::Value::Object(map))
                         .map_err(|_| ContractVerifierError::FailedToDeserializeInput)?;
+                validate_source_paths(&compiler_input.sources)?;
+                for source in compiler_input.sources.values() {
+                    if has_dangerous_imports(&source.content) {
+                        return Err(ContractVerifierError::InvalidSourcePath(
+                            "import with absolute or traversal path".to_owned(),
+                        ));
+                    }
+                }
                 // Set default output selection even if it is different in request.
                 compiler_input.settings.output_selection = Some(default_output_selection);
                 Ok(ZkSolcInput::StandardJson {
@@ -231,8 +247,16 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 contract_name,
                 file_name,
             } => {
+                // Restrict solc (invoked internally by zksolc) to an empty temp dir
+                // so that any import not provided inline is denied at the filesystem
+                // level rather than resolved against the host filesystem.
+                let compile_dir =
+                    tempfile::tempdir().context("failed to create temp dir for zksolc")?;
+
                 let mut child = command
                     .arg("--standard-json")
+                    .arg("--allow-paths")
+                    .arg(compile_dir.path())
                     .stdin(Stdio::piped())
                     .spawn()
                     .context("failed spawning zksolc")?;
@@ -256,7 +280,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 } else {
                     Err(ContractVerifierError::CompilerError(
                         "zksolc",
-                        String::from_utf8_lossy(&output.stderr).to_string(),
+                        sanitize_compiler_stderr(&String::from_utf8_lossy(&output.stderr)),
                     ))
                 }
             }
@@ -288,7 +312,7 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 } else {
                     Err(ContractVerifierError::CompilerError(
                         "zksolc",
-                        String::from_utf8_lossy(&output.stderr).to_string(),
+                        sanitize_compiler_stderr(&String::from_utf8_lossy(&output.stderr)),
                     ))
                 }
             }
