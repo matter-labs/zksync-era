@@ -156,6 +156,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: "recursive"
+          fetch-depth: 0
 
       - name: Prepare ENV
         shell: bash
@@ -172,9 +173,9 @@ jobs:
         shell: bash
         run: |
           # for now these contracts will be pinned to specific commit
-          git checkout 6deed75
+          git checkout 22467ab
           git submodule update --init --recursive
-      
+
       - name: Install foundry-zksync
         run: |
           mkdir ./foundry-zksync
@@ -211,7 +212,7 @@ jobs:
           name: proof-manager-contracts-out
           path: |
             ./proof-manager-contracts/out
-          
+
   build-images:
     name: Build and Push Docker Images
     needs: [prepare-contracts, prepare-proof-manager-contracts]

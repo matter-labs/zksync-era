@@ -236,6 +236,13 @@ pub const GW_ASSET_TRACKER_ADDRESS: Address = H160([
     0x00, 0x01, 0x00, 0x10,
 ]);
 
+/// The address of the base token holder contract that holds chain's base token reserves.
+/// Located at USER_CONTRACTS_OFFSET + 0x11 = 0x10011
+pub const BASE_TOKEN_HOLDER_ADDRESS: Address = H160([
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x00, 0x11,
+]);
+
 // todo FIXME, deploy normally instead using DUMMY_ADDRESS and deploying on genesis
 
 pub const DUMMY_ADDRESS_1: Address = H160([
