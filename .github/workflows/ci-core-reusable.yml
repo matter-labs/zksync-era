@@ -150,6 +150,37 @@ jobs:
       - name: Perform loadtest
         run: ci_run zkstack dev t loadtest -v --chain=legacy
 
+      - name: Diagnose failed commit tx
+        if: failure()
+        run: |
+          RPC=http://127.0.0.1:8545
+
+          echo "=== commit-related server excerpts ==="
+          ci_run rg -n "Eth tx failed|tx_type: L1Batch\\(Commit\\)|commit_diag|We can't operate after tx fail|EmptyBlobVersionHash" server.log -S || true
+
+          FAILED_COMMIT_LINE=$(rg "Eth tx failed EthTx \\{.*tx_type: L1Batch\\(Commit\\)" server.log -N | tail -n 1 || true)
+          echo "failed_commit_line=${FAILED_COMMIT_LINE}"
+
+          FAILED_COMMIT_TX_HASH=$(echo "$FAILED_COMMIT_LINE" | sed -nE 's/.*transaction_hash: (0x[0-9a-fA-F]{64}).*/\1/p')
+          FAILED_COMMIT_CONTRACT=$(echo "$FAILED_COMMIT_LINE" | sed -nE 's/.*contract_address: (0x[0-9a-fA-F]{40}).*/\1/p')
+
+          if [ -z "$FAILED_COMMIT_TX_HASH" ]; then
+            echo "No failed commit tx hash found in server.log"
+            exit 0
+          fi
+
+          echo "failed_commit_tx_hash=$FAILED_COMMIT_TX_HASH"
+          echo "failed_commit_contract=$FAILED_COMMIT_CONTRACT"
+
+          echo "=== cast tx ==="
+          ci_run cast tx "$FAILED_COMMIT_TX_HASH" --rpc-url "$RPC" || true
+
+          echo "=== cast receipt ==="
+          ci_run cast receipt "$FAILED_COMMIT_TX_HASH" --rpc-url "$RPC" || true
+
+          echo "=== cast run ==="
+          ci_run cast run "$FAILED_COMMIT_TX_HASH" --rpc-url "$RPC" || true
+
       - name: Show server.log logs
         if: always()
         run: ci_run cat server.log || true
