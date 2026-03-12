@@ -156,9 +156,9 @@ jobs:
           RPC=http://127.0.0.1:8545
 
           echo "=== commit-related server excerpts ==="
-          ci_run rg -n "Eth tx failed|tx_type: L1Batch\\(Commit\\)|commit_diag|We can't operate after tx fail|EmptyBlobVersionHash" server.log -S || true
+          ci_run grep -nE "Eth tx failed|tx_type: L1Batch\\(Commit\\)|commit_diag|We can't operate after tx fail|EmptyBlobVersionHash" server.log || true
 
-          FAILED_COMMIT_LINE=$(rg "Eth tx failed EthTx \\{.*tx_type: L1Batch\\(Commit\\)" server.log -N | tail -n 1 || true)
+          FAILED_COMMIT_LINE=$(grep -E "Eth tx failed EthTx \\{.*tx_type: L1Batch\\(Commit\\)" server.log | tail -n 1 || true)
           echo "failed_commit_line=${FAILED_COMMIT_LINE}"
 
           FAILED_COMMIT_TX_HASH=$(echo "$FAILED_COMMIT_LINE" | sed -nE 's/.*transaction_hash: (0x[0-9a-fA-F]{64}).*/\1/p')
