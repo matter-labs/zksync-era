@@ -89,19 +89,38 @@ impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
             // This guards against connections returned with an open transaction due to task
             // cancellation or a dropped future. Without this, such a connection would hold
             // locks and block WAL replay on replicas indefinitely.
+            //
+            // We check `PgConnection::in_transaction()` (protocol-level transaction status
+            // from PostgreSQL's ReadyForQuery message) to avoid sending a ROLLBACK on every
+            // connection return. Note: we must call `ping()` first to flush any pending
+            // protocol messages and update the cached transaction status.
             .after_release(|conn, _meta| {
                 Box::pin(async move {
-                    // `ROLLBACK` is a no-op if there is no open transaction, so always safe.
-                    // We intentionally avoid `RESET ALL` here because it would wipe
-                    // `statement_timeout` set at connect time via connection options.
+                    use sqlx::Connection as _;
+
+                    // Flush pending protocol messages (e.g. a BEGIN that was queued but
+                    // never got a response due to cancellation) so that `in_transaction()`
+                    // reflects the true PostgreSQL state.
+                    if let Err(e) = conn.ping().await {
+                        tracing::warn!("Connection failed ping on release, dropping: {e}");
+                        return Ok(false);
+                    }
+
+                    if !conn.in_transaction() {
+                        return Ok(true); // No open transaction, return to pool as-is.
+                    }
+
                     match sqlx::Executor::execute(&mut *conn, "ROLLBACK").await {
-                        Ok(_) => Ok(true), // Connection is clean, return to pool.
+                        Ok(_) => {
+                            tracing::info!("Rolled back stale transaction on connection release");
+                            Ok(true)
+                        }
                         Err(e) => {
                             tracing::warn!(
                                 "Failed to rollback stale transaction on release, \
                                  dropping connection: {e}"
                             );
-                            Ok(false) // Connection is broken, drop it.
+                            Ok(false)
                         }
                     }
                 })
