@@ -52,6 +52,7 @@ jobs:
       - name: checkout PR
         run: |
           git checkout --force FETCH_HEAD
+          git submodule update --init --force
           git submodule sync --recursive
           git submodule update --init --recursive
 
