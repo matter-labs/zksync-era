@@ -321,7 +321,7 @@ impl GasConsts {
 
     /// Additional gas cost of processing `Commit` operation per batch.
     /// It's applicable if SL is Ethereum.
-    const L1_BATCH_COMMIT_BASE_COST: u64 = 100_000;
+    const L1_BATCH_COMMIT_BASE_COST: u64 = 65_000;
 
     /// Additional gas cost of processing `Commit` operation per batch.
     /// It's applicable if SL is Gateway.
