@@ -403,8 +403,9 @@ if (shouldSkip) {
     });
 
     it('Can unbundle interop of migrated tokens on Gateway', async () => {
-        // Unbundling with CallStatus.Executed also sends InteropHandler confirmation messages,
-        // so GWAssetTracker will move the balances from pendingInteropBalance to chainBalance.
+        // unbundleBundle with CallStatus.Executed calls _executeCalls which calls _sendCallExecutedMessage
+        // for each executed call. GWAssetTracker will therefore receive confirmations and move balances
+        // from pendingInteropBalance to chainBalance during the next settlement.
         let lastUnbundleBlockNumber = 0;
         for (const bundleName of Object.keys(bundlesUnbundledOnGateway)) {
             const receipt = await readAndUnbundleInteropBundle(
@@ -415,6 +416,7 @@ if (shouldSkip) {
             if (receipt) lastUnbundleBlockNumber = Math.max(lastUnbundleBlockNumber, receipt.blockNumber);
         }
         // Wait for secondChain to settle the batch containing the unbundleBundle txs on Gateway.
+        // Only then does GWAssetTracker process the confirmation messages and move balances.
         if (lastUnbundleBlockNumber > 0) {
             await waitUntilBlockExecutedOnGateway(secondChainRichWallet, gwRichWallet, lastUnbundleBlockNumber);
         }
