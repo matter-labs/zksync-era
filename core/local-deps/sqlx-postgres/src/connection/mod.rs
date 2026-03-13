@@ -131,7 +131,8 @@ impl PgConnection {
         Ok(())
     }
 
-    pub(crate) fn in_transaction(&self) -> bool {
+    // PATCHED: changed from pub(crate) to pub to allow checking transaction status in after_release hook
+    pub fn in_transaction(&self) -> bool {
         match self.inner.transaction_status {
             TransactionStatus::Transaction => true,
             TransactionStatus::Error | TransactionStatus::Idle => false,
