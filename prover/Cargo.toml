@@ -50,7 +50,7 @@ serde = "1.0"
 serde_json = "1.0"
 serde_yaml = "0.9"
 sha3 = "0.10.8"
-sqlx = { version = "0.8.1", default-features = false }
+sqlx = { version = "0.8.6", default-features = false }
 structopt = "0.3.26"
 strum = { version = "0.26" }
 strum_macros = "0.26"
@@ -113,6 +113,9 @@ zksync_circuit_prover_service = { version = "=25.0.0", path = "crates/lib/circui
 zksync_prover_job_monitor = { version = "=25.0.0", path = "crates/bin/prover_job_monitor" }
 zksync_proof_fri_compressor_service = { version = "=25.0.0", path = "crates/lib/proof_fri_compressor_service" }
 zksync_witness_generator_service = { version = "=25.0.0", path = "crates/lib/witness_generator_service" }
+
+[patch.crates-io]
+sqlx-postgres = { git = "https://github.com/matter-labs/sqlx-postgres.git", rev = "f4bf3674ecc2e96f4b8fb48b4a0bc08b85e0f6f3" }
 
 # for `perf` profiling
 [profile.perf]
