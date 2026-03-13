@@ -357,3 +357,6 @@ zksync_node_api_server = { version = "29.13.0-non-semver-compat", path = "node/a
 zksync_base_token_adjuster = { version = "29.13.0-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "29.13.0-non-semver-compat", path = "node/logs_bloom_backfill" }
 zksync_gateway_migrator = { version = "29.13.0-non-semver-compat", path = "node/gateway_migrator" }
+
+[patch.crates-io]
+sqlx-postgres = { git = "https://github.com/matter-labs/sqlx-postgres.git", rev = "f4bf3674ecc2e96f4b8fb48b4a0bc08b85e0f6f3" }
