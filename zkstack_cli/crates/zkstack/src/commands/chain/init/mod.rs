@@ -124,8 +124,10 @@ pub async fn init(
     .await?;
     spinner.finish();
 
-    if !init_args.pause_deposits {
+    if !init_args.pause_deposits && !init_args.skip_priority_txs {
         // Deposits are paused by default to allow immediate Gateway migration. If specified, unpause them.
+        // When skip_priority_txs is set, the caller manages deposit state separately
+        // (e.g. via `chain unpause-deposits`).
         let spinner = Spinner::new(MSG_UNPAUSING_DEPOSITS_SPINNER);
         unpause_deposits(
             shell,
