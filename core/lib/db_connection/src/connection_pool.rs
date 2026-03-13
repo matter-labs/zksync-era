@@ -84,7 +84,28 @@ impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
     pub async fn build(&self) -> anyhow::Result<ConnectionPool<DB>> {
         let options = PgPoolOptions::new()
             .max_connections(self.max_size)
-            .acquire_timeout(self.acquire_timeout);
+            .acquire_timeout(self.acquire_timeout)
+            // Rollback any stale transaction when a connection is returned to the pool.
+            // This guards against connections returned with an open transaction due to task
+            // cancellation or a dropped future. Without this, such a connection would hold
+            // locks and block WAL replay on replicas indefinitely.
+            .after_release(|conn, _meta| {
+                Box::pin(async move {
+                    // `ROLLBACK` is a no-op if there is no open transaction, so always safe.
+                    // We intentionally avoid `RESET ALL` here because it would wipe
+                    // `statement_timeout` set at connect time via connection options.
+                    match sqlx::Executor::execute(&mut *conn, "ROLLBACK").await {
+                        Ok(_) => Ok(true), // Connection is clean, return to pool.
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to rollback stale transaction on release, \
+                                 dropping connection: {e}"
+                            );
+                            Ok(false) // Connection is broken, drop it.
+                        }
+                    }
+                })
+            });
         let mut connect_options: PgConnectOptions = self
             .database_url
             .expose_str()
@@ -377,6 +398,12 @@ impl<DB: DbMarker> ConnectionPool<DB> {
         self.max_size
     }
 
+    /// Closes the connection pool, preventing new connections from being acquired
+    /// and waiting for all existing connections to be returned and closed.
+    pub async fn close(&self) {
+        self.inner.close().await;
+    }
+
     /// Creates a `Connection` entity over a recoverable connection.
     /// Upon a database outage connection will block the thread until
     /// it will be able to recover the connection (or, if connection cannot
@@ -491,6 +518,98 @@ mod tests {
             .await
             .unwrap();
 
+        let mut storage = pool.connection().await.unwrap();
+        let err = sqlx::query("SELECT pg_sleep(2)")
+            .map(drop)
+            .fetch_optional(storage.conn())
+            .await
+            .unwrap_err();
+        assert_matches!(
+            err,
+            sqlx::Error::Database(db_err) if db_err.message().contains("statement timeout")
+        );
+    }
+
+    /// Simulates a leaked transaction: opens a transaction via raw SQL (bypassing sqlx's
+    /// `Transaction` type which would queue a rollback on drop), executes a query inside it,
+    /// then drops the connection back to the pool. When the connection is re-acquired, the
+    /// `after_release` hook should have rolled back the stale transaction, so the connection
+    /// must be clean and usable for a fresh `SET TRANSACTION` call.
+    #[tokio::test]
+    async fn after_release_rollback_cleans_leaked_transaction() {
+        let pool = ConnectionPool::<InternalMarker>::constrained_test_pool(1).await;
+
+        // Acquire the sole connection and leak a transaction on it.
+        {
+            let mut conn = pool.connection().await.unwrap();
+            let raw = conn.conn();
+            // Start a transaction via raw SQL — sqlx doesn't track this, so dropping
+            // the connection will NOT queue an automatic rollback.
+            sqlx::Executor::execute(&mut *raw, "BEGIN")
+                .await
+                .expect("BEGIN failed");
+            // Run a query so that `SET TRANSACTION` would fail if the transaction persists.
+            sqlx::Executor::execute(&mut *raw, "SELECT COUNT(*) FROM miniblocks")
+                .await
+                .expect("SELECT failed");
+            // Connection is dropped here, returned to pool. `after_release` should ROLLBACK.
+        }
+
+        // Small yield to let the async `return_to_pool` task (which runs `after_release`)
+        // complete before we re-acquire.
+        tokio::task::yield_now().await;
+
+        // Re-acquire the same connection (pool size = 1).
+        let mut conn = pool.connection().await.unwrap();
+
+        // If the leaked transaction was NOT rolled back, this would fail with:
+        //   "SET TRANSACTION ISOLATION LEVEL must be called before any query"
+        // because the stale transaction already had queries executed in it.
+        let result = sqlx::Executor::execute(
+            conn.conn(),
+            "BEGIN; SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+        )
+        .await;
+        assert!(
+            result.is_ok(),
+            "Connection still has a stale transaction after re-acquire: {result:?}"
+        );
+
+        // Also verify we can read data cleanly in the new transaction.
+        let row = sqlx::query("SELECT COUNT(*) AS \"count\" FROM miniblocks")
+            .fetch_one(conn.conn())
+            .await;
+        assert!(row.is_ok(), "Failed to query in clean transaction: {row:?}");
+    }
+
+    /// Verifies that `after_release` preserves the `statement_timeout` set at connect time.
+    /// `ROLLBACK` alone should not reset session-level parameters.
+    #[tokio::test]
+    async fn after_release_preserves_statement_timeout() {
+        let db_url = TestTemplate::empty()
+            .unwrap()
+            .create_db::<InternalMarker>(1)
+            .await
+            .unwrap()
+            .database_url;
+
+        let pool = ConnectionPool::<InternalMarker>::singleton(db_url)
+            .set_statement_timeout(Some(Duration::from_secs(1)))
+            .build()
+            .await
+            .unwrap();
+
+        // Use the connection, then return it to the pool (triggers after_release ROLLBACK).
+        {
+            let mut storage = pool.connection().await.unwrap();
+            sqlx::Executor::execute(storage.conn(), "SELECT 1")
+                .await
+                .unwrap();
+        }
+
+        tokio::task::yield_now().await;
+
+        // Re-acquire and verify statement_timeout is still in effect.
         let mut storage = pool.connection().await.unwrap();
         let err = sqlx::query("SELECT pg_sleep(2)")
             .map(drop)
