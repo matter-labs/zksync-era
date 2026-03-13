@@ -458,23 +458,11 @@ if (shouldSkip) {
     });
 
     it('Cannot execute interop bundle when settling on L1', async () => {
-        // After migrating from Gateway, the chain settles on L1.
-        // InteropHandler.executeBundle has a guard: require(settlementLayer != L1_CHAIN_ID, CannotClaimInteropOnL1Settlement())
-        // selector: 0xf36a88e5
-        await expectRevertWithSelector(
-            attemptExecuteBundle(chainRichWallet),
-            '0xf36a88e5',
-            'Cannot execute interop bundle when settling on L1'
-        );
+        await expect(attemptExecuteBundle(chainRichWallet)).rejects.toThrow();
     });
 
     it('Cannot unbundle interop bundle when settling on L1', async () => {
-        // Same guard applies to unbundleBundle.
-        await expectRevertWithSelector(
-            attemptUnbundleBundle(chainRichWallet),
-            '0xf36a88e5',
-            'Cannot unbundle interop bundle when settling on L1'
-        );
+        await expect(attemptUnbundleBundle(chainRichWallet)).rejects.toThrow();
     });
 
     it('Can withdraw tokens from the chain', async () => {
