@@ -17,7 +17,6 @@ use sqlx::{
 use crate::{
     connection_pool::ConnectionPool,
     error::{DalConnectionError, DalResult},
-    instrument::InstrumentExt,
     metrics::CONNECTION_METRICS,
     utils::InternalMarker,
 };
@@ -323,8 +322,6 @@ impl<'a, DB: DbMarker> TransactionBuilder<'a, '_, DB> {
 
     /// Builds the transaction with the provided characteristics.
     pub async fn build(self) -> DalResult<Connection<'a, DB>> {
-        let mut transaction = self.connection.start_transaction().await?;
-
         let level = self.isolation_level.unwrap_or(if self.is_readonly {
             IsolationLevel::RepeatableRead
         } else {
@@ -341,15 +338,19 @@ impl<'a, DB: DbMarker> TransactionBuilder<'a, '_, DB> {
             set_transaction_args += " READ ONLY";
         }
 
-        if !set_transaction_args.is_empty() {
-            sqlx::query(&format!("SET TRANSACTION{set_transaction_args}"))
-                .instrument("set_transaction_characteristics")
-                .with_arg("isolation_level", &self.isolation_level)
-                .with_arg("readonly", &self.is_readonly)
-                .execute(&mut transaction)
-                .await?;
-        }
-        Ok(transaction)
+        let begin_statement = format!("BEGIN{set_transaction_args}");
+        let (conn, tags) = self.connection.conn_and_tags();
+        let inner = ConnectionInner::Transaction {
+            transaction: conn
+                .begin_with(begin_statement)
+                .await
+                .map_err(|err| DalConnectionError::start_transaction(err, tags.cloned()))?,
+            tags,
+        };
+        Ok(Connection {
+            inner,
+            _marker: PhantomData,
+        })
     }
 }
 
@@ -358,6 +359,7 @@ mod tests {
     use test_casing::test_casing;
 
     use super::*;
+    use crate::instrument::InstrumentExt;
 
     #[tokio::test]
     async fn processor_tags_propagate_to_transactions() {
