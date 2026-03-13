@@ -21,7 +21,7 @@ use zkstack_cli_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ContractsConfigForDeployERC20, CoreContractsConfig, EcosystemConfig,
 };
-use zkstack_cli_types::{L1Network, VMOption};
+use zkstack_cli_types::VMOption;
 
 use super::args::init::EcosystemInitArgsFinal;
 use crate::{
@@ -62,11 +62,6 @@ pub async fn deploy_l1_core_contracts(
         )
         .with_ffi()
         .with_rpc_url(l1_rpc_url.to_string());
-
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
 
     if let Some(address) = sender {
         forge = forge.with_sender(address);

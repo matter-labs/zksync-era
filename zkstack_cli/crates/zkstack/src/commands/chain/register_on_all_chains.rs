@@ -1,7 +1,9 @@
 use std::path::Path;
 
+use clap::Parser;
 use ethers::{contract::BaseContract, types::Address};
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
@@ -25,12 +27,26 @@ lazy_static! {
         BaseContract::from(IREGISTERONALLCHAINSABI_ABI.clone());
 }
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+#[derive(Debug, Serialize, Deserialize, Parser)]
+pub struct RegisterOnAllChainsArgs {
+    /// All ethereum environment related arguments
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+}
+
+pub async fn run(args: RegisterOnAllChainsArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
 
     let contracts_config = chain_config.get_contracts_config()?;
-    let secrets = chain_config.get_secrets_config().await?;
-    let l1_rpc_url = secrets.l1_rpc_url()?;
+    let l1_rpc_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
 
     register_on_all_chains(
         shell,
@@ -41,7 +57,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
             .get_wallets_config()?
             .deployer
             .expect("Deployer wallet not set"),
-        &args,
+        &args.forge_args,
         l1_rpc_url,
     )
     .await?;

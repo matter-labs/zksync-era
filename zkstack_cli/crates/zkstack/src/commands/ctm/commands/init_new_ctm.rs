@@ -16,7 +16,7 @@ use zkstack_cli_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
-use zkstack_cli_types::{L1Network, ProverMode, VMOption};
+use zkstack_cli_types::{ProverMode, VMOption};
 
 use crate::{
     abi::IDEPLOYCTMABI_ABI,
@@ -190,11 +190,6 @@ pub async fn deploy_new_ctm(
         .with_ffi()
         .with_calldata(&calldata)
         .with_rpc_url(l1_rpc_url.to_string());
-
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
 
     if let Some(address) = sender {
         forge = forge.with_sender(address);

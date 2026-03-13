@@ -50,7 +50,7 @@ pub enum ChainCommands {
     /// Run server genesis
     Genesis(GenesisCommand),
     /// Register a chain on all other chains
-    RegisterOnAllChains(ForgeScriptArgs),
+    RegisterOnAllChains(register_on_all_chains::RegisterOnAllChainsArgs),
     /// Register a new chain on L1 (executed by L1 governor).
     /// This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts,
     /// registers chain with BridgeHub and sets pending admin for DiamondProxy.

@@ -27,10 +27,7 @@ use zkstack_cli_config::{
 };
 use zksync_basic_types::{commitment::L2DACommitmentScheme, H256, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
-use zksync_web3_decl::{
-    client::{Client, L2},
-    namespaces::EthNamespaceClient,
-};
+use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
     abi::{BridgehubAbi, ZkChainAbi, GATEWAYUTILSABI_ABI},
@@ -198,16 +195,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
 
     let last_priority_op_hash = *priority_ops.last().unwrap();
 
-    await_for_withdrawal_to_finalize(
-        &gateway_zk_client,
-        get_ethers_provider(&l1_url)?,
-        gateway_chain_config
-            .get_contracts_config()?
-            .l1
-            .diamond_proxy_addr,
-        last_priority_op_hash,
-    )
-    .await?;
+    await_for_withdrawal_to_finalize(&gateway_zk_client, last_priority_op_hash).await?;
 
     let params = gateway_zk_client
         .get_finalize_withdrawal_params(last_priority_op_hash, 0)
@@ -271,58 +259,38 @@ pub(crate) enum GatewayTransactionType {
 
 pub(crate) async fn check_whether_gw_transaction_is_finalized(
     gateway_provider: &Client<L2>,
-    l1_provider: Arc<Provider<Http>>,
-    gateway_diamond_proxy: Address,
     hash: H256,
     transaction_type: GatewayTransactionType,
 ) -> anyhow::Result<bool> {
-    let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? else {
-        return Ok(false);
-    };
-
-    if receipt.l1_batch_number.is_none() {
-        return Ok(false);
-    }
-
-    let batch_number = receipt.l1_batch_number.unwrap();
-
     match transaction_type {
         GatewayTransactionType::Withdrawal => {
-            if gateway_provider
+            if let Err(e) = gateway_provider
                 .get_finalize_withdrawal_params(hash, 0)
                 .await
-                .is_err()
             {
+                println!("Withdrawal is not finalized yet: {e:?}");
                 return Ok(false);
             }
         }
         GatewayTransactionType::Migration => {
-            if gateway_provider
+            if let Err(e) = gateway_provider
                 .get_finalize_migration_params(hash, 0)
                 .await
-                .is_err()
             {
+                println!("Migration is not finalized yet: {e:?}");
                 return Ok(false);
             }
         }
     }
-
-    // TODO(PLA-1121): investigate why waiting for the tx proof is not enough.
-    // This is not expected behavior.
-    let gateway_contract = ZkChainAbi::new(gateway_diamond_proxy, l1_provider);
-    Ok(gateway_contract.get_total_batches_executed().await? >= U256::from(batch_number.as_u64()))
+    Ok(true)
 }
 
 async fn await_for_withdrawal_to_finalize(
     gateway_provider: &Client<L2>,
-    l1_provider: Arc<Provider<Http>>,
-    gateway_diamond_proxy: Address,
     hash: H256,
 ) -> anyhow::Result<()> {
     while !check_whether_gw_transaction_is_finalized(
         gateway_provider,
-        l1_provider.clone(),
-        gateway_diamond_proxy,
         hash,
         GatewayTransactionType::Withdrawal,
     )

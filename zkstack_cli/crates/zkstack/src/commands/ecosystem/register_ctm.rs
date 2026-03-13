@@ -9,7 +9,7 @@ use zkstack_cli_config::{
     forge_interface::script_params::REGISTER_CTM_SCRIPT_PARAMS, traits::ReadConfig,
     EcosystemConfig, ZkStackConfig,
 };
-use zkstack_cli_types::{L1Network, VMOption};
+use zkstack_cli_types::VMOption;
 use zksync_types::H160;
 
 use crate::{
@@ -102,11 +102,6 @@ pub async fn register_ctm_on_existing_bh(
         .with_ffi()
         .with_calldata(&calldata)
         .with_rpc_url(l1_rpc_url.to_string());
-
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
 
     if let Some(address) = sender {
         forge = forge.with_sender(address);
