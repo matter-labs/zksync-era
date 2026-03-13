@@ -440,10 +440,9 @@ if (shouldSkip) {
     });
 
     it('Can initiate interop to chains that are registered on this chain, but migrated from gateway', async () => {
-        // Note that this interop will NOT be able to be executed on the destination chain, as it was migrated from
-        // gateway and now settles on L1 (CannotClaimInteropOnL1Settlement).
+        // The destination chain has migrated from Gateway and now settles on L1.
         // The tokens leave chainHandler's balance and go to secondChain's pendingInteropBalance on GWAT.
-        // They will remain there as pending since secondChain cannot confirm execution.
+        // They will remain there as pending since secondChain is no longer on Gateway.
         await sendInteropBundle(
             chainRichWallet,
             secondChainHandler.inner.chainId,
@@ -459,21 +458,22 @@ if (shouldSkip) {
     });
 
     it('Cannot execute interop bundle when settling on L1', async () => {
-        // After migrating from Gateway, chainHandler settles on L1.
-        // InteropHandler requires the chain to settle on Gateway (selector 0xf36a88e5 = CannotClaimInteropOnL1Settlement).
+        // After migrating from Gateway, the chain settles on L1.
+        // InteropHandler.executeBundle has a guard: require(settlementLayer != L1_CHAIN_ID, CannotClaimInteropOnL1Settlement())
+        // selector: 0xf36a88e5
         await expectRevertWithSelector(
             attemptExecuteBundle(chainRichWallet),
             '0xf36a88e5',
-            'executeBundle on L1-settling chain should revert with CannotClaimInteropOnL1Settlement'
+            'Cannot execute interop bundle when settling on L1'
         );
     });
 
     it('Cannot unbundle interop bundle when settling on L1', async () => {
-        // Same restriction applies to unbundleBundle.
+        // Same guard applies to unbundleBundle.
         await expectRevertWithSelector(
             attemptUnbundleBundle(chainRichWallet),
             '0xf36a88e5',
-            'unbundleBundle on L1-settling chain should revert with CannotClaimInteropOnL1Settlement'
+            'Cannot unbundle interop bundle when settling on L1'
         );
     });
 

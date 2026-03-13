@@ -1109,13 +1109,18 @@ export function getGWBlockNumber(params: zksync.types.FinalizeWithdrawalParams):
     return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
 }
 
-/// Attempts to call executeBundle on the InteropHandler of the given wallet's chain.
-/// Used to verify that chains settling on L1 correctly reject bundle execution
-/// with CannotClaimInteropOnL1Settlement.
+/**
+ * Attempts to call executeBundle on the InteropHandler, expecting it to revert with
+ * CannotClaimInteropOnL1Settlement when the chain settles on L1.
+ *
+ * We use .staticCall() (eth_call) rather than a regular transaction call because ethers
+ * sends eth_estimateGas first for regular calls. The zkSync node does not return the full
+ * ABI-encoded revert data in eth_estimateGas responses — err.data comes back as '0x' —
+ * so expectRevertWithSelector cannot find the custom error selector (0xf36a88e5).
+ * eth_call (staticCall) properly returns the full revert data including the selector.
+ */
 export async function attemptExecuteBundle(wallet: zksync.Wallet): Promise<void> {
     const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
-    // The CannotClaimInteropOnL1Settlement check fires before any bundle parsing,
-    // so dummy data is sufficient to trigger the revert.
     const dummyProof: MessageInclusionProof = {
         chainId: 0n,
         l1BatchNumber: 0,
@@ -1123,14 +1128,15 @@ export async function attemptExecuteBundle(wallet: zksync.Wallet): Promise<void>
         message: [0, ethers.ZeroAddress, '0x'],
         proof: []
     };
-    await interopHandler.executeBundle('0x', dummyProof);
+    await interopHandler.executeBundle.staticCall('0x', dummyProof);
 }
 
-/// Attempts to call unbundleBundle on the InteropHandler of the given wallet's chain.
-/// Used to verify that chains settling on L1 correctly reject bundle unbundling
-/// with CannotClaimInteropOnL1Settlement.
+/**
+ * Attempts to call unbundleBundle on the InteropHandler, expecting it to revert with
+ * CannotClaimInteropOnL1Settlement when the chain settles on L1.
+ * See attemptExecuteBundle for why .staticCall() is required.
+ */
 export async function attemptUnbundleBundle(wallet: zksync.Wallet): Promise<void> {
     const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
-    // The CannotClaimInteropOnL1Settlement check fires before any bundle parsing.
-    await interopHandler.unbundleBundle('0x', []);
+    await interopHandler.unbundleBundle.staticCall('0x', []);
 }
