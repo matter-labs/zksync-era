@@ -9,10 +9,14 @@ import {
     ERC20Handler,
     expectRevertWithSelector,
     TOKEN_MINT_AMOUNT,
+    INTEROP_TEST_AMOUNT,
     sendInteropBundle,
     awaitInteropBundle,
     readAndBroadcastInteropBundle,
-    readAndUnbundleInteropBundle
+    readAndUnbundleInteropBundle,
+    waitUntilBlockExecutedOnGateway,
+    attemptExecuteBundle,
+    attemptUnbundleBundle
 } from './token-balance-migration-tester';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
@@ -61,10 +65,10 @@ if (shouldSkip) {
     const unfinalizedWithdrawalsSecondChain: Record<string, WithdrawalHandler> = {};
     // Withdrawals initiated while the chain is on Gateway
     const gatewayEraWithdrawals: Record<string, WithdrawalHandler> = {};
-    // Bundles sent to from chain to second chain
-    const bundlesExecutedOnL1: Record<string, ethers.TransactionReceipt> = {};
-    const bundlesUnbundledOnL1: Record<string, ethers.TransactionReceipt> = {};
+    // Bundles sent from chain to second chain, to be executed while second chain settles on Gateway
     const bundlesExecutedOnGateway: Record<string, ethers.TransactionReceipt> = {};
+    // Bundles sent from chain to second chain, to be unbundled while second chain settles on Gateway
+    const bundlesUnbundledOnGateway: Record<string, ethers.TransactionReceipt> = {};
 
     beforeAll(async () => {
         // Initialize gateway chain
@@ -325,27 +329,37 @@ if (shouldSkip) {
 
     const tokenNames = ['L1NativeDepositedToL2', 'L2NativeNotWithdrawnToL1', 'L2BToken'];
     it('Can initiate interop of migrated tokens', async () => {
-        const sendBundles = async (
-            executedBundles: Record<string, ethers.TransactionReceipt>,
-            unbundlerAddress?: string
-        ) => {
-            for (const tokenName of tokenNames) {
-                executedBundles[tokenName] = await sendInteropBundle(
-                    chainRichWallet,
-                    secondChainHandler.inner.chainId,
-                    await tokens[tokenName].l2Contract?.getAddress(),
-                    unbundlerAddress
-                );
-                await chainHandler.accountForSentInterop(tokens[tokenName]);
-            }
-        };
+        // Claiming interop requires the destination chain to settle on Gateway (not L1).
+        // We send two sets of bundles: one to be executed, one to be unbundled on Gateway.
+        for (const tokenName of tokenNames) {
+            bundlesExecutedOnGateway[tokenName] = await sendInteropBundle(
+                chainRichWallet,
+                secondChainHandler.inner.chainId,
+                await tokens[tokenName].l2Contract?.getAddress()
+            );
+            await chainHandler.accountForSentInterop(tokens[tokenName]);
 
-        // We send bundles that will be executed while settling on Gateway, and after we migrate back to L1.
-        // By the time we execute `bundlesExecutedOnGateway`, the rest of the interop roots will have been
-        // imported in the destination chain, making them executable even after we migrate back to L1.
-        await sendBundles(bundlesExecutedOnL1);
-        await sendBundles(bundlesUnbundledOnL1, secondChainRichWallet.address);
-        await sendBundles(bundlesExecutedOnGateway);
+            bundlesUnbundledOnGateway[tokenName] = await sendInteropBundle(
+                chainRichWallet,
+                secondChainHandler.inner.chainId,
+                await tokens[tokenName].l2Contract?.getAddress(),
+                secondChainRichWallet.address // unbundler address
+            );
+            await chainHandler.accountForSentInterop(tokens[tokenName]);
+        }
+
+        // After sending, the destination chain's chainBalance has NOT increased yet.
+        // Both sets of bundles went to pendingInteropBalance, awaiting execution confirmation.
+        for (const tokenName of tokenNames) {
+            const assetId = await tokens[tokenName].assetId(chainHandler);
+            await expect(
+                secondChainHandler.assertAssetTrackersState(assetId, {
+                    balances: {
+                        GWAT_PENDING: 2n * INTEROP_TEST_AMOUNT
+                    }
+                })
+            ).resolves.toBe(true);
+        }
     });
 
     it('Can finalize interop of migrated tokens', async () => {
@@ -357,12 +371,65 @@ if (shouldSkip) {
             secondChainRichWallet,
             bundlesExecutedOnGateway[tokenNames[tokenNames.length - 1]].hash
         );
+        let lastExecutionBlockNumber = 0;
         for (const bundleName of Object.keys(bundlesExecutedOnGateway)) {
-            await readAndBroadcastInteropBundle(
+            const receipt = await readAndBroadcastInteropBundle(
                 secondChainRichWallet,
                 chainRichWallet.provider,
                 bundlesExecutedOnGateway[bundleName].hash
             );
+            if (receipt) lastExecutionBlockNumber = Math.max(lastExecutionBlockNumber, receipt.blockNumber);
+        }
+        // Wait for secondChain to settle the batch containing the executeBundle txs on Gateway.
+        // Only then does GWAssetTracker process the InteropHandler confirmation messages and move
+        // balances from pendingInteropBalance to chainBalance.
+        if (lastExecutionBlockNumber > 0) {
+            await waitUntilBlockExecutedOnGateway(secondChainRichWallet, gwRichWallet, lastExecutionBlockNumber);
+        }
+        // The executed bundles are now confirmed: chainBalance increased, pendingInteropBalance decreased.
+        // The unbundled bundles are not yet processed, so pendingInteropBalance still holds INTEROP_TEST_AMOUNT.
+        for (const tokenName of tokenNames) {
+            const assetId = await tokens[tokenName].assetId(chainHandler);
+            if (assetId === ethers.ZeroHash) continue;
+            await expect(
+                secondChainHandler.assertAssetTrackersState(assetId, {
+                    balances: {
+                        GWAT: INTEROP_TEST_AMOUNT,
+                        GWAT_PENDING: INTEROP_TEST_AMOUNT
+                    }
+                })
+            ).resolves.toBe(true);
+        }
+    });
+
+    it('Can unbundle interop of migrated tokens on Gateway', async () => {
+        // Unbundling with CallStatus.Executed also sends InteropHandler confirmation messages,
+        // so GWAssetTracker will move the balances from pendingInteropBalance to chainBalance.
+        let lastUnbundleBlockNumber = 0;
+        for (const bundleName of Object.keys(bundlesUnbundledOnGateway)) {
+            const receipt = await readAndUnbundleInteropBundle(
+                secondChainRichWallet,
+                chainRichWallet.provider,
+                bundlesUnbundledOnGateway[bundleName].hash
+            );
+            if (receipt) lastUnbundleBlockNumber = Math.max(lastUnbundleBlockNumber, receipt.blockNumber);
+        }
+        // Wait for secondChain to settle the batch containing the unbundleBundle txs on Gateway.
+        if (lastUnbundleBlockNumber > 0) {
+            await waitUntilBlockExecutedOnGateway(secondChainRichWallet, gwRichWallet, lastUnbundleBlockNumber);
+        }
+        // Both executed and unbundled bundles are now confirmed: full chainBalance, zero pendingInteropBalance.
+        for (const tokenName of tokenNames) {
+            const assetId = await tokens[tokenName].assetId(chainHandler);
+            if (assetId === ethers.ZeroHash) continue;
+            await expect(
+                secondChainHandler.assertAssetTrackersState(assetId, {
+                    balances: {
+                        GWAT: 2n * INTEROP_TEST_AMOUNT,
+                        GWAT_PENDING: 0n
+                    }
+                })
+            ).resolves.toBe(true);
         }
     });
 
@@ -371,18 +438,41 @@ if (shouldSkip) {
     });
 
     it('Can initiate interop to chains that are registered on this chain, but migrated from gateway', async () => {
-        // Note that this interop will NOT be able to be executed on the destination chain, as it was migrated from gateway.
-        // In a future release, we will allow repeated migrations, which will enable such interops to be executed.
+        // Note that this interop will NOT be able to be executed on the destination chain, as it was migrated from
+        // gateway and now settles on L1 (CannotClaimInteropOnL1Settlement).
+        // The tokens leave chainHandler's balance and go to secondChain's pendingInteropBalance on GWAT.
+        // They will remain there as pending since secondChain cannot confirm execution.
         await sendInteropBundle(
             chainRichWallet,
             secondChainHandler.inner.chainId,
             await tokens.L1NativeDepositedToL2.l2Contract?.getAddress()
         );
-        await chainHandler.accountForSentInterop(tokens.L1NativeDepositedToL2);
+        // willConfirmOnGateway=false: this bundle cannot be executed (destination settles on L1),
+        // so it stays in pendingInteropBalance and does NOT contribute to L1AT_GW.
+        await chainHandler.accountForSentInterop(tokens.L1NativeDepositedToL2, undefined, false);
     });
 
     it('Can migrate the chain from gateway', async () => {
         await chainHandler.migrateFromGateway();
+    });
+
+    it('Cannot execute interop bundle when settling on L1', async () => {
+        // After migrating from Gateway, chainHandler settles on L1.
+        // InteropHandler requires the chain to settle on Gateway (selector 0xf36a88e5 = CannotClaimInteropOnL1Settlement).
+        await expectRevertWithSelector(
+            attemptExecuteBundle(chainRichWallet),
+            '0xf36a88e5',
+            'executeBundle on L1-settling chain should revert with CannotClaimInteropOnL1Settlement'
+        );
+    });
+
+    it('Cannot unbundle interop bundle when settling on L1', async () => {
+        // Same restriction applies to unbundleBundle.
+        await expectRevertWithSelector(
+            attemptUnbundleBundle(chainRichWallet),
+            '0xf36a88e5',
+            'unbundleBundle on L1-settling chain should revert with CannotClaimInteropOnL1Settlement'
+        );
     });
 
     it('Can withdraw tokens from the chain', async () => {
@@ -476,30 +566,6 @@ if (shouldSkip) {
         for (const tokenName of Object.keys(unfinalizedWithdrawals)) {
             await unfinalizedWithdrawals[tokenName].finalizeWithdrawal(chainRichWallet.ethWallet());
             delete unfinalizedWithdrawals[tokenName];
-        }
-    });
-
-    it('Can finalize old interop bundles on L1', async () => {
-        // Note that this is only possible if the containing interop root was imported BEFORE we migrated back to L1.
-        for (const bundleName of Object.keys(bundlesExecutedOnL1)) {
-            // We do not need to await the interop bundle as it was already executed on Gateway before we migrated back to L1.
-            await readAndBroadcastInteropBundle(
-                secondChainRichWallet,
-                chainRichWallet.provider,
-                bundlesExecutedOnL1[bundleName].hash
-            );
-        }
-    });
-
-    it('Can unbundle old interop bundles on L1', async () => {
-        // Note that this is only possible if the containing interop root was imported BEFORE we migrated back to L1.
-        for (const bundleName of Object.keys(bundlesUnbundledOnL1)) {
-            // We do not need to await the interop bundle as it was already executed on Gateway before we migrated back to L1.
-            await readAndUnbundleInteropBundle(
-                secondChainRichWallet,
-                chainRichWallet.provider,
-                bundlesUnbundledOnL1[bundleName].hash
-            );
         }
     });
 

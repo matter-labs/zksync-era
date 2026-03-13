@@ -82,11 +82,13 @@ const ERC20_ZKEVM_BYTECODE = readArtifact('TestnetERC20Token', 'zkout').bytecode
 
 export const INTEROP_TEST_AMOUNT = 1_000_000_000n;
 const INTEROP_CENTER_ABI = readArtifact('InteropCenter').abi;
-const INTEROP_HANDLER_ABI = readArtifact('InteropHandler').abi;
+export const INTEROP_HANDLER_ABI = readArtifact('InteropHandler').abi;
 const ERC7786_ATTR_INTERFACE = new ethers.Interface(readArtifact('IERC7786Attributes').abi);
 
-type AssetTrackerLocation = 'L1AT' | 'L1AT_GW' | 'GWAT';
-const ASSET_TRACKERS: readonly AssetTrackerLocation[] = ['L1AT', 'L1AT_GW', 'GWAT'] as const;
+type AssetTrackerLocation = 'L1AT' | 'L1AT_GW' | 'GWAT' | 'GWAT_PENDING';
+type AssetTrackerMigrationLocation = Exclude<AssetTrackerLocation, 'GWAT_PENDING'>;
+// GWAT_PENDING is excluded from the default iteration — it is only checked when explicitly specified in balances.
+const ASSET_TRACKERS: readonly AssetTrackerMigrationLocation[] = ['L1AT', 'L1AT_GW', 'GWAT'] as const;
 
 export interface InteropCallStarter {
     to: string;
@@ -240,7 +242,7 @@ export class ChainHandler {
             migrations
         }: {
             balances?: Partial<Record<AssetTrackerLocation, bigint>>;
-            migrations?: Record<AssetTrackerLocation, bigint>;
+            migrations?: Record<AssetTrackerMigrationLocation, bigint>;
         }
     ): Promise<boolean> {
         const failures: string[] = [];
@@ -262,6 +264,15 @@ export class ChainHandler {
                 }
             } catch (err) {
                 recordFailure(where, err);
+            }
+        }
+
+        // GWAT_PENDING is only checked when explicitly specified in balances.
+        if (balances?.['GWAT_PENDING'] !== undefined) {
+            try {
+                await this.assertChainBalance(assetId, 'GWAT_PENDING', balances['GWAT_PENDING']);
+            } catch (err) {
+                recordFailure('GWAT_PENDING', err);
             }
         }
 
@@ -526,9 +537,18 @@ export class ChainHandler {
 
     private async assertChainBalance(
         assetId: string,
-        where: 'L1AT' | 'L1AT_GW' | 'GWAT',
+        where: AssetTrackerLocation,
         expectedBalance?: bigint
     ): Promise<boolean> {
+        if (where === 'GWAT_PENDING') {
+            const expected = expectedBalance ?? 0n;
+            const actual = await this.gwAssetTracker.pendingInteropBalance(this.inner.chainId, assetId);
+            if (actual !== expected) {
+                throw new Error(`Pending interop balance mismatch for ${assetId}: expected ${expected}, got ${actual}`);
+            }
+            return true;
+        }
+
         let balance = expectedBalance ?? this.chainBalances[assetId] ?? 0n;
         let contract: ethers.Contract | zksync.Contract;
         if (where === 'L1AT' || where === 'L1AT_GW') {
@@ -580,12 +600,21 @@ export class ChainHandler {
         }
     }
 
-    async accountForSentInterop(token: ERC20Handler, amount: bigint = INTEROP_TEST_AMOUNT): Promise<void> {
+    async accountForSentInterop(
+        token: ERC20Handler,
+        amount: bigint = INTEROP_TEST_AMOUNT,
+        willConfirmOnGateway: boolean = true
+    ): Promise<void> {
         const assetId = await token.assetId(this);
         // For L2-native tokens we use MaxUint256 as the starting expected balance when not tracked yet.
         const currentBalance = this.chainBalances[assetId] ?? (token.isL2Token ? ethers.MaxUint256 : 0n);
         this.chainBalances[assetId] = currentBalance - amount;
-        this.interopGatewayIncreases[assetId] = (this.interopGatewayIncreases[assetId] ?? 0n) + amount;
+        // Only track interop that will actually be confirmed on Gateway and end up in L1AT_GW.
+        // E.g. interop sent to a chain that has already migrated from Gateway goes to pendingInteropBalance
+        // and cannot be confirmed (the destination chain settles on L1 and can't execute bundles).
+        if (willConfirmOnGateway) {
+            this.interopGatewayIncreases[assetId] = (this.interopGatewayIncreases[assetId] ?? 0n) + amount;
+        }
     }
 
     private async assertAssetMigrationNumber(
@@ -985,30 +1014,30 @@ export async function readAndBroadcastInteropBundle(
     wallet: zksync.Wallet,
     senderProvider: zksync.Provider,
     txHash: string
-) {
+): Promise<ethers.TransactionReceipt | null> {
     // Get interop trigger and bundle data from the sender chain.
     const executionBundle = await getInteropBundleData(senderProvider, txHash);
-    if (executionBundle.output == null) return;
+    if (executionBundle.output == null) return null;
 
     const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
-    const receipt = await interopHandler.executeBundle(executionBundle.rawData, executionBundle.proofDecoded);
-    await receipt.wait();
+    const tx = await interopHandler.executeBundle(executionBundle.rawData, executionBundle.proofDecoded);
+    return await tx.wait();
 }
 
 export async function readAndUnbundleInteropBundle(
     wallet: zksync.Wallet,
     senderProvider: zksync.Provider,
     txHash: string
-) {
+): Promise<ethers.TransactionReceipt | null> {
     const data = await getInteropBundleData(senderProvider, txHash);
-    if (data.output == null) return;
+    if (data.output == null) return null;
 
     const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
     // Verify the bundle
     await (await interopHandler.verifyBundle(data.rawData, data.proofDecoded)).wait();
     // Unbundle the bundle, we will just set the call to `Executed`
     const callStatuses = [CallStatus.Executed];
-    await (await interopHandler.unbundleBundle(data.rawData, callStatuses)).wait();
+    return await (await interopHandler.unbundleBundle(data.rawData, callStatuses)).wait();
 }
 
 /**
@@ -1078,4 +1107,30 @@ export function getGWBlockNumber(params: zksync.types.FinalizeWithdrawalParams):
     /// see hashProof in MessageHashing.sol for this logic.
     let gwProofIndex = 1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
     return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
+}
+
+/// Attempts to call executeBundle on the InteropHandler of the given wallet's chain.
+/// Used to verify that chains settling on L1 correctly reject bundle execution
+/// with CannotClaimInteropOnL1Settlement.
+export async function attemptExecuteBundle(wallet: zksync.Wallet): Promise<void> {
+    const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
+    // The CannotClaimInteropOnL1Settlement check fires before any bundle parsing,
+    // so dummy data is sufficient to trigger the revert.
+    const dummyProof: MessageInclusionProof = {
+        chainId: 0n,
+        l1BatchNumber: 0,
+        l2MessageIndex: 0,
+        message: [0, ethers.ZeroAddress, '0x'],
+        proof: []
+    };
+    await interopHandler.executeBundle('0x', dummyProof);
+}
+
+/// Attempts to call unbundleBundle on the InteropHandler of the given wallet's chain.
+/// Used to verify that chains settling on L1 correctly reject bundle unbundling
+/// with CannotClaimInteropOnL1Settlement.
+export async function attemptUnbundleBundle(wallet: zksync.Wallet): Promise<void> {
+    const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
+    // The CannotClaimInteropOnL1Settlement check fires before any bundle parsing.
+    await interopHandler.unbundleBundle('0x', []);
 }
