@@ -124,7 +124,7 @@ pub async fn init(
     .await?;
     spinner.finish();
 
-    if !init_args.pause_deposits {
+    if !init_args.pause_deposits && !chain_config.legacy_bridge.unwrap_or(false) {
         // Deposits are paused by default to allow immediate Gateway migration. If specified, unpause them.
         let spinner = Spinner::new(MSG_UNPAUSING_DEPOSITS_SPINNER);
         unpause_deposits(
