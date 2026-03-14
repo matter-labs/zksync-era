@@ -104,7 +104,10 @@ if (shouldSkip) {
 
         // Token native to L2-B, withdrawn from L2-B, and deposited to L2-A
         tokensSecondChain.L2BToken = await ERC20Handler.deployTokenOnL2(secondChainHandler);
-        unfinalizedWithdrawalsSecondChain.L2BToken = await tokensSecondChain.L2BToken.withdraw(secondChainHandler, TOKEN_MINT_AMOUNT);
+        unfinalizedWithdrawalsSecondChain.L2BToken = await tokensSecondChain.L2BToken.withdraw(
+            secondChainHandler,
+            TOKEN_MINT_AMOUNT
+        );
         // Token native to L2-B, withdrawn from L2-B, not yet deposited to L2-A
         tokensSecondChain.L2BTokenNotDepositedToL2A = await ERC20Handler.deployTokenOnL2(secondChainHandler);
         unfinalizedWithdrawalsSecondChain.L2BTokenNotDepositedToL2A =
@@ -170,7 +173,6 @@ if (shouldSkip) {
             })
         ).resolves.toBe(true);
         await gwBalanceHandler.assertGWBalance(token1AssetId);
-
 
         // Finalize withdrawal of L2-B token
         await unfinalizedWithdrawalsSecondChain.L2BToken.finalizeWithdrawal(chainRichWallet.ethWallet());
@@ -277,7 +279,9 @@ if (shouldSkip) {
 
     it('Can withdraw tokens after migrating token balances to gateway', async () => {
         gatewayEraWithdrawals.L1NativeDepositedToL2 = await tokens.L1NativeDepositedToL2.withdraw(chainHandler);
-        const receipt = await chainRichWallet.provider.getTransactionReceipt(gatewayEraWithdrawals.L1NativeDepositedToL2.txHash);
+        const receipt = await chainRichWallet.provider.getTransactionReceipt(
+            gatewayEraWithdrawals.L1NativeDepositedToL2.txHash
+        );
         if (!receipt) {
             throw new Error('Missing receipt for Gateway-settled withdrawal');
         }
@@ -338,9 +342,7 @@ if (shouldSkip) {
         // Both sets of bundles now sit in pendingInteropBalance, awaiting execution confirmation.
         for (const tokenName of tokenNames) {
             const assetId = await tokens[tokenName].assetId(chainHandler);
-            await expect(
-                secondChainHandler.assertAssetTrackersState(assetId)
-            ).resolves.toBe(true);
+            await expect(secondChainHandler.assertAssetTrackersState(assetId)).resolves.toBe(true);
         }
     });
 

@@ -197,16 +197,15 @@ export class ChainHandler {
         };
     }
 
-
     async getActualBalances(assetId: string): Promise<Record<AssetTrackerLocation, bigint>> {
         const l1AtBalance = await this.l1AssetTracker.chainBalance(this.inner.chainId, assetId);
         const gwAtBalance = await this.gwAssetTracker.chainBalance(this.inner.chainId, assetId);
         const gwAtPendingBalance = await this.gwAssetTracker.pendingInteropBalance(this.inner.chainId, assetId);
 
         return {
-            'L1AT': l1AtBalance,
-            'GWAT': gwAtBalance,
-            'GWAT_PENDING': gwAtPendingBalance,
+            L1AT: l1AtBalance,
+            GWAT: gwAtBalance,
+            GWAT_PENDING: gwAtPendingBalance
         };
     }
 
@@ -278,10 +277,7 @@ export class ChainHandler {
             const expectedBalance = expectedBalances[location] ?? 0n;
             const actualBalance = actualBalances[location];
             if (expectedBalance !== actualBalance) {
-                recordFailure(
-                    location,
-                    `Balance mismatch: expected ${expectedBalance}, got ${actualBalance}`
-                );
+                recordFailure(location, `Balance mismatch: expected ${expectedBalance}, got ${actualBalance}`);
             }
         }
 
@@ -469,7 +465,7 @@ export class ChainHandler {
             await this.waitForShutdown();
             await this.startServer();
         });
-        
+
         this.expectedSettlementLayer = 'L1';
         await this.resetBaseTokenBalances();
         await this.gwBalanceHandler.resetBaseTokenBalance();
@@ -538,7 +534,8 @@ export class ChainHandler {
                 const amountToMoveToGw = balance - toKeepOnL1;
                 this.expectedChainGwBalances[token] = (this.expectedChainGwBalances[token] ?? 0n) + amountToMoveToGw;
                 this.expectedChainL1Balances[token] = toKeepOnL1;
-                this.gwBalanceHandler.gwL1Balance[token] = (this.gwBalanceHandler.gwL1Balance[token] ?? 0n) + amountToMoveToGw;
+                this.gwBalanceHandler.gwL1Balance[token] =
+                    (this.gwBalanceHandler.gwL1Balance[token] ?? 0n) + amountToMoveToGw;
             }
         } else if (direction === 'from-gateway') {
             for (const token of Object.keys(this.expectedChainGwBalances)) {
@@ -631,9 +628,7 @@ export class ChainHandler {
         }
     }
 
-    async registerOriginToken(
-        token: ERC20Handler
-    ) {
+    async registerOriginToken(token: ERC20Handler) {
         this.nativeToChainAssetIds.add(await token.assetId(this));
     }
 
@@ -646,7 +641,8 @@ export class ChainHandler {
         this.ensureTrackedGwBalance(assetId);
         const currentBalance = this.expectedChainGwBalances[assetId] ?? 0n;
         this.expectedChainGwBalances[assetId] = currentBalance - amount;
-        destChainHandler.expectedChainPendingInteropBalances[assetId] = (destChainHandler.expectedChainPendingInteropBalances[assetId] ?? 0n) + amount;
+        destChainHandler.expectedChainPendingInteropBalances[assetId] =
+            (destChainHandler.expectedChainPendingInteropBalances[assetId] ?? 0n) + amount;
     }
 
     async confirmReceivedInterop(token: ERC20Handler, amount: bigint = INTEROP_TEST_AMOUNT) {
@@ -692,10 +688,7 @@ export class ChainHandler {
         }
     }
 
-    prepareWithdrawalFinalizationBalance(
-        assetId: string,
-        settlementLayerAtInitiation: SL
-    ): Record<string, bigint> {
+    prepareWithdrawalFinalizationBalance(assetId: string, settlementLayerAtInitiation: SL): Record<string, bigint> {
         if (settlementLayerAtInitiation === 'L1') {
             this.ensureTrackedL1Balance(assetId);
             return this.expectedChainL1Balances;
@@ -761,8 +754,10 @@ export class GatewayBalanceHandler {
     async assertGWBalance(assetId: string) {
         const expectedBalance = this.gwL1Balance[assetId] ?? 0n;
         const currentBalance = await this.l1AssetTracker!.chainBalance(GATEWAY_CHAIN_ID, assetId);
-        if(currentBalance !== expectedBalance) {
-            throw new Error(`GW L1 balance mismatch for ${assetId}: expected ${expectedBalance}, got ${currentBalance}`);
+        if (currentBalance !== expectedBalance) {
+            throw new Error(
+                `GW L1 balance mismatch for ${assetId}: expected ${expectedBalance}, got ${currentBalance}`
+            );
         }
     }
 }
@@ -820,7 +815,10 @@ export class ERC20Handler {
         await waitForBalanceNonZero(this.l2Contract!, this.wallet);
 
         const assetId = await this.assetId(chainHandler);
-        const balanceMapping = chainHandler.expectedSettlementLayer === 'L1' ? chainHandler.expectedChainL1Balances : chainHandler.expectedChainGwBalances;
+        const balanceMapping =
+            chainHandler.expectedSettlementLayer === 'L1'
+                ? chainHandler.expectedChainL1Balances
+                : chainHandler.expectedChainGwBalances;
 
         balanceMapping[assetId] = (balanceMapping[assetId] ?? 0n) + TOKEN_MINT_AMOUNT;
         if (chainHandler.expectedSettlementLayer === 'GW') {
@@ -878,9 +876,11 @@ export class ERC20Handler {
 
         const assetId = await this.assetId(chainHandler);
         const settlementLayerAtInitiation = chainHandler.expectedSettlementLayer;
-        chainHandler.expectedChainPendingWithdrawalBalances[assetId] = (chainHandler.expectedChainPendingWithdrawalBalances[assetId] ?? 0n) + withdrawAmount;
+        chainHandler.expectedChainPendingWithdrawalBalances[assetId] =
+            (chainHandler.expectedChainPendingWithdrawalBalances[assetId] ?? 0n) + withdrawAmount;
         if (settlementLayerAtInitiation === 'GW') {
-            chainHandler.expectedChainGwBalances[assetId] = (chainHandler.expectedChainGwBalances[assetId] ?? 0n) - withdrawAmount;
+            chainHandler.expectedChainGwBalances[assetId] =
+                (chainHandler.expectedChainGwBalances[assetId] ?? 0n) - withdrawAmount;
         }
 
         return new WithdrawalHandler(
@@ -983,9 +983,9 @@ export class WithdrawalHandler {
     public assetId: string;
 
     constructor(
-        txHash: string, 
-        provider: zksync.Provider, 
-        amount: bigint, 
+        txHash: string,
+        provider: zksync.Provider,
+        amount: bigint,
         resolveTokenBalanceMapping: () => Record<string, bigint>,
         pendingWithdrawalMapping: Record<string, bigint>,
         assetId: string
@@ -1014,7 +1014,6 @@ export class WithdrawalHandler {
         const tokenBalanceMapping = this.resolveTokenBalanceMapping();
         tokenBalanceMapping[this.assetId] = (tokenBalanceMapping[this.assetId] ?? 0n) - this.amount;
         this.pendingWithdrawalMapping[this.assetId] = (this.pendingWithdrawalMapping[this.assetId] ?? 0n) - this.amount;
-
     }
 }
 
