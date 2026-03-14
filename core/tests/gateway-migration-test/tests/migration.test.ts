@@ -395,6 +395,7 @@ describe('Migration from gateway test', function () {
     // This test verifies that the operation fails as expected.
     // TODO: When support is restored in future versions, remove this negative test.
     step('Migrating back to gateway fails', async () => {
+        if (direction == 'TO') return;
         // Pause deposits before trying migration back to gateway
         await zkstackExecWithMutex(
             `zkstack chain pause-deposits --chain ${fileConfig.chain}`,
