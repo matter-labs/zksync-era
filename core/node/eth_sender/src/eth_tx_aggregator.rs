@@ -854,10 +854,9 @@ impl EthTxAggregator {
             op_restrictions.precommit_restriction = reason;
             // From V31 when migrating to or from gateway, we need to wait for all blocks to be executed,
             // so there is no restriction for prove and execute operations
-            if matches!(self.settlement_layer, Some(SettlementLayer::Gateway(_)))
-                && self
-                    .is_waiting_for_batches_with_current_settlement_layer_to_be_committed(storage)
-                    .await?
+            if self
+                .is_waiting_for_batches_with_current_settlement_layer_to_be_committed(storage)
+                .await?
             {
                 // For migration from gateway to L1, keep commits/precommits flowing
                 // once old settlement layer batches are finalized.
