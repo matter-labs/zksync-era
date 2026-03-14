@@ -323,11 +323,7 @@ if (shouldSkip) {
         for (const tokenName of tokenNames) {
             const assetId = await tokens[tokenName].assetId(chainHandler);
             await expect(
-                secondChainHandler.assertAssetTrackersState(assetId, {
-                    balances: {
-                        GWAT_PENDING: 2n * INTEROP_TEST_AMOUNT
-                    }
-                })
+                secondChainHandler.assertAssetTrackersState(assetId)
             ).resolves.toBe(true);
         }
     });
@@ -362,14 +358,7 @@ if (shouldSkip) {
             await secondChainHandler.confirmReceivedInterop(tokens[tokenName]);
             const assetId = await tokens[tokenName].assetId(chainHandler);
             if (assetId === ethers.ZeroHash) continue;
-            await expect(
-                secondChainHandler.assertAssetTrackersState(assetId, {
-                    balances: {
-                        GWAT: INTEROP_TEST_AMOUNT,
-                        GWAT_PENDING: INTEROP_TEST_AMOUNT
-                    }
-                })
-            ).resolves.toBe(true);
+            await expect(secondChainHandler.assertAssetTrackersState(assetId)).resolves.toBe(true);
         }
     });
 
@@ -396,14 +385,7 @@ if (shouldSkip) {
             await secondChainHandler.confirmReceivedInterop(tokens[tokenName]);
             const assetId = await tokens[tokenName].assetId(chainHandler);
             if (assetId === ethers.ZeroHash) continue;
-            await expect(
-                secondChainHandler.assertAssetTrackersState(assetId, {
-                    balances: {
-                        GWAT: 2n * INTEROP_TEST_AMOUNT,
-                        GWAT_PENDING: 0n
-                    }
-                })
-            ).resolves.toBe(true);
+            await expect(secondChainHandler.assertAssetTrackersState(assetId)).resolves.toBe(true);
         }
     });
 
@@ -423,13 +405,7 @@ if (shouldSkip) {
         await chainHandler.accountForSentInterop(tokens.L1NativeDepositedToL2, secondChainHandler);
 
         const assetId = await tokens.L1NativeDepositedToL2.assetId(chainHandler);
-        await expect(
-            secondChainHandler.assertAssetTrackersState(assetId, {
-                balances: {
-                    GWAT_PENDING: INTEROP_TEST_AMOUNT
-                }
-            })
-        ).resolves.toBe(true);
+        await expect(secondChainHandler.assertAssetTrackersState(assetId)).resolves.toBe(true);
     });
 
     it('Can migrate the chain from gateway', async () => {

@@ -189,6 +189,7 @@ export class ChainHandler {
     public expectedSettlementLayer: SL = 'L1';
 
     getExpectedBalances(assetId: string): Record<AssetTrackerLocation, bigint> {
+        // Missing entries mean the helper expects a zero balance and has not seen a state transition for this asset yet.
         return {
             L1AT: this.expectedChainL1Balances[assetId] ?? 0n,
             GWAT: this.expectedChainGwBalances[assetId] ?? 0n,
@@ -267,13 +268,7 @@ export class ChainHandler {
 
     async assertAssetTrackersState(
         assetId: string,
-        {
-            balances = {},
-            migrations
-        }: {
-            balances?: Partial<Record<AssetTrackerLocation, bigint>>;
-            migrations?: Record<AssetTrackerMigrationLocation, bigint>;
-        }
+        { migrations }: { migrations?: Record<AssetTrackerMigrationLocation, bigint> } = {}
     ): Promise<boolean> {
         const failures: string[] = [];
         const recordFailure = (where: AssetTrackerLocation, err: unknown) => {
@@ -281,22 +276,12 @@ export class ChainHandler {
             failures.push(`[${where}] ${reason}`);
         };
 
-        const expectedBalances = {
-            ...this.getExpectedBalances(assetId),
-            ...balances
-        };
+        const expectedBalances = this.getExpectedBalances(assetId);
         const actualBalances = await this.getActualBalances(assetId);
 
         for (const location of ASSERT_TRACKER_LOCATIONS) {
             const expectedBalance = expectedBalances[location] ?? 0n;
             const actualBalance = actualBalances[location];
-            if (
-                assetId === this.baseTokenAssetId &&
-                location !== 'GWAT_PENDING' &&
-                this.baseTokenBalancesAreWithinTolerance(expectedBalance, actualBalance)
-            ) {
-                continue;
-            }
             if (expectedBalance !== actualBalance) {
                 recordFailure(
                     location,
@@ -680,12 +665,6 @@ export class ChainHandler {
             );
         }
         return true;
-    }
-
-    private baseTokenBalancesAreWithinTolerance(expectedBalance: bigint, actualBalance: bigint): boolean {
-        const tolerance = ethers.parseEther('0.005');
-        const diff = actualBalance > expectedBalance ? actualBalance - expectedBalance : expectedBalance - actualBalance;
-        return diff <= tolerance;
     }
 
     private ensureTrackedL1Balance(assetId: string) {
