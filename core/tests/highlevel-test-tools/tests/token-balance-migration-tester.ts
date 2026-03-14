@@ -240,7 +240,7 @@ export class ChainHandler {
         );
     }
 
-    async initEcosystemContracts(_gwWallet: zksync.Wallet) {
+    async initEcosystemContracts(gwWallet: zksync.Wallet) {
         // Fix baseTokenAssetId: js-yaml parses unquoted hex as a lossy JS number.
         // Query the on-chain NTV for the authoritative asset ID string.
         this.baseTokenAssetId = await this.l1Ntv.assetId(await this.l1BaseTokenContract.getAddress());
