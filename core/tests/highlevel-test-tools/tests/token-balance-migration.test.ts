@@ -277,6 +277,11 @@ if (shouldSkip) {
 
     it('Can withdraw tokens after migrating token balances to gateway', async () => {
         gatewayEraWithdrawals.L1NativeDepositedToL2 = await tokens.L1NativeDepositedToL2.withdraw(chainHandler);
+        const receipt = await chainRichWallet.provider.getTransactionReceipt(gatewayEraWithdrawals.L1NativeDepositedToL2.txHash);
+        if (!receipt) {
+            throw new Error('Missing receipt for Gateway-settled withdrawal');
+        }
+        await waitUntilBlockExecutedOnGateway(chainRichWallet, gwRichWallet, receipt.blockNumber);
     });
 
     it('Correctly assigns chain token balances after migrating token balances to gateway', async () => {
