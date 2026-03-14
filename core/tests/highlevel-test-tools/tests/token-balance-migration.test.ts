@@ -301,13 +301,15 @@ if (shouldSkip) {
     it('Can initiate interop of migrated tokens', async () => {
         // Claiming interop requires the destination chain to settle on Gateway (not L1).
         // We send two sets of bundles: one to be executed, one to be unbundled on Gateway.
+        // The destination pending balance is only updated after the source batches are executed on Gateway.
+        let lastSendBlockNumber = 0;
         for (const tokenName of tokenNames) {
             bundlesExecutedOnGateway[tokenName] = await sendInteropBundle(
                 chainRichWallet,
                 secondChainHandler.inner.chainId,
                 await tokens[tokenName].l2Contract?.getAddress()
             );
-            await chainHandler.accountForSentInterop(tokens[tokenName], secondChainHandler);
+            lastSendBlockNumber = Math.max(lastSendBlockNumber, bundlesExecutedOnGateway[tokenName].blockNumber);
 
             bundlesUnbundledOnGateway[tokenName] = await sendInteropBundle(
                 chainRichWallet,
@@ -315,11 +317,20 @@ if (shouldSkip) {
                 await tokens[tokenName].l2Contract?.getAddress(),
                 secondChainRichWallet.address // unbundler address
             );
+            lastSendBlockNumber = Math.max(lastSendBlockNumber, bundlesUnbundledOnGateway[tokenName].blockNumber);
+        }
+
+        if (lastSendBlockNumber > 0) {
+            await waitUntilBlockExecutedOnGateway(chainRichWallet, gwRichWallet, lastSendBlockNumber);
+        }
+        for (const tokenName of tokenNames) {
+            // Two accounting: one for the bundle that will be executed and the one for the one that wont be
+            await chainHandler.accountForSentInterop(tokens[tokenName], secondChainHandler);
             await chainHandler.accountForSentInterop(tokens[tokenName], secondChainHandler);
         }
 
-        // After sending, the destination chain's chainBalance has NOT increased yet.
-        // Both sets of bundles went to pendingInteropBalance, awaiting execution confirmation.
+        // After the source batches settle on Gateway, the destination chain's chainBalance has NOT increased yet.
+        // Both sets of bundles now sit in pendingInteropBalance, awaiting execution confirmation.
         for (const tokenName of tokenNames) {
             const assetId = await tokens[tokenName].assetId(chainHandler);
             await expect(
@@ -396,12 +407,14 @@ if (shouldSkip) {
     it('Can initiate interop to chains that are registered on this chain, but migrated from gateway', async () => {
         // The destination chain has migrated from Gateway and now settles on L1.
         // The tokens leave chainHandler's balance and go to secondChain's pendingInteropBalance on GWAT.
-        // They will remain there as pending since secondChain is no longer on Gateway.
-        await sendInteropBundle(
+        // They only appear as pending after the source batch is executed on Gateway, and remain pending
+        // since secondChain is no longer on Gateway.
+        const receipt = await sendInteropBundle(
             chainRichWallet,
             secondChainHandler.inner.chainId,
             await tokens.L1NativeDepositedToL2.l2Contract?.getAddress()
         );
+        await waitUntilBlockExecutedOnGateway(chainRichWallet, gwRichWallet, receipt.blockNumber);
         await chainHandler.accountForSentInterop(tokens.L1NativeDepositedToL2, secondChainHandler);
 
         const assetId = await tokens.L1NativeDepositedToL2.assetId(chainHandler);

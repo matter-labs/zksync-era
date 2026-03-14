@@ -253,17 +253,12 @@ export class ChainHandler {
             readArtifact('L1AssetTracker').abi,
             this.l2RichWallet.ethWallet()
         );
-        // Some deposits were done near genesis, so we need to account for those.
-        const existingBalanceOnL1 = await this.l1AssetTracker.chainBalance(
-            this.inner.chainId,
-            this.baseTokenAssetId
-        );
-        this.expectedChainL1Balances[this.baseTokenAssetId] = existingBalanceOnL1;
         this.gwAssetTracker = new zksync.Contract(
             GW_ASSET_TRACKER_ADDRESS,
             readArtifact('GWAssetTracker').abi,
             gwWallet
         );
+        await this.resetBaseTokenBalances();
     }
 
     async assertAssetTrackersState(
@@ -344,6 +339,19 @@ export class ChainHandler {
         return await this.gwBalanceHandler.l1AssetTracker!.chainBalance(GATEWAY_CHAIN_ID, this.baseTokenAssetId);
     }
 
+    // zkstack CLI migration flows can spend or reshuffle the chain's base token in ways the test harness
+    // does not model exactly. For those operations we refresh the chain's base-token balances from trackers.
+    async resetBaseTokenBalances() {
+        this.expectedChainL1Balances[this.baseTokenAssetId] = await this.l1AssetTracker.chainBalance(
+            this.inner.chainId,
+            this.baseTokenAssetId
+        );
+        this.expectedChainGwBalances[this.baseTokenAssetId] = await this.gwAssetTracker.chainBalance(
+            this.inner.chainId,
+            this.baseTokenAssetId
+        );
+    }
+
     async migrateToGateway() {
         await this.trackBaseTokenDelta('L1', async () => {
             // Pause deposits before initiating migration
@@ -375,6 +383,7 @@ export class ChainHandler {
         );
         this.expectedSettlementLayer = 'GW';
 
+        await this.resetBaseTokenBalances();
         await this.gwBalanceHandler.resetBaseTokenBalance();
     }
 
@@ -462,6 +471,7 @@ export class ChainHandler {
         });
         
         this.expectedSettlementLayer = 'L1';
+        await this.resetBaseTokenBalances();
         await this.gwBalanceHandler.resetBaseTokenBalance();
     }
 
@@ -484,6 +494,7 @@ export class ChainHandler {
                 'token_balance_migration'
             );
         });
+        await this.resetBaseTokenBalances();
         await this.gwBalanceHandler.resetBaseTokenBalance();
     }
 
@@ -541,6 +552,7 @@ export class ChainHandler {
                 this.gwBalanceHandler.gwL1Balance[token] = (this.gwBalanceHandler.gwL1Balance[token] ?? 0n) - balance;
             }
         }
+        await this.resetBaseTokenBalances();
         await this.gwBalanceHandler.resetBaseTokenBalance();
     }
 
@@ -871,13 +883,11 @@ export class ERC20Handler {
             chainHandler.expectedChainGwBalances[assetId] = (chainHandler.expectedChainGwBalances[assetId] ?? 0n) - withdrawAmount;
         }
 
-        const balanceMapping = chainHandler.prepareWithdrawalFinalizationBalance(assetId, settlementLayerAtInitiation);
-
         return new WithdrawalHandler(
             withdrawTx.hash,
             this.wallet.provider,
             withdrawAmount,
-            balanceMapping,
+            () => chainHandler.prepareWithdrawalFinalizationBalance(assetId, settlementLayerAtInitiation),
             chainHandler.expectedChainPendingWithdrawalBalances,
             assetId
         );
@@ -968,7 +978,7 @@ export class WithdrawalHandler {
     public txHash: string;
     public l2Provider: zksync.Provider;
     public amount: bigint;
-    public tokenBalanceMapping: Record<string, bigint>;
+    public resolveTokenBalanceMapping: () => Record<string, bigint>;
     public pendingWithdrawalMapping: Record<string, bigint>;
     public assetId: string;
 
@@ -976,14 +986,14 @@ export class WithdrawalHandler {
         txHash: string, 
         provider: zksync.Provider, 
         amount: bigint, 
-        tokenBalanceMapping: Record<string, bigint>,
+        resolveTokenBalanceMapping: () => Record<string, bigint>,
         pendingWithdrawalMapping: Record<string, bigint>,
         assetId: string
     ) {
         this.txHash = txHash;
         this.l2Provider = provider;
         this.amount = amount;
-        this.tokenBalanceMapping = tokenBalanceMapping;
+        this.resolveTokenBalanceMapping = resolveTokenBalanceMapping;
         this.pendingWithdrawalMapping = pendingWithdrawalMapping;
         this.assetId = assetId;
     }
@@ -1001,8 +1011,9 @@ export class WithdrawalHandler {
 
         await (await l2Wallet.finalizeWithdrawal(this.txHash)).wait();
 
-        this.tokenBalanceMapping[this.assetId] -= this.amount;
-        this.pendingWithdrawalMapping[this.assetId] -= this.amount;
+        const tokenBalanceMapping = this.resolveTokenBalanceMapping();
+        tokenBalanceMapping[this.assetId] = (tokenBalanceMapping[this.assetId] ?? 0n) - this.amount;
+        this.pendingWithdrawalMapping[this.assetId] = (this.pendingWithdrawalMapping[this.assetId] ?? 0n) - this.amount;
 
     }
 }
