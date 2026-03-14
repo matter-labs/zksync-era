@@ -34,7 +34,6 @@ import {
 import { removeErrorListeners } from '../src/execute-command';
 import { initTestWallet } from '../src/run-integration-tests';
 import { CallStatus, formatEvmV1Address, formatEvmV1Chain, getInteropBundleData } from '../src/temp-sdk';
-import { P } from 'vitest/dist/reporters-w_64AS5f.js';
 
 const tbmMutex = new FileMutex();
 export const RICH_WALLET_L2_BALANCE = ethers.parseEther('10.0');
@@ -241,7 +240,7 @@ export class ChainHandler {
         );
     }
 
-    async initEcosystemContracts(gwWallet: zksync.Wallet) {
+    async initEcosystemContracts(_gwWallet: zksync.Wallet) {
         // Fix baseTokenAssetId: js-yaml parses unquoted hex as a lossy JS number.
         // Query the on-chain NTV for the authoritative asset ID string.
         this.baseTokenAssetId = await this.l1Ntv.assetId(await this.l1BaseTokenContract.getAddress());
@@ -732,7 +731,7 @@ export class GatewayBalanceHandler {
         );
     }
 
-    async initEcosystemContracts(gwWallet: zksync.Wallet) {
+    async initEcosystemContracts(_gwWallet: zksync.Wallet) {
         // Fix baseTokenAssetId: js-yaml parses unquoted hex as a lossy JS number.
         // Query the on-chain NTV for the authoritative asset ID string.
         const contractsConfig = loadConfig({ pathToHome, chain: 'gateway', config: 'contracts.yaml' });

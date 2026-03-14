@@ -9,7 +9,6 @@ import {
     ERC20Handler,
     expectRevertWithSelector,
     TOKEN_MINT_AMOUNT,
-    INTEROP_TEST_AMOUNT,
     sendInteropBundle,
     awaitInteropBundle,
     readAndBroadcastInteropBundle,
