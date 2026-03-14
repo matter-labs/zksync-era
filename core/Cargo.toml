@@ -252,25 +252,25 @@ rust-eigenda-signers = "0.1.6"
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,
 # Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
 
-circuit_encodings = "=0.153.8"
-circuit_sequencer_api = "=0.153.8"
-circuit_definitions = "=0.153.8"
+circuit_encodings = "=0.153.8-1"
+circuit_sequencer_api = "=0.153.8-1"
+circuit_definitions = "=0.153.8-1"
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.32.9" }
 
-kzg = { package = "zksync_kzg", version = "=0.153.8" }
+kzg = { package = "zksync_kzg", version = "=0.153.8-1" }
 
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.8" }
-zk_evm_1_5_2 = { package = "zk_evm", version = "=0.153.8" }
+zk_evm_1_5_2 = { package = "zk_evm", version = "=0.153.8-1" }
 
 fflonk = "=0.32.9"
 bellman = { package = "zksync_bellman", version = "=0.32.9" }
 
 # New VM
-zksync_vm2 = "=0.5.0"
+zksync_vm2 = "=0.5.0-2"
 
 # Consensus dependencies.
 zksync_concurrency = "=0.13"
@@ -358,3 +358,6 @@ zksync_node_api_server = { version = "29.13.0-non-semver-compat", path = "node/a
 zksync_base_token_adjuster = { version = "29.13.0-non-semver-compat", path = "node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "29.13.0-non-semver-compat", path = "node/logs_bloom_backfill" }
 zksync_gateway_migrator = { version = "29.13.0-non-semver-compat", path = "node/gateway_migrator" }
+
+[patch.crates-io]
+sqlx-postgres = { git = "https://github.com/matter-labs/sqlx-postgres.git", rev = "f4bf3674ecc2e96f4b8fb48b4a0bc08b85e0f6f3" }
