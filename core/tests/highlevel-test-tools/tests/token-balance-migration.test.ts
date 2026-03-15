@@ -301,7 +301,12 @@ if (shouldSkip) {
                     }
                 })
             ).resolves.toBe(true);
-            await gwBalanceHandler.assertGWBalance(assetId);
+            // Gateway's L1 balance for the base token is global to the shared gateway chain.
+            // Other high-level suites mutate it by agreeing to pay settlement fees for their chains,
+            // so only non-base assets are deterministic in the full parallel run.
+            if (assetId !== chainHandler.baseTokenAssetId) {
+                await gwBalanceHandler.assertGWBalance(assetId);
+            }
         }
     });
 
@@ -496,7 +501,12 @@ if (shouldSkip) {
                     }
                 })
             ).resolves.toBe(true);
-            await gwBalanceHandler.assertGWBalance(assetId);
+            // Gateway's L1 balance for the base token is shared across all gateway-enabled suites.
+            // Exact assertions for it are only valid in isolation, so keep the strict check for
+            // all other assets and rely on chain-local trackers for the base token here.
+            if (assetId !== chainHandler.baseTokenAssetId) {
+                await gwBalanceHandler.assertGWBalance(assetId);
+            }
         }
     });
 
