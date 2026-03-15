@@ -437,11 +437,6 @@ impl Aggregator {
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)
             .await
             .unwrap();
-        let ready_for_execute_batches = filter_batches_for_current_settlement_layer(
-            ready_for_execute_batches,
-            self.settlement_layer,
-            "execute",
-        );
         let Some(l1_batches) = extract_ready_subrange(
             storage,
             &mut self.execute_criteria,
@@ -618,11 +613,6 @@ impl Aggregator {
                 .await
                 .unwrap()
         };
-        let ready_for_commit_l1_batches = filter_batches_for_current_settlement_layer(
-            ready_for_commit_l1_batches,
-            self.settlement_layer,
-            "commit",
-        );
 
         // Check that the L1 batches that are selected are sequential
         ready_for_commit_l1_batches
@@ -705,18 +695,12 @@ impl Aggregator {
     async fn load_dummy_proof_operations(
         storage: &mut Connection<'_, Core>,
         is_4844_mode: bool,
-        settlement_layer: SettlementLayer,
     ) -> Vec<L1BatchWithMetadata> {
         let mut ready_for_proof_l1_batches = storage
             .blocks_dal()
             .get_ready_for_dummy_proof_l1_batches(1)
             .await
             .unwrap();
-        ready_for_proof_l1_batches = filter_batches_for_current_settlement_layer(
-            ready_for_proof_l1_batches,
-            settlement_layer,
-            "prove",
-        );
 
         // need to find first batch with an unconfirmed commit transaction
         // and discard it and all the following ones.
@@ -899,12 +883,8 @@ impl Aggregator {
             }
 
             ProofSendingMode::SkipEveryProof => {
-                let ready_for_proof_l1_batches = Self::load_dummy_proof_operations(
-                    storage,
-                    self.operate_4844_mode,
-                    self.settlement_layer,
-                )
-                .await;
+                let ready_for_proof_l1_batches =
+                    Self::load_dummy_proof_operations(storage, self.operate_4844_mode).await;
                 self.prepare_dummy_proof_operation(
                     storage,
                     ready_for_proof_l1_batches,
@@ -930,11 +910,6 @@ impl Aggregator {
                         .get_skipped_for_proof_l1_batches(1)
                         .await
                         .unwrap();
-                    let ready_for_proof_batches = filter_batches_for_current_settlement_layer(
-                        ready_for_proof_batches,
-                        self.settlement_layer,
-                        "prove",
-                    );
                     self.prepare_dummy_proof_operation(
                         storage,
                         ready_for_proof_batches,
@@ -976,34 +951,6 @@ async fn extract_ready_subrange(
             .take_while(|l1_batch| l1_batch.header.number <= last_l1_batch)
             .collect(),
     )
-}
-
-fn filter_batches_for_current_settlement_layer(
-    batches: Vec<L1BatchWithMetadata>,
-    settlement_layer: SettlementLayer,
-    operation: &'static str,
-) -> Vec<L1BatchWithMetadata> {
-    let mut skipped_batch_numbers = Vec::new();
-    let filtered_batches: Vec<_> = batches
-        .into_iter()
-        .filter(|batch| {
-            let matches = batch.header.settlement_layer == settlement_layer;
-            if !matches {
-                skipped_batch_numbers.push(batch.header.number);
-            }
-            matches
-        })
-        .collect();
-
-    if !skipped_batch_numbers.is_empty() {
-        tracing::warn!(
-            ?settlement_layer,
-            ?skipped_batch_numbers,
-            "Skipping {operation} candidates from a different settlement layer"
-        );
-    }
-
-    filtered_batches
 }
 
 pub async fn load_wrapped_fri_proofs_for_range(
