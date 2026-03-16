@@ -472,8 +472,7 @@ export class ChainHandler {
 
     async initiateTokenBalanceMigration(direction: 'to-gateway' | 'from-gateway') {
         await this.trackBaseTokenDelta(direction === 'to-gateway' ? 'GW' : 'L1', async () => {
-            await executeCommand(
-                'zkstack',
+            await this.zkstackExecWithMutex(
                 [
                     'chain',
                     'gateway',
@@ -485,7 +484,7 @@ export class ChainHandler {
                     '--chain',
                     this.inner.chainName
                 ],
-                this.inner.chainName,
+                'initiating token balance migration',
                 'token_balance_migration'
             );
         });
@@ -495,8 +494,7 @@ export class ChainHandler {
 
     async finalizeTokenBalanceMigration(direction: 'to-gateway' | 'from-gateway') {
         await this.trackBaseTokenDelta(direction === 'to-gateway' ? 'GW' : 'L1', async () => {
-            await executeCommand(
-                'zkstack',
+            await this.zkstackExecWithMutex(
                 [
                     'chain',
                     'gateway',
@@ -508,7 +506,7 @@ export class ChainHandler {
                     '--chain',
                     this.inner.chainName
                 ],
-                this.inner.chainName,
+                'finalizing token balance migration',
                 'token_balance_migration'
             );
         });
