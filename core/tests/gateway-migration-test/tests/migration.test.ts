@@ -47,8 +47,8 @@ describe('Migration from gateway test', function () {
 
     // The diamond proxy contract on the settlement layer.
     let l1MainContract: ethers.Contract;
-    let gwMainContract: ethers.Contract;
-    let chainGatewayContract: ethers.Contract;
+    let gwMainContract: ethers.Contract | null = null;
+    let chainGatewayContract: ethers.Contract | null = null;
 
     let gatewayChain: string;
     let logs: fs.FileHandle;
@@ -79,11 +79,6 @@ describe('Migration from gateway test', function () {
             chain: fileConfig.chain,
             config: 'contracts.yaml'
         });
-        const chainGatewayConfig = loadConfig({
-            pathToHome,
-            chain: fileConfig.chain,
-            config: 'gateway_chain.yaml'
-        });
         const secretsConfig = loadConfig({
             pathToHome,
             chain: fileConfig.chain,
@@ -101,7 +96,15 @@ describe('Migration from gateway test', function () {
 
         await mainNodeSpawner.killAndSpawnMainNode();
 
-        gatewayRpcUrl = secretsConfig.l1.gateway_rpc_url;
+        const gatewayGeneralConfig = loadConfig({
+            pathToHome,
+            chain: gatewayChain,
+            config: 'general.yaml'
+        });
+        gatewayRpcUrl = gatewayGeneralConfig?.api?.web3_json_rpc?.http_url;
+        if (!gatewayRpcUrl) {
+            throw new Error(`Gateway RPC URL is missing in chains/${gatewayChain}/configs/general.yaml`);
+        }
         tester = await Tester.init(ethProviderAddress!, web3JsonRpc!, gatewayRpcUrl!);
         alice = tester.emptyWallet();
 
@@ -109,16 +112,6 @@ describe('Migration from gateway test', function () {
             contractsConfig.l1.diamond_proxy_addr,
             ZK_CHAIN_INTERFACE,
             tester.syncWallet.providerL1
-        );
-
-        let gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
-        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
-        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
-
-        chainGatewayContract = new ethers.Contract(
-            chainGatewayConfig.diamond_proxy_addr,
-            ZK_CHAIN_INTERFACE,
-            tester.gwProvider
         );
     });
 
@@ -297,11 +290,14 @@ describe('Migration from gateway test', function () {
     });
 
     step('Check the settlement layer on l1 and gateway', async () => {
-        let gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
+        const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!, gatewayChain);
+        if (!gatewayInfo) {
+            throw new Error(`Gateway info is missing for chain ${fileConfig.chain}`);
+        }
         let slMainContract = new ethers.Contract(
-            gatewayInfo?.l2DiamondProxyAddress!,
+            gatewayInfo.l2DiamondProxyAddress,
             ZK_CHAIN_INTERFACE,
-            gatewayInfo?.gatewayProvider
+            gatewayInfo.gatewayProvider
         );
 
         let slAddressl1 = await l1MainContract.getSettlementLayer();
@@ -333,9 +329,12 @@ describe('Migration from gateway test', function () {
             'initializing test wallet for gateway'
         );
 
-        const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
+        const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!, gatewayChain);
+        if (!gatewayInfo) {
+            throw new Error(`Gateway info is missing for chain ${fileConfig.chain}`);
+        }
         const gatewayEcosystemContracts = await getEcosystemContracts(
-            new zksync.Wallet(getMainWalletPk('gateway'), gatewayInfo?.gatewayProvider!, tester.syncWallet.providerL1)
+            new zksync.Wallet(getMainWalletPk(gatewayChain), gatewayInfo.gatewayProvider, tester.syncWallet.providerL1)
         );
         const migrationNumberGateway = await gatewayEcosystemContracts.assetTracker.assetMigrationNumber(
             chainId,
@@ -367,9 +366,11 @@ describe('Migration from gateway test', function () {
     /// Verify that the precommits are enabled on the gateway. This check is enough for making sure
     // precommits are working correctly. The rest of the checks are done by contract.
     step('Verify precommits', async () => {
+        await ensureGatewayContractsInitialized(false);
+        const currentGwMainContract = gwMainContract!;
         const precommitStart = Date.now();
         const precommitTimeoutMs = 5 * 60 * 1000;
-        let gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
+        let gwCommittedBatches = await currentGwMainContract.getTotalBatchesCommitted();
         while (gwCommittedBatches === 1) {
             if (Date.now() - precommitStart > precommitTimeoutMs) {
                 throw new Error(
@@ -378,15 +379,15 @@ describe('Migration from gateway test', function () {
             }
             console.log(`Waiting for at least one batch committed batch on gateway... ${gwCommittedBatches}`);
             await utils.sleep(1);
-            gwCommittedBatches = await gwMainContract.getTotalBatchesCommitted();
+            gwCommittedBatches = await currentGwMainContract.getTotalBatchesCommitted();
         }
 
         // Now we sure that we have at least one batch was committed from the gateway
 
         const currentBlock = await tester.ethProvider.getBlockNumber();
         const fromBlock = Math.max(0, currentBlock - 50000);
-        const filter = gwMainContract.filters.BatchPrecommitmentSet();
-        const events = await gwMainContract.queryFilter(filter, fromBlock, 'latest');
+        const filter = currentGwMainContract.filters.BatchPrecommitmentSet();
+        const events = await currentGwMainContract.queryFilter(filter, fromBlock, 'latest');
         expect(events.length > 0, 'No precommitment events found on the gateway').to.be.true;
     });
 
@@ -394,6 +395,7 @@ describe('Migration from gateway test', function () {
     // This test verifies that the operation fails as expected.
     // TODO: When support is restored in future versions, remove this negative test.
     step('Migrating back to gateway fails', async () => {
+        if (direction == 'TO') return;
         // Pause deposits before trying migration back to gateway
         await zkstackExecWithMutex(
             `zkstack chain pause-deposits --chain ${fileConfig.chain}`,
@@ -406,6 +408,8 @@ describe('Migration from gateway test', function () {
             tryCount += 1;
             await utils.sleep(1);
         }
+        // Wait for all batches to be executed
+        await waitForAllBatchesToBeExecuted(fileConfig.chain!);
 
         try {
             // We use utils.exec instead of utils.spawn to capture stdout/stderr for assertion
@@ -435,8 +439,49 @@ describe('Migration from gateway test', function () {
         if (direction == 'TO') {
             return await l1MainContract.getPriorityQueueSize();
         } else {
-            return await chainGatewayContract.getPriorityQueueSize();
+            await ensureGatewayContractsInitialized(true);
+            return await chainGatewayContract!.getPriorityQueueSize();
         }
+    }
+
+    async function ensureGatewayContractsInitialized(requireChainGatewayContract: boolean): Promise<void> {
+        if (!gwMainContract) {
+            const gatewayContractsConfig = loadConfig({
+                pathToHome,
+                chain: gatewayChain,
+                config: 'contracts.yaml'
+            });
+            const gatewayMainContractAddress = gatewayContractsConfig?.l1?.diamond_proxy_addr;
+            if (!gatewayMainContractAddress || gatewayMainContractAddress === ZeroAddress) {
+                throw new Error(`Gateway main contract address is missing for chain ${gatewayChain} in contracts.yaml`);
+            }
+
+            gwMainContract = new ethers.Contract(
+                gatewayMainContractAddress,
+                ZK_CHAIN_INTERFACE,
+                tester.syncWallet.providerL1
+            );
+        }
+
+        if (!requireChainGatewayContract || chainGatewayContract) {
+            return;
+        }
+
+        const chainGatewayConfig = loadConfig({
+            pathToHome,
+            chain: fileConfig.chain!,
+            config: 'gateway_chain.yaml'
+        });
+        const gatewayChainDiamondProxyAddress = chainGatewayConfig?.diamond_proxy_addr;
+        if (!gatewayChainDiamondProxyAddress || gatewayChainDiamondProxyAddress === ZeroAddress) {
+            throw new Error(`gateway_chain.yaml config not found or invalid for chain ${fileConfig.chain}`);
+        }
+
+        chainGatewayContract = new ethers.Contract(
+            gatewayChainDiamondProxyAddress,
+            ZK_CHAIN_INTERFACE,
+            tester.gwProvider
+        );
     }
 });
 
@@ -521,7 +566,11 @@ async function waitForBatchAdvance(
     }
 }
 
-export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo | null {
+export function getGatewayInfo(
+    pathToHome: string,
+    chain: string,
+    gatewayChain: string = 'gateway'
+): GatewayInfo | null {
     const gatewayChainConfig = loadConfig({
         pathToHome,
         chain,
@@ -531,15 +580,19 @@ export function getGatewayInfo(pathToHome: string, chain: string): GatewayInfo |
         return null;
     }
 
-    const secretsConfig = loadConfig({
+    const gatewayGeneralConfig = loadConfig({
         pathToHome,
-        chain,
-        config: 'secrets.yaml'
+        chain: gatewayChain,
+        config: 'general.yaml'
     });
+    const gatewayRpcUrl = gatewayGeneralConfig?.api?.web3_json_rpc?.http_url;
+    if (!gatewayRpcUrl) {
+        return null;
+    }
 
     return {
         gatewayChainId: gatewayChainConfig.gateway_chain_id,
-        gatewayProvider: new zksync.Provider(secretsConfig.l1.gateway_rpc_url),
+        gatewayProvider: new zksync.Provider(gatewayRpcUrl),
         gatewayCTM: gatewayChainConfig.state_transition_proxy_addr,
         l2ChainAdmin: gatewayChainConfig.chain_admin_addr,
         l2DiamondProxyAddress: gatewayChainConfig.diamond_proxy_addr

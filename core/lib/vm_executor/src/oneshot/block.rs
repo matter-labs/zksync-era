@@ -236,18 +236,45 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         )
         .await?;
 
-        let interop_fee = connection
-            .blocks_dal()
-            .get_l1_batch_interop_fee_if_sealed(resolved_block_info.vm_l1_batch_number)
-            .await
-            .with_context(|| {
-                format!(
-                    "failed loading interop fee for L1 batch #{}",
-                    resolved_block_info.vm_l1_batch_number
-                )
-            })?
-            .or(self.interop_fee_fallback)
-            .unwrap_or_default();
+        // For pending execution, prefer:
+        // 1. fee from currently open (unsealed) batch;
+        // 2. externally provided fallback (e.g. fetched from main node);
+        // 3. fee from latest sealed batch.
+        //
+        // This keeps pending oneshot execution aligned with the sequencer / main node when
+        // interop fee changes between batches.
+        let interop_fee = if resolved_block_info.is_pending {
+            if let Some(unsealed_batch) = connection.blocks_dal().get_unsealed_l1_batch().await? {
+                unsealed_batch.interop_fee
+            } else if let Some(fallback_fee) = self.interop_fee_fallback() {
+                fallback_fee
+            } else {
+                connection
+                    .blocks_dal()
+                    .get_l1_batch_interop_fee_if_sealed(resolved_block_info.vm_l1_batch_number)
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "failed loading interop fee for L1 batch #{}",
+                            resolved_block_info.vm_l1_batch_number
+                        )
+                    })?
+                    .unwrap_or_default()
+            }
+        } else {
+            connection
+                .blocks_dal()
+                .get_l1_batch_interop_fee_if_sealed(resolved_block_info.vm_l1_batch_number)
+                .await
+                .with_context(|| {
+                    format!(
+                        "failed loading interop fee for L1 batch #{}",
+                        resolved_block_info.vm_l1_batch_number
+                    )
+                })?
+                .or_else(|| self.interop_fee_fallback())
+                .unwrap_or_default()
+        };
 
         let (system, l1_batch) = self
             .prepare_env(

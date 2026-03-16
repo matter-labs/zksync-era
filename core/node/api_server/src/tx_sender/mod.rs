@@ -2,7 +2,7 @@
 
 use std::{
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -161,6 +161,12 @@ impl SandboxExecutorOptions {
     pub fn set_interop_fee_fallback(&mut self, interop_fee: U256) {
         self.estimate_gas.set_interop_fee_fallback(interop_fee);
         self.eth_call.set_interop_fee_fallback(interop_fee);
+    }
+
+    pub fn set_interop_fee_fallback_provider(&mut self, interop_fee: Arc<AtomicU64>) {
+        self.estimate_gas
+            .set_interop_fee_fallback_provider(interop_fee.clone());
+        self.eth_call.set_interop_fee_fallback_provider(interop_fee);
     }
 
     pub fn set_vm_dump_object_store(&mut self, store: Arc<dyn ObjectStore>) {
