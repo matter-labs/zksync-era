@@ -11,10 +11,13 @@ use alloy_signer_gcp::GcpSigner;
 use async_trait::async_trait;
 use tokio::sync::OnceCell;
 use zksync_basic_types::{web3, Address, H256};
+use zksync_config::configs::wallets::Wallet;
 use zksync_crypto_primitives::{
     EIP712TypedStructure, Eip712Domain, K256PrivateKey, PackedEthSignature,
 };
-use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, SignerError, TransactionParameters};
+use zksync_eth_signer::{
+    EthereumSigner, PrivateKeySigner, SignerError, Transaction, TransactionParameters,
+};
 
 mod gcp;
 
@@ -24,7 +27,7 @@ mod gcp;
 /// on first use and cached for subsequent calls. Cloned instances share the same
 /// cache via `Arc`, so only one GCP client is created regardless of how many
 /// clones exist.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum OperatorSigner {
     /// Use a local private key for signing.
     Local(PrivateKeySigner),
@@ -36,21 +39,6 @@ pub enum OperatorSigner {
         /// Lazily-initialized GCP signer, shared across clones.
         cached_signer: Arc<OnceCell<GcpSigner>>,
     },
-}
-
-impl Clone for OperatorSigner {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Local(signer) => Self::Local(signer.clone()),
-            Self::GcpKms {
-                resource_name,
-                cached_signer,
-            } => Self::GcpKms {
-                resource_name: resource_name.clone(),
-                cached_signer: cached_signer.clone(),
-            },
-        }
-    }
 }
 
 impl OperatorSigner {
@@ -67,17 +55,12 @@ impl OperatorSigner {
         }
     }
 
-    /// Returns the cached GCP signer, creating it on first call.
-    async fn get_gcp_signer(&self) -> Result<&GcpSigner, SignerError> {
-        match self {
-            Self::GcpKms {
-                resource_name,
-                cached_signer,
-            } => cached_signer
-                .get_or_try_init(|| gcp::create_gcp_signer(resource_name))
-                .await
-                .map_err(|e| SignerError::SigningFailed(e.to_string())),
-            Self::Local(_) => unreachable!(),
+    /// Creates an [`OperatorSigner`] from a [`Wallet`] config.
+    pub fn from_wallet(wallet: &Wallet) -> Self {
+        if let Some(resource) = wallet.gcp_kms_resource() {
+            Self::gcp_kms(resource.to_string())
+        } else {
+            Self::local(wallet.private_key().clone())
         }
     }
 
@@ -93,6 +76,20 @@ impl OperatorSigner {
                 let signer = self.get_gcp_signer().await?;
                 Ok(Address::from_slice(signer.address().as_slice()))
             }
+        }
+    }
+
+    /// Returns the cached GCP signer, creating it on first call.
+    async fn get_gcp_signer(&self) -> Result<&GcpSigner, SignerError> {
+        match self {
+            Self::GcpKms {
+                resource_name,
+                cached_signer,
+            } => cached_signer
+                .get_or_try_init(|| gcp::create_gcp_signer(resource_name))
+                .await
+                .map_err(|e| SignerError::SigningFailed(e.to_string())),
+            Self::Local(_) => unreachable!(),
         }
     }
 
@@ -142,31 +139,20 @@ impl EthereumSigner for OperatorSigner {
         match self {
             Self::Local(signer) => Ok(signer.sign_transaction(raw_tx)),
             Self::GcpKms { .. } => {
-                let tx = zksync_eth_signer::Transaction {
-                    to: raw_tx.to,
-                    nonce: raw_tx.nonce,
-                    gas: raw_tx.gas,
-                    gas_price: raw_tx.max_fee_per_gas,
-                    value: raw_tx.value,
-                    data: raw_tx.data,
-                    transaction_type: raw_tx.transaction_type,
-                    access_list: raw_tx.access_list.unwrap_or_default(),
-                    max_priority_fee_per_gas: raw_tx.max_priority_fee_per_gas,
-                    max_fee_per_blob_gas: raw_tx.max_fee_per_blob_gas,
-                    blob_versioned_hashes: raw_tx.blob_versioned_hashes,
-                };
+                let chain_id = raw_tx.chain_id;
+                let tx = Transaction::from(raw_tx);
 
-                let (message_hash, adjust_v_value) = tx.hash_for_signing(raw_tx.chain_id);
+                let (message_hash, adjust_v_value) = tx.hash_for_signing(chain_id);
                 let (r, s, v) = self.gcp_sign_hash(&message_hash).await?;
 
                 let v = if adjust_v_value {
-                    v as u64 + 35 + raw_tx.chain_id * 2
+                    v as u64 + 35 + chain_id * 2
                 } else {
                     v as u64
                 };
 
                 let signature = web3::Signature { r, s, v };
-                Ok(tx.encode_with_signature(raw_tx.chain_id, &signature))
+                Ok(tx.encode_with_signature(chain_id, &signature))
             }
         }
     }

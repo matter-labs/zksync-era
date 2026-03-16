@@ -66,16 +66,6 @@ impl BaseTokenRatioPersisterLayer {
     }
 }
 
-fn wallet_to_operator_signer(
-    wallet: &zksync_config::configs::wallets::Wallet,
-) -> OperatorSigner {
-    if let Some(resource) = wallet.gcp_kms_resource() {
-        OperatorSigner::gcp_kms(resource.to_string())
-    } else {
-        OperatorSigner::local(wallet.private_key().clone())
-    }
-}
-
 #[async_trait::async_trait]
 impl WiringLayer for BaseTokenRatioPersisterLayer {
     type Input = Input;
@@ -111,7 +101,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let l1_behaviour = if let Some(ref token_multiplier_setter) =
             self.wallets_config.token_multiplier_setter
         {
-            let operator_signer = wallet_to_operator_signer(token_multiplier_setter);
+            let operator_signer = OperatorSigner::from_wallet(token_multiplier_setter);
             let tms_address = operator_signer
                 .address()
                 .await

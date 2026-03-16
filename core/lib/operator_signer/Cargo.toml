@@ -12,6 +12,7 @@ categories.workspace = true
 
 [dependencies]
 zksync_basic_types.workspace = true
+zksync_config.workspace = true
 zksync_crypto_primitives.workspace = true
 zksync_eth_signer.workspace = true
 

@@ -53,14 +53,6 @@ pub struct Output {
     eth_proof_manager: EthProofManager,
 }
 
-fn wallet_to_operator_signer(wallet: &Wallet) -> OperatorSigner {
-    if let Some(resource) = wallet.gcp_kms_resource() {
-        OperatorSigner::gcp_kms(resource.to_string())
-    } else {
-        OperatorSigner::local(wallet.private_key().clone())
-    }
-}
-
 impl EthProofManagerLayer {
     pub fn new(
         eth_proof_manager_config: EthProofManagerConfig,
@@ -88,7 +80,7 @@ impl EthProofManagerLayer {
         owner_wallet: Wallet,
         connection_pool: ConnectionPool<Core>,
     ) -> ProofManagerClient {
-        let operator_signer = wallet_to_operator_signer(&owner_wallet);
+        let operator_signer = OperatorSigner::from_wallet(&owner_wallet);
         let operator_address = operator_signer
             .address()
             .await

@@ -46,31 +46,6 @@ impl DeserializeParam<K256PrivateKey> for K256PrivateKeyDeserializer {
     }
 }
 
-/// Validates the format of a KMS resource name.
-///
-/// Expected format:
-/// `projects/{project}/locations/{location}/keyRings/{ring}/cryptoKeys/{key}/cryptoKeyVersions/{version}`
-fn validate_kms_resource_name(resource_name: &str) -> Result<(), String> {
-    let parts: Vec<&str> = resource_name.split('/').collect();
-    if parts.len() != 10
-        || parts[0] != "projects"
-        || parts[2] != "locations"
-        || parts[4] != "keyRings"
-        || parts[6] != "cryptoKeys"
-        || parts[8] != "cryptoKeyVersions"
-    {
-        return Err(format!(
-            "invalid KMS resource name format: expected \
-             'projects/{{project}}/locations/{{location}}/keyRings/{{ring}}/cryptoKeys/{{key}}/cryptoKeyVersions/{{version}}', \
-             got '{resource_name}'"
-        ));
-    }
-    parts[9]
-        .parse::<u64>()
-        .map_err(|_| format!("invalid key version number: '{}'", parts[9]))?;
-    Ok(())
-}
-
 /// Wallet configuration supporting both local private keys and GCP KMS keys.
 ///
 /// Exactly one of `private_key` or `gcp_kms_resource` must be provided.
@@ -119,7 +94,7 @@ impl Wallet {
                 }
                 Ok(())
             }
-            (None, Some(resource)) => {
+            (None, Some(_)) => {
                 // GCP KMS: address is required since it can only be fetched async from KMS
                 // and many call sites need it synchronously.
                 if self.address.is_none() {
@@ -127,9 +102,8 @@ impl Wallet {
                         "GCP KMS wallet must have `address` configured",
                     ));
                 }
-                // Validate resource name format.
-                validate_kms_resource_name(resource)
-                    .map_err(|e| ErrorWithOrigin::custom(e))?;
+                // Resource name format is validated by `parse_kms_resource_name`
+                // in `operator_signer` at signer creation time.
                 Ok(())
             }
             (Some(_), Some(_)) => Err(ErrorWithOrigin::custom(
@@ -332,22 +306,6 @@ mod tests {
         assert_eq!(err.len(), 1, "{err}");
         let err = err.first().inner().to_string();
         assert!(err.contains("address"), "{err}");
-    }
-
-    #[test]
-    fn parsing_error_gcp_kms_invalid_resource() {
-        let yaml = r#"
-            operator:
-              address: 0xabcf96e1ee478481042a0c4e34cdceceae01b154
-              private_key: ~
-              gcp_kms_resource: "invalid/resource/name"
-        "#;
-        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
-
-        let err = test_complete::<Wallets>(yaml).unwrap_err();
-        assert_eq!(err.len(), 1, "{err}");
-        let err = err.first().inner().to_string();
-        assert!(err.contains("invalid KMS resource name"), "{err}");
     }
 
     #[test]

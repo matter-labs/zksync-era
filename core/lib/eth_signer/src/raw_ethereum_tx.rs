@@ -70,6 +70,24 @@ pub struct Transaction {
     pub blob_versioned_hashes: Option<Vec<H256>>,
 }
 
+impl From<TransactionParameters> for Transaction {
+    fn from(params: TransactionParameters) -> Self {
+        Self {
+            to: params.to,
+            nonce: params.nonce,
+            gas: params.gas,
+            gas_price: params.max_fee_per_gas,
+            value: params.value,
+            data: params.data,
+            transaction_type: params.transaction_type,
+            access_list: params.access_list.unwrap_or_default(),
+            max_priority_fee_per_gas: params.max_priority_fee_per_gas,
+            max_fee_per_blob_gas: params.max_fee_per_blob_gas,
+            blob_versioned_hashes: params.blob_versioned_hashes,
+        }
+    }
+}
+
 impl Transaction {
     fn rlp_append_legacy(&self, stream: &mut RlpStream) {
         stream.append(&self.nonce);
