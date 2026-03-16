@@ -408,6 +408,8 @@ describe('Migration from gateway test', function () {
             tryCount += 1;
             await utils.sleep(1);
         }
+        // Wait for all batches to be executed
+        await waitForAllBatchesToBeExecuted(fileConfig.chain!);
 
         try {
             // We use utils.exec instead of utils.spawn to capture stdout/stderr for assertion
