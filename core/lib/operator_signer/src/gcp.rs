@@ -89,11 +89,9 @@ mod tests {
     fn test_parse_kms_resource_name_invalid() {
         assert!(parse_kms_resource_name("invalid/resource/name").is_err());
         assert!(parse_kms_resource_name("").is_err());
-        assert!(
-            parse_kms_resource_name(
-                "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/notanumber"
-            )
-            .is_err()
-        );
+        assert!(parse_kms_resource_name(
+            "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/notanumber"
+        )
+        .is_err());
     }
 }

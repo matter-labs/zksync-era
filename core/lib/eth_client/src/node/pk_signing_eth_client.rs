@@ -98,8 +98,7 @@ impl WiringLayer for PKSigningEthClientLayer {
 
         let signing_client_for_blobs = match self.blob_operator {
             Some(ref blob_operator) => {
-                let blob_signer =
-                    OperatorSigner::from_wallet(blob_operator);
+                let blob_signer = OperatorSigner::from_wallet(blob_operator);
                 let blob_address = blob_signer
                     .address()
                     .await

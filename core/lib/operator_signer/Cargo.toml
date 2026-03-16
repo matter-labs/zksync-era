@@ -16,10 +16,10 @@ zksync_config.workspace = true
 zksync_crypto_primitives.workspace = true
 zksync_eth_signer.workspace = true
 
-alloy-primitives = "1.4"
-alloy-signer = "1.0"
-alloy-signer-gcp = "1.0"
-gcloud-sdk = { version = "0.27", features = ["google-cloud-kms-v1", "google-longrunning"] }
+alloy-primitives.workspace = true
+alloy-signer.workspace = true
+alloy-signer-gcp.workspace = true
+gcloud-sdk.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 tokio = { workspace = true, features = ["sync"] }

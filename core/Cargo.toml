@@ -110,6 +110,9 @@ categories = ["cryptography"]
 
 [workspace.dependencies]
 # "External" dependencies
+alloy-primitives = "1.4"
+alloy-signer = "1.0"
+alloy-signer-gcp = "1.0"
 anyhow = "1"
 assert_matches = "1.5"
 async-trait = "0.1"
@@ -141,6 +144,7 @@ flate2 = "1.0.28"
 fraction = "0.15.3"
 futures = "0.3"
 futures-util = "0.3"
+gcloud-sdk = { version = "0.27", features = ["google-cloud-kms-v1", "google-longrunning"] }
 glob = "0.3"
 google-cloud-auth = "0.16.0"
 google-cloud-storage = "0.20.0"

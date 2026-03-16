@@ -8,12 +8,11 @@ use tokio::{
 };
 use zksync_block_reverter::{
     eth_client::{
-        clients::{Client, L1, SigningClient},
+        clients::{Client, SigningClient, L1},
         contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts},
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
 };
-use zksync_operator_signer::OperatorSigner;
 use zksync_config::{
     configs::{
         wallets::Wallets, BasicWitnessInputProducerConfig, GenesisConfigWrapper, L1Secrets,
@@ -26,6 +25,7 @@ use zksync_config::{
 use zksync_contracts::getters_facet_contract;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_operator_signer::OperatorSigner;
 use zksync_types::{settlement::SettlementLayer, Address, L1BatchNumber, L2_BRIDGEHUB_ADDRESS};
 
 #[derive(Debug, Parser)]
