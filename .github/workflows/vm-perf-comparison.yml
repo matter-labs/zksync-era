@@ -61,10 +61,10 @@ jobs:
 
       - name: checkout PR
         run: |
-          ci_run git checkout --force FETCH_HEAD
-          ci_run git submodule sync --recursive
-          ci_run git submodule update --init --force
-          ci_run git submodule update --init --recursive
+          git checkout --force FETCH_HEAD
+          git submodule update --init --force
+          git submodule sync --recursive
+          git submodule update --init --recursive
 
       - name: run benchmarks on PR
         shell: bash
