@@ -82,11 +82,14 @@ const ERC20_ZKEVM_BYTECODE = readArtifact('TestnetERC20Token', 'zkout').bytecode
 
 export const INTEROP_TEST_AMOUNT = 1_000_000_000n;
 const INTEROP_CENTER_ABI = readArtifact('InteropCenter').abi;
-const INTEROP_HANDLER_ABI = readArtifact('InteropHandler').abi;
+export const INTEROP_HANDLER_ABI = readArtifact('InteropHandler').abi;
 const ERC7786_ATTR_INTERFACE = new ethers.Interface(readArtifact('IERC7786Attributes').abi);
 
-type AssetTrackerLocation = 'L1AT' | 'L1AT_GW' | 'GWAT';
-const ASSET_TRACKERS: readonly AssetTrackerLocation[] = ['L1AT', 'L1AT_GW', 'GWAT'] as const;
+type AssetTrackerLocation = 'L1AT' | 'GWAT' | 'GWAT_PENDING';
+const ASSERT_TRACKER_LOCATIONS: readonly AssetTrackerLocation[] = ['L1AT', 'GWAT', 'GWAT_PENDING'] as const;
+type AssetTrackerMigrationLocation = Exclude<AssetTrackerLocation, 'GWAT_PENDING'>;
+// GWAT_PENDING is excluded from the default iteration — it is only checked when explicitly specified in balances.
+const ASSET_TRACKERS: readonly AssetTrackerMigrationLocation[] = ['L1AT', 'GWAT'] as const;
 
 export interface InteropCallStarter {
     to: string;
@@ -159,6 +162,8 @@ function getL2Ntv(l2Wallet: zksync.Wallet) {
     return new zksync.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, abi, l2Wallet);
 }
 
+type SL = 'L1' | 'GW';
+
 export class ChainHandler {
     public inner: TestChain;
     public l2RichWallet: zksync.Wallet;
@@ -172,19 +177,43 @@ export class ChainHandler {
     public l1GettersContract: ethers.Contract;
     public gwGettersContract: zksync.Contract;
 
-    //
-    public existingBaseTokenL1ATBalanceForGW = 0n;
+    public gwBalanceHandler: GatewayBalanceHandler;
 
-    // Records expected chain balances for each token asset ID
-    public chainBalances: Record<string, bigint> = {};
-    // Interop sends increase the recipient-side balance tracked on L1AT_GW for each asset.
-    public interopGatewayIncreases: Record<string, bigint> = {};
+    public expectedChainL1Balances: Record<string, bigint> = {};
+    public expectedChainGwBalances: Record<string, bigint> = {};
+    public expectedChainPendingInteropBalances: Record<string, bigint> = {};
+    public expectedChainPendingWithdrawalBalances: Record<string, bigint> = {};
+    public nativeToChainAssetIds = new Set<string>();
 
-    constructor(inner: TestChain, l2RichWallet: zksync.Wallet) {
+    public expectedSettlementLayer: SL = 'L1';
+
+    getExpectedBalances(assetId: string): Record<AssetTrackerLocation, bigint> {
+        // Missing entries mean the helper expects a zero balance and has not seen a state transition for this asset yet.
+        return {
+            L1AT: this.expectedChainL1Balances[assetId] ?? 0n,
+            GWAT: this.expectedChainGwBalances[assetId] ?? 0n,
+            GWAT_PENDING: this.expectedChainPendingInteropBalances[assetId] ?? 0n
+        };
+    }
+
+    async getActualBalances(assetId: string): Promise<Record<AssetTrackerLocation, bigint>> {
+        const l1AtBalance = await this.l1AssetTracker.chainBalance(this.inner.chainId, assetId);
+        const gwAtBalance = await this.gwAssetTracker.chainBalance(this.inner.chainId, assetId);
+        const gwAtPendingBalance = await this.gwAssetTracker.pendingInteropBalance(this.inner.chainId, assetId);
+
+        return {
+            L1AT: l1AtBalance,
+            GWAT: gwAtBalance,
+            GWAT_PENDING: gwAtPendingBalance
+        };
+    }
+
+    constructor(inner: TestChain, l2RichWallet: zksync.Wallet, gwBalanceHandler: GatewayBalanceHandler) {
         const contractsConfig = loadConfig({ pathToHome, chain: inner.chainName, config: 'contracts.yaml' });
 
         this.inner = inner;
         this.l2RichWallet = l2RichWallet;
+        this.gwBalanceHandler = gwBalanceHandler;
 
         this.l1Ntv = new ethers.Contract(
             contractsConfig.ecosystem_contracts.native_token_vault_addr,
@@ -222,26 +251,17 @@ export class ChainHandler {
             readArtifact('L1AssetTracker').abi,
             this.l2RichWallet.ethWallet()
         );
-        this.existingBaseTokenL1ATBalanceForGW = await this.l1AssetTracker.chainBalance(
-            GATEWAY_CHAIN_ID,
-            this.baseTokenAssetId
-        );
         this.gwAssetTracker = new zksync.Contract(
             GW_ASSET_TRACKER_ADDRESS,
             readArtifact('GWAssetTracker').abi,
             gwWallet
         );
+        await this.resetBaseTokenBalances();
     }
 
     async assertAssetTrackersState(
         assetId: string,
-        {
-            balances = {},
-            migrations
-        }: {
-            balances?: Partial<Record<AssetTrackerLocation, bigint>>;
-            migrations?: Record<AssetTrackerLocation, bigint>;
-        }
+        { migrations }: { migrations?: Record<AssetTrackerMigrationLocation, bigint> } = {}
     ): Promise<boolean> {
         const failures: string[] = [];
         const recordFailure = (where: AssetTrackerLocation, err: unknown) => {
@@ -249,19 +269,14 @@ export class ChainHandler {
             failures.push(`[${where}] ${reason}`);
         };
 
-        for (const where of ASSET_TRACKERS) {
-            // Since we have several chains settling on the same gateway in parallel, accounting
-            // for the base token on L1AT_GW can be very tricky, so we just skip it.
-            if (where === 'L1AT_GW' && assetId === this.baseTokenAssetId) continue;
-            const expected = balances?.[where];
-            try {
-                if (expected !== undefined) {
-                    await this.assertChainBalance(assetId, where, expected);
-                } else {
-                    await this.assertChainBalance(assetId, where);
-                }
-            } catch (err) {
-                recordFailure(where, err);
+        const expectedBalances = this.getExpectedBalances(assetId);
+        const actualBalances = await this.getActualBalances(assetId);
+
+        for (const location of ASSERT_TRACKER_LOCATIONS) {
+            const expectedBalance = expectedBalances[location] ?? 0n;
+            const actualBalance = actualBalances[location];
+            if (expectedBalance !== actualBalance) {
+                recordFailure(location, `Balance mismatch: expected ${expectedBalance}, got ${actualBalance}`);
             }
         }
 
@@ -315,8 +330,25 @@ export class ChainHandler {
         throw new Error(`${this.inner.chainName} didn't stop after a kill request`);
     }
 
+    async getGatewayBaseTokenL1Balance(): Promise<bigint> {
+        return await this.gwBalanceHandler.l1AssetTracker!.chainBalance(GATEWAY_CHAIN_ID, this.baseTokenAssetId);
+    }
+
+    // zkstack CLI migration flows can spend or reshuffle the chain's base token in ways the test harness
+    // does not model exactly. For those operations we refresh the chain's base-token balances from trackers.
+    async resetBaseTokenBalances() {
+        this.expectedChainL1Balances[this.baseTokenAssetId] = await this.l1AssetTracker.chainBalance(
+            this.inner.chainId,
+            this.baseTokenAssetId
+        );
+        this.expectedChainGwBalances[this.baseTokenAssetId] = await this.gwAssetTracker.chainBalance(
+            this.inner.chainId,
+            this.baseTokenAssetId
+        );
+    }
+
     async migrateToGateway() {
-        await this.trackBaseTokenDelta(async () => {
+        await this.trackBaseTokenDelta('L1', async () => {
             // Pause deposits before initiating migration
             await this.zkstackExecWithMutex(
                 ['chain', 'pause-deposits', '--chain', this.inner.chainName],
@@ -344,16 +376,14 @@ export class ChainHandler {
             readArtifact('Getters', 'out', 'GettersFacet').abi,
             new zksync.Provider(secretsConfig.l1.gateway_rpc_url)
         );
+        this.expectedSettlementLayer = 'GW';
 
-        // Redefine
-        this.existingBaseTokenL1ATBalanceForGW = await this.l1AssetTracker.chainBalance(
-            GATEWAY_CHAIN_ID,
-            this.baseTokenAssetId
-        );
+        await this.resetBaseTokenBalances();
+        await this.gwBalanceHandler.resetBaseTokenBalance();
     }
 
     async migrateFromGateway() {
-        await this.trackBaseTokenDelta(async () => {
+        await this.trackBaseTokenDelta('GW', async () => {
             // Pause deposits before initiating migration
             await this.zkstackExecWithMutex(
                 ['chain', 'pause-deposits', '--chain', this.inner.chainName],
@@ -434,10 +464,14 @@ export class ChainHandler {
             await this.waitForShutdown();
             await this.startServer();
         });
+
+        this.expectedSettlementLayer = 'L1';
+        await this.resetBaseTokenBalances();
+        await this.gwBalanceHandler.resetBaseTokenBalance();
     }
 
     async initiateTokenBalanceMigration(direction: 'to-gateway' | 'from-gateway') {
-        await this.trackBaseTokenDelta(async () => {
+        await this.trackBaseTokenDelta(direction === 'to-gateway' ? 'GW' : 'L1', async () => {
             await executeCommand(
                 'zkstack',
                 [
@@ -455,10 +489,12 @@ export class ChainHandler {
                 'token_balance_migration'
             );
         });
+        await this.resetBaseTokenBalances();
+        await this.gwBalanceHandler.resetBaseTokenBalance();
     }
 
     async finalizeTokenBalanceMigration(direction: 'to-gateway' | 'from-gateway') {
-        await this.trackBaseTokenDelta(async () => {
+        await this.trackBaseTokenDelta(direction === 'to-gateway' ? 'GW' : 'L1', async () => {
             await executeCommand(
                 'zkstack',
                 [
@@ -476,9 +512,47 @@ export class ChainHandler {
                 'token_balance_migration'
             );
         });
+
+        if (direction === 'to-gateway') {
+            for (const token of this.nativeToChainAssetIds) {
+                this.ensureTrackedL1Balance(token);
+            }
+
+            const assetsToMigrate = new Set<string>([
+                ...Object.keys(this.expectedChainL1Balances),
+                ...Object.keys(this.expectedChainPendingWithdrawalBalances)
+            ]);
+            for (const token of assetsToMigrate) {
+                this.ensureTrackedL1Balance(token);
+                const balance = this.expectedChainL1Balances[token] ?? 0n;
+                if (balance === 0n) {
+                    continue;
+                }
+
+                const toKeepOnL1 = this.expectedChainPendingWithdrawalBalances[token] ?? 0n;
+                const amountToMoveToGw = balance - toKeepOnL1;
+                this.expectedChainGwBalances[token] = (this.expectedChainGwBalances[token] ?? 0n) + amountToMoveToGw;
+                this.expectedChainL1Balances[token] = toKeepOnL1;
+                this.gwBalanceHandler.gwL1Balance[token] =
+                    (this.gwBalanceHandler.gwL1Balance[token] ?? 0n) + amountToMoveToGw;
+            }
+        } else if (direction === 'from-gateway') {
+            for (const token of Object.keys(this.expectedChainGwBalances)) {
+                const balance = this.expectedChainGwBalances[token] ?? 0n;
+                if (balance === 0n) {
+                    continue;
+                }
+
+                this.expectedChainL1Balances[token] = (this.expectedChainL1Balances[token] ?? 0n) + balance;
+                this.expectedChainGwBalances[token] = 0n;
+                this.gwBalanceHandler.gwL1Balance[token] = (this.gwBalanceHandler.gwL1Balance[token] ?? 0n) - balance;
+            }
+        }
+        await this.resetBaseTokenBalances();
+        await this.gwBalanceHandler.resetBaseTokenBalance();
     }
 
-    static async createNewChain(chainType: ChainType): Promise<ChainHandler> {
+    static async createNewChain(chainType: ChainType, gwBalanceHandler: GatewayBalanceHandler): Promise<ChainHandler> {
         const testChain = await createChainAndStartServer(chainType, TEST_SUITE_NAME, false);
 
         // We need to kill the server first to set the gateway RPC URL in secrets.yaml
@@ -500,7 +574,7 @@ export class ChainHandler {
         await sleep(5000);
         await initTestWallet(testChain.chainName);
 
-        return new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName));
+        return new ChainHandler(testChain, await generateChainRichWallet(testChain.chainName), gwBalanceHandler);
     }
 
     private async zkstackExecWithMutex(command: string[], name: string, logFileName: string) {
@@ -524,39 +598,6 @@ export class ChainHandler {
         }
     }
 
-    private async assertChainBalance(
-        assetId: string,
-        where: 'L1AT' | 'L1AT_GW' | 'GWAT',
-        expectedBalance?: bigint
-    ): Promise<boolean> {
-        let balance = expectedBalance ?? this.chainBalances[assetId] ?? 0n;
-        let contract: ethers.Contract | zksync.Contract;
-        if (where === 'L1AT' || where === 'L1AT_GW') {
-            contract = this.l1AssetTracker;
-        } else if (where === 'GWAT') {
-            contract = this.gwAssetTracker;
-        }
-        const chainId = where === 'L1AT_GW' ? GATEWAY_CHAIN_ID : this.inner.chainId;
-        balance +=
-            where === 'L1AT_GW' && assetId === this.baseTokenAssetId ? this.existingBaseTokenL1ATBalanceForGW : 0n;
-        const actualBalance = await contract!.chainBalance(chainId, assetId);
-
-        if (assetId === this.baseTokenAssetId && (where === 'GWAT' || where === 'L1AT')) {
-            // Here we have to account for some balance drift from the migrate_token_balances.rs script
-            const tolerance = ethers.parseEther('0.005');
-            const diff = actualBalance > balance ? actualBalance - balance : balance - actualBalance;
-            if (diff > tolerance) {
-                throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
-            }
-            return true;
-        }
-
-        if (actualBalance !== balance) {
-            throw new Error(`Balance mismatch for ${where} ${assetId}: expected ${balance}, got ${actualBalance}`);
-        }
-        return true;
-    }
-
     /// Returns the total base token chain balance across L1AT and GWAT.
     /// The sum is always valid regardless of migration phase, since at any point
     /// the chain's balance is split between L1AT and GWAT.
@@ -570,38 +611,61 @@ export class ChainHandler {
 
     /// Executes an action and tracks any base token chain balance change caused by it.
     /// This captures gas spent on L1/GW priority operations that increase chain balance.
-    async trackBaseTokenDelta(action: () => Promise<void>): Promise<void> {
+    async trackBaseTokenDelta(layerToAttribute: SL, action: () => Promise<void>): Promise<void> {
         const before = await this.getTotalBaseTokenChainBalance();
         await action();
         const after = await this.getTotalBaseTokenChainBalance();
         const delta = after - before;
         if (delta !== 0n) {
-            this.chainBalances[this.baseTokenAssetId] = (this.chainBalances[this.baseTokenAssetId] ?? 0n) + delta;
+            if (layerToAttribute === 'L1') {
+                this.expectedChainL1Balances[this.baseTokenAssetId] =
+                    (this.expectedChainL1Balances[this.baseTokenAssetId] ?? 0n) + delta;
+            } else if (layerToAttribute === 'GW') {
+                this.expectedChainGwBalances[this.baseTokenAssetId] =
+                    (this.expectedChainGwBalances[this.baseTokenAssetId] ?? 0n) + delta;
+            }
         }
     }
 
-    async accountForSentInterop(token: ERC20Handler, amount: bigint = INTEROP_TEST_AMOUNT): Promise<void> {
+    async registerOriginToken(token: ERC20Handler) {
+        this.nativeToChainAssetIds.add(await token.assetId(this));
+    }
+
+    async accountForSentInterop(
+        token: ERC20Handler,
+        destChainHandler: ChainHandler,
+        amount: bigint = INTEROP_TEST_AMOUNT
+    ): Promise<void> {
         const assetId = await token.assetId(this);
-        // For L2-native tokens we use MaxUint256 as the starting expected balance when not tracked yet.
-        const currentBalance = this.chainBalances[assetId] ?? (token.isL2Token ? ethers.MaxUint256 : 0n);
-        this.chainBalances[assetId] = currentBalance - amount;
-        this.interopGatewayIncreases[assetId] = (this.interopGatewayIncreases[assetId] ?? 0n) + amount;
+        this.ensureTrackedGwBalance(assetId);
+        const currentBalance = this.expectedChainGwBalances[assetId] ?? 0n;
+        this.expectedChainGwBalances[assetId] = currentBalance - amount;
+        destChainHandler.expectedChainPendingInteropBalances[assetId] =
+            (destChainHandler.expectedChainPendingInteropBalances[assetId] ?? 0n) + amount;
+    }
+
+    async confirmReceivedInterop(token: ERC20Handler, amount: bigint = INTEROP_TEST_AMOUNT) {
+        const assetId = await token.assetId(this);
+        const pending = this.expectedChainPendingInteropBalances[assetId] ?? 0n;
+        if (pending < amount) {
+            throw new Error(`Trying to confirm more interop balance than pending: ${amount} > ${pending}`);
+        }
+        this.expectedChainPendingInteropBalances[assetId] = pending - amount;
+        this.expectedChainGwBalances[assetId] = (this.expectedChainGwBalances[assetId] ?? 0n) + amount;
     }
 
     private async assertAssetMigrationNumber(
         assetId: string,
-        where: 'L1AT' | 'L1AT_GW' | 'GWAT',
+        where: AssetTrackerMigrationLocation,
         expectedMigrationNumber: bigint
     ): Promise<boolean> {
         let contract: ethers.Contract | zksync.Contract;
-        if (where === 'L1AT' || where === 'L1AT_GW') {
+        if (where === 'L1AT') {
             contract = this.l1AssetTracker;
         } else if (where === 'GWAT') {
             contract = this.gwAssetTracker;
         }
-        // After migration to gateway, the chain balances of the chain on L1AT are accounted for inside GW's chain balance
-        const chainId = where === 'L1AT_GW' ? GATEWAY_CHAIN_ID : this.inner.chainId;
-        const actualMigrationNumber = await contract!.assetMigrationNumber(chainId, assetId);
+        const actualMigrationNumber = await contract!.assetMigrationNumber(this.inner.chainId, assetId);
         if (actualMigrationNumber !== expectedMigrationNumber) {
             throw new Error(
                 `Asset migration number mismatch for ${where} ${assetId}: expected ${expectedMigrationNumber}, got ${actualMigrationNumber}`
@@ -610,11 +674,89 @@ export class ChainHandler {
         return true;
     }
 
+    private ensureTrackedL1Balance(assetId: string) {
+        if (this.expectedChainL1Balances[assetId] !== undefined) {
+            return;
+        }
+        this.expectedChainL1Balances[assetId] = this.nativeToChainAssetIds.has(assetId) ? ethers.MaxUint256 : 0n;
+    }
+
+    private ensureTrackedGwBalance(assetId: string) {
+        if (this.expectedChainGwBalances[assetId] === undefined) {
+            this.expectedChainGwBalances[assetId] = 0n;
+        }
+    }
+
+    prepareWithdrawalFinalizationBalance(assetId: string, settlementLayerAtInitiation: SL): Record<string, bigint> {
+        if (settlementLayerAtInitiation === 'L1') {
+            this.ensureTrackedL1Balance(assetId);
+            return this.expectedChainL1Balances;
+        }
+
+        if (this.gwBalanceHandler.gwL1Balance[assetId] === undefined) {
+            this.gwBalanceHandler.gwL1Balance[assetId] = 0n;
+        }
+        return this.gwBalanceHandler.gwL1Balance;
+    }
+
     private async waitForPriorityQueueToBeEmpty(gettersContract: ethers.Contract | zksync.Contract) {
         let tryCount = 0;
         while ((await gettersContract.getPriorityQueueSize()) > 0 && tryCount < 100) {
             tryCount += 1;
             await zksync.utils.sleep(this.l2RichWallet.provider.pollingInterval);
+        }
+    }
+}
+
+export class GatewayBalanceHandler {
+    // Records expected chain balances for each token asset ID
+    public gwL1Balance: Record<string, bigint> = {};
+    public l1Ntv: ethers.Contract;
+    public l1AssetTracker: ethers.Contract | null = null;
+    public baseTokenAssetId: string;
+    public l1Provider: ethers.JsonRpcProvider;
+
+    constructor() {
+        const contractsConfig = loadConfig({ pathToHome, chain: 'gateway', config: 'contracts.yaml' });
+        const secretsConfig = loadConfig({ pathToHome, chain: 'gateway', config: 'secrets.yaml' });
+        const ethProviderAddress = secretsConfig.l1.l1_rpc_url;
+        this.l1Provider = new ethers.JsonRpcProvider(ethProviderAddress);
+
+        this.baseTokenAssetId = contractsConfig.l1.base_token_asset_id;
+
+        this.l1Ntv = new ethers.Contract(
+            contractsConfig.ecosystem_contracts.native_token_vault_addr,
+            readArtifact('L1NativeTokenVault').abi,
+            this.l1Provider
+        );
+    }
+
+    async initEcosystemContracts(_gwWallet: zksync.Wallet) {
+        // Fix baseTokenAssetId: js-yaml parses unquoted hex as a lossy JS number.
+        // Query the on-chain NTV for the authoritative asset ID string.
+        const contractsConfig = loadConfig({ pathToHome, chain: 'gateway', config: 'contracts.yaml' });
+        this.baseTokenAssetId = await this.l1Ntv.assetId(contractsConfig.l1.base_token_addr);
+        const l1AssetTrackerAddr = await this.l1Ntv.l1AssetTracker();
+        this.l1AssetTracker = new ethers.Contract(
+            l1AssetTrackerAddr,
+            readArtifact('L1AssetTracker').abi,
+            this.l1Provider
+        );
+    }
+
+    // Should be called after uncontrolled operations where we can not know the correct balance.
+    async resetBaseTokenBalance() {
+        const balance = await this.l1AssetTracker!.chainBalance(GATEWAY_CHAIN_ID, this.baseTokenAssetId);
+        this.gwL1Balance[this.baseTokenAssetId] = balance;
+    }
+
+    async assertGWBalance(assetId: string) {
+        const expectedBalance = this.gwL1Balance[assetId] ?? 0n;
+        const currentBalance = await this.l1AssetTracker!.chainBalance(GATEWAY_CHAIN_ID, assetId);
+        if (currentBalance !== expectedBalance) {
+            throw new Error(
+                `GW L1 balance mismatch for ${assetId}: expected ${expectedBalance}, got ${currentBalance}`
+            );
         }
     }
 }
@@ -653,10 +795,10 @@ export class ERC20Handler {
         return assetId;
     }
 
-    async deposit(chainHandler: ChainHandler) {
+    async deposit(chainHandler: ChainHandler, handler: GatewayBalanceHandler = chainHandler.gwBalanceHandler) {
         // For non-base-token deposits, measure the base token chain balance delta.
         // ERC20 deposits also send base token for L2 gas, which the asset tracker tracks
-        // but would otherwise be unaccounted for in our local chainBalances.
+        // but would otherwise be unaccounted for in our local expected balances.
         const trackBaseToken = !this.isBaseToken && !!chainHandler.baseTokenAssetId;
         const baseTokenBefore = trackBaseToken ? await chainHandler.getTotalBaseTokenChainBalance() : 0n;
 
@@ -672,19 +814,31 @@ export class ERC20Handler {
         await waitForBalanceNonZero(this.l2Contract!, this.wallet);
 
         const assetId = await this.assetId(chainHandler);
-        chainHandler.chainBalances[assetId] = (chainHandler.chainBalances[assetId] ?? 0n) + TOKEN_MINT_AMOUNT;
+        const balanceMapping =
+            chainHandler.expectedSettlementLayer === 'L1'
+                ? chainHandler.expectedChainL1Balances
+                : chainHandler.expectedChainGwBalances;
+
+        balanceMapping[assetId] = (balanceMapping[assetId] ?? 0n) + TOKEN_MINT_AMOUNT;
+        if (chainHandler.expectedSettlementLayer === 'GW') {
+            handler.gwL1Balance[assetId] = (handler.gwL1Balance[assetId] ?? 0n) + TOKEN_MINT_AMOUNT;
+        }
 
         if (trackBaseToken) {
             const baseTokenAfter = await chainHandler.getTotalBaseTokenChainBalance();
             const baseTokenDelta = baseTokenAfter - baseTokenBefore;
             if (baseTokenDelta > 0n) {
-                chainHandler.chainBalances[chainHandler.baseTokenAssetId] =
-                    (chainHandler.chainBalances[chainHandler.baseTokenAssetId] ?? 0n) + baseTokenDelta;
+                balanceMapping[chainHandler.baseTokenAssetId] =
+                    (balanceMapping[chainHandler.baseTokenAssetId] ?? 0n) + baseTokenDelta;
+                if (chainHandler.expectedSettlementLayer === 'GW') {
+                    handler.gwL1Balance[chainHandler.baseTokenAssetId] =
+                        (handler.gwL1Balance[chainHandler.baseTokenAssetId] ?? 0n) + baseTokenDelta;
+                }
             }
         }
     }
 
-    async withdraw(amount?: bigint): Promise<WithdrawalHandler> {
+    async withdraw(chainHandler: ChainHandler, amount?: bigint): Promise<WithdrawalHandler> {
         const withdrawAmount = amount ?? getRandomWithdrawAmount();
 
         let isETHBaseToken = false;
@@ -719,7 +873,23 @@ export class ERC20Handler {
         });
         await withdrawTx.wait();
 
-        return new WithdrawalHandler(withdrawTx.hash, this.wallet.provider, withdrawAmount);
+        const assetId = await this.assetId(chainHandler);
+        const settlementLayerAtInitiation = chainHandler.expectedSettlementLayer;
+        chainHandler.expectedChainPendingWithdrawalBalances[assetId] =
+            (chainHandler.expectedChainPendingWithdrawalBalances[assetId] ?? 0n) + withdrawAmount;
+        if (settlementLayerAtInitiation === 'GW') {
+            chainHandler.expectedChainGwBalances[assetId] =
+                (chainHandler.expectedChainGwBalances[assetId] ?? 0n) - withdrawAmount;
+        }
+
+        return new WithdrawalHandler(
+            withdrawTx.hash,
+            this.wallet.provider,
+            withdrawAmount,
+            () => chainHandler.prepareWithdrawalFinalizationBalance(assetId, settlementLayerAtInitiation),
+            chainHandler.expectedChainPendingWithdrawalBalances,
+            assetId
+        );
     }
 
     async setL2Contract(chainHandler: ChainHandler) {
@@ -789,7 +959,9 @@ export class ERC20Handler {
 
         await (await chainHandler.l2Ntv.registerToken(await l2Contract.getAddress())).wait();
 
-        return new ERC20Handler(chainHandler.l2RichWallet, undefined, l2Contract);
+        const handler = new ERC20Handler(chainHandler.l2RichWallet, undefined, l2Contract);
+        await chainHandler.registerOriginToken(handler);
+        return handler;
     }
 
     private static generateRandomTokenProps() {
@@ -805,11 +977,24 @@ export class WithdrawalHandler {
     public txHash: string;
     public l2Provider: zksync.Provider;
     public amount: bigint;
+    public resolveTokenBalanceMapping: () => Record<string, bigint>;
+    public pendingWithdrawalMapping: Record<string, bigint>;
+    public assetId: string;
 
-    constructor(txHash: string, provider: zksync.Provider, amount: bigint) {
+    constructor(
+        txHash: string,
+        provider: zksync.Provider,
+        amount: bigint,
+        resolveTokenBalanceMapping: () => Record<string, bigint>,
+        pendingWithdrawalMapping: Record<string, bigint>,
+        assetId: string
+    ) {
         this.txHash = txHash;
         this.l2Provider = provider;
         this.amount = amount;
+        this.resolveTokenBalanceMapping = resolveTokenBalanceMapping;
+        this.pendingWithdrawalMapping = pendingWithdrawalMapping;
+        this.assetId = assetId;
     }
 
     async finalizeWithdrawal(l1RichWallet: ethers.Wallet) {
@@ -824,6 +1009,10 @@ export class WithdrawalHandler {
         await waitForL2ToL1LogProof(l2Wallet, receipt.blockNumber, this.txHash);
 
         await (await l2Wallet.finalizeWithdrawal(this.txHash)).wait();
+
+        const tokenBalanceMapping = this.resolveTokenBalanceMapping();
+        tokenBalanceMapping[this.assetId] = (tokenBalanceMapping[this.assetId] ?? 0n) - this.amount;
+        this.pendingWithdrawalMapping[this.assetId] = (this.pendingWithdrawalMapping[this.assetId] ?? 0n) - this.amount;
     }
 }
 
@@ -985,30 +1174,30 @@ export async function readAndBroadcastInteropBundle(
     wallet: zksync.Wallet,
     senderProvider: zksync.Provider,
     txHash: string
-) {
+): Promise<ethers.TransactionReceipt | null> {
     // Get interop trigger and bundle data from the sender chain.
     const executionBundle = await getInteropBundleData(senderProvider, txHash);
-    if (executionBundle.output == null) return;
+    if (executionBundle.output == null) return null;
 
     const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
-    const receipt = await interopHandler.executeBundle(executionBundle.rawData, executionBundle.proofDecoded);
-    await receipt.wait();
+    const tx = await interopHandler.executeBundle(executionBundle.rawData, executionBundle.proofDecoded);
+    return await tx.wait();
 }
 
 export async function readAndUnbundleInteropBundle(
     wallet: zksync.Wallet,
     senderProvider: zksync.Provider,
     txHash: string
-) {
+): Promise<ethers.TransactionReceipt | null> {
     const data = await getInteropBundleData(senderProvider, txHash);
-    if (data.output == null) return;
+    if (data.output == null) return null;
 
     const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
     // Verify the bundle
     await (await interopHandler.verifyBundle(data.rawData, data.proofDecoded)).wait();
     // Unbundle the bundle, we will just set the call to `Executed`
     const callStatuses = [CallStatus.Executed];
-    await (await interopHandler.unbundleBundle(data.rawData, callStatuses)).wait();
+    return await (await interopHandler.unbundleBundle(data.rawData, callStatuses)).wait();
 }
 
 /**
@@ -1078,4 +1267,21 @@ export function getGWBlockNumber(params: zksync.types.FinalizeWithdrawalParams):
     /// see hashProof in MessageHashing.sol for this logic.
     let gwProofIndex = 1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
     return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
+}
+
+export async function attemptExecuteBundle(wallet: zksync.Wallet): Promise<void> {
+    const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
+    const dummyProof: MessageInclusionProof = {
+        chainId: 0n,
+        l1BatchNumber: 0,
+        l2MessageIndex: 0,
+        message: [0, ethers.ZeroAddress, '0x'],
+        proof: []
+    };
+    await interopHandler.executeBundle.staticCall('0x', dummyProof);
+}
+
+export async function attemptUnbundleBundle(wallet: zksync.Wallet): Promise<void> {
+    const interopHandler = new zksync.Contract(L2_INTEROP_HANDLER_ADDRESS, INTEROP_HANDLER_ABI, wallet);
+    await interopHandler.unbundleBundle.staticCall('0x', []);
 }
