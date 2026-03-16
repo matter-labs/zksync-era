@@ -1,5 +1,25 @@
 # Changelog
 
+## [29.13.1](https://github.com/matter-labs/zksync-era/compare/core-v29.13.0...core-v29.13.1) (2026-03-13)
+
+
+### Bug Fixes
+
+* automated protocol upgrade for zksync-era-allow-decommits ([#4712](https://github.com/matter-labs/zksync-era/issues/4712)) ([10cab72](https://github.com/matter-labs/zksync-era/commit/10cab726392defb296914a6839f26b48aa61d59f))
+* **db:** rollback stale transactions on pool release and drain pools on shutdown ([#4710](https://github.com/matter-labs/zksync-era/issues/4710)) ([f0114f8](https://github.com/matter-labs/zksync-era/commit/f0114f8a1544d93e9848bb9e62f911adfd759658))
+
+## [29.13.0](https://github.com/matter-labs/zksync-era/compare/core-v29.12.0...core-v29.13.0) (2026-03-11)
+
+
+### Features
+
+* **proving networks:** add reward tracking ([#4609](https://github.com/matter-labs/zksync-era/issues/4609)) ([7726eb8](https://github.com/matter-labs/zksync-era/commit/7726eb87dcf0a601e62ad74ea0f4a35ce0e05e4e))
+
+
+### Bug Fixes
+
+* **contract_verifier:** Optimize DB space usage ([#4701](https://github.com/matter-labs/zksync-era/issues/4701)) ([510df0d](https://github.com/matter-labs/zksync-era/commit/510df0ddbf711dddde2998b726a02377111317e4))
+
 ## [29.12.0](https://github.com/matter-labs/zksync-era/compare/core-v29.11.1...core-v29.12.0) (2026-03-04)
 
 
