@@ -22,7 +22,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_operator_signer::{OperatorSigner, SignerConfig};
+use zksync_operator_signer::OperatorSigner;
 use zksync_types::{
     commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, url::SensitiveUrl,
     L2ChainId, SLChainId,
@@ -53,13 +53,11 @@ pub struct Output {
     eth_proof_manager: EthProofManager,
 }
 
-fn wallet_to_signer_config(wallet: &Wallet) -> SignerConfig {
+fn wallet_to_operator_signer(wallet: &Wallet) -> OperatorSigner {
     if let Some(resource) = wallet.gcp_kms_resource() {
-        SignerConfig::GcpKms {
-            resource_name: resource.to_string(),
-        }
+        OperatorSigner::gcp_kms(resource.to_string())
     } else {
-        SignerConfig::Local(wallet.private_key().clone())
+        OperatorSigner::local(wallet.private_key().clone())
     }
 }
 
@@ -90,8 +88,7 @@ impl EthProofManagerLayer {
         owner_wallet: Wallet,
         connection_pool: ConnectionPool<Core>,
     ) -> ProofManagerClient {
-        let signer_config = wallet_to_signer_config(&owner_wallet);
-        let operator_signer = OperatorSigner::from_config(signer_config);
+        let operator_signer = wallet_to_operator_signer(&owner_wallet);
         let operator_address = operator_signer
             .address()
             .await

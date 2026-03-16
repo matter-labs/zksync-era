@@ -19,7 +19,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_operator_signer::{OperatorSigner, SignerConfig};
+use zksync_operator_signer::OperatorSigner;
 use zksync_types::{settlement::SettlementLayer, L1ChainId};
 
 use crate::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
@@ -66,13 +66,13 @@ impl BaseTokenRatioPersisterLayer {
     }
 }
 
-fn wallet_to_signer_config(wallet: &zksync_config::configs::wallets::Wallet) -> SignerConfig {
+fn wallet_to_operator_signer(
+    wallet: &zksync_config::configs::wallets::Wallet,
+) -> OperatorSigner {
     if let Some(resource) = wallet.gcp_kms_resource() {
-        SignerConfig::GcpKms {
-            resource_name: resource.to_string(),
-        }
+        OperatorSigner::gcp_kms(resource.to_string())
     } else {
-        SignerConfig::Local(wallet.private_key().clone())
+        OperatorSigner::local(wallet.private_key().clone())
     }
 }
 
@@ -111,8 +111,7 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let l1_behaviour = if let Some(ref token_multiplier_setter) =
             self.wallets_config.token_multiplier_setter
         {
-            let signer_config = wallet_to_signer_config(token_multiplier_setter);
-            let operator_signer = OperatorSigner::from_config(signer_config);
+            let operator_signer = wallet_to_operator_signer(token_multiplier_setter);
             let tms_address = operator_signer
                 .address()
                 .await

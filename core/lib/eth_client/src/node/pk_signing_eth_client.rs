@@ -3,7 +3,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_operator_signer::{OperatorSigner, SignerConfig};
+use zksync_operator_signer::OperatorSigner;
 use zksync_shared_resources::contracts::{
     L1ChainContractsResource, SettlementLayerContractsResource,
 };
@@ -55,13 +55,11 @@ impl PKSigningEthClientLayer {
     }
 }
 
-fn wallet_to_signer_config(wallet: &wallets::Wallet) -> SignerConfig {
+fn wallet_to_operator_signer(wallet: &wallets::Wallet) -> OperatorSigner {
     if let Some(resource) = wallet.gcp_kms_resource() {
-        SignerConfig::GcpKms {
-            resource_name: resource.to_string(),
-        }
+        OperatorSigner::gcp_kms(resource.to_string())
     } else {
-        SignerConfig::Local(wallet.private_key().clone())
+        OperatorSigner::local(wallet.private_key().clone())
     }
 }
 
@@ -88,7 +86,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             .await
             .map_err(WiringError::internal)?;
 
-        let operator_signer = OperatorSigner::from_config(wallet_to_signer_config(&self.operator));
+        let operator_signer = wallet_to_operator_signer(&self.operator);
         let operator_address = operator_signer
             .address()
             .await
@@ -109,7 +107,7 @@ impl WiringLayer for PKSigningEthClientLayer {
         let signing_client_for_blobs = match self.blob_operator {
             Some(ref blob_operator) => {
                 let blob_signer =
-                    OperatorSigner::from_config(wallet_to_signer_config(blob_operator));
+                    wallet_to_operator_signer(blob_operator);
                 let blob_address = blob_signer
                     .address()
                     .await

@@ -2590,6 +2590,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_object_store",
+ "zksync_operator_signer",
  "zksync_types",
  "zksync_vlog",
 ]

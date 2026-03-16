@@ -1,7 +1,7 @@
 //! Operator signer abstraction supporting local private keys and GCP KMS.
 //!
-//! This crate provides [`SignerConfig`] for configuration and [`OperatorSigner`] which
-//! implements [`EthereumSigner`] for use with [`SigningClient`](zksync_eth_signer).
+//! This crate provides [`OperatorSigner`] which implements [`EthereumSigner`]
+//! for use with [`SigningClient`](zksync_eth_signer).
 
 use std::sync::Arc;
 
@@ -18,64 +18,66 @@ use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, SignerError, Transacti
 
 mod gcp;
 
-/// Configuration for how a signing key is provided.
+/// Operator signer supporting both local private keys and GCP KMS.
 ///
-/// This is a pure configuration type — it describes *where* the key lives but does
-/// not hold any initialized signer. Use [`OperatorSigner::from_config`] to create
-/// an active signer from this configuration.
-#[derive(Debug, Clone)]
-pub enum SignerConfig {
+/// For GCP KMS keys, the signer (and its underlying API client) is created lazily
+/// on first use and cached for subsequent calls. Cloned instances share the same
+/// cache via `Arc`, so only one GCP client is created regardless of how many
+/// clones exist.
+#[derive(Debug)]
+pub enum OperatorSigner {
     /// Use a local private key for signing.
-    Local(K256PrivateKey),
+    Local(PrivateKeySigner),
     /// Use a Google Cloud KMS key for signing.
     GcpKms {
         /// Full resource name of the KMS key version, e.g.
         /// `projects/{project}/locations/{location}/keyRings/{ring}/cryptoKeys/{key}/cryptoKeyVersions/{version}`
         resource_name: String,
-    },
-}
-
-/// An operator signer that implements [`EthereumSigner`].
-///
-/// Supports both local private key signing and remote GCP KMS signing.
-/// For GCP KMS, the signer is lazily initialized and cached.
-#[derive(Clone, Debug)]
-enum OperatorSignerInner {
-    Local(PrivateKeySigner),
-    GcpKms {
-        resource_name: String,
+        /// Lazily-initialized GCP signer, shared across clones.
         cached_signer: Arc<OnceCell<GcpSigner>>,
     },
 }
 
-#[derive(Clone, Debug)]
-pub struct OperatorSigner {
-    inner: OperatorSignerInner,
-}
-
-impl OperatorSigner {
-    /// Creates an [`OperatorSigner`] from a [`SignerConfig`].
-    ///
-    /// For local keys, the signer is created immediately.
-    /// For GCP KMS, the signer is lazily initialized on first use.
-    pub fn from_config(config: SignerConfig) -> Self {
-        match config {
-            SignerConfig::Local(key) => Self {
-                inner: OperatorSignerInner::Local(PrivateKeySigner::new(key)),
-            },
-            SignerConfig::GcpKms { resource_name } => Self {
-                inner: OperatorSignerInner::GcpKms {
-                    resource_name,
-                    cached_signer: Arc::new(OnceCell::new()),
-                },
+impl Clone for OperatorSigner {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Local(signer) => Self::Local(signer.clone()),
+            Self::GcpKms {
+                resource_name,
+                cached_signer,
+            } => Self::GcpKms {
+                resource_name: resource_name.clone(),
+                cached_signer: cached_signer.clone(),
             },
         }
     }
+}
 
-    /// Creates an [`OperatorSigner`] from a [`K256PrivateKey`].
-    pub fn from_private_key(key: K256PrivateKey) -> Self {
-        Self {
-            inner: OperatorSignerInner::Local(PrivateKeySigner::new(key)),
+impl OperatorSigner {
+    /// Creates a local-key signer.
+    pub fn local(key: K256PrivateKey) -> Self {
+        Self::Local(PrivateKeySigner::new(key))
+    }
+
+    /// Creates a GCP KMS signer config with an empty signer cache.
+    pub fn gcp_kms(resource_name: String) -> Self {
+        Self::GcpKms {
+            resource_name,
+            cached_signer: Arc::new(OnceCell::new()),
+        }
+    }
+
+    /// Returns the cached GCP signer, creating it on first call.
+    async fn get_gcp_signer(&self) -> Result<&GcpSigner, SignerError> {
+        match self {
+            Self::GcpKms {
+                resource_name,
+                cached_signer,
+            } => cached_signer
+                .get_or_try_init(|| gcp::create_gcp_signer(resource_name))
+                .await
+                .map_err(|e| SignerError::SigningFailed(e.to_string())),
+            Self::Local(_) => unreachable!(),
         }
     }
 
@@ -85,32 +87,19 @@ impl OperatorSigner {
     /// call is made on first invocation to fetch the public key; subsequent calls
     /// return the cached address.
     pub async fn address(&self) -> Result<Address, SignerError> {
-        match &self.inner {
-            OperatorSignerInner::Local(signer) => Ok(signer.address()),
-            OperatorSignerInner::GcpKms { .. } => {
-                let gcp = self.get_gcp_signer().await?;
-                Ok(alloy_address_to_zksync(gcp.address()))
+        match self {
+            Self::Local(signer) => Ok(signer.address()),
+            Self::GcpKms { .. } => {
+                let signer = self.get_gcp_signer().await?;
+                Ok(Address::from_slice(signer.address().as_slice()))
             }
         }
     }
 
-    async fn get_gcp_signer(&self) -> Result<&GcpSigner, SignerError> {
-        match &self.inner {
-            OperatorSignerInner::GcpKms {
-                resource_name,
-                cached_signer,
-            } => cached_signer
-                .get_or_try_init(|| gcp::create_signer(resource_name))
-                .await
-                .map_err(|e| SignerError::SigningFailed(e.to_string())),
-            OperatorSignerInner::Local(_) => unreachable!(),
-        }
-    }
-
-    /// Signs a hash via GCP KMS and converts the alloy signature to zksync types.
+    /// Signs a hash via GCP KMS and converts the alloy signature to r/s/v.
     async fn gcp_sign_hash(&self, hash: &H256) -> Result<(H256, H256, u8), SignerError> {
-        let gcp = self.get_gcp_signer().await?;
-        let sig = gcp
+        let signer = self.get_gcp_signer().await?;
+        let sig = signer
             .sign_hash(&B256::from_slice(hash.as_bytes()))
             .await
             .map_err(|e| SignerError::SigningFailed(e.to_string()))?;
@@ -134,9 +123,9 @@ impl EthereumSigner for OperatorSigner {
         domain: &Eip712Domain,
         typed_struct: &S,
     ) -> Result<PackedEthSignature, SignerError> {
-        match &self.inner {
-            OperatorSignerInner::Local(signer) => signer.sign_typed_data(domain, typed_struct),
-            OperatorSignerInner::GcpKms { .. } => {
+        match self {
+            Self::Local(signer) => signer.sign_typed_data(domain, typed_struct),
+            Self::GcpKms { .. } => {
                 let hash = H256::from(
                     PackedEthSignature::typed_data_to_signed_bytes(domain, typed_struct).0,
                 );
@@ -150,9 +139,9 @@ impl EthereumSigner for OperatorSigner {
         &self,
         raw_tx: TransactionParameters,
     ) -> Result<Vec<u8>, SignerError> {
-        match &self.inner {
-            OperatorSignerInner::Local(signer) => Ok(signer.sign_transaction(raw_tx)),
-            OperatorSignerInner::GcpKms { .. } => {
+        match self {
+            Self::Local(signer) => Ok(signer.sign_transaction(raw_tx)),
+            Self::GcpKms { .. } => {
                 let tx = zksync_eth_signer::Transaction {
                     to: raw_tx.to,
                     nonce: raw_tx.nonce,
@@ -181,8 +170,4 @@ impl EthereumSigner for OperatorSigner {
             }
         }
     }
-}
-
-fn alloy_address_to_zksync(addr: alloy_primitives::Address) -> Address {
-    Address::from_slice(addr.as_slice())
 }
