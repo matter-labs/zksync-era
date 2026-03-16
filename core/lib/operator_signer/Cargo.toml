@@ -15,21 +15,13 @@ zksync_basic_types.workspace = true
 zksync_crypto_primitives.workspace = true
 zksync_eth_signer.workspace = true
 
+alloy-primitives = "1.4"
+alloy-signer = "1.0"
+alloy-signer-gcp = "1.0"
+gcloud-sdk = { version = "0.27", features = ["google-cloud-kms-v1", "google-longrunning"] }
 anyhow.workspace = true
 async-trait.workspace = true
-base64.workspace = true
-google-cloud-auth = { workspace = true, features = ["default-tls"] }
-reqwest = { workspace = true, features = ["json"] }
-secp256k1.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 tokio = { workspace = true, features = ["sync"] }
-tracing.workspace = true
 
 [dev-dependencies]
-anyhow.workspace = true
-hex.workspace = true
-reqwest = { workspace = true, features = ["json"] }
-serde_json.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process", "time"] }
-zksync_crypto_primitives.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

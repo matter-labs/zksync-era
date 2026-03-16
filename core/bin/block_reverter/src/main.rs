@@ -255,11 +255,15 @@ async fn main() -> anyhow::Result<()> {
             nonce,
         } => {
             let reverter_private_key = if let Some(wallets_config) = wallets_config {
-                wallets_config
+                let operator = wallets_config
                     .operator
-                    .context("operator private key not present")?
-                    .private_key()
-                    .to_owned()
+                    .context("operator wallet not present")?;
+                anyhow::ensure!(
+                    !operator.is_gcp_kms(),
+                    "block_reverter does not support GCP KMS wallets; \
+                     a local private key is required for revert transactions"
+                );
+                operator.private_key().to_owned()
             } else {
                 #[allow(deprecated)]
                 eth_sender

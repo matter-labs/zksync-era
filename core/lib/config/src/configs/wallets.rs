@@ -46,6 +46,31 @@ impl DeserializeParam<K256PrivateKey> for K256PrivateKeyDeserializer {
     }
 }
 
+/// Validates the format of a KMS resource name.
+///
+/// Expected format:
+/// `projects/{project}/locations/{location}/keyRings/{ring}/cryptoKeys/{key}/cryptoKeyVersions/{version}`
+fn validate_kms_resource_name(resource_name: &str) -> Result<(), String> {
+    let parts: Vec<&str> = resource_name.split('/').collect();
+    if parts.len() != 10
+        || parts[0] != "projects"
+        || parts[2] != "locations"
+        || parts[4] != "keyRings"
+        || parts[6] != "cryptoKeys"
+        || parts[8] != "cryptoKeyVersions"
+    {
+        return Err(format!(
+            "invalid KMS resource name format: expected \
+             'projects/{{project}}/locations/{{location}}/keyRings/{{ring}}/cryptoKeys/{{key}}/cryptoKeyVersions/{{version}}', \
+             got '{resource_name}'"
+        ));
+    }
+    parts[9]
+        .parse::<u64>()
+        .map_err(|_| format!("invalid key version number: '{}'", parts[9]))?;
+    Ok(())
+}
+
 /// Wallet configuration supporting both local private keys and GCP KMS keys.
 ///
 /// Exactly one of `private_key` or `gcp_kms_resource` must be provided.
@@ -94,7 +119,19 @@ impl Wallet {
                 }
                 Ok(())
             }
-            (None, Some(_)) => Ok(()),
+            (None, Some(resource)) => {
+                // GCP KMS: address is required since it can only be fetched async from KMS
+                // and many call sites need it synchronously.
+                if self.address.is_none() {
+                    return Err(ErrorWithOrigin::custom(
+                        "GCP KMS wallet must have `address` configured",
+                    ));
+                }
+                // Validate resource name format.
+                validate_kms_resource_name(resource)
+                    .map_err(|e| ErrorWithOrigin::custom(e))?;
+                Ok(())
+            }
             (Some(_), Some(_)) => Err(ErrorWithOrigin::custom(
                 "Both `private_key` and `gcp_kms_resource` are set; only one should be provided",
             )),
@@ -124,14 +161,17 @@ impl Wallet {
         })
     }
 
-    /// Returns the Ethereum address for local key wallets.
-    /// For GCP KMS wallets, returns the configured address if available, or None.
+    /// Returns the Ethereum address for this wallet.
+    ///
+    /// For local key wallets, derives from the private key if not explicitly set.
+    /// For GCP KMS wallets, returns the configured address (required at validation time).
     pub fn address(&self) -> Address {
         if let Some(ref pk) = self.private_key {
             self.address.unwrap_or_else(|| pk.address())
         } else {
+            // Safe: validate() ensures address is set for GCP KMS wallets.
             self.address
-                .expect("GCP KMS wallet must have an address configured, or use OperatorSigner::address() instead")
+                .expect("GCP KMS wallet without address passed validation")
         }
     }
 
@@ -257,7 +297,7 @@ mod tests {
     fn parsing_gcp_kms_wallet() {
         let yaml = r#"
             operator:
-              address: ~
+              address: 0xabcf96e1ee478481042a0c4e34cdceceae01b154
               private_key: ~
               gcp_kms_resource: "projects/my-project/locations/us-central1/keyRings/my-ring/cryptoKeys/my-key/cryptoKeyVersions/1"
         "#;
@@ -270,6 +310,44 @@ mod tests {
             operator.gcp_kms_resource().unwrap(),
             "projects/my-project/locations/us-central1/keyRings/my-ring/cryptoKeys/my-key/cryptoKeyVersions/1"
         );
+        assert_eq!(
+            operator.address(),
+            "0xabcf96e1ee478481042a0c4e34cdceceae01b154"
+                .parse()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn parsing_error_gcp_kms_without_address() {
+        let yaml = r#"
+            operator:
+              address: ~
+              private_key: ~
+              gcp_kms_resource: "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1"
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let err = test_complete::<Wallets>(yaml).unwrap_err();
+        assert_eq!(err.len(), 1, "{err}");
+        let err = err.first().inner().to_string();
+        assert!(err.contains("address"), "{err}");
+    }
+
+    #[test]
+    fn parsing_error_gcp_kms_invalid_resource() {
+        let yaml = r#"
+            operator:
+              address: 0xabcf96e1ee478481042a0c4e34cdceceae01b154
+              private_key: ~
+              gcp_kms_resource: "invalid/resource/name"
+        "#;
+        let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
+
+        let err = test_complete::<Wallets>(yaml).unwrap_err();
+        assert_eq!(err.len(), 1, "{err}");
+        let err = err.first().inner().to_string();
+        assert!(err.contains("invalid KMS resource name"), "{err}");
     }
 
     #[test]
