@@ -77,8 +77,7 @@ impl GcpKmsSigner {
         let http_client = Client::new();
 
         // Fetch the public key from KMS.
-        let public_key =
-            fetch_public_key(&http_client, &token_source, &resource_name).await?;
+        let public_key = fetch_public_key(&http_client, &token_source, &resource_name).await?;
 
         // Derive Ethereum address from public key.
         let uncompressed = public_key.serialize_uncompressed();
@@ -123,13 +122,14 @@ impl GcpKmsSigner {
         let compact = secp_sig.serialize_compact();
 
         // Determine recovery ID by trying both 0 and 1.
-        let message =
-            SecpMessage::from_slice(hash.as_bytes()).context("failed to create secp256k1 message")?;
+        let message = SecpMessage::from_slice(hash.as_bytes())
+            .context("failed to create secp256k1 message")?;
         let mut recovery_id: Option<i32> = None;
         for rid in 0..=1i32 {
             let rec_id = RecoveryId::from_i32(rid).expect("valid recovery id");
-            let recoverable = secp256k1::ecdsa::RecoverableSignature::from_compact(&compact, rec_id)
-                .context("failed to create recoverable signature")?;
+            let recoverable =
+                secp256k1::ecdsa::RecoverableSignature::from_compact(&compact, rec_id)
+                    .context("failed to create recoverable signature")?;
             if let Ok(recovered) = SECP256K1.recover_ecdsa(&message, &recoverable) {
                 if recovered == self.public_key {
                     recovery_id = Some(rid);
@@ -170,13 +170,14 @@ impl GcpKmsSigner {
             .context("failed to parse DER signature from KMS")?;
         let compact = secp_sig.serialize_compact();
 
-        let message =
-            SecpMessage::from_slice(hash.as_bytes()).context("failed to create secp256k1 message")?;
+        let message = SecpMessage::from_slice(hash.as_bytes())
+            .context("failed to create secp256k1 message")?;
         let mut recovery_id: Option<i32> = None;
         for rid in 0..=1i32 {
             let rec_id = RecoveryId::from_i32(rid).expect("valid recovery id");
-            let recoverable = secp256k1::ecdsa::RecoverableSignature::from_compact(&compact, rec_id)
-                .context("failed to create recoverable signature")?;
+            let recoverable =
+                secp256k1::ecdsa::RecoverableSignature::from_compact(&compact, rec_id)
+                    .context("failed to create recoverable signature")?;
             if let Ok(recovered) = SECP256K1.recover_ecdsa(&message, &recoverable) {
                 if recovered == self.public_key {
                     recovery_id = Some(rid);
@@ -190,9 +191,7 @@ impl GcpKmsSigner {
         let s = H256::from_slice(&compact[32..]);
 
         Ok(zksync_crypto_primitives::PackedEthSignature::from_rsv(
-            &r,
-            &s,
-            rid as u8,
+            &r, &s, rid as u8,
         ))
     }
 }
@@ -208,9 +207,7 @@ async fn fetch_public_key(
         .await
         .map_err(|e| anyhow::anyhow!("failed to get GCP access token: {e}"))?;
 
-    let url = format!(
-        "https://cloudkms.googleapis.com/v1/{resource_name}/publicKey"
-    );
+    let url = format!("https://cloudkms.googleapis.com/v1/{resource_name}/publicKey");
 
     let resp = client
         .get(&url)
@@ -243,9 +240,7 @@ async fn kms_asymmetric_sign(
     resource_name: &str,
     digest: &H256,
 ) -> anyhow::Result<Vec<u8>> {
-    let url = format!(
-        "https://cloudkms.googleapis.com/v1/{resource_name}:asymmetricSign"
-    );
+    let url = format!("https://cloudkms.googleapis.com/v1/{resource_name}:asymmetricSign");
 
     // Send the hash as a SHA-256 digest. KMS signs the provided digest directly
     // without re-hashing (this is standard practice for Ethereum signing with KMS).
@@ -407,12 +402,10 @@ mod tests {
     fn test_validate_kms_resource_name_invalid() {
         assert!(validate_kms_resource_name("invalid/resource/name").is_err());
         assert!(validate_kms_resource_name("").is_err());
-        assert!(
-            validate_kms_resource_name(
-                "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/notanumber"
-            )
-            .is_err()
-        );
+        assert!(validate_kms_resource_name(
+            "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/notanumber"
+        )
+        .is_err());
     }
 
     #[test]

@@ -64,7 +64,10 @@ impl DeserializeParam<K256PrivateKey> for K256PrivateKeyDeserializer {
 ///   gcp_kms_resource: "projects/{project}/locations/{location}/keyRings/{ring}/cryptoKeys/{key}/cryptoKeyVersions/{version}"
 /// ```
 #[derive(Debug, Clone, DescribeConfig, DeserializeConfig)]
-#[config(validate(Self::validate, "wallet configuration must have exactly one of `private_key` or `gcp_kms_resource`"))]
+#[config(validate(
+    Self::validate,
+    "wallet configuration must have exactly one of `private_key` or `gcp_kms_resource`"
+))]
 pub struct Wallet {
     /// Address of the account. Used to validate private key integrity (for local keys).
     address: Option<Address>,

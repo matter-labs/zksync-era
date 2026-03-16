@@ -88,8 +88,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             .await
             .map_err(WiringError::internal)?;
 
-        let operator_signer =
-            OperatorSigner::from_config(wallet_to_signer_config(&self.operator));
+        let operator_signer = OperatorSigner::from_config(wallet_to_signer_config(&self.operator));
         let operator_address = operator_signer
             .address()
             .await

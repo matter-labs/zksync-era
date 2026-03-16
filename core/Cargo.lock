@@ -13382,6 +13382,7 @@ dependencies = [
  "zksync_external_price_api",
  "zksync_node_fee_model",
  "zksync_node_framework",
+ "zksync_operator_signer",
  "zksync_types",
 ]
 
@@ -13988,6 +13989,7 @@ dependencies = [
  "zksync_eth_signer",
  "zksync_health_check",
  "zksync_node_framework",
+ "zksync_operator_signer",
  "zksync_shared_resources",
  "zksync_types",
  "zksync_web3_decl",
@@ -14024,6 +14026,7 @@ dependencies = [
  "zksync_node_fee_model",
  "zksync_node_framework",
  "zksync_object_store",
+ "zksync_operator_signer",
  "zksync_proof_data_handler",
  "zksync_prover_interface",
  "zksync_shared_metrics",
@@ -14785,6 +14788,26 @@ dependencies = [
  "zksync_node_framework",
  "zksync_protobuf",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_operator_signer"
+version = "29.13.1-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "google-cloud-auth",
+ "hex",
+ "reqwest 0.12.22",
+ "secp256k1 0.27.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "zksync_basic_types",
+ "zksync_crypto_primitives",
+ "zksync_eth_signer",
 ]
 
 [[package]]

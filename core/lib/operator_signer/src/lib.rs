@@ -90,9 +90,7 @@ impl OperatorSigner {
                 resource_name,
                 cached_signer,
             } => cached_signer
-                .get_or_try_init(|| async {
-                    GcpKmsSigner::new(resource_name.clone()).await
-                })
+                .get_or_try_init(|| async { GcpKmsSigner::new(resource_name.clone()).await })
                 .await
                 .map_err(|e| SignerError::SigningFailed(e.to_string())),
             Self::Local(_) => Err(SignerError::SigningFailed(
@@ -117,8 +115,9 @@ impl EthereumSigner for OperatorSigner {
             Self::Local(signer) => signer.sign_typed_data(domain, typed_struct),
             Self::GcpKms { .. } => {
                 let gcp = self.get_gcp_signer().await?;
-                let signed_bytes =
-                    H256::from(PackedEthSignature::typed_data_to_signed_bytes(domain, typed_struct).0);
+                let signed_bytes = H256::from(
+                    PackedEthSignature::typed_data_to_signed_bytes(domain, typed_struct).0,
+                );
                 gcp.sign_hash_raw(&signed_bytes)
                     .await
                     .map_err(|e| SignerError::SigningFailed(e.to_string()))
