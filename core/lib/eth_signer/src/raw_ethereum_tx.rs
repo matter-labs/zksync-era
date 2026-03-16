@@ -240,6 +240,23 @@ impl Transaction {
         }
     }
 
+    /// Returns the hash that needs to be signed and whether the v value needs
+    /// chain-id adjustment (true for legacy transactions).
+    pub fn hash_for_signing(&self, chain_id: u64) -> (H256, bool) {
+        let adjust_v_value = matches!(
+            self.transaction_type.map(|t| t.as_u64()),
+            Some(LEGACY_TX_ID) | None
+        );
+        let encoded = self.encode(chain_id, None);
+        let message_hash = H256(keccak256(encoded.as_ref()));
+        (message_hash, adjust_v_value)
+    }
+
+    /// Encodes the transaction with a pre-computed signature and returns the raw bytes.
+    pub fn encode_with_signature(&self, chain_id: u64, signature: &Signature) -> Vec<u8> {
+        self.encode(chain_id, Some(signature))
+    }
+
     /// Sign and return a raw signed transaction.
     pub fn sign(self, private_key: &K256PrivateKey, chain_id: u64) -> SignedTransaction {
         let adjust_v_value = matches!(

@@ -1,0 +1,35 @@
+[package]
+name = "zksync_operator_signer"
+description = "ZKsync operator signer abstraction supporting local keys and GCP KMS"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_basic_types.workspace = true
+zksync_crypto_primitives.workspace = true
+zksync_eth_signer.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+google-cloud-auth = { workspace = true, features = ["default-tls"] }
+reqwest = { workspace = true, features = ["json"] }
+secp256k1.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+hex.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process", "time"] }
+zksync_crypto_primitives.workspace = true

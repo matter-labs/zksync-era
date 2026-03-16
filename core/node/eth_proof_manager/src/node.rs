@@ -14,7 +14,6 @@ use zksync_dal::{
     ConnectionPool, Core,
 };
 use zksync_eth_client::clients::{Client, DynClient, SigningClient, L2};
-use zksync_eth_signer::PrivateKeySigner;
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_framework::{
     service::StopReceiver,
@@ -23,6 +22,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_operator_signer::{OperatorSigner, SignerConfig};
 use zksync_types::{
     commitment::L1BatchCommitmentMode, pubdata_da::PubdataSendingMode, url::SensitiveUrl,
     L2ChainId, SLChainId,
@@ -53,6 +53,16 @@ pub struct Output {
     eth_proof_manager: EthProofManager,
 }
 
+fn wallet_to_signer_config(wallet: &Wallet) -> SignerConfig {
+    if let Some(resource) = wallet.gcp_kms_resource() {
+        SignerConfig::GcpKms {
+            resource_name: resource.to_string(),
+        }
+    } else {
+        SignerConfig::Local(wallet.private_key().clone())
+    }
+}
+
 impl EthProofManagerLayer {
     pub fn new(
         eth_proof_manager_config: EthProofManagerConfig,
@@ -80,9 +90,12 @@ impl EthProofManagerLayer {
         owner_wallet: Wallet,
         connection_pool: ConnectionPool<Core>,
     ) -> ProofManagerClient {
-        let operator_private_key = owner_wallet.private_key().clone();
-        let operator_address = operator_private_key.address();
-        let signer = PrivateKeySigner::new(operator_private_key);
+        let signer_config = wallet_to_signer_config(&owner_wallet);
+        let operator_signer = OperatorSigner::from_config(signer_config);
+        let operator_address = operator_signer
+            .address()
+            .await
+            .expect("failed to get operator address");
         tracing::info!("Operator address: {operator_address:?}");
 
         let client = Box::new(
@@ -110,7 +123,7 @@ impl EthProofManagerLayer {
             client,
             proof_manager_contract(),
             operator_address,
-            signer,
+            operator_signer,
             contracts.proxy_addr,
             self.eth_proof_manager_config
                 .default_priority_fee_per_gas
