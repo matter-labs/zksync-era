@@ -1,5 +1,6 @@
 use zksync_config::GenesisConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_types::{settlement::SettlementLayer, L1ChainId};
 
 use super::*;
 
@@ -65,4 +66,32 @@ async fn running_genesis_with_non_latest_protocol_version() {
 
     insert_genesis_batch(&mut conn, &params).await.unwrap();
     assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
+}
+
+#[tokio::test]
+async fn running_genesis_uses_l1_chain_id_for_settlement_layer() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
+    conn.blocks_dal().delete_genesis().await.unwrap();
+
+    let l1_chain_id = L1ChainId(31337);
+    let params = GenesisParams::load_genesis_params(GenesisConfig {
+        l1_chain_id,
+        ..mock_genesis_config()
+    })
+    .unwrap()
+    .into();
+
+    insert_genesis_batch(&mut conn, &params).await.unwrap();
+
+    let header = conn
+        .blocks_dal()
+        .get_l1_batch_header(L1BatchNumber(0))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        header.settlement_layer,
+        SettlementLayer::L1(l1_chain_id.into())
+    );
 }

@@ -35,8 +35,8 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
     system_contracts::get_system_smart_contracts,
-    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, TransactionTimeRangeConstraint,
-    H256, U256,
+    L1ChainId, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
+    TransactionTimeRangeConstraint, H256, U256,
 };
 
 use crate::{interop_fee::ConstantInteropFeeInputProvider, MempoolGuard, MempoolIO};
@@ -186,6 +186,7 @@ impl Tester {
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
                 L1VerifierConfig::default(),
+                L1ChainId(9),
             )
             .await
             .unwrap();

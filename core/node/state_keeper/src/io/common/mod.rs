@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{settlement::SettlementLayer, L1BatchNumber, L2BlockNumber, H256};
 use zksync_vm_executor::storage::RestoredL1BatchEnv;
 
 use super::PendingBatchData;
@@ -27,6 +27,7 @@ pub struct IoCursor {
     pub prev_l2_block_timestamp: u64,
     pub l1_batch: L1BatchNumber,
     pub prev_l1_batch_timestamp: u64,
+    pub settlement_layer: SettlementLayer,
 }
 
 impl IoCursor {
@@ -40,6 +41,20 @@ impl IoCursor {
             .blocks_dal()
             .get_last_sealed_l2_block_header()
             .await?;
+        let settlement_layer =
+            if let Some(unsealed_batch) = storage.blocks_dal().get_unsealed_l1_batch().await? {
+                unsealed_batch.settlement_layer
+            } else if let Some((l1_batch_number, _)) = last_sealed_l1_batch_number_and_timestamp {
+                storage
+                    .blocks_dal()
+                    .get_l1_batch_header(l1_batch_number)
+                    .await?
+                    .context("sealed L1 batch is expected to exist")?
+                    .settlement_layer
+            } else {
+                // Legacy fallback for snapshot-only DBs where settlement-layer data isn't present in batches.
+                SettlementLayer::for_tests()
+            };
 
         if let (Some((l1_batch_number, l1_batch_timestamp)), Some(l2_block_header)) = (
             last_sealed_l1_batch_number_and_timestamp,
@@ -51,6 +66,7 @@ impl IoCursor {
                 prev_l2_block_timestamp: l2_block_header.timestamp,
                 l1_batch: l1_batch_number + 1,
                 prev_l1_batch_timestamp: l1_batch_timestamp,
+                settlement_layer,
             })
         } else {
             let snapshot_recovery = storage
@@ -87,6 +103,7 @@ impl IoCursor {
                 prev_l2_block_timestamp,
                 l1_batch,
                 prev_l1_batch_timestamp,
+                settlement_layer,
             })
         }
     }
