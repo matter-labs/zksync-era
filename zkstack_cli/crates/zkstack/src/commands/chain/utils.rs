@@ -50,7 +50,12 @@ pub(crate) async fn send_tx(
     let wallet = wallet.with_chain_id(provider.get_chainid().await?.as_u64()); // Mainnet
 
     // 3. Create a transaction
-    let mut tx = TransactionRequest::new().to(to).data(data).value(value);
+    // Set `from` explicitly so estimateGas does not use an arbitrary zero-balance account.
+    let mut tx = TransactionRequest::new()
+        .from(wallet.address())
+        .to(to)
+        .data(data)
+        .value(value);
 
     let gas_estimate = {
         let typed_tx: TypedTransaction = tx.clone().into();
@@ -63,6 +68,10 @@ pub(crate) async fn send_tx(
             (Some(estimate), std::cmp::max(padded_estimate, fallback))
         }
         Err(err) => {
+            let err_text = err.to_string().to_lowercase();
+            if err_text.contains("execution reverted") || err_text.contains("revert") {
+                return Err(err.into());
+            }
             let fallback = EthersU256::from(1_500_000_u64);
             logger::warn(format!(
                 "Failed to estimate gas for {description}: {err}. Falling back to gas limit {fallback}"

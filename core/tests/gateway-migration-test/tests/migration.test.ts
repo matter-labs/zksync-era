@@ -419,9 +419,9 @@ describe('Migration from gateway test', function () {
             );
             expect.fail('Migrating back to gateway should have failed');
         } catch (e: any) {
-            const output = (e.stdout || '') + (e.stderr || '');
+            const output = `${e?.message || ''}\n${e?.stdout || ''}\n${e?.stderr || ''}`;
             // 0x47d42b1b corresponds to IteratedMigrationsNotSupported() error
-            expect(output).to.include('execution reverted, data: Some(String("0x47d42b1b"))');
+            expect(output).to.match(/0x47d42b1b/i);
         }
     });
 
