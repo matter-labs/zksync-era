@@ -18,7 +18,6 @@ import {
 } from '../constants';
 import { RetryProvider } from '../retry-provider';
 import { getEcosystemContracts } from 'utils/src/tokens';
-// checkout whole file before merge
 
 /**
  * Modifier that ensures that fee was taken from the wallet for a transaction.
@@ -186,9 +185,7 @@ class ShouldChangeBalance extends MatcherModifier {
             const diff = newBalance - prevBalance;
             const diffChainBalance = newChainBalance - prevChainBalance;
             if (this.checkChainBalance && !(await isMinterChain(this.l1, wallet, this.token))) {
-                // console.log('diffChainBalance', diffChainBalance);
                 if (diffChainBalance != diff && diffChainBalance + diff != 0n) {
-                    // kl todo. We need this check. But it has issues. It does not query GW, only L1. And AssetTracker is not working properly on GW, as it does not check L1->L3 txs.
                     throw new Error(
                         `Chain balance change is not equal to the token balance change for wallet ${balanceChange.wallet.address} (index ${id} in array)`
                     );
@@ -365,9 +362,6 @@ async function getBalance(
  * @returns Token balance
  */
 async function getChainBalance(l1: boolean, wallet: zksync.Wallet, token: string): Promise<bigint> {
-    // const provider = l1 ? wallet.providerL1! : wallet.provider;
-    // kl todo get from env or something.
-
     const ecosystemContracts = await getEcosystemContracts(wallet);
 
     const settlementLayer = await ecosystemContracts.bridgehub.settlementLayer(
@@ -376,12 +370,11 @@ async function getChainBalance(l1: boolean, wallet: zksync.Wallet, token: string
 
     const assetId = await ecosystemContracts.nativeTokenVault.assetId(token);
 
-    // console.log("chainId", (await wallet.provider.getNetwork()).chainId, "assetId", assetId);
     let balance = await ecosystemContracts.assetTracker.chainBalance(
         (await wallet.provider.getNetwork()).chainId,
         assetId
     );
-    // console.log('balance', l1 ? 'l1' : 'l2', balance);
+
     if (settlementLayer != (await wallet.providerL1!.getNetwork()).chainId && l1) {
         const gwProvider = new RetryProvider({ url: await getL2bUrl('gateway'), timeout: 1200 * 1000 }, undefined);
         const gwAssetTracker = new zksync.Contract(L2_ASSET_TRACKER_ADDRESS, ArtifactL2AssetTracker.abi, gwProvider);
@@ -407,8 +400,7 @@ async function isMinterChain(l1: boolean, wallet: zksync.Wallet, token: string):
         wallet.providerL1!
     );
     const assetId = await nativeTokenVault.assetId(token);
-    // const assetTracker = new zksync.Contract(await bridgehub.assetTracker(), ArtifactAssetTracker.abi, wallet);
-    // // return await assetTracker.isMinterChain( (await wallet.provider.getNetwork()).chainId, assetId);
+
     const provider = l1 ? wallet.providerL1! : wallet.provider;
     return (await nativeTokenVault.originChainId(assetId)) != (await provider.getNetwork()).chainId;
 }
