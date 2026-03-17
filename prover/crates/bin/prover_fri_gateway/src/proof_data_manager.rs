@@ -28,8 +28,7 @@ impl ProofDataManager {
         let protocol_version = self
             .pool
             .connection()
-            .await
-            .unwrap()
+            .await?
             .fri_proof_compressor_dal()
             .protocol_version_for_successful_proof(batch_id)
             .await;
@@ -51,6 +50,14 @@ impl ProofDataManager {
                 return Err(ProcessorError::ObjectStoreErr(e));
             }
         };
+
+        self.pool
+            .connection()
+            .await?
+            .fri_proof_compressor_dal()
+            .mark_proof_sent_to_server(batch_id)
+            .await
+            .ok();
 
         Ok(Some(proof))
     }
