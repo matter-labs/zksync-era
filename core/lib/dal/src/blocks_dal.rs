@@ -53,7 +53,7 @@ pub struct BlocksDal<'a, 'c> {
 
 pub struct L2ToL1Messages {
     l2_to_l1_messages: Vec<Vec<u8>>,
-} //
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct TxForPrecommit {
@@ -2115,7 +2115,6 @@ impl BlocksDal<'_, '_> {
                 pubdata_limit,
                 settlement_layer_chain_id,
                 settlement_layer_type
-            
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2212,7 +2211,6 @@ impl BlocksDal<'_, '_> {
                 pubdata_limit,
                 settlement_layer_chain_id,
                 settlement_layer_type
-            
             FROM
                 (
                     SELECT

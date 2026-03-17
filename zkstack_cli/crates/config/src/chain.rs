@@ -26,7 +26,7 @@ use crate::{
     },
     ContractsConfig, ContractsGenesisConfig, EcosystemConfig, GatewayChainConfig, GeneralConfig,
     GenesisConfig, SecretsConfig, WalletsConfig, ZkStackConfigTrait, CONFIGS_PATH,
-    GATEWAY_CHAIN_FILE, GENESIS_ZKSYNC_ERA_FILE, GENESIS_ZKYNS_OC_FILE,
+    GATEWAY_CHAIN_FILE, GENESIS_ZKSYNC_ERA_FILE, GENESIS_ZKYNS_OS_FILE,
     PATH_TO_DEFAULT_GENESIS_CONFIG, PATH_TO_ERA_VM_DEFAULT_GENESIS,
     PATH_TO_ZKSYNC_OS_DEFAULT_GENESIS,
 };
@@ -210,7 +210,7 @@ impl ChainConfig {
     pub fn path_to_genesis_config(&self) -> PathBuf {
         match self.vm_option {
             VMOption::EraVM => self.configs.join(GENESIS_ZKSYNC_ERA_FILE),
-            VMOption::ZKSyncOsVM => self.configs.join(GENESIS_ZKYNS_OC_FILE),
+            VMOption::ZKSyncOsVM => self.configs.join(GENESIS_ZKYNS_OS_FILE),
         }
     }
 

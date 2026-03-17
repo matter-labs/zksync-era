@@ -237,12 +237,9 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         .await?;
 
         // For pending execution, prefer:
-        // 1. fee from currently open (unsealed) batch;
-        // 2. externally provided fallback (e.g. fetched from main node);
-        // 3. fee from latest sealed batch.
-        //
-        // This keeps pending oneshot execution aligned with the sequencer / main node when
-        // interop fee changes between batches.
+        // 1. fee from currently open (unsealed) batch
+        // 2. fetched from main node
+        // 3. fee from latest sealed batch
         let interop_fee = if resolved_block_info.is_pending {
             if let Some(unsealed_batch) = connection.blocks_dal().get_unsealed_l1_batch().await? {
                 unsealed_batch.interop_fee

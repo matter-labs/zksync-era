@@ -15,8 +15,7 @@ import { TestContextOwner, TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
-import { getTestContract, anyTransaction } from '../src/helpers';
-import { SYSTEM_CONTEXT_ADDRESS } from '../src/constants';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract, anyTransaction } from '../src/helpers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 import { sleep } from 'utils/build';
@@ -289,7 +288,7 @@ testFees('Test fees', function () {
         expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
     });
 
-    test.skip('Test base token ratio fluctuations', async () => {
+    test('Test base token ratio fluctuations', async () => {
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
 
         if (isETHBasedChain) return;
