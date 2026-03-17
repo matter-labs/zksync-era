@@ -25,25 +25,8 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
 zkstack server --ignore-prerequisites --chain era &> ../rollup.log &
 echo "Server started"
 
-# zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage no-governance-prepare --update-submodules false
-
-# zkstack dev run-ecosystem-upgrade  --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage0 --update-submodules false
-
-# zkstack  dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage1 --update-submodules false
-
 cd contracts/l1-contracts
 UPGRADE_ECOSYSTEM_OUTPUT=script-out/$upgrade_file_extension-upgrade-ecosystem.toml \
 UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_$upgrade_file_extension.s.sol/9/run-latest.json  \
 YAML_OUTPUT_FILE=script-out/$upgrade_file_extension-local-output.yaml yarn upgrade-yaml-output-generator
 cd ../../
-
-# zkstack dev run-chain-upgrade --upgrade-version $upgrade_version
-
-# zkstack  dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage2
-
-# pkill -9 zksync_server
-# zkstack server --ignore-prerequisites --chain era &> ../rollup2.log &
-
-# sleep 10
-
-# zkstack dev test integration --no-deps --ignore-prerequisites --chain era

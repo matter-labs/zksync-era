@@ -11,16 +11,6 @@ upgrade_file_extension="v31"
 
 zkstackup --local && zkstack dev clean containers && zkstack up --observability false
 
-# zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
-#     --deploy-ecosystem --l1-rpc-url=http://127.0.0.1:8545 \
-#     --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-#     --server-db-name=zksync_server_localhost_era \
-#     --ignore-prerequisites --verbose \
-#     --chain era \
-#     --observability=false
-
-# zkstack dev generate-genesis 
-
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --deploy-ecosystem --l1-rpc-url=http://127.0.0.1:8545 \
     --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
@@ -37,37 +27,6 @@ sleep 10
 
 pkill -9 zksync_server
 
-# zkstack dev generate-genesis 
-
-# zkstack chain create \
-#     --chain-name gateway \
-#     --chain-id 505 \
-#     --prover-mode no-proofs \
-#     --wallet-creation localhost \
-#     --l1-batch-commit-data-generator-mode rollup \
-#     --base-token-address 0x0000000000000000000000000000000000000001 \
-#     --base-token-price-nominator 1 \
-#     --base-token-price-denominator 1 \
-#     --set-as-default false \
-#     --evm-emulator false \
-#     --ignore-prerequisites
-
-# zkstack chain init \
-#     --deploy-paymaster \
-#     --l1-rpc-url=http://127.0.0.1:8545 \
-#     --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-#     --server-db-name=zksync_server_localhost_gateway \
-#     --chain gateway
-
-# zkstack chain gateway convert-to-gateway --chain gateway
-# # When running locally, it makes sense to not redirect to file, but start a new terminal window here.
-# zkstack server --chain gateway &> ../gateway.log &
-
-# # When running locally, open a new terminal window here.
-# zkstack chain gateway migrate-to-gateway --chain era --gateway-chain-name gateway
-# # When running locally, it makes sense to not redirect to file, but start a new terminal window during the next operation.
-# zkstack server --chain era &> ../rollup3.log &
-
 # When running locally, open a new terminal window here.
 cd .. && era-cacher/use-new-era.sh && cd zksync-working
 
@@ -78,15 +37,9 @@ cd .. && era-cacher/use-new-era.sh && cd zksync-working
 zkstackup --local
 zkstack dev contracts
 
-# cd contracts
-# git checkout
-# cd ..
-
 zkstack dev database migrate --prover false --core true  --chain era
-# zkstack dev database migrate --prover false --core true  --chain gateway
 
 # All the actions below may be performed in a different window.
-# zkstack server --ignore-prerequisites --chain gateway &> ../gateway.log &
 RUST_BACKTRACE=1 zkstack server --ignore-prerequisites --chain era &> ../rollup.log &
 
 echo "Server started"
@@ -107,7 +60,6 @@ UPGRADE_ECOSYSTEM_OUTPUT=script-out/v31-upgrade-ecosystem.toml UPGRADE_ECOSYSTEM
 cd ../../
 
 zkstack dev run-chain-upgrade --upgrade-version $upgrade_version --force-display-finalization-params=true --dangerous-local-default-overrides=true --chain era
-# zkstack dev run-chain-upgrade --upgrade-version $upgrade_version --force-display-finalization-params=true --dangerous-local-default-overrides=true --chain gateway
 zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage2
 
 # Stage 3: Migrate token balances from NTV to AssetTracker
