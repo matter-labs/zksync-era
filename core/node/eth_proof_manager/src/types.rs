@@ -14,12 +14,12 @@ pub enum ProvingNetwork {
 }
 
 impl ProvingNetwork {
-    pub fn from_u256(u: U256) -> Self {
+    pub fn from_u256(u: U256) -> anyhow::Result<Self> {
         match u.as_u32() {
-            0 => Self::None,
-            1 => Self::Fermah,
-            2 => Self::Lagrange,
-            _ => panic!("Invalid proving network: {}", u),
+            0 => Ok(Self::None),
+            1 => Ok(Self::Fermah),
+            2 => Ok(Self::Lagrange),
+            _ => anyhow::bail!("unknown proving network discriminant: {}", u),
         }
     }
 }
