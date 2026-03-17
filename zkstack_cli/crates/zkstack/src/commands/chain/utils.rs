@@ -5,7 +5,10 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
     signers::{LocalWallet, Signer},
-    types::{TransactionReceipt, TransactionRequest},
+    types::{
+        transaction::eip2718::TypedTransaction, TransactionReceipt, TransactionRequest,
+        U256 as EthersU256,
+    },
     utils::hex,
 };
 use zkstack_cli_common::{logger, spinner::Spinner};
@@ -47,7 +50,33 @@ pub(crate) async fn send_tx(
     let wallet = wallet.with_chain_id(provider.get_chainid().await?.as_u64()); // Mainnet
 
     // 3. Create a transaction
-    let tx = TransactionRequest::new().to(to).data(data).value(value);
+    let mut tx = TransactionRequest::new().to(to).data(data).value(value);
+
+    let gas_estimate = {
+        let typed_tx: TypedTransaction = tx.clone().into();
+        provider.estimate_gas(&typed_tx, None).await
+    };
+    let (gas_estimate_for_log, gas_limit) = match gas_estimate {
+        Ok(estimate) => {
+            let padded_estimate = (estimate * EthersU256::from(6_u64)) / EthersU256::from(5_u64);
+            let fallback = EthersU256::from(1_500_000_u64);
+            (Some(estimate), std::cmp::max(padded_estimate, fallback))
+        }
+        Err(err) => {
+            let fallback = EthersU256::from(1_500_000_u64);
+            logger::warn(format!(
+                "Failed to estimate gas for {description}: {err}. Falling back to gas limit {fallback}"
+            ));
+            (None, fallback)
+        }
+    };
+    tx = tx.gas(gas_limit);
+    if let Some(estimate) = gas_estimate_for_log {
+        logger::info(format!(
+            "Using gas limit {} (estimate {}) for {}",
+            gas_limit, estimate, description
+        ));
+    }
 
     let spinner = Spinner::new(&format!("Sending transaction for {description}..."));
 
