@@ -205,36 +205,33 @@ impl Wallets {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Yaml};
+    use smart_config::{testing::test, Yaml};
 
     use super::*;
 
+    /// Backward-compatible: `gcp_kms_resource` can be omitted when using local private keys.
     #[test]
     fn parsing_from_yaml() {
         let yaml = r#"
             operator:
               address: 0xabcf96e1ee478481042a0c4e34cdceceae01b154
               private_key: 0xf00bf4165f9e1a67841b981949033c06c1423dab34c33d6d1237ae14d85bd729
-              gcp_kms_resource: ~
             blob_operator:
               address: 0x5927c313861c01b82a026e35d93cc787e5356c0f
               private_key: 0xc9ee945b2f6d4c462a743f5af3904a4ee78aec0218f1f4f3c53d0bfbf809b520
-              gcp_kms_resource: ~
             fee_account:
               address: 0x7ea53e0f1eb0b3b578aeda336b2c3a778e04eebf
               private_key: 0xe338cadae0f665139a7a4f2b846b91e188a2d100dcd34f58771c903cd2b08cd1
             token_multiplier_setter:
               address: 0x1900678c093afec2558642bc4cae038254b9e664
               private_key: 0x2137749ca460802189d3eeb9be411128c28ce67edf0d2fd750212f96a888cfa5
-              gcp_kms_resource: ~
             eth_proof_manager:
               address: 0x1900678c093afec2558642bc4cae038254b9e664
               private_key: 0x2137749ca460802189d3eeb9be411128c28ce67edf0d2fd750212f96a888cfa5
-              gcp_kms_resource: ~
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let wallets: Wallets = test_complete(yaml).unwrap();
+        let wallets: Wallets = test(yaml).unwrap();
         assert_eq!(
             wallets.operator.unwrap().address(),
             "0xabcf96e1ee478481042a0c4e34cdceceae01b154"
@@ -267,17 +264,17 @@ mod tests {
         );
     }
 
+    /// `private_key` can be omitted when using GCP KMS.
     #[test]
     fn parsing_gcp_kms_wallet() {
         let yaml = r#"
             operator:
               address: 0xabcf96e1ee478481042a0c4e34cdceceae01b154
-              private_key: ~
               gcp_kms_resource: "projects/my-project/locations/us-central1/keyRings/my-ring/cryptoKeys/my-key/cryptoKeyVersions/1"
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let wallets: Wallets = test_complete(yaml).unwrap();
+        let wallets: Wallets = test(yaml).unwrap();
         let operator = wallets.operator.unwrap();
         assert!(operator.is_gcp_kms());
         assert_eq!(
@@ -297,12 +294,11 @@ mod tests {
         let yaml = r#"
             operator:
               address: ~
-              private_key: ~
               gcp_kms_resource: "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1"
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let err = test_complete::<Wallets>(yaml).unwrap_err();
+        let err = test::<Wallets>(yaml).unwrap_err();
         assert_eq!(err.len(), 1, "{err}");
         let err = err.first().inner().to_string();
         assert!(err.contains("address"), "{err}");
@@ -314,11 +310,10 @@ mod tests {
             operator:
               address: 0xabcf96e1ee478481042a0c4e34cdceceae01b154
               private_key: 0xf00bf4165f9e1a67841b981949033c06c1423dab34c33d6d1237ae14d85bd728
-              gcp_kms_resource: ~
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let err = test_complete::<Wallets>(yaml).unwrap_err();
+        let err = test::<Wallets>(yaml).unwrap_err();
         assert_eq!(err.len(), 1, "{err}");
         let err = err.first().inner().to_string();
         assert!(err.contains("Malformed wallet"), "{err}");
@@ -334,7 +329,7 @@ mod tests {
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 
-        let err = test_complete::<Wallets>(yaml).unwrap_err();
+        let err = test::<Wallets>(yaml).unwrap_err();
         assert_eq!(err.len(), 1, "{err}");
         let err = err.first().inner().to_string();
         assert!(err.contains("only one should be provided"), "{err}");
