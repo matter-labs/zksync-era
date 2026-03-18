@@ -169,21 +169,16 @@ async fn no_governance_prepare(
         serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
     };
 
-    logger::info("done! 1");
-
     let mut output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)
             .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
 
-    logger::info("done! 2");
-
     // Add all the transaction hashes.
     for tx in broadcast_file.transactions {
         output.transactions.push(tx.hash);
     }
-    logger::info("done! 3");
 
     output.save_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -205,32 +200,6 @@ async fn ecosystem_admin(
             .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
-    // let l1_rpc_url = if let Some(url) = init_args.l1_rpc_url.clone() {
-    //     url
-    // } else {
-    //     ecosystem_config
-    //         .load_current_chain()?
-    //         .get_secrets_config()
-    //         .await?
-    //         .l1_rpc_url()?
-    // };
-
-    // // These are ABI-encoded
-
-    // Note: ecosystem_admin calls are not currently used
-    // let ecosystem_admin_calls = previous_output.ecosystem_admin_calls
-
-    // ecosystem_admin_execute_calls(
-    //     shell,
-    //     // Note, that ecosystem admin and governor use the same wallet.
-    //     &ecosystem_config.get_wallets()?.governor,
-    //     ecosystem_config.get_contracts_config()?.l1.chain_admin_addr,
-    //     ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-    //     ecosystem_admin_calls.server_notifier_upgrade.0,
-    //     &init_args.forge_args.clone(),
-    //     l1_rpc_url,
-    // )
-    // .await?;
     spinner.finish();
 
     Ok(())
@@ -527,56 +496,3 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScript
         UpgradeVersion::V31InteropB => V31_UPGRADE_ECOSYSTEM_PARAMS,
     }
 }
-
-// fn get_ctm_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScriptParams {
-//     match upgrade_version {
-//         UpgradeVersion::V31InteropB => V31_UPGRADE_CTM_CONTRACTS_PARAMS,
-//         _ => panic!(
-//             "Upgrade version {} is not supported for CTM upgrade",
-//             upgrade_version
-//         ),
-//     }
-// }
-
-// const PROXY_ADMIN_SLOT: H256 = H256([
-//     0xb5, 0x31, 0x27, 0x68, 0x4a, 0x56, 0x8b, 0x31, 0x73, 0xae, 0x13, 0xb9, 0xf8, 0xa6, 0x01, 0x6e,
-//     0x24, 0x3e, 0x63, 0xb6, 0xe8, 0xee, 0x11, 0x78, 0xd6, 0xa7, 0x17, 0x85, 0x0b, 0x5d, 0x61, 0x03,
-// ]);
-
-// fn get_local_gateway_chain_config(
-//     ecosystem_config: &EcosystemConfig,
-// ) -> anyhow::Result<ChainConfig> {
-//     let chain_config = ecosystem_config.load_chain(Some(LOCAL_GATEWAY_CHAIN_NAME.to_string()))?;
-//     Ok(chain_config)
-// }
-
-// async fn get_gateway_state_transition_config(
-//     ecosystem_config: &EcosystemConfig,
-// ) -> anyhow::Result<GatewayUpgradeContractsConfig> {
-//     // Firstly, we obtain the gateway config
-//     let chain_config = get_local_gateway_chain_config(ecosystem_config)?;
-//     let gw_config = chain_config.get_gateway_config()?;
-//     let general_config = chain_config.get_general_config().await?;
-
-//     let provider = get_ethers_provider(&general_config.l2_http_url()?)?;
-//     let proxy_admin_addr = provider
-//         .get_storage_at(
-//             gw_config.state_transition_proxy_addr,
-//             PROXY_ADMIN_SLOT,
-//             None,
-//         )
-//         .await?;
-//     let proxy_admin_addr = h256_to_address(&proxy_admin_addr);
-
-//     let chain_id = chain_config.chain_id.as_u64();
-
-//     Ok(GatewayUpgradeContractsConfig {
-//         gateway_state_transition: GatewayStateTransitionConfig {
-//             chain_type_manager_proxy_addr: gw_config.state_transition_proxy_addr,
-//             chain_type_manager_proxy_admin: proxy_admin_addr,
-//             rollup_da_manager: gw_config.rollup_da_manager,
-//             rollup_sl_da_validator: gw_config.relayed_sl_da_validator,
-//         },
-//         chain_id,
-//     })
-// }

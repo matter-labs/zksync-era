@@ -6,18 +6,10 @@ use crate::traits::{FileConfigTrait, FileConfigWithDefaultName};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct EcosystemUpgradeOutput {
-    // pub create2_factory_addr: Address,
-    // pub create2_factory_salt: H256,
-    // pub deployer_addr: Address,
-    // pub era_chain_id: u32,
-    // pub l1_chain_id: u32,
-    // pub owner_address: Address,
     #[serde(default)]
     pub chain_upgrade_diamond_cut: Bytes,
     pub governance_calls: GovernanceCalls,
 
-    // pub ecosystem_admin_calls: EcosystemAdminCalls,
-    // pub contracts_config: EcosystemUpgradeContractsOutput,
     #[serde(default)]
     pub state_transition: Option<EcosystemUpgradeStateTransition>,
     /// List of transactions that were executed during the upgrade.

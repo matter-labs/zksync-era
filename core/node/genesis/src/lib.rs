@@ -28,7 +28,7 @@ use zksync_types::{
     web3::{BlockNumber, FilterBuilder},
     zk_evm_types::LogQuery,
     AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
-    ProtocolVersion, ProtocolVersionId, SLChainId, StorageKey, StorageLog, H256, U256,
+    ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256, U256,
 };
 
 use crate::utils::{
@@ -90,10 +90,11 @@ pub struct GenesisParamsInitials {
     pub base_system_contracts: BaseSystemContracts,
     pub system_contracts: Vec<DeployedContract>,
     pub config: ContractsGenesis,
+    pub l1_chain_id: L1ChainId,
 }
 
 impl GenesisParamsInitials {
-    pub fn load_params(contracts_genesis_path: &Path) -> Self {
+    pub fn load_params(contracts_genesis_path: &Path, l1_chain_id: L1ChainId) -> Self {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         let system_contracts = get_system_smart_contracts();
 
@@ -102,6 +103,7 @@ impl GenesisParamsInitials {
             base_system_contracts,
             system_contracts,
             config,
+            l1_chain_id,
         }
     }
 
@@ -124,6 +126,7 @@ impl GenesisParamsInitials {
                 evm_emulator_hash: base_system_contracts_hashes.evm_emulator,
                 prover: L1VerifierConfig::default(),
             },
+            l1_chain_id: L1ChainId(9),
         }
     }
 }
@@ -152,6 +155,7 @@ impl From<GenesisParams> for GenesisParamsInitials {
                     fflonk_snark_wrapper_vk_hash: genesis_state.config.fflonk_snark_wrapper_vk_hash,
                 },
             },
+            l1_chain_id: genesis_state.config.l1_chain_id,
         }
     }
 }
@@ -346,6 +350,7 @@ pub async fn insert_genesis_batch_with_custom_state(
         &storage_logs,
         factory_deps,
         genesis_params.config.prover,
+        genesis_params.l1_chain_id,
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");
@@ -530,6 +535,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
     storage_logs: &[StorageLog],
     factory_deps: HashMap<H256, Vec<u8>>,
     l1_verifier_config: L1VerifierConfig,
+    l1_chain_id: L1ChainId,
 ) -> Result<Vec<LogQuery>, GenesisError> {
     let version = ProtocolVersion {
         version: protocol_version,
@@ -544,8 +550,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         0,
         base_system_contracts.hashes(),
         protocol_version.minor,
-        // TODO get proper chain id from config
-        SettlementLayer::L1(SLChainId(19)),
+        SettlementLayer::L1(l1_chain_id.into()),
     );
     let batch_fee_input = BatchFeeInput::pubdata_independent(0, 0, 0);
 
@@ -625,6 +630,7 @@ pub async fn create_genesis_l1_batch(
     base_system_contracts: &BaseSystemContracts,
     system_contracts: &[DeployedContract],
     l1_verifier_config: L1VerifierConfig,
+    l1_chain_id: L1ChainId,
 ) -> Result<(), GenesisError> {
     let storage_logs = get_storage_logs(system_contracts);
 
@@ -645,6 +651,7 @@ pub async fn create_genesis_l1_batch(
         &storage_logs,
         factory_deps,
         l1_verifier_config,
+        l1_chain_id,
     )
     .await?;
     Ok(())

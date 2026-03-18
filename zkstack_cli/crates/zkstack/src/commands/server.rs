@@ -62,7 +62,6 @@ async fn run_server(
         .run(
             shell,
             mode,
-            // FIX me replace with const
             chain_config.path_to_genesis_config(),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),
             chain_config.path_to_general_config(),

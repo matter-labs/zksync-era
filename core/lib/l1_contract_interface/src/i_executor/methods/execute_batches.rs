@@ -16,7 +16,7 @@ pub struct ExecuteBatches {
     pub dependency_roots: Vec<Vec<InteropRoot>>,
     pub logs: Vec<Vec<UserL2ToL1Log>>,
     pub messages: Vec<Vec<Vec<u8>>>,
-    pub message_roots: Vec<H256>, //
+    pub message_roots: Vec<H256>,
 }
 
 impl ExecuteBatches {

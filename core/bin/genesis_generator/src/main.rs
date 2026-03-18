@@ -8,14 +8,14 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Context as _;
 use clap::Parser;
 use zksync_config::{
-    configs::{ContractsGenesis, PostgresSecrets},
+    configs::{ContractsGenesis, GenesisConfigWrapper, PostgresSecrets},
     full_config_schema,
     sources::ConfigFilePaths,
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
-use zksync_types::url::SensitiveUrl;
+use zksync_types::{url::SensitiveUrl, L1ChainId};
 
 pub const DEFAULT_GENESIS_FILE_PATH: &str = "../contracts/configs/genesis/era/latest.json";
 
@@ -42,12 +42,17 @@ async fn main() -> anyhow::Result<()> {
     let schema = full_config_schema();
     let mut repo = config_sources.build_repository(&schema);
     let database_secrets: PostgresSecrets = repo.parse()?;
+    let genesis_config = repo
+        .parse::<GenesisConfigWrapper>()?
+        .genesis
+        .context("missing genesis config")?;
 
     let original_genesis: ContractsGenesis =
         tokio::task::spawn_blocking(|| ContractsGenesis::read(DEFAULT_GENESIS_FILE_PATH.as_ref()))
             .await??;
     let db_url = database_secrets.master_url()?;
-    let new_genesis = generate_new_config(db_url, original_genesis.clone()).await?;
+    let new_genesis =
+        generate_new_config(db_url, original_genesis.clone(), genesis_config.l1_chain_id).await?;
     if opt.check {
         assert_eq!(original_genesis, new_genesis);
         println!("Genesis config is up to date");
@@ -61,6 +66,7 @@ async fn main() -> anyhow::Result<()> {
 async fn generate_new_config(
     db_url: SensitiveUrl,
     genesis_config: ContractsGenesis,
+    l1_chain_id: L1ChainId,
 ) -> anyhow::Result<ContractsGenesis> {
     let pool = ConnectionPool::<Core>::singleton(db_url)
         .build()
@@ -84,7 +90,10 @@ async fn generate_new_config(
 
     // This tool doesn't really insert the batch. It doesn't commit the transaction,
     // so the database is clean after using the tool
-    let params = GenesisParamsInitials::load_params(&PathBuf::from_str(DEFAULT_GENESIS_FILE_PATH)?);
+    let params = GenesisParamsInitials::load_params(
+        &PathBuf::from_str(DEFAULT_GENESIS_FILE_PATH)?,
+        l1_chain_id,
+    );
     let batch_params = insert_genesis_batch(&mut transaction, &params).await?;
 
     updated_genesis.genesis_batch_commitment = batch_params.commitment;

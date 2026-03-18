@@ -360,7 +360,6 @@ async fn call_forge(
         forge = forge.with_signature(signature);
     } else {
         // When no signature is provided, we need to encode calldata for the run function
-        // kl todo this might be wrong
         let deploy_l2_contract = BaseContract::from(IDEPLOYL2CONTRACTSABI_ABI.clone());
         let calldata = deploy_l2_contract
             .encode(

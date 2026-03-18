@@ -235,7 +235,7 @@ impl Aggregator {
         priority_tree_start_index: Option<usize>,
         precommit_params: Option<&PrecommitParams>,
         execution_delay: Duration,
-        is_gateway: bool, //
+        is_gateway: bool,
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
@@ -252,7 +252,7 @@ impl Aggregator {
                 self.config.max_aggregated_blocks_to_execute as usize,
                 last_sealed_l1_batch_number,
                 priority_tree_start_index,
-                is_gateway, //
+                is_gateway,
                 execution_delay,
             )
             .await?,
@@ -470,7 +470,7 @@ impl Aggregator {
                 dependency_roots,
                 logs: vec![],
                 messages: vec![],
-                message_roots: vec![], //
+                message_roots: vec![],
             }));
         };
 
@@ -490,7 +490,7 @@ impl Aggregator {
         let mut priority_ops_proofs = vec![];
         let mut all_logs = vec![];
         let mut all_messages = vec![];
-        let mut all_message_roots = vec![]; //
+        let mut all_message_roots = vec![];
         for batch in &l1_batches {
             let priority_ops_in_batch = storage
                 .blocks_dal()
@@ -544,7 +544,6 @@ impl Aggregator {
                     .get_l2_to_l1_messages(batch.header.number)
                     .await
                     .map_err(EthSenderError::Dal)?;
-                // let filtered_logs = logs.into_iter().filter(|log| !log.is_service).map(|log| UserL2ToL1Log(log)).collect();
                 let message_root = storage
                     .blocks_dal()
                     .get_message_root(batch.header.number)
@@ -561,7 +560,7 @@ impl Aggregator {
             dependency_roots,
             logs: all_logs,
             messages: all_messages,
-            message_roots: all_message_roots, //
+            message_roots: all_message_roots,
         }))
     }
 

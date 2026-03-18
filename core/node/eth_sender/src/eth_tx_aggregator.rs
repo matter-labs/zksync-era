@@ -885,7 +885,7 @@ impl EthTxAggregator {
                 priority_tree_start_index,
                 precommit_params.as_ref(),
                 execution_delay,
-                is_gateway, //
+                is_gateway,
             )
             .await?
         {

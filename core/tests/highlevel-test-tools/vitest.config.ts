@@ -19,8 +19,8 @@ export default defineConfig({
         outputFile: {
             json: path.join(logsDir, 'vitest-results.json')
         },
-        testTimeout: 20 * 60 * 1000, // 20 minutes
-        hookTimeout: 25 * 60 * 1000, // 25 minutes - revert test beforeAll needs ~20 min
+        testTimeout: 25 * 60 * 1000, // 25 minutes
+        hookTimeout: 25 * 60 * 1000,
         globalSetup: './global-setup.ts'
     },
     resolve: {

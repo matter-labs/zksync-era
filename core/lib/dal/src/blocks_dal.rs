@@ -53,7 +53,7 @@ pub struct BlocksDal<'a, 'c> {
 
 pub struct L2ToL1Messages {
     l2_to_l1_messages: Vec<Vec<u8>>,
-} //
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct TxForPrecommit {
@@ -2115,7 +2115,6 @@ impl BlocksDal<'_, '_> {
                 pubdata_limit,
                 settlement_layer_chain_id,
                 settlement_layer_type
-            
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2212,7 +2211,6 @@ impl BlocksDal<'_, '_> {
                 pubdata_limit,
                 settlement_layer_chain_id,
                 settlement_layer_type
-            
             FROM
                 (
                     SELECT
@@ -3324,6 +3322,8 @@ impl BlocksDal<'_, '_> {
             SELECT COUNT(*)
             FROM l1_batches
             WHERE
+                number > 0
+                AND
                 settlement_layer_type = $1
                 AND settlement_layer_chain_id = $2
                 AND (
@@ -4205,5 +4205,43 @@ mod tests {
             .await
             .unwrap()
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn has_uncommitted_batches_ignores_genesis_batch() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let genesis_header = create_l1_batch_header(0);
+        insert_mock_l1_batch_header(&mut conn, &genesis_header).await;
+
+        let settlement_layer = SettlementLayer::for_tests();
+        let has_uncommitted = conn
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .unwrap();
+        assert!(
+            !has_uncommitted,
+            "genesis batch must not be considered uncommitted for migration checks"
+        );
+
+        let regular_batch_header = create_l1_batch_header(1);
+        insert_mock_l1_batch_header(&mut conn, &regular_batch_header).await;
+
+        let has_uncommitted = conn
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .unwrap();
+        assert!(
+            has_uncommitted,
+            "non-genesis uncommitted batch should be detected"
+        );
     }
 }

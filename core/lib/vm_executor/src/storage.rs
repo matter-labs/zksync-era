@@ -55,7 +55,6 @@ pub struct RestoredL1BatchEnv {
 }
 
 /// Returns the parameters required to initialize the VM for the next L1 batch.
-/// TODO pass first_l2_block as a struct
 #[allow(clippy::too_many_arguments)]
 pub fn l1_batch_params(
     current_l1_batch_number: L1BatchNumber,
