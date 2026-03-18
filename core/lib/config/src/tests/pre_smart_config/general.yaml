@@ -175,6 +175,7 @@ prover_job_monitor:
   gpu_prover_archiver_archive_prover_after_ms: 172800000
   prover_jobs_archiver_run_interval_ms: 1800000
   prover_jobs_archiver_archive_jobs_after_ms: 172800000
+  prover_jobs_archiver_delete_archived_jobs_after_ms: 604800000
   proof_compressor_job_requeuer_run_interval_ms: 10000
   prover_job_requeuer_run_interval_ms: 10000
   witness_generator_job_requeuer_run_interval_ms: 10000
