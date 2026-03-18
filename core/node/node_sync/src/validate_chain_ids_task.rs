@@ -188,7 +188,7 @@ mod tests {
 
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(3), // << mismatch with the Ethereum client
-            L2ChainId::default(),
+            L2ChainId::from(270u32),
             Box::new(eth_client.clone()),
             Box::new(main_node_client.clone()),
         );
@@ -253,7 +253,7 @@ mod tests {
 
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(9),
-            L2ChainId::default(),
+            L2ChainId::from(270u32),
             Box::new(eth_client),
             Box::new(main_node_client),
         );
