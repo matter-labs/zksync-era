@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH deleted AS (\n                DELETE FROM prover_jobs_fri_archive\n                WHERE updated_at < NOW() - $1::INTERVAL\n                RETURNING *\n            )\n            SELECT COUNT(*) FROM deleted\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Interval"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "250c10318e79adce4e7cbbd7aa96718c4d54c0917f3ec581ab4b8f040ae6fdf6"
+}

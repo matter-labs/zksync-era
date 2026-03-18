@@ -15,13 +15,20 @@ pub struct ProverJobsArchiver {
     pool: ConnectionPool<Prover>,
     /// duration after which a prover job can be archived
     archive_jobs_after: Duration,
+    /// duration after which archived prover jobs are permanently deleted
+    delete_archived_jobs_after: Duration,
 }
 
 impl ProverJobsArchiver {
-    pub fn new(pool: ConnectionPool<Prover>, archive_jobs_after: Duration) -> Self {
+    pub fn new(
+        pool: ConnectionPool<Prover>,
+        archive_jobs_after: Duration,
+        delete_archived_jobs_after: Duration,
+    ) -> Self {
         Self {
             pool,
             archive_jobs_after,
+            delete_archived_jobs_after,
         }
     }
 }
@@ -44,6 +51,19 @@ impl Task for ProverJobsArchiver {
         PROVER_JOB_MONITOR_METRICS
             .prover_job_archived
             .inc_by(archived_jobs as u64);
+
+        let deleted_archived_jobs = connection
+            .fri_prover_jobs_dal()
+            .delete_old_archived_jobs(self.delete_archived_jobs_after)
+            .await;
+        if deleted_archived_jobs > 0 {
+            tracing::info!(
+                "Deleted {:?} archived prover jobs older than {:?}",
+                deleted_archived_jobs,
+                self.delete_archived_jobs_after
+            );
+        }
+
         Ok(())
     }
 }
