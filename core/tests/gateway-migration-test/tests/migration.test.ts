@@ -40,7 +40,7 @@ interface GatewayInfo {
     l2DiamondProxyAddress: string;
 }
 
-describe('Migration from gateway test', function () {
+describe('Migration From/To gateway test', function () {
     // Utility wallets for facilitating testing
     let tester: Tester;
     let alice: zksync.Wallet;
@@ -160,8 +160,6 @@ describe('Migration from gateway test', function () {
         });
         await thirdDepositHandle.wait();
         await waitForBatchAdvance(tester, initialL1BatchNumber, 'third deposit');
-
-        // kl todo add an L2 token and withdrawal here, to check token balance migration properly.
 
         // Wait for at least one new committed block
         let newBlocksCommitted = await l1MainContract.getTotalBatchesCommitted();
@@ -341,18 +339,7 @@ describe('Migration from gateway test', function () {
             assetId
         );
 
-        // let expectedL1AssetSettlementLayer = (await tester.ethWallet.provider!.getNetwork()).chainId;
-        // let expectedGatewayAssetSettlementLayer = 0n;
-        if (direction == 'TO') {
-            // expectedL1AssetSettlementLayer = BigInt(gatewayInfo?.gatewayChainId!);
-            // expectedGatewayAssetSettlementLayer = BigInt(fileConfig.chain!);
-        } else {
-            return; // kl todo add migrate back from gateway
-        }
-        // expect(l1AssetSettlementLayer === fileConfig.chain).to.be.true;
-        // expect(gatewayAssetSettlementLayer === gatewayChain).to.be.true;
         expect(migrationNumberL1 === migrationNumberGateway).to.be.true;
-        console.log('migrationNumberL1', migrationNumberL1);
     });
 
     step('Execute transactions after simple restart', async () => {
