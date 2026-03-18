@@ -171,6 +171,7 @@ impl ValidateChainIdsTask {
 
 #[cfg(test)]
 mod tests {
+    use zksync_system_constants::DEFAULT_ERA_CHAIN_ID;
     use zksync_types::U64;
     use zksync_web3_decl::client::{MockClient, L1};
 
@@ -182,13 +183,13 @@ mod tests {
             .method("eth_chainId", || Ok(U64::from(9)))
             .build();
         let main_node_client = MockClient::builder(L2::default())
-            .method("eth_chainId", || Ok(U64::from(270)))
+            .method("eth_chainId", || Ok(U64::from(DEFAULT_ERA_CHAIN_ID)))
             .method("zks_L1ChainId", || Ok(U64::from(3)))
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(3), // << mismatch with the Ethereum client
-            L2ChainId::from(270u32),
+            L2ChainId::from(DEFAULT_ERA_CHAIN_ID),
             Box::new(eth_client.clone()),
             Box::new(main_node_client.clone()),
         );
@@ -205,7 +206,7 @@ mod tests {
 
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(9), // << mismatch with the main node client
-            L2ChainId::from(270),
+            L2ChainId::from(DEFAULT_ERA_CHAIN_ID),
             Box::new(eth_client.clone()),
             Box::new(main_node_client),
         );
@@ -220,13 +221,13 @@ mod tests {
         );
 
         let main_node_client = MockClient::builder(L2::default())
-            .method("eth_chainId", || Ok(U64::from(270)))
+            .method("eth_chainId", || Ok(U64::from(DEFAULT_ERA_CHAIN_ID)))
             .method("zks_L1ChainId", || Ok(U64::from(9)))
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(9),
-            L2ChainId::from(271), // << mismatch with the main node client
+            L2ChainId::from(DEFAULT_ERA_CHAIN_ID + 1), // << mismatch with the main node client
             Box::new(eth_client),
             Box::new(main_node_client),
         );
@@ -247,13 +248,13 @@ mod tests {
             .method("eth_chainId", || Ok(U64::from(9)))
             .build();
         let main_node_client = MockClient::builder(L2::default())
-            .method("eth_chainId", || Ok(U64::from(270)))
+            .method("eth_chainId", || Ok(U64::from(DEFAULT_ERA_CHAIN_ID)))
             .method("zks_L1ChainId", || Ok(U64::from(9)))
             .build();
 
         let validation_task = ValidateChainIdsTask::new(
             L1ChainId(9),
-            L2ChainId::from(270u32),
+            L2ChainId::from(DEFAULT_ERA_CHAIN_ID),
             Box::new(eth_client),
             Box::new(main_node_client),
         );
