@@ -45,3 +45,8 @@ During upgrade, we typically need not only update the L1 contracts, but also the
 Note, that due to how powerful the upgrades are, if we allowed any [chain admin](../chain_management/admin_role.md) to inact any upgrade it wants, it could allow malicious chains to potentially break some of the ecosystem invariants. Because of that, any upgrade should be firstly whitelisted by the decentralized governance through calling the `setNewVersionUpgrade` function of the [ChainTypeManager](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/state-transition/ChainTypeManager.sol).
 
 In order to execute the upgrade, the chain admin would call the `upgradeChainFromVersion` function from the [Admin](https://github.com/matter-labs/era-contracts/blob/8222265420f362c853da7160769620d9fed7f834/l1-contracts/contracts/state-transition/chain-deps/facets/Admin.sol) facet.
+
+## Patch upgrades
+
+A process that allows governance to create "smaller" upgrades that only touch Verifier changes. The flow for the chain admin is the same as before, but the decentralized governance would have to call the `createNewPatchUpgrade` to register the new upgrade onchain.
+
