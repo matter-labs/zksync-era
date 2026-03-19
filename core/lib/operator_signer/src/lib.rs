@@ -93,19 +93,19 @@ impl OperatorSigner {
         }
     }
 
-    /// Signs a hash via GCP KMS and converts the alloy signature to r/s/v.
+    /// Signs a hash via GCP KMS and converts the alloy signature to `(r, s, y_parity)`.
+    ///
+    /// `y_parity` is 0 or 1 (NOT Electrum-style 27/28).
     async fn gcp_sign_hash(&self, hash: &H256) -> Result<(H256, H256, u8), SignerError> {
         let signer = self.get_gcp_signer().await?;
         let sig = signer
             .sign_hash(&B256::from_slice(hash.as_bytes()))
             .await
             .map_err(|e| SignerError::SigningFailed(e.to_string()))?;
-        let bytes = sig.as_bytes(); // [u8; 65] = r (32) || s (32) || v (1)
-        Ok((
-            H256::from_slice(&bytes[..32]),
-            H256::from_slice(&bytes[32..64]),
-            bytes[64],
-        ))
+        let r = H256::from_slice(&sig.r().to_be_bytes::<32>());
+        let s = H256::from_slice(&sig.s().to_be_bytes::<32>());
+        let y_parity = sig.v() as u8;
+        Ok((r, s, y_parity))
     }
 }
 
