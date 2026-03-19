@@ -380,15 +380,18 @@ User sends bundle B→A
 ```
 
 1. **User constructs a bundle on chain B** destined for chain A containing two calls:
+
    - **Call 1 (indirect):** Bridge token T back to A — the `finalizeDeposit` unlocks/mints token T on A, depositing it
      into the user's ShadowAccount.
    - **Call 2 (direct):** A call to the ShadowAccount that triggers forwarding the tokens to chain C.
 
 2. **Chain B sends the bundle:**
+
    - `PrivateInteropCenter` on B burns token T (via `L2AssetRouter.initiateIndirectCall()`).
    - Only the bundle hash + call count is sent as an L2→L1 log.
 
 3. **Bundle is executed on chain A** (by the relayer/executor providing the full bundle data + inclusion proof):
+
    - `PrivateInteropHandler` on A verifies the bundle hash inclusion and executes both calls.
    - Call 1: `finalizeDeposit` unlocks token T on A. `L2AssetTracker` decrements `privateInteropBalance[B][T]` (tokens
      returning from B to origin).

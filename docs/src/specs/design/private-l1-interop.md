@@ -22,8 +22,8 @@ We want L2 users to be able to interact with L1 protocols via interop **without 
    bridging. SDK changes are minimal.
 4. **Single-bundle flow** — Token bridging and ShadowAccount commands are combined in a single bundle. Both use indirect
    calls, so neither reveals the user's address in the `from` field.
-5. **Works for L2↔L2 too** — The same pattern applies when the sender wants to hide their identity on the destination L2
-   chain.
+5. **Works for L2↔L2 too** — The same pattern applies when the sender wants to hide their identity on the destination
+   L2 chain.
 
 ## Key Mechanism: Indirect Calls Hide the Sender
 
@@ -238,6 +238,7 @@ ShadowAccount address is not linkable to any specific L2 user.
 ### Setup (once per user)
 
 1. **User registers on L2:**
+
    - Picks a random `secret`.
    - Calls `StealthSender.register(secret)` on chain B.
    - The contract stores the secret and can compute `ownerHash = hash(userAddress, secret)`.
