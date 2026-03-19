@@ -113,10 +113,16 @@ contract StealthSender is IL2CrossChainSender {
 
     /// @notice Called when tokens are returned from L1 via a private interop bundle.
     /// Looks up the user from the ownerHash and forwards all received tokens.
+    /// Must only be called by the InteropHandler (as part of bundle execution)
+    /// to prevent unauthorized draining of StealthSender's token balance.
     /// @param _ownerHash The ownerHash identifying which user to forward to.
     /// @param _token The token address to forward (address(0) for ETH).
     /// @param _amount The amount to forward.
     function receiveReturn(bytes32 _ownerHash, address _token, uint256 _amount) external {
+        require(
+            msg.sender == INTEROP_HANDLER || msg.sender == PRIVATE_INTEROP_HANDLER,
+            "Only InteropHandler"
+        );
         address user = ownerHashToUser[_ownerHash];
         require(user != address(0), "Unknown ownerHash");
         // Transfer tokens to the user
@@ -153,9 +159,7 @@ contract StealthSender is IL2CrossChainSender {
         uint256 _value,
         bytes calldata _data
     ) external payable onlyInteropCenter returns (InteropCallStarter memory) {
-        require(_destinationChainId == L1_CHAIN_ID, "Only L1 destination");
-
-        // Compute the user's ShadowAccount address on L1
+        // Compute the user's ShadowAccount address on the destination chain
         bytes32 salt = getOwnerHash(_originalCaller);
         bytes memory fullOwnerAddress = InteroperableAddress.formatEvmV1(
             block.chainid, address(this)
@@ -535,3 +539,18 @@ chain B initiated the transfer.
    on L1. The user specifies S as the recipient in the bridge call data. Since this data is inside the private bundle
    (hash only published), S is not revealed on chain B or GW — but the L2AssetRouter on chain B processes it internally.
    Need to confirm that no event or storage on chain B leaks the recipient address.
+
+8. **Return path bridge encoding leak:** The return path indirect call to L1AssetRouter has the same `_originalCaller`
+   leak as the outbound path — L1AssetRouter's `bridgeBurn` would encode the ShadowAccount address S in the mint data,
+   revealing S on L2 during `finalizeDeposit`. The bridge encoding fix (replacing `_originalCaller` with a neutral
+   address) needs to apply to L1AssetRouter as well, not just L2AssetRouter.
+
+9. **Return path gas funding:** The ShadowAccount on L1 needs ETH to pay for the L1→L2 priority tx
+   (`L1InteropCenter.sendBundle()` requires `msg.value`). The outbound L2→L1 bundle must include extra ETH beyond what's
+   needed for the L1 DeFi operations. Need to define how this is calculated and whether the ShadowAccount should hold a
+   persistent ETH balance for gas.
+
+10. **Origin on L1 scenario:** When a token originates on L1 and uses private interop, the B→A→C origin-routed flow
+    (from private-interop.md) means A = L1. The ShadowAccount on L1 would need to relay from B→L1→C using
+    L1PrivateInteropCenter for the L1→C leg. This combines private interop with L1 interop in a way not yet covered.
+    Does this require special handling, or does it fall out naturally from the existing designs?

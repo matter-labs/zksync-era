@@ -63,8 +63,10 @@ A new `L1InteropHandler` contract is deployed on L1. It:
 
 1. Receives a finalized withdrawal proof (batch number, message index, Merkle proof).
 2. Verifies the message was sent from the L2 InteropCenter using `Bridgehub.proveL2MessageInclusion()`.
-3. Decodes the bundle from the message payload.
-4. Executes the bundle calls on L1.
+3. Checks bundle status to prevent replay (maintains a `bundleStatus` mapping, same as the L2 InteropHandler).
+4. Decodes the bundle from the message payload.
+5. Executes the bundle calls on L1, including routing through ShadowAccounts when `interopCall.shadowAccount == true`
+   (same `_executeViaShadowAccount` logic as the L2 InteropHandler, deploying via the ShadowAccountFactory if needed).
 
 ```solidity
 contract L1InteropHandler {

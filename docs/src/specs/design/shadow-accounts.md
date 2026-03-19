@@ -33,32 +33,36 @@ without querying it.
 
 ### ShadowAccountFactory
 
-The factory deploys ShadowAccounts with two inputs:
+The factory deploys ShadowAccounts with three inputs:
 
 - **`_salt`** — a CREATE2 salt chosen by the deployer.
+- **`_interopHandler`** — the InteropHandler address on this chain (passed to the ShadowAccount constructor).
 - **`_fullOwnerAddress`** — the ERC-7930 encoded owner address (chain ID + address).
 
 ```solidity
 contract ShadowAccountFactory {
     /// @notice Deploys a ShadowAccount for the given owner.
     /// @param _salt CREATE2 salt chosen by the deployer.
+    /// @param _interopHandler The InteropHandler address that will deliver messages.
     /// @param _fullOwnerAddress ERC-7930 encoded owner address.
     function deploy(
         bytes32 _salt,
+        address _interopHandler,
         bytes memory _fullOwnerAddress
     ) external returns (address) {
-        ShadowAccount account = new ShadowAccount{salt: _salt}(_fullOwnerAddress);
+        ShadowAccount account = new ShadowAccount{salt: _salt}(_interopHandler, _fullOwnerAddress);
         return address(account);
     }
 
     /// @notice Computes the address where a ShadowAccount would be deployed.
     function computeAddress(
         bytes32 _salt,
+        address _interopHandler,
         bytes memory _fullOwnerAddress
     ) external view returns (address) {
         bytes memory bytecode = abi.encodePacked(
             type(ShadowAccount).creationCode,
-            abi.encode(_fullOwnerAddress)
+            abi.encode(_interopHandler, _fullOwnerAddress)
         );
         return address(uint160(uint256(keccak256(
             abi.encodePacked(bytes1(0xff), address(this), _salt, keccak256(bytecode))
@@ -115,8 +119,8 @@ contract ShadowAccount is IERC7786Recipient {
     address public immutable INTEROP_HANDLER;
     bytes public fullOwnerAddress; // ERC-7930 encoded owner
 
-    constructor(bytes memory _fullOwnerAddress) {
-        INTEROP_HANDLER = msg.sender;
+    constructor(address _interopHandler, bytes memory _fullOwnerAddress) {
+        INTEROP_HANDLER = _interopHandler;
         fullOwnerAddress = _fullOwnerAddress;
     }
 

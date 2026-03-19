@@ -357,7 +357,7 @@ Consider chains A, B, and C, and a token T whose origin is chain A (set to priva
 
 Direct B→C transfers are **not allowed** for private tokens. The origin chain A must track how much of token T each
 chain holds, and a direct B→C transfer would bypass A's accounting. Instead, all cross-chain forwarding flows through
-the origin chain: **B → A → C**, using [ShadowAccounts](./shadow-accounts-design.md) to automate the relay on A.
+the origin chain: **B → A → C**, using [ShadowAccounts](./shadow-accounts.md) to automate the relay on A.
 
 ```
 Chain B                    Chain A (origin)                Chain C
