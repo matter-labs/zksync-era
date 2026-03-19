@@ -309,8 +309,8 @@ The Governance Diamond is **owned by the chain's CTM owner** (e.g., the bank), n
 essential — if governance owned the diamond, we would have merely relocated the trust problem rather than solving it.
 
 However, the diamond's facets can only point to **governance-approved shared contract versions**. Governance controls
-_what_ versions are available (by deploying new SharedNTV_v2, SharedAssetRouter_v2, etc.), while the chain's CTM owner
-controls _when_ (or whether) to adopt a new version. This separation ensures:
+_what_ versions are available (by deploying new SharedNTV*v2, SharedAssetRouter_v2, etc.), while the chain's CTM owner
+controls \_when* (or whether) to adopt a new version. This separation ensures:
 
 - Governance cannot force an upgrade on a chain — the bank must actively choose to swap facets.
 - The bank cannot point its facets at arbitrary contracts — only versions deployed and audited by governance.
