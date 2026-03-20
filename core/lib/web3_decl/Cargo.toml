@@ -28,6 +28,13 @@ tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 vise.workspace = true
 rustls.workspace = true
+flate2.workspace = true
+zstd.workspace = true
+tower.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+http-body.workspace = true
+bytes.workspace = true
 
 # DI-specific dependencies
 zksync_health_check = { workspace = true, optional = true }
