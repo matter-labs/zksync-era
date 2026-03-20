@@ -1,0 +1,28 @@
+[package]
+name = "zksync_operator_signer"
+description = "ZKsync operator signer abstraction supporting local keys and GCP KMS"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_basic_types.workspace = true
+zksync_config.workspace = true
+zksync_crypto_primitives.workspace = true
+zksync_eth_signer.workspace = true
+
+alloy-primitives.workspace = true
+alloy-signer.workspace = true
+alloy-signer-gcp.workspace = true
+gcloud-sdk.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

@@ -70,6 +70,24 @@ pub struct Transaction {
     pub blob_versioned_hashes: Option<Vec<H256>>,
 }
 
+impl From<TransactionParameters> for Transaction {
+    fn from(params: TransactionParameters) -> Self {
+        Self {
+            to: params.to,
+            nonce: params.nonce,
+            gas: params.gas,
+            gas_price: params.max_fee_per_gas,
+            value: params.value,
+            data: params.data,
+            transaction_type: params.transaction_type,
+            access_list: params.access_list.unwrap_or_default(),
+            max_priority_fee_per_gas: params.max_priority_fee_per_gas,
+            max_fee_per_blob_gas: params.max_fee_per_blob_gas,
+            blob_versioned_hashes: params.blob_versioned_hashes,
+        }
+    }
+}
+
 impl Transaction {
     fn rlp_append_legacy(&self, stream: &mut RlpStream) {
         stream.append(&self.nonce);
@@ -238,6 +256,23 @@ impl Transaction {
                 panic!("Unsupported transaction type");
             }
         }
+    }
+
+    /// Returns the hash that needs to be signed and whether the v value needs
+    /// chain-id adjustment (true for legacy transactions).
+    pub fn hash_for_signing(&self, chain_id: u64) -> (H256, bool) {
+        let adjust_v_value = matches!(
+            self.transaction_type.map(|t| t.as_u64()),
+            Some(LEGACY_TX_ID) | None
+        );
+        let encoded = self.encode(chain_id, None);
+        let message_hash = H256(keccak256(encoded.as_ref()));
+        (message_hash, adjust_v_value)
+    }
+
+    /// Encodes the transaction with a pre-computed signature and returns the raw bytes.
+    pub fn encode_with_signature(&self, chain_id: u64, signature: &Signature) -> Vec<u8> {
+        self.encode(chain_id, Some(signature))
     }
 
     /// Sign and return a raw signed transaction.
