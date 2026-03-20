@@ -66,12 +66,15 @@ async fn get_l2_client_unchecked(
     };
     Ok(if let Some(url) = gateway_rpc_url {
         let client: Client<L2> = Client::http(url.clone()).context("Client::new()")?.build();
-        let chain_id = client.fetch_chain_id().await?;
-        let client = Client::http(url)
-            .context("Client::new()")?
-            .for_network(L2ChainId::new(chain_id.0).unwrap().into())
-            .build();
-        Some(Box::new(client))
+        if let Ok(chain_id) = client.fetch_chain_id().await {
+            let client = Client::http(url)
+                .context("Client::new()")?
+                .for_network(L2ChainId::new(chain_id.0).unwrap().into())
+                .build();
+            Some(Box::new(client))
+        } else {
+            None
+        }
     } else {
         tracing::warn!(
             "No client was found for gateway, you are working in none \
