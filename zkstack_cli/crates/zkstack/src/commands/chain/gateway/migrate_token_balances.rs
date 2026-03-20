@@ -62,6 +62,18 @@ pub struct InitiateTokenBalanceMigrationArgs {
 
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub to_gateway: Option<bool>,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// L2 RPC URL. If not provided, will be read from chain's general config.
+    #[clap(long)]
+    pub l2_rpc_url: Option<String>,
+
+    /// Gateway RPC URL. If not provided, will be read from gateway chain's general config.
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
@@ -84,6 +96,18 @@ pub struct FinalizeTokenBalanceMigrationArgs {
     /// End block for reading migration initiation events
     #[clap(long)]
     pub to_block: Option<u64>,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// Gateway RPC URL. If not provided, will be read from gateway chain's general config.
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
+
+    /// L2 RPC URL. If not provided, will be read from chain's general config.
+    #[clap(long)]
+    pub l2_rpc_url: Option<String>,
 }
 
 pub async fn run_initiate(
@@ -91,7 +115,14 @@ pub async fn run_initiate(
     shell: &Shell,
 ) -> anyhow::Result<()> {
     let (wallet, _l1_bridgehub_addr, l2_chain_id, gw_chain_id, l1_url, l2_url, gw_rpc_url) =
-        load_migration_context(shell, args.gateway_chain_name).await?;
+        load_migration_context(
+            shell,
+            args.gateway_chain_name,
+            args.l1_rpc_url,
+            args.l2_rpc_url,
+            args.gateway_rpc_url,
+        )
+        .await?;
 
     let to_gateway = args.to_gateway.unwrap_or(true);
     logger::info(format!(
@@ -120,7 +151,14 @@ pub async fn run_finalize(
     shell: &Shell,
 ) -> anyhow::Result<()> {
     let (wallet, l1_bridgehub_addr, l2_chain_id, gw_chain_id, l1_url, l2_url, gw_rpc_url) =
-        load_migration_context(shell, args.gateway_chain_name).await?;
+        load_migration_context(
+            shell,
+            args.gateway_chain_name,
+            args.l1_rpc_url,
+            args.l2_rpc_url,
+            args.gateway_rpc_url,
+        )
+        .await?;
 
     let to_gateway = args.to_gateway.unwrap_or(true);
     logger::info(format!(
@@ -151,6 +189,9 @@ const LOOK_WAITING_TIME_MS: u64 = 1600;
 async fn load_migration_context(
     shell: &Shell,
     gateway_chain_name: String,
+    l1_rpc_url_override: Option<String>,
+    l2_rpc_url_override: Option<String>,
+    gateway_rpc_url_override: Option<String>,
 ) -> anyhow::Result<(Wallet, Address, u64, u64, String, String, String)> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
@@ -163,12 +204,23 @@ async fn load_migration_context(
         .load_chain(Some(gateway_chain_name))
         .context("Gateway not present")?;
 
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
-    let l2_url = chain_config.get_general_config().await?.l2_http_url()?;
-    let gw_rpc_url = gateway_chain_config
-        .get_general_config()
-        .await?
-        .l2_http_url()?;
+    let l1_url = match l1_rpc_url_override {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
+    let l2_url = match l2_rpc_url_override {
+        Some(url) => url,
+        None => chain_config.get_general_config().await?.l2_http_url()?,
+    };
+    let gw_rpc_url = match gateway_rpc_url_override {
+        Some(url) => url,
+        None => {
+            gateway_chain_config
+                .get_general_config()
+                .await?
+                .l2_http_url()?
+        }
+    };
 
     Ok((
         ecosystem_config
