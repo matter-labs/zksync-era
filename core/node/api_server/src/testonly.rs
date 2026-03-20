@@ -679,7 +679,7 @@ pub(crate) async fn persist_block_with_transactions(
         executor_storage,
         l1_batch_env,
         system_env,
-        PubdataParams::default(),
+        PubdataParams::genesis(),
     );
 
     let mut all_events = vec![];
@@ -778,7 +778,7 @@ pub(crate) async fn persist_sealed_batch_with_call_trace(
         executor_storage,
         l1_batch_env,
         system_env,
-        PubdataParams::default(),
+        PubdataParams::genesis(),
     );
 
     let BatchTransactionExecutionResult {

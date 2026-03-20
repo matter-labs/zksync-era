@@ -26,8 +26,8 @@ use crate::{
     },
     vm_latest::{
         constants::{
-            get_interop_blocks_begin_offset, get_tx_operator_l2_block_info_offset,
-            TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
+            get_interop_blocks_begin_offset, get_interop_fee_offset,
+            get_tx_operator_l2_block_info_offset, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
         utils::l2_blocks::get_l2_block_hash_key,
         MultiVmSubversion,
@@ -486,12 +486,12 @@ pub(crate) fn test_l2_block_first_in_batch<VM: TestedVm>() {
 }
 
 fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info: L2BlockEnv) {
-    let fictive_miniblock_position =
-        get_tx_operator_l2_block_info_offset(MultiVmSubversion::latest())
-            + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
-    let interop_blocks_begin_offset = get_interop_blocks_begin_offset(MultiVmSubversion::latest());
+    let subversion = MultiVmSubversion::latest();
+    let fictive_miniblock_position = get_tx_operator_l2_block_info_offset(subversion)
+        + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
+    let interop_blocks_begin_offset = get_interop_blocks_begin_offset(subversion);
     let number_of_interop_roots_plus_one = block_info.interop_roots.len() + 1;
-    vm.write_to_bootloader_heap(&[
+    let mut required_heap = vec![
         (fictive_miniblock_position, block_info.number.into()),
         (fictive_miniblock_position + 1, block_info.timestamp.into()),
         (
@@ -506,5 +506,10 @@ fn set_manual_l2_block_info(vm: &mut impl TestedVm, tx_number: usize, block_info
             interop_blocks_begin_offset,
             number_of_interop_roots_plus_one.into(),
         ),
-    ])
+    ];
+    if subversion >= MultiVmSubversion::MediumInterop {
+        let interop_fee_begin_offset = get_interop_fee_offset(subversion);
+        required_heap.push((interop_fee_begin_offset, U256::zero()));
+    }
+    vm.write_to_bootloader_heap(&required_heap)
 }
