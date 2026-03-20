@@ -44,7 +44,7 @@ zksync_node_framework = { workspace = true, optional = true }
 assert_matches.workspace = true
 rand.workspace = true
 test-casing.workspace = true
-tokio = { workspace = true, features = ["rt", "test-util"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "test-util"] }
 
 [features]
 default = []
