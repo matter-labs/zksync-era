@@ -87,9 +87,7 @@ where
                 .collect()
                 .await
                 .map_err(|e| {
-                    TransportError::Http(jsonrpsee::core::http_helpers::HttpError::Stream(
-                        e.into(),
-                    ))
+                    TransportError::Http(jsonrpsee::core::http_helpers::HttpError::Stream(e.into()))
                 })?
                 .to_bytes();
 
@@ -103,19 +101,18 @@ where
                     let mut decoder = flate2::read::GzDecoder::new(&compressed_bytes[..]);
                     let mut buf = Vec::new();
                     decoder.read_to_end(&mut buf).map_err(|e| {
-                        TransportError::Http(
-                            jsonrpsee::core::http_helpers::HttpError::Stream(e.into()),
-                        )
+                        TransportError::Http(jsonrpsee::core::http_helpers::HttpError::Stream(
+                            e.into(),
+                        ))
                     })?;
                     Bytes::from(buf)
                 }
                 Some("zstd") => {
-                    let buf =
-                        zstd::stream::decode_all(&compressed_bytes[..]).map_err(|e| {
-                            TransportError::Http(
-                                jsonrpsee::core::http_helpers::HttpError::Stream(e.into()),
-                            )
-                        })?;
+                    let buf = zstd::stream::decode_all(&compressed_bytes[..]).map_err(|e| {
+                        TransportError::Http(jsonrpsee::core::http_helpers::HttpError::Stream(
+                            e.into(),
+                        ))
+                    })?;
                     Bytes::from(buf)
                 }
                 _ => compressed_bytes,
@@ -148,8 +145,7 @@ mod tests {
     impl Service<Request<Full<Bytes>>> for MockBackend {
         type Response = Response<Full<Bytes>>;
         type Error = TransportError;
-        type Future =
-            Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+        type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
         fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             Poll::Ready(Ok(()))
@@ -162,8 +158,7 @@ mod tests {
                 let mut builder = Response::builder();
                 if let Some(enc) = encoding {
                     builder = builder.header(header::CONTENT_ENCODING, enc);
-                    builder =
-                        builder.header(header::CONTENT_LENGTH, body.len().to_string());
+                    builder = builder.header(header::CONTENT_LENGTH, body.len().to_string());
                 }
                 Ok(builder.body(Full::new(body)).unwrap())
             })
@@ -171,8 +166,9 @@ mod tests {
     }
 
     fn gzip_compress(data: &[u8]) -> Vec<u8> {
-        use flate2::write::GzEncoder;
         use std::io::Write;
+
+        use flate2::write::GzEncoder;
         let mut encoder = GzEncoder::new(Vec::new(), flate2::Compression::default());
         encoder.write_all(data).unwrap();
         encoder.finish().unwrap()
@@ -191,12 +187,13 @@ mod tests {
         };
         let mut svc = EagerDecompressionLayer::new().layer(backend);
 
-        let req = Request::builder()
-            .body(Full::new(Bytes::new()))
-            .unwrap();
+        let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let resp = svc.call(req).await.unwrap();
 
-        assert_eq!(resp.into_body().collect().await.unwrap().to_bytes(), &payload[..]);
+        assert_eq!(
+            resp.into_body().collect().await.unwrap().to_bytes(),
+            &payload[..]
+        );
     }
 
     #[tokio::test]
@@ -209,12 +206,13 @@ mod tests {
         };
         let mut svc = EagerDecompressionLayer::new().layer(backend);
 
-        let req = Request::builder()
-            .body(Full::new(Bytes::new()))
-            .unwrap();
+        let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let resp = svc.call(req).await.unwrap();
 
-        assert_eq!(resp.into_body().collect().await.unwrap().to_bytes(), &payload[..]);
+        assert_eq!(
+            resp.into_body().collect().await.unwrap().to_bytes(),
+            &payload[..]
+        );
     }
 
     #[tokio::test]
@@ -227,12 +225,13 @@ mod tests {
         };
         let mut svc = EagerDecompressionLayer::new().layer(backend);
 
-        let req = Request::builder()
-            .body(Full::new(Bytes::new()))
-            .unwrap();
+        let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let resp = svc.call(req).await.unwrap();
 
-        assert_eq!(resp.into_body().collect().await.unwrap().to_bytes(), &payload[..]);
+        assert_eq!(
+            resp.into_body().collect().await.unwrap().to_bytes(),
+            &payload[..]
+        );
     }
 
     #[tokio::test]
@@ -245,9 +244,7 @@ mod tests {
         };
         let mut svc = EagerDecompressionLayer::new().layer(backend);
 
-        let req = Request::builder()
-            .body(Full::new(Bytes::new()))
-            .unwrap();
+        let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let resp = svc.call(req).await.unwrap();
 
         assert!(resp.headers().get(header::CONTENT_ENCODING).is_none());
@@ -263,22 +260,16 @@ mod tests {
         impl Service<Request<Full<Bytes>>> for HeaderCapture {
             type Response = Response<Full<Bytes>>;
             type Error = TransportError;
-            type Future =
-                Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+            type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-            fn poll_ready(
-                &mut self,
-                _cx: &mut Context<'_>,
-            ) -> Poll<Result<(), Self::Error>> {
+            fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
                 Poll::Ready(Ok(()))
             }
 
             fn call(&mut self, req: Request<Full<Bytes>>) -> Self::Future {
                 let captured = req.headers().get(header::ACCEPT_ENCODING).cloned();
                 *self.0.lock().unwrap() = captured;
-                Box::pin(async {
-                    Ok(Response::new(Full::new(Bytes::new())))
-                })
+                Box::pin(async { Ok(Response::new(Full::new(Bytes::new()))) })
             }
         }
 
@@ -286,9 +277,7 @@ mod tests {
         let backend = HeaderCapture(captured.clone());
         let mut svc = EagerDecompressionLayer::new().layer(backend);
 
-        let req = Request::builder()
-            .body(Full::new(Bytes::new()))
-            .unwrap();
+        let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let _ = svc.call(req).await.unwrap();
 
         let header = captured.lock().unwrap().clone().unwrap();
@@ -303,22 +292,16 @@ mod tests {
         impl Service<Request<Full<Bytes>>> for HeaderCapture {
             type Response = Response<Full<Bytes>>;
             type Error = TransportError;
-            type Future =
-                Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+            type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-            fn poll_ready(
-                &mut self,
-                _cx: &mut Context<'_>,
-            ) -> Poll<Result<(), Self::Error>> {
+            fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
                 Poll::Ready(Ok(()))
             }
 
             fn call(&mut self, req: Request<Full<Bytes>>) -> Self::Future {
                 let captured = req.headers().get(header::ACCEPT_ENCODING).cloned();
                 *self.0.lock().unwrap() = captured;
-                Box::pin(async {
-                    Ok(Response::new(Full::new(Bytes::new())))
-                })
+                Box::pin(async { Ok(Response::new(Full::new(Bytes::new()))) })
             }
         }
 
@@ -348,9 +331,7 @@ mod tests {
         };
         let mut svc = EagerDecompressionLayer::new().layer(backend);
 
-        let req = Request::builder()
-            .body(Full::new(Bytes::new()))
-            .unwrap();
+        let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let resp = svc.call(req).await.unwrap();
 
         let body = resp.into_body().collect().await.unwrap().to_bytes();

@@ -150,8 +150,7 @@ impl<Net: Network> Client<Net> {
 
         let client = HttpClientBuilder::default()
             .set_http_middleware(
-                tower::ServiceBuilder::new()
-                    .layer(decompression::EagerDecompressionLayer::new()),
+                tower::ServiceBuilder::new().layer(decompression::EagerDecompressionLayer::new()),
             )
             .build(url.expose_str())?;
         Ok(ClientBuilder::new(client, url))
