@@ -28,6 +28,13 @@ tokio = { workspace = true, features = ["time"] }
 tracing.workspace = true
 vise.workspace = true
 rustls.workspace = true
+flate2.workspace = true
+zstd.workspace = true
+tower.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+http-body.workspace = true
+bytes.workspace = true
 
 # DI-specific dependencies
 zksync_health_check = { workspace = true, optional = true }
@@ -37,7 +44,7 @@ zksync_node_framework = { workspace = true, optional = true }
 assert_matches.workspace = true
 rand.workspace = true
 test-casing.workspace = true
-tokio = { workspace = true, features = ["rt", "test-util"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "test-util"] }
 
 [features]
 default = []

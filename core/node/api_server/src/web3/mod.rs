@@ -7,7 +7,7 @@ use tokio::{
     sync::{mpsc, watch, Mutex},
     task::JoinHandle,
 };
-use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
+use tower_http::{compression::CompressionLayer, cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides, Namespace};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -584,7 +584,8 @@ impl ApiServer {
         // Assemble server middleware.
         let middleware = tower::ServiceBuilder::new()
             .layer(in_flight_requests)
-            .option_layer(cors);
+            .option_layer(cors)
+            .layer(CompressionLayer::new());
 
         // Settings shared by HTTP and WS servers.
         let max_connections = !is_http

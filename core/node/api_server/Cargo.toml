@@ -54,7 +54,7 @@ hex.workspace = true
 http.workspace = true
 tower.workspace = true
 strum = { workspace = true, features = ["derive"] }
-tower-http = { workspace = true, features = ["cors", "metrics"] }
+tower-http = { workspace = true, features = ["cors", "metrics", "compression-gzip", "compression-zstd"] }
 lru.workspace = true
 reqwest.workspace = true
 

@@ -53,7 +53,8 @@ impl Api {
                 "/verify_proof/{l1_batch_number}",
                 post(Api::verify_proof).layer(middleware_factory(Method::VerifyProof)),
             )
-            .with_state(processor);
+            .with_state(processor)
+            .layer(tower_http::compression::CompressionLayer::new());
 
         Self { router, port }
     }
