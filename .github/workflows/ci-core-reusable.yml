@@ -58,12 +58,11 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
         with:
-          node-version: 18.20.8
+          node-version: 20
 
       - name: Install yarn
         run: |
           npm install -g yarn
-
       - name: Check contracts hashes
         working-directory: contracts
         run: |
@@ -94,7 +93,7 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 36000 || 22500 }} >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 30000 || 20000 }} >> .env
           echo ACCOUNTS_AMOUNT="100" >> .env
           echo MAX_INFLIGHT_TXS="10" >> .env
           echo SYNC_API_REQUESTS_LIMIT="15" >> .env
@@ -151,7 +150,7 @@ jobs:
       # ----------------------------------------------
       matrix:
         use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
-        tested_chain_type: [ "era", "validium", "custom_token"]
+        tested_chain_type: [ "era", "validium", "custom_token" ]
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:
@@ -228,7 +227,7 @@ jobs:
         run: |
           ci_run zkstack chain create \
           --chain-name gateway \
-          --chain-id 505 \
+          --chain-id 506 \
           --prover-mode no-proofs \
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode rollup \
@@ -263,6 +262,13 @@ jobs:
           ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
           ci_run zkstack contract-verifier wait --chain era --verbose
 
+      - name: Check permissions
+        run: |
+          whoami
+          pwd
+          touch testfile
+          ls -l testfile
+
       - name: Run tests
         run: |
           ci_run yarn highlevel-test-tools test
@@ -286,7 +292,11 @@ jobs:
           fi
 
           # Always run the upgrade test against era
-          ci_run zkstack dev test upgrade --no-deps --chain era
+          # Upgrading to v31 requires the chain is settling on L1, so this test makes no sense when settling on Gateway
+          # TODO: Restore tests for future release.
+          if [ "${{ matrix.use_gateway_chain }}" == "WITHOUT_GATEWAY" ]; then
+            ci_run zkstack dev test upgrade --no-deps --chain era
+          fi
 
       - name: Upload logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -37,7 +37,16 @@ describe('Tests for L1 behavior', () => {
     let errorContract: zksync.Contract;
 
     let isETHBasedChain: boolean;
-    let expectedL2Costs: bigint;
+
+    const mintValueForRequestExecute = async (gasPrice: bigint) => {
+        if (isETHBasedChain) return 0n;
+        const baseCost = await alice.getBaseCost({
+            gasLimit: maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit),
+            gasPerPubdataByte: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
+            gasPrice
+        });
+        return (baseCost * 140n) / 100n;
+    };
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
@@ -63,28 +72,23 @@ describe('Tests for L1 behavior', () => {
     });
 
     test('Should calculate l2 base cost, if base token is not ETH', async () => {
+        if (isETHBasedChain) return;
+
         const gasPrice = await scaledGasPrice(alice);
-        if (!isETHBasedChain) {
-            expectedL2Costs =
-                ((await alice.getBaseCost({
-                    gasLimit: maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit),
-                    gasPerPubdataByte: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
-                    gasPrice
-                })) *
-                    140n) /
-                100n;
-        }
+        const mintValue = await mintValueForRequestExecute(gasPrice);
+        expect(mintValue).toBeGreaterThan(0n);
     });
 
     test('Should request L1 execute', async () => {
         const calldata = counterContract.interface.encodeFunctionData('increment', ['1']);
         const gasPrice = await scaledGasPrice(alice);
+        const mintValue = await mintValueForRequestExecute(gasPrice);
 
         await expect(
             alice.requestExecute({
                 contractAddress: await counterContract.getAddress(),
                 calldata,
-                mintValue: isETHBasedChain ? 0n : expectedL2Costs,
+                mintValue,
                 overrides: {
                     gasPrice
                 }
@@ -96,13 +100,14 @@ describe('Tests for L1 behavior', () => {
         const l2Value = 10;
         const calldata = contextContract.interface.encodeFunctionData('requireMsgValue', [l2Value]);
         const gasPrice = await scaledGasPrice(alice);
+        const mintValue = await mintValueForRequestExecute(gasPrice);
 
         await expect(
             alice.requestExecute({
                 contractAddress: await contextContract.getAddress(),
                 calldata,
                 l2Value,
-                mintValue: isETHBasedChain ? 0n : expectedL2Costs,
+                mintValue,
                 overrides: {
                     gasPrice
                 }
@@ -113,13 +118,14 @@ describe('Tests for L1 behavior', () => {
     test('Should fail requested L1 execute', async () => {
         const calldata = errorContract.interface.encodeFunctionData('require_short', []);
         const gasPrice = await scaledGasPrice(alice);
+        const mintValue = await mintValueForRequestExecute(gasPrice);
 
         await expect(
             alice.requestExecute({
                 contractAddress: await errorContract.getAddress(),
                 calldata,
                 l2GasLimit: DEFAULT_L2_GAS_LIMIT,
-                mintValue: isETHBasedChain ? 0n : expectedL2Costs,
+                mintValue,
                 overrides: {
                     gasPrice
                 }
@@ -169,13 +175,14 @@ describe('Tests for L1 behavior', () => {
     test('Should check max L2 gas limit for priority txs', async () => {
         const gasPrice = await scaledGasPrice(alice);
         const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
+        const mintValue = await mintValueForRequestExecute(gasPrice);
 
         // Check that the request with higher `gasLimit` fails.
         let priorityOpHandle = await alice.requestExecute({
             contractAddress: alice.address,
             calldata: '0x',
             l2GasLimit: l2GasLimit + 1n,
-            mintValue: isETHBasedChain ? 0n : expectedL2Costs,
+            mintValue,
             overrides: {
                 gasPrice,
                 gasLimit: 600_000
@@ -194,7 +201,7 @@ describe('Tests for L1 behavior', () => {
             contractAddress: alice.address,
             calldata: '0x',
             l2GasLimit,
-            mintValue: isETHBasedChain ? 0n : expectedL2Costs,
+            mintValue,
             overrides: {
                 gasPrice
             }
@@ -215,6 +222,7 @@ describe('Tests for L1 behavior', () => {
         // We check that we will run out of gas if we do a bit smaller amount of writes.
         const calldata = contract.interface.encodeFunctionData('writes', [0, 4500, 1]);
         const gasPrice = await scaledGasPrice(alice);
+        const mintValue = await mintValueForRequestExecute(gasPrice);
 
         const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
 
@@ -222,7 +230,7 @@ describe('Tests for L1 behavior', () => {
             contractAddress: await contract.getAddress(),
             calldata,
             l2GasLimit,
-            mintValue: isETHBasedChain ? 0n : expectedL2Costs,
+            mintValue,
             overrides: {
                 gasPrice
             }
@@ -271,13 +279,14 @@ describe('Tests for L1 behavior', () => {
 
         const calldata = contract.interface.encodeFunctionData('writes', [0, repeatedWritesInOneTx, 2]);
         const gasPrice = await scaledGasPrice(alice);
+        const mintValue = await mintValueForRequestExecute(gasPrice);
         const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
 
         const priorityOpHandle = await alice.requestExecute({
             contractAddress: await contract.getAddress(),
             calldata,
             l2GasLimit,
-            mintValue: isETHBasedChain ? 0n : expectedL2Costs,
+            mintValue,
             overrides: {
                 gasPrice
             }
@@ -305,6 +314,7 @@ describe('Tests for L1 behavior', () => {
         // We check that we will run out of gas if we send a bit smaller amount of L2->L1 logs.
         const calldata = contract.interface.encodeFunctionData('l2_l1_messages', [1000]);
         const gasPrice = await scaledGasPrice(alice);
+        const mintValue = await mintValueForRequestExecute(gasPrice);
 
         const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
 
@@ -312,7 +322,7 @@ describe('Tests for L1 behavior', () => {
             contractAddress: await contract.getAddress(),
             calldata,
             l2GasLimit,
-            mintValue: isETHBasedChain ? 0n : expectedL2Costs,
+            mintValue,
             overrides: {
                 gasPrice
             }
@@ -345,6 +355,7 @@ describe('Tests for L1 behavior', () => {
             (MAX_PUBDATA_PER_BATCH * 9n) / 10n
         ]);
         const gasPrice = await scaledGasPrice(alice);
+        const mintValue = await mintValueForRequestExecute(gasPrice);
 
         const l2GasLimit = maxL2GasLimitForPriorityTxs(testMaster.environment().priorityTxMaxGasLimit);
 
@@ -352,7 +363,7 @@ describe('Tests for L1 behavior', () => {
             contractAddress: await contract.getAddress(),
             calldata,
             l2GasLimit,
-            mintValue: isETHBasedChain ? 0n : expectedL2Costs,
+            mintValue,
             overrides: {
                 gasPrice
             }
