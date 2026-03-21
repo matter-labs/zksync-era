@@ -1,5 +1,17 @@
 # Changelog
 
+## [29.14.0](https://github.com/matter-labs/zksync-era/compare/core-v29.13.1...core-v29.14.0) (2026-03-20)
+
+
+### Features
+
+* **prover:** delete archived jobs after a week ([#4718](https://github.com/matter-labs/zksync-era/issues/4718)) ([a5825da](https://github.com/matter-labs/zksync-era/commit/a5825dae390a3be240b222945f9bac5099ab3251))
+
+
+### Bug Fixes
+
+* **sl:** Don't ask gateway chain_id ([#4725](https://github.com/matter-labs/zksync-era/issues/4725)) ([c885e9d](https://github.com/matter-labs/zksync-era/commit/c885e9d6bb5c2ecdd6eb75f3dd21480ce6d6e865))
+
 ## [29.13.1](https://github.com/matter-labs/zksync-era/compare/core-v29.13.0...core-v29.13.1) (2026-03-13)
 
 
