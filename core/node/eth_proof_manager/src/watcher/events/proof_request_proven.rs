@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{panic::AssertUnwindSafe, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -111,17 +111,20 @@ impl EventHandler for ProofRequestProvenHandler {
 
         let proof = match &decoded[0] {
             Token::Bytes(b) => b.clone(),
-            _ => panic!("Expected bytes"),
+            _ => anyhow::bail!("expected Bytes for proof field in ProofRequestProven event"),
         };
 
         let assigned_to = match &decoded[1] {
-            Token::Uint(u) => ProvingNetwork::from_u256(*u),
-            _ => panic!("Expected uint8"),
+            Token::Uint(u) => ProvingNetwork::from_u256(*u)
+                .context("invalid assigned_to in ProofRequestProven event")?,
+            _ => anyhow::bail!("expected Uint for assigned_to field in ProofRequestProven event"),
         };
 
         let requested_reward = match decoded[2] {
             Token::Uint(u) => u,
-            _ => panic!("Expected uint256"),
+            _ => anyhow::bail!(
+                "expected Uint for requested_reward field in ProofRequestProven event"
+            ),
         };
 
         let event = ProofRequestProven {
@@ -212,14 +215,28 @@ async fn verify_proof(
         .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
 
     let verification_result = match proof.inner() {
-        TypedL1BatchProofForL1::Fflonk(proof) => {
-            let proof = proof.scheduler_proof;
-            fflonk::verify::<
-                _,
-                ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
-                RollingKeccakTranscript<Fr>,
-            >(&verification_key, &proof, None)
-            .unwrap_or(false)
+        TypedL1BatchProofForL1::Fflonk(fflonk_proof) => {
+            let scheduler_proof = fflonk_proof.scheduler_proof;
+            // `fflonk::verify` can panic when given a structurally malformed proof
+            // (e.g. out-of-range field elements). Catching the panic here converts
+            // it into a regular `Err`, which the caller treats as an invalid proof
+            // and marks the batch accordingly — preventing a crash loop.
+            match std::panic::catch_unwind(AssertUnwindSafe(|| {
+                fflonk::verify::<
+                    _,
+                    ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
+                    RollingKeccakTranscript<Fr>,
+                >(&verification_key, &scheduler_proof, None)
+                .unwrap_or(false)
+            })) {
+                Ok(result) => result,
+                Err(_) => {
+                    return Err(anyhow::anyhow!(
+                        "fflonk verifier panicked for batch {} — treating as invalid proof",
+                        batch_number
+                    ));
+                }
+            }
         }
         TypedL1BatchProofForL1::Plonk(_) => {
             return Err(anyhow::anyhow!(
