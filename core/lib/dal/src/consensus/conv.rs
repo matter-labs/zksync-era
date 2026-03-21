@@ -5,7 +5,7 @@ use zksync_consensus_roles::node;
 use zksync_protobuf::{read_optional_repr, read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi,
-    commitment::{PubdataParams, PubdataType},
+    commitment::{L2DACommitmentScheme, PubdataParams, PubdataType},
     ethabi,
     fee::Fee,
     h256_to_u256,
@@ -15,7 +15,8 @@ use zksync_types::{
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
     u256_to_h256, Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
-    L2ChainId, L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
+    L2ChainId, L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, SLChainId, Transaction,
+    H256,
 };
 
 use super::*;
@@ -112,21 +113,41 @@ impl ProtoRepr for proto::PubdataParams {
     type Type = PubdataParams;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        Ok(Self::Type {
-            l2_da_validator_address: required(&self.l2_da_validator_address)
-                .and_then(|a| parse_h160(a))
-                .context("l2_da_validator_address")?,
-            pubdata_type: required(&self.pubdata_info)
+        Self::Type::new(
+            (
+                self.l2_da_validator_address
+                    .as_ref()
+                    .map(|a| parse_h160(a))
+                    .transpose()
+                    .context("l2_da_validator_address")?,
+                self.l2_da_commitment_scheme
+                    .as_ref()
+                    .map(|a| L2DACommitmentScheme::try_from(*a as u8))
+                    .transpose()
+                    .unwrap(),
+            )
+                .try_into()?,
+            required(&self.pubdata_info)
                 .and_then(|x| Ok(proto::PubdataType::try_from(*x)?))
                 .context("pubdata_type")?
                 .parse(),
-        })
+        )
     }
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            l2_da_validator_address: Some(this.l2_da_validator_address.as_bytes().into()),
-            pubdata_info: Some(this.pubdata_type as i32),
+            l2_da_validator_address: this
+                .pubdata_validator()
+                .l2_da_validator()
+                .as_ref()
+                .map(|addr| addr.as_bytes().to_vec()),
+            l2_da_commitment_scheme: this
+                .pubdata_validator()
+                .l2_da_commitment_scheme()
+                .as_ref()
+                .map(|addr| *addr as u32),
+
+            pubdata_info: Some(this.pubdata_type() as i32),
         }
     }
 }
@@ -219,17 +240,20 @@ impl ProtoFmt for Payload {
             last_in_batch: *required(&r.last_in_batch).context("last_in_batch")?,
             pubdata_params: read_optional_repr(&r.pubdata_params)
                 .context("pubdata_params")?
-                .unwrap_or_default(),
+                .unwrap_or_else(PubdataParams::pre_gateway),
             pubdata_limit: r.pubdata_limit,
             interop_roots,
+            settlement_layer: read_optional_repr(&r.settlement_layer)
+                .context("settlement_layer")?,
+            interop_fee: r.interop_fee,
         };
         if this.protocol_version.is_pre_gateway() {
             anyhow::ensure!(
-                this.pubdata_params == PubdataParams::default(),
+                this.pubdata_params == PubdataParams::pre_gateway(),
                 "pubdata_params should have the default value in pre-gateway protocol_version"
             );
         }
-        if this.pubdata_params == PubdataParams::default() {
+        if this.pubdata_params == PubdataParams::pre_gateway() {
             anyhow::ensure!(
                 r.pubdata_params.is_none(),
                 "default pubdata_params should be encoded as None"
@@ -252,7 +276,7 @@ impl ProtoFmt for Payload {
     fn build(&self) -> Self::Proto {
         if self.protocol_version.is_pre_gateway() {
             assert_eq!(
-                self.pubdata_params, PubdataParams::default(),
+                self.pubdata_params, PubdataParams::pre_gateway(),
                 "BUG DETECTED: pubdata_params should have the default value in pre-gateway protocol_version"
             );
         }
@@ -281,13 +305,15 @@ impl ProtoFmt for Payload {
             transactions: vec![],
             transactions_v25: vec![],
             last_in_batch: Some(self.last_in_batch),
-            pubdata_params: if self.pubdata_params == PubdataParams::default() {
+            pubdata_params: if self.pubdata_params == PubdataParams::pre_gateway() {
                 None
             } else {
                 Some(ProtoRepr::build(&self.pubdata_params))
             },
             pubdata_limit: self.pubdata_limit,
             interop_roots: self.interop_roots.iter().map(ProtoRepr::build).collect(),
+            settlement_layer: self.settlement_layer.as_ref().map(ProtoRepr::build),
+            interop_fee: self.interop_fee,
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {
@@ -623,6 +649,35 @@ impl proto::PubdataType {
             Self::Celestia => PubdataType::Celestia,
             Self::Eigen => PubdataType::Eigen,
             Self::ObjectStore => PubdataType::ObjectStore,
+        }
+    }
+}
+
+impl ProtoRepr for proto::SettlementLayer {
+    type Type = SettlementLayer;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        match *required(&self.settlement_layer_type).context("settlement_layer_type")? {
+            0 => Ok(SettlementLayer::L1(SLChainId(
+                *required(&self.chain_id).context("chain_id")?,
+            ))),
+            1 => Ok(SettlementLayer::Gateway(SLChainId(
+                *required(&self.chain_id).context("chain_id")?,
+            ))),
+            _ => unreachable!(),
+        }
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        match this {
+            SettlementLayer::L1(chain_id) => Self {
+                settlement_layer_type: Some(0),
+                chain_id: Some(chain_id.0),
+            },
+            SettlementLayer::Gateway(chain_id) => Self {
+                settlement_layer_type: Some(1),
+                chain_id: Some(chain_id.0),
+            },
         }
     }
 }

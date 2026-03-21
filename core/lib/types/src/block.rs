@@ -7,6 +7,7 @@ use crate::{
     fee_model::BatchFeeInput,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
+    settlement::SettlementLayer,
     web3::{keccak256, keccak256_concat},
     AccountTreeId, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
@@ -86,7 +87,9 @@ pub struct L1BatchHeader {
     pub pubdata_input: Option<Vec<u8>>,
     pub fee_address: Address,
     pub batch_fee_input: BatchFeeInput,
+    pub interop_fee: U256,
     pub pubdata_limit: Option<u64>,
+    pub settlement_layer: SettlementLayer,
 }
 
 impl L1BatchHeader {
@@ -97,7 +100,9 @@ impl L1BatchHeader {
             protocol_version: self.protocol_version,
             fee_address: self.fee_address,
             fee_input: self.batch_fee_input,
+            interop_fee: self.interop_fee,
             pubdata_limit: self.pubdata_limit,
+            settlement_layer: self.settlement_layer,
         }
     }
 }
@@ -110,7 +115,9 @@ pub struct UnsealedL1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
+    pub interop_fee: U256,
     pub pubdata_limit: Option<u64>,
+    pub settlement_layer: SettlementLayer,
 }
 
 /// Holder for the metadata that is relevant for both sealed and unsealed batches.
@@ -122,6 +129,7 @@ pub struct CommonL1BatchHeader {
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
     pub pubdata_limit: Option<u64>,
+    pub settlement_layer: SettlementLayer,
 }
 
 /// Holder for the L2 block metadata that is not available from transactions themselves.
@@ -177,10 +185,12 @@ impl L1BatchHeader {
         timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version: ProtocolVersionId,
+        settlement_layer: SettlementLayer,
     ) -> L1BatchHeader {
         Self {
             number,
             timestamp,
+            settlement_layer,
             l1_tx_count: 0,
             l2_tx_count: 0,
             priority_ops_onchain_data: vec![],
@@ -194,6 +204,7 @@ impl L1BatchHeader {
             pubdata_input: Some(vec![]),
             fee_address: Default::default(),
             batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+            interop_fee: U256::zero(),
             pubdata_limit: (protocol_version >= ProtocolVersionId::Version29).then_some(0),
         }
     }

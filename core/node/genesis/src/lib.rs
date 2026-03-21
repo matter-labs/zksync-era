@@ -18,10 +18,11 @@ use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_types::{
     block::{DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     bytecode::BytecodeHash,
-    commitment::{CommitmentInput, L1BatchCommitment},
+    commitment::{CommitmentInput, L1BatchCommitment, PubdataParams},
     fee_model::BatchFeeInput,
     protocol_upgrade::decode_genesis_upgrade_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
+    settlement::SettlementLayer,
     system_contracts::get_system_smart_contracts,
     u256_to_h256,
     web3::{BlockNumber, FilterBuilder},
@@ -487,6 +488,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         0,
         base_system_contracts.hashes(),
         protocol_version.minor,
+        SettlementLayer::default(),
     );
     let batch_fee_input = BatchFeeInput::pubdata_independent(0, 0, 0);
 
@@ -505,7 +507,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         virtual_blocks: 0,
         gas_limit: 0,
         logs_bloom: Bloom::zero(),
-        pubdata_params: Default::default(),
+        pubdata_params: PubdataParams::genesis(),
         rolling_txs_hash: Some(H256::zero()),
     };
 
