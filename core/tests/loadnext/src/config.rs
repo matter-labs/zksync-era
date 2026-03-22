@@ -191,7 +191,6 @@ fn default_seed() -> Option<String> {
 }
 
 fn default_l2_chain_id() -> u64 {
-    // 270 for Rinkeby
     let result = L2ChainId::default().as_u64();
     tracing::info!("Using default L2_CHAIN_ID: {result}");
     result

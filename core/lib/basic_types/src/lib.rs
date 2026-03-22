@@ -225,7 +225,9 @@ impl FromStr for L2ChainId {
 
 impl Default for L2ChainId {
     fn default() -> Self {
-        Self(270)
+        // 0 is the sentinel "uninitialized" chain ID used before L2GenesisUpgradeTx sets the real value.
+        // Chain ID 0 is rejected by the L1 Bridgehub (ZeroChainId), so it can never be a real deployed chain.
+        Self::zero()
     }
 }
 
