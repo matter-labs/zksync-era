@@ -14,8 +14,8 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::MockObjectStore;
 use zksync_tee_prover_interface::api::SubmitTeeProofRequest;
 use zksync_types::{
-    block::L1BatchHeader, commitment::L1BatchCommitmentMode, tee_types::TeeType, L1BatchNumber,
-    L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
+    block::L1BatchHeader, commitment::L1BatchCommitmentMode, settlement::SettlementLayer,
+    tee_types::TeeType, L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use crate::create_proof_processing_router;
@@ -296,6 +296,7 @@ fn create_l1_batch_header(number: u32) -> L1BatchHeader {
             evm_emulator: Some(H256::repeat_byte(43)),
         },
         ProtocolVersionId::latest(),
+        SettlementLayer::for_tests(),
     )
 }
 

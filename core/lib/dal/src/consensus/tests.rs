@@ -9,9 +9,10 @@ use zksync_protobuf::{
 };
 use zksync_test_contracts::Account;
 use zksync_types::{
-    commitment::{PubdataParams, PubdataType},
+    commitment::{L2DACommitmentScheme, L2PubdataValidator, PubdataParams, PubdataType},
     web3::Bytes,
-    Execute, ExecuteTransactionCommon, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction,
+    Execute, ExecuteTransactionCommon, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId,
+    Transaction,
 };
 
 use super::*;
@@ -54,10 +55,16 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
             .collect(),
         last_in_batch: rng.gen(),
         pubdata_params: if protocol_version.is_pre_gateway() {
-            PubdataParams::default()
+            PubdataParams::pre_gateway()
         } else {
-            PubdataParams {
-                pubdata_type: match rng.gen_range(0..2) {
+            PubdataParams::new(
+                L2PubdataValidator::CommitmentScheme(match rng.gen_range(1..3) {
+                    1 => L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                    2 => L2DACommitmentScheme::EmptyNoDA,
+                    3 => L2DACommitmentScheme::PubdataKeccak256,
+                    _ => unreachable!("Invalid L2DACommitmentScheme value"),
+                }),
+                match rng.gen_range(0..4) {
                     0 => PubdataType::Rollup,
                     1 => PubdataType::NoDA,
                     2 => PubdataType::Avail,
@@ -65,8 +72,8 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
                     4 => PubdataType::Eigen,
                     _ => PubdataType::ObjectStore,
                 },
-                l2_da_validator_address: rng.gen(),
-            }
+            )
+            .unwrap()
         },
         pubdata_limit: if protocol_version < ProtocolVersionId::Version29 {
             None
@@ -74,6 +81,16 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
             Some(rng.gen())
         },
         interop_roots: (1..10).map(|_| interop_root(rng)).collect(),
+        settlement_layer: if protocol_version < ProtocolVersionId::Version29 {
+            None
+        } else {
+            Some(SettlementLayer::L1(SLChainId(rng.gen::<u64>())))
+        },
+        interop_fee: if protocol_version < ProtocolVersionId::Version29 {
+            None
+        } else {
+            Some(rng.gen())
+        },
     }
 }
 
@@ -112,6 +129,39 @@ fn test_encoding() {
         let p = payload(rng, v);
         test_encode(rng, &p);
     }
+}
+
+#[test]
+fn malformed_l2_da_commitment_scheme_is_decode_error() {
+    let proto = proto::PubdataParams {
+        l2_da_validator_address: None,
+        l2_da_commitment_scheme: Some(u32::from(u8::MAX) + 1),
+        pubdata_info: Some(proto::PubdataType::Rollup as i32),
+    };
+
+    let err = proto
+        .read()
+        .expect_err("malformed l2_da_commitment_scheme should be rejected");
+    assert!(
+        format!("{err:#}").contains("l2_da_commitment_scheme"),
+        "unexpected error: {err:#}"
+    );
+}
+
+#[test]
+fn settlement_layer_unknown_type_is_decode_error() {
+    let layer = proto::SettlementLayer {
+        chain_id: Some(1),
+        settlement_layer_type: Some(i32::MAX),
+    };
+
+    let err = layer
+        .read()
+        .expect_err("unknown settlement_layer_type should fail decoding");
+    assert!(
+        format!("{err:#}").contains("settlement_layer_type"),
+        "unexpected error: {err:#}"
+    );
 }
 
 fn encode_decode<P, C>(msg: P::Type)
