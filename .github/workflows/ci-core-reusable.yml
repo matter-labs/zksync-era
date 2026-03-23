@@ -298,57 +298,6 @@ jobs:
             ci_run zkstack dev test upgrade --no-deps --chain era
           fi
 
-      - name: Debug failed gateway L1 txs
-        if: failure() && matrix.use_gateway_chain == 'WITH_GATEWAY'
-        run: |
-          set +e
-          LOG_FILE=${{ env.SERVER_LOGS_DIR }}/gateway.log
-          RPC_URL=${ETH_CLIENT_WEB3_URL:-http://127.0.0.1:8545}
-
-          echo "=== integration-tests failed (WITH_GATEWAY): collecting ETH tx diagnostics ==="
-          echo "Using LOG_FILE=${LOG_FILE}"
-          echo "Using RPC_URL=${RPC_URL}"
-
-          if [ ! -f "${LOG_FILE}" ]; then
-            echo "Log file '${LOG_FILE}' does not exist"
-            exit 0
-          fi
-
-          echo "=== Eth tx failure lines ==="
-          grep -n --fixed-strings 'Eth tx failed EthTx' "${LOG_FILE}" || true
-
-          FAILED_TXS=$(grep --fixed-strings 'Eth tx failed EthTx' "${LOG_FILE}" \
-            | grep -oE 'transaction_hash: 0x[0-9a-fA-F]{64}' \
-            | awk '{print $2}' \
-            | sort -u)
-
-          if [ -z "${FAILED_TXS}" ]; then
-            echo "No failed tx hashes were extracted from the gateway log"
-            exit 0
-          fi
-
-          if ! ci_run cast --version >/dev/null 2>&1; then
-            echo "'cast' is not installed on this runner"
-            exit 0
-          fi
-
-          for TX_HASH in ${FAILED_TXS}; do
-            echo "=== Context for ${TX_HASH} ==="
-            grep -n --fixed-strings "${TX_HASH}" "${LOG_FILE}" || true
-
-            echo "::group::cast tx ${TX_HASH}"
-            ci_run cast tx "${TX_HASH}" --rpc-url "${RPC_URL}" || true
-            echo "::endgroup::"
-
-            echo "::group::cast receipt ${TX_HASH}"
-            ci_run cast receipt "${TX_HASH}" --rpc-url "${RPC_URL}" || true
-            echo "::endgroup::"
-
-            echo "::group::cast run ${TX_HASH}"
-            ci_run cast run "${TX_HASH}" --rpc-url "${RPC_URL}" || true
-            echo "::endgroup::"
-          done
-
       - name: Upload logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
