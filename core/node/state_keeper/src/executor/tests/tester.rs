@@ -267,16 +267,15 @@ impl Tester {
             self.config.validation_computational_gas_limit;
         let mut batch_params = default_l1_batch_env(l1_batch_number.0, timestamp, self.fee_account);
         batch_params.previous_batch_hash = Some(H256::zero()); // Not important in this context.
+        let pubdata_validator = if system_params.version.is_pre_medium_interop() {
+            L2PubdataValidator::Address(Address::repeat_byte(0x23))
+        } else {
+            L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::BlobsAndPubdataKeccak256)
+        };
         (
             batch_params,
             system_params,
-            PubdataParams::new(
-                L2PubdataValidator::CommitmentScheme(
-                    L2DACommitmentScheme::BlobsAndPubdataKeccak256,
-                ),
-                Default::default(),
-            )
-            .unwrap(),
+            PubdataParams::new(pubdata_validator, Default::default()).unwrap(),
         )
     }
 

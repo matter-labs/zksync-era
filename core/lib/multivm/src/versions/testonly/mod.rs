@@ -205,9 +205,12 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
 }
 
 pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
-    Rc::new(FullPubdataBuilder::new(
-        L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
-    ))
+    let pubdata_validator = if ProtocolVersionId::latest().is_pre_medium_interop() {
+        L2PubdataValidator::Address(Address::zero())
+    } else {
+        L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::BlobsAndPubdataKeccak256)
+    };
+    Rc::new(FullPubdataBuilder::new(pubdata_validator))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {

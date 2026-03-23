@@ -131,6 +131,39 @@ fn test_encoding() {
     }
 }
 
+#[test]
+fn malformed_l2_da_commitment_scheme_is_decode_error() {
+    let proto = proto::PubdataParams {
+        l2_da_validator_address: None,
+        l2_da_commitment_scheme: Some(u32::from(u8::MAX) + 1),
+        pubdata_info: Some(proto::PubdataType::Rollup as i32),
+    };
+
+    let err = proto
+        .read()
+        .expect_err("malformed l2_da_commitment_scheme should be rejected");
+    assert!(
+        format!("{err:#}").contains("l2_da_commitment_scheme"),
+        "unexpected error: {err:#}"
+    );
+}
+
+#[test]
+fn settlement_layer_unknown_type_is_decode_error() {
+    let layer = proto::SettlementLayer {
+        chain_id: Some(1),
+        settlement_layer_type: Some(i32::MAX),
+    };
+
+    let err = layer
+        .read()
+        .expect_err("unknown settlement_layer_type should fail decoding");
+    assert!(
+        format!("{err:#}").contains("settlement_layer_type"),
+        "unexpected error: {err:#}"
+    );
+}
+
 fn encode_decode<P, C>(msg: P::Type)
 where
     P: ProtoRepr,

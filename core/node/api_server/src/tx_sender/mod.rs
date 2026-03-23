@@ -302,7 +302,7 @@ impl TxSenderConfig {
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
-            interop_fee: state_keeper_config.interop_fee,
+            interop_fee: state_keeper_config.interop_fee_fallback,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
             timestamp_asserter_params: None,
