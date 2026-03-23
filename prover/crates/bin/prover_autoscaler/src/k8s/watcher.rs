@@ -265,55 +265,51 @@ impl Watcher {
                                     let involved_object_name = e.involved_object.name.clone().unwrap_or_default();
                                     let involved_object_kind = e.involved_object.kind.clone().unwrap_or_default();
 
-                                    if involved_object_kind == "Pod" && event_message.contains("GCE out of resources") {
+                                    let reason = e.reason.clone().unwrap_or_default();
+
+                                    // Detect pods that can't be scheduled due to
+                                    // insufficient GPU resources. The k8s scheduler
+                                    // emits FailedScheduling with "Insufficient
+                                    // nvidia.com/gpu" when no node can fit the pod.
+                                    let is_out_of_resources = involved_object_kind == "Pod"
+                                        && reason == "FailedScheduling"
+                                        && event_message.contains("Insufficient nvidia.com/gpu");
+
+                                    if is_out_of_resources {
                                         tracing::info!(
-                                            "Detected GCE out of resources for pod {} in namespace {}",
+                                            "Detected resource exhaustion for pod {} in namespace {}: {}",
                                             involved_object_name,
-                                            namespace
+                                            namespace,
+                                            event_message
                                         );
                                         let mut cluster_guard = self.cluster.lock().await;
                                         if let Some(ns_data) = cluster_guard.namespaces.get_mut(&namespace.clone()) {
                                             if let Some(pod_data) = ns_data.pods.get_mut(&involved_object_name) {
                                                 pod_data.out_of_resources = true;
-                                                tracing::info!(
-                                                    "Marked pod {} in namespace {} as out of resources",
-                                                    involved_object_name,
-                                                    namespace
-                                                );
                                             } else {
                                                 tracing::warn!(
-                                                    "Pod {} not found in namespace {} for GCE out of resources event",
+                                                    "Pod {} not found in namespace {} for resource exhaustion event",
                                                     involved_object_name,
                                                     namespace
                                                 );
                                             }
                                         } else {
                                             tracing::warn!(
-                                                "Namespace {} not found for GCE out of resources event for pod {}",
+                                                "Namespace {} not found for resource exhaustion event for pod {}",
                                                 namespace,
                                                 involved_object_name
                                             );
                                         }
-                                    }
 
-                                    let reason = e.reason.clone().unwrap_or_default();
-                                    if reason == "FailedScaleUp" && event_message.contains("GCE out of resources") {
+                                        // Also record as a scale error on the namespace.
                                         let name = e.name_any();
                                         let time: DateTime<Utc> = match e.last_timestamp {
                                             Some(t) => t.0,
                                             None => Utc::now(),
                                         };
-                                        tracing::info!(
-                                            "Got FailedScaleUp with GCE out of resources: {}/{}, message: {:?}",
-                                            namespace,
-                                            name,
-                                            event_message
-                                        );
                                         let mut cluster_guard = self.cluster.lock().await;
                                         if let Some(v) = cluster_guard.namespaces.get_mut(&namespace) {
                                             v.scale_errors.push(ScaleEvent { name, time });
-                                        } else {
-                                            tracing::warn!("Namespace not found for FailedScaleUp event: {}", namespace);
                                         }
                                     }
                                 }
