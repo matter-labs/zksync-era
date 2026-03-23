@@ -18,7 +18,7 @@ use zksync_node_test_utils::{
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     block::L2BlockHeader,
-    commitment::{L1BatchWithMetadata, PubdataType},
+    commitment::{L1BatchWithMetadata, PubdataParams, PubdataType},
     eth_sender::EthTxFinalityStatus,
     protocol_version::ProtocolSemanticVersion,
     web3::Log,
@@ -350,7 +350,7 @@ impl SaveAction<'_> {
                     .await
                     .unwrap();
 
-                if L1BatchCommitmentMode::from(l2_block.pubdata_params.pubdata_type)
+                if L1BatchCommitmentMode::from(l2_block.pubdata_params.pubdata_type())
                     == L1BatchCommitmentMode::Validium
                 {
                     storage
@@ -557,7 +557,11 @@ async fn normal_checker_function(
         .map(|batch| {
             let mut l2_block = create_l2_block(batch_to_block_number(batch));
             if commitment_mode == L1BatchCommitmentMode::Validium {
-                l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+                l2_block.pubdata_params = PubdataParams::new(
+                    l2_block.pubdata_params.pubdata_validator(),
+                    PubdataType::NoDA,
+                )
+                .unwrap()
             }
             (batch.to_owned(), l2_block)
         })
@@ -655,7 +659,11 @@ async fn checker_processes_pre_boojum_batches(
         .map(|batch| {
             let mut l2_block = create_l2_block(batch_to_block_number(batch));
             if commitment_mode == L1BatchCommitmentMode::Validium {
-                l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+                l2_block.pubdata_params = PubdataParams::new(
+                    l2_block.pubdata_params.pubdata_validator(),
+                    PubdataType::NoDA,
+                )
+                .unwrap()
             }
             (batch.to_owned(), l2_block)
         })
@@ -703,7 +711,11 @@ async fn checker_functions_after_snapshot_recovery(
     let l1_batch = create_l1_batch_with_metadata(99);
     let mut l2_block = create_l2_block(batch_to_block_number(&l1_batch));
     if commitment_mode == L1BatchCommitmentMode::Validium {
-        l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+        l2_block.pubdata_params = PubdataParams::new(
+            l2_block.pubdata_params.pubdata_validator(),
+            PubdataType::NoDA,
+        )
+        .unwrap()
     }
 
     let commit_tx_input_data =
@@ -922,7 +934,11 @@ async fn checker_detects_incorrect_tx_data(
     let l1_batch = create_l1_batch_with_metadata(if snapshot_recovery { 99 } else { 1 });
     let mut l2_block = create_l2_block(batch_to_block_number(&l1_batch));
     if commitment_mode == L1BatchCommitmentMode::Validium {
-        l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+        l2_block.pubdata_params = PubdataParams::new(
+            l2_block.pubdata_params.pubdata_validator(),
+            PubdataType::NoDA,
+        )
+        .unwrap()
     }
 
     let client = create_mock_ethereum();

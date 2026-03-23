@@ -42,11 +42,12 @@ use zksync_state_keeper::{
 };
 use zksync_test_contracts::Account;
 use zksync_types::{
+    commitment::PubdataParams,
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
     settlement::SettlementLayer,
     Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
-    Transaction,
+    Transaction, U256,
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
@@ -263,10 +264,12 @@ impl StateKeeper {
                         fair_l2_gas_price: 10,
                         l1_gas_price: 100,
                     }),
+                    interop_fee: U256::zero(),
                     first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
-                    pubdata_params: Default::default(),
+                    pubdata_params: PubdataParams::genesis(),
                     pubdata_limit: (self.protocol_version >= ProtocolVersionId::Version29)
                         .then_some(100_000),
+                    settlement_layer: SettlementLayer::for_tests(),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,

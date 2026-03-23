@@ -4,8 +4,8 @@ use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 use zksync_types::{
     api::en::SyncBlock, block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
-    helpers::unix_timestamp_ms, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, H256,
+    helpers::unix_timestamp_ms, settlement::SettlementLayer, Address, InteropRoot, L1BatchNumber,
+    L2BlockNumber, ProtocolVersionId, H256, U256,
 };
 
 use super::{
@@ -84,7 +84,9 @@ impl TryFrom<SyncBlock> for FetchedBlock {
         }
 
         let pubdata_params = if block.protocol_version.is_pre_gateway() {
-            block.pubdata_params.unwrap_or_default()
+            block
+                .pubdata_params
+                .unwrap_or_else(PubdataParams::pre_gateway)
         } else {
             block
                 .pubdata_params
@@ -178,6 +180,7 @@ impl IoCursorExt for IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
+                    interop_fee: U256::zero(),
                     // It's ok that we lose info about millis since it's only used for sealing criteria.
                     first_l2_block: L2BlockParams::new_raw(
                         block.timestamp * 1000,
@@ -186,6 +189,7 @@ impl IoCursorExt for IoCursor {
                     ),
                     pubdata_params: block.pubdata_params,
                     pubdata_limit: block.pubdata_limit,
+                    settlement_layer: SettlementLayer::default(),
                 },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,

@@ -11,6 +11,12 @@ pub enum SettlementLayer {
     Gateway(SLChainId),
 }
 
+impl Default for SettlementLayer {
+    fn default() -> Self {
+        Self::L1(SLChainId(1))
+    }
+}
+
 impl SettlementLayer {
     pub fn is_gateway(self) -> bool {
         matches!(self, Self::Gateway(_))
@@ -57,5 +63,9 @@ impl WorkingSettlementLayer {
         } else {
             Some(self.unsafe_settlement_layer)
         }
+    }
+
+    pub fn for_tests() -> Self {
+        Self::new(SettlementLayer::for_tests())
     }
 }

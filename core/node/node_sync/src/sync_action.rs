@@ -187,7 +187,10 @@ impl From<FetchedTransaction> for SyncAction {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, Address, ProtocolVersionId, H256};
+    use zksync_types::{
+        commitment::PubdataParams, fee_model::BatchFeeInput, l2::L2Tx, settlement::SettlementLayer,
+        Address, ProtocolVersionId, H256, U256,
+    };
 
     use super::*;
 
@@ -198,9 +201,11 @@ mod tests {
                 validation_computational_gas_limit: u32::MAX,
                 operator_address: Address::default(),
                 fee_input: BatchFeeInput::default(),
+                interop_fee: U256::zero(),
                 first_l2_block: L2BlockParams::new(1000),
-                pubdata_params: Default::default(),
+                pubdata_params: PubdataParams::genesis(),
                 pubdata_limit: Some(100_000),
+                settlement_layer: SettlementLayer::for_tests(),
             },
             number: L1BatchNumber(1),
             first_l2_block_number: L2BlockNumber(1),

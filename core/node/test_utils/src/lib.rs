@@ -10,13 +10,14 @@ use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{
         AuxCommitments, L1BatchCommitmentArtifacts, L1BatchCommitmentHash, L1BatchMetaParameters,
-        L1BatchMetadata,
+        L1BatchMetadata, PubdataParams,
     },
     fee::Fee,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     l2::L2Tx,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolSemanticVersion,
+    settlement::SettlementLayer,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
     AccountTreeId, Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce,
@@ -49,6 +50,7 @@ pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -
         previous_batch_hash: None,
         number: L1BatchNumber(number),
         timestamp,
+        interop_fee: U256::zero(),
         fee_account,
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {
@@ -63,6 +65,7 @@ pub fn default_l1_batch_env(number: u32, timestamp: u64, fee_account: Address) -
             fair_pubdata_price: 1,
             l1_gas_price: 1,
         }),
+        settlement_layer: SettlementLayer::L1(zksync_types::SLChainId(79)),
     }
 }
 
@@ -87,7 +90,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         virtual_blocks: 1,
         gas_limit: 0,
         logs_bloom: Default::default(),
-        pubdata_params: Default::default(),
+        pubdata_params: PubdataParams::genesis(),
         rolling_txs_hash: Some(fake_rolling_txs_hash_for_block(number)),
     }
 }
@@ -103,6 +106,7 @@ pub fn create_l1_batch(number: u32) -> L1BatchHeader {
             evm_emulator: None,
         },
         ProtocolVersionId::latest(),
+        SettlementLayer::for_tests(),
     );
     header.l1_tx_count = 3;
     header.l2_tx_count = 5;
@@ -244,6 +248,7 @@ impl Snapshot {
             l1_batch.0.into(),
             contracts.hashes(),
             protocol_version,
+            SettlementLayer::for_tests(),
         );
         let l2_block = L2BlockHeader {
             number: l2_block,
@@ -260,7 +265,7 @@ impl Snapshot {
             virtual_blocks: 1,
             gas_limit: 0,
             logs_bloom: Default::default(),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
             rolling_txs_hash: Some(H256::zero()),
         };
         Snapshot {
