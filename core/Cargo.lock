@@ -14938,7 +14938,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_operator_signer"
-version = "29.13.1-non-semver-compat"
+version = "29.14.0-non-semver-compat"
 dependencies = [
  "alloy-primitives 1.4.1",
  "alloy-signer",
