@@ -386,7 +386,7 @@ describe('Upgrade test', function () {
                     reservedDynamic: '0x'
                 },
                 bootloaderHash,
-                upgradeTimestamp: 0
+                upgradeTimestamp: 1
             },
             gatewayInfo
         );
