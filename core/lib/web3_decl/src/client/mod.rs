@@ -27,9 +27,12 @@ use jsonrpsee::{
         params::BatchRequestBuilder,
         traits::ToRpcParams,
     },
-    http_client::{HttpClient, HttpClientBuilder},
+    http_client::{transport::HttpBackend, HttpClient, HttpClientBuilder},
     ws_client,
 };
+
+/// HTTP client type with eager response decompression (gzip, zstd).
+type DecompressedHttpClient = HttpClient<decompression::EagerDecompression<HttpBackend>>;
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
 use zksync_types::url::SensitiveUrl;
@@ -44,6 +47,7 @@ pub use self::{
 use crate::client::metrics::{ClientLabels, INFO_METRICS};
 
 mod boxed;
+mod decompression;
 mod metrics;
 mod mock;
 mod network;
@@ -112,7 +116,7 @@ impl<T: ClientT + Clone + fmt::Debug + Send + Sync + 'static> ClientBase for T {
 //   [a boxed cloneable version of services](https://docs.rs/tower/latest/tower/util/struct.BoxCloneService.html),
 //   but it doesn't fit (it's unconditionally `!Sync`, and `Sync` is required for `HttpClient<_>` to implement RPC traits).
 #[derive(Clone)]
-pub struct Client<Net, C = HttpClient> {
+pub struct Client<Net, C = DecompressedHttpClient> {
     inner: C,
     url: SensitiveUrl,
     rate_limit: SharedRateLimit,
@@ -140,11 +144,15 @@ impl<Net: fmt::Debug, C: 'static> fmt::Debug for Client<Net, C> {
 }
 
 impl<Net: Network> Client<Net> {
-    /// Creates an HTTP-backed client.
+    /// Creates an HTTP-backed client with automatic response decompression (gzip, zstd).
     pub fn http(url: SensitiveUrl) -> anyhow::Result<ClientBuilder<Net>> {
         crate::client::rustls::set_rustls_backend_if_required();
 
-        let client = HttpClientBuilder::default().build(url.expose_str())?;
+        let client = HttpClientBuilder::default()
+            .set_http_middleware(
+                tower::ServiceBuilder::new().layer(decompression::EagerDecompressionLayer::new()),
+            )
+            .build(url.expose_str())?;
         Ok(ClientBuilder::new(client, url))
     }
 }
@@ -314,7 +322,7 @@ impl<Net: Network, C: ClientBase + SubscriptionClientT> SubscriptionClientT for 
 }
 
 /// Builder for the [`Client`].
-pub struct ClientBuilder<Net, C = HttpClient> {
+pub struct ClientBuilder<Net, C = DecompressedHttpClient> {
     client: C,
     url: SensitiveUrl,
     rate_limit: (usize, Duration),
