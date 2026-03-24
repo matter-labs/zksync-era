@@ -77,6 +77,8 @@ pub struct MultiVmBaseSystemContracts<C> {
     vm_precompiles: BaseSystemContracts,
     /// Contracts to be used after the interop upgrade
     interop: BaseSystemContracts,
+    /// Contracts to be used after the full interop upgrade
+    medium_interop: BaseSystemContracts,
     // We use `fn() -> C` marker so that the `MultiVmBaseSystemContracts` unconditionally implements `Send + Sync`.
     _contracts_kind: PhantomData<fn() -> C>,
 }
@@ -113,8 +115,10 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version27 => &self.vm_evm_emulator,
             ProtocolVersionId::Version28 => &self.vm_precompiles,
             ProtocolVersionId::Version29 => &self.interop,
-            // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version30 => &self.interop,
+            ProtocolVersionId::Version31 => &self.interop, // TODO: Switch to `medium_interop` after contracts are finalized
+            // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version32 => &self.medium_interop,
         };
         base.clone()
     }
@@ -140,6 +144,8 @@ impl MultiVmBaseSystemContracts<EstimateGas> {
             vm_evm_emulator: BaseSystemContracts::estimate_gas_evm_emulator(),
             vm_precompiles: BaseSystemContracts::estimate_gas_precompiles(),
             interop: BaseSystemContracts::estimate_gas_interop(),
+            // TODO: Switch to `estimate_gas_medium_interop` after contracts are finalized
+            medium_interop: BaseSystemContracts::estimate_gas_interop(),
             _contracts_kind: PhantomData,
         }
     }
@@ -165,6 +171,8 @@ impl MultiVmBaseSystemContracts<CallOrExecute> {
             vm_evm_emulator: BaseSystemContracts::playground_evm_emulator(),
             vm_precompiles: BaseSystemContracts::playground_precompiles(),
             interop: BaseSystemContracts::playground_interop(),
+            // TODO: Switch to `playground_medium_interop` after contracts are finalized
+            medium_interop: BaseSystemContracts::playground_interop(),
             _contracts_kind: PhantomData,
         }
     }

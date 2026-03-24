@@ -1,15 +1,18 @@
 use zksync_config::configs::contracts::{
-    chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
+    chain::{ChainContracts, ZkChainOnChainConfig},
+    ecosystem::EcosystemCommonContracts,
+    SettlementLayerSpecificContracts,
 };
 use zksync_contracts::{
     bridgehub_contract, getters_facet_contract, hyperchain_contract,
     state_transition_manager_contract,
 };
 use zksync_types::{
+    commitment::L2DACommitmentScheme,
     ethabi::{Contract, Token},
     protocol_version::ProtocolSemanticVersion,
     settlement::SettlementLayer,
-    Address, L2ChainId, SLChainId, U256,
+    web3, Address, L2ChainId, SLChainId, U256,
 };
 
 use crate::{CallFunctionArgs, ContractCallError, EthInterface};
@@ -176,4 +179,63 @@ pub async fn is_settlement_layer(
     .call(eth_client)
     .await?;
     Ok(is_settlement_layer)
+}
+
+pub async fn get_zk_chain_on_chain_params(
+    eth_client: &dyn EthInterface,
+    diamond_proxy_addr: Address,
+) -> Result<ZkChainOnChainConfig, ContractCallError> {
+    let abi = getters_facet_contract();
+    let func = abi
+        .function("getDAValidatorPair")
+        .map_err(ContractCallError::Function)?;
+    let encoded_input =
+        func.encode_input(&[])
+            .map_err(|source| ContractCallError::EncodeInput {
+                signature: func.signature(),
+                input: vec![],
+                source,
+            })?;
+    let request = web3::CallRequest {
+        from: None,
+        to: Some(diamond_proxy_addr),
+        data: Some(web3::Bytes(encoded_input)),
+        gas: None,
+        gas_price: None,
+        value: None,
+        transaction_type: None,
+        access_list: None,
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+    };
+    let encoded_output = eth_client.call_contract_function(request, None).await?;
+    let output_tokens = func.decode_output(&encoded_output.0).map_err(|source| {
+        ContractCallError::DecodeOutput {
+            signature: func.signature(),
+            output: encoded_output,
+            source,
+        }
+    })?;
+
+    let l2_da_commitment_scheme = match output_tokens.as_slice() {
+        [Token::Address(_), Token::Uint(value)] if *value <= U256::from(u8::MAX) => Some(
+            L2DACommitmentScheme::try_from(value.as_u64() as u8)
+                .expect("Wrong L2DACommitmentScheme"),
+        ),
+        [Token::Address(_), Token::Address(_)] => Some(L2DACommitmentScheme::None),
+        [Token::Address(_), Token::Uint(_)] => Some(L2DACommitmentScheme::None),
+        _ => {
+            return Err(ContractCallError::DetokenizeOutput {
+                signature: func.signature(),
+                output: output_tokens,
+                source: web3::contract::Error::InvalidOutputType(
+                    "Unexpected output of getDAValidatorPair".to_owned(),
+                ),
+            });
+        }
+    };
+
+    Ok(ZkChainOnChainConfig {
+        l2_da_commitment_scheme,
+    })
 }

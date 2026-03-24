@@ -48,12 +48,13 @@ pub(crate) enum MultiVmSubversion {
     EvmEmulator,
     EcPrecompiles,
     Interop,
+    MediumInterop,
 }
 
 #[cfg(test)]
 impl MultiVmSubversion {
     pub(crate) fn latest() -> Self {
-        Self::Interop
+        Self::Interop // TODO: Switch to `Self::MediumInterop` after contracts are finalized
     }
 }
 
@@ -71,6 +72,7 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
             VmVersion::VmEvmEmulator => Ok(Self::EvmEmulator),
             VmVersion::VmEcPrecompiles => Ok(Self::EcPrecompiles),
             VmVersion::VmInterop => Ok(Self::Interop),
+            VmVersion::VmMediumInterop => Ok(Self::MediumInterop),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }

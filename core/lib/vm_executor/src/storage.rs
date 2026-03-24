@@ -11,8 +11,9 @@ use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_types::{
     block::L2BlockHeader, bytecode::BytecodeHash, commitment::PubdataParams,
-    fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address, InteropRoot,
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
+    fee_model::BatchFeeInput, settlement::SettlementLayer, snapshots::SnapshotRecoveryStatus,
+    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, U256,
+    ZKPORTER_IS_AVAILABLE,
 };
 
 const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;
@@ -68,7 +69,9 @@ pub fn l1_batch_params(
     protocol_version: ProtocolVersionId,
     virtual_blocks: u32,
     chain_id: L2ChainId,
+    settlement_layer: SettlementLayer,
     interop_roots: Vec<InteropRoot>,
+    interop_fee: U256,
 ) -> (SystemEnv, L1BatchEnv) {
     (
         SystemEnv {
@@ -85,6 +88,7 @@ pub fn l1_batch_params(
             number: current_l1_batch_number,
             timestamp: l1_batch_timestamp,
             fee_input,
+            interop_fee,
             fee_account,
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
@@ -94,6 +98,7 @@ pub fn l1_batch_params(
                 max_virtual_blocks_to_create: virtual_blocks,
                 interop_roots,
             },
+            settlement_layer,
         },
     )
 }
@@ -366,7 +371,9 @@ impl L1BatchParamsProvider {
                 .context("`protocol_version` must be set for L2 block")?,
             first_l2_block_in_batch.header.virtual_blocks,
             chain_id,
+            l1_batch_header.settlement_layer,
             first_l2_block_in_batch.interop_roots.clone(),
+            U256::zero(),
         );
 
         Ok(RestoredL1BatchEnv {

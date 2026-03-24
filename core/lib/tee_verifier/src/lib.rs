@@ -310,11 +310,16 @@ mod tests {
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_prover_interface::inputs::VMRunWitnessInputData;
     use zksync_tee_prover_interface::inputs::TeeVerifierInput;
+    use zksync_types::{
+        commitment::{L2DACommitmentScheme, L2PubdataValidator},
+        settlement::SettlementLayer,
+        U256,
+    };
 
     use super::*;
 
     #[test]
-    fn test_v1_serialization() {
+    fn test_v1_json_serialization_roundtrip() {
         let tvi = V1TeeVerifierInput::new(
             VMRunWitnessInputData {
                 l1_batch_number: Default::default(),
@@ -335,6 +340,7 @@ mod tests {
                 number: Default::default(),
                 timestamp: 0,
                 fee_input: Default::default(),
+                interop_fee: U256::zero(),
                 fee_account: Default::default(),
                 enforced_base_fee: None,
                 first_l2_block: L2BlockEnv {
@@ -344,6 +350,7 @@ mod tests {
                     max_virtual_blocks_to_create: 0,
                     interop_roots: vec![],
                 },
+                settlement_layer: SettlementLayer::for_tests(),
             },
             SystemEnv {
                 zk_porter_available: false,
@@ -364,12 +371,18 @@ mod tests {
                 default_validation_computational_gas_limit: 0,
                 chain_id: Default::default(),
             },
-            Default::default(),
+            PubdataParams::new(
+                L2PubdataValidator::CommitmentScheme(
+                    L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+                ),
+                Default::default(),
+            )
+            .unwrap(),
         );
         let tvi = TeeVerifierInput::new(tvi);
-        let serialized = bincode::serialize(&tvi).expect("Failed to serialize TeeVerifierInput.");
+        let serialized = serde_json::to_vec(&tvi).expect("Failed to serialize TeeVerifierInput.");
         let deserialized: TeeVerifierInput =
-            bincode::deserialize(&serialized).expect("Failed to deserialize TeeVerifierInput.");
+            serde_json::from_slice(&serialized).expect("Failed to deserialize TeeVerifierInput.");
 
         assert_eq!(tvi, deserialized);
     }
