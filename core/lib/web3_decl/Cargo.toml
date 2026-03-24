@@ -45,6 +45,7 @@ assert_matches.workspace = true
 rand.workspace = true
 test-casing.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "test-util"] }
+tower-http = { workspace = true, features = ["compression-gzip", "compression-zstd"] }
 
 [features]
 default = []

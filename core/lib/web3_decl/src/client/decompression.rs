@@ -337,4 +337,76 @@ mod tests {
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(body.len(), 16 * 1024 * 1024);
     }
+
+    /// Verifies that the server-side 1KB compression threshold works as configured
+    /// in the API server: responses under 1KB are not compressed, responses over 1KB are.
+    #[tokio::test]
+    async fn server_compression_skips_small_responses() {
+        use tower::ServiceExt;
+        use tower_http::compression::{
+            predicate::{DefaultPredicate, Predicate, SizeAbove},
+            CompressionLayer,
+        };
+
+        // Same configuration as used in the API server.
+        let compression = CompressionLayer::new()
+            .no_br()
+            .no_deflate()
+            .compress_when(DefaultPredicate::new().and(SizeAbove::new(1024)));
+
+        // Small response (< 1KB): should NOT be compressed.
+        let small_body = "x".repeat(512);
+        let mut svc = tower::ServiceBuilder::new()
+            .layer(compression.clone())
+            .service_fn(move |_req: Request<Full<Bytes>>| {
+                let body = small_body.clone();
+                async move {
+                    Ok::<_, std::convert::Infallible>(
+                        Response::builder()
+                            .header(header::CONTENT_TYPE, "application/json")
+                            .body(Full::new(Bytes::from(body)))
+                            .unwrap(),
+                    )
+                }
+            });
+        let req = Request::builder()
+            .header(header::ACCEPT_ENCODING, "gzip, zstd")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
+        let resp = svc.ready().await.unwrap().call(req).await.unwrap();
+        assert!(
+            resp.headers().get(header::CONTENT_ENCODING).is_none(),
+            "Small responses (< 1KB) should not be compressed"
+        );
+
+        // Large response (> 1KB): should be compressed.
+        let large_body = "x".repeat(2048);
+        let mut svc = tower::ServiceBuilder::new().layer(compression).service_fn(
+            move |_req: Request<Full<Bytes>>| {
+                let body = large_body.clone();
+                async move {
+                    Ok::<_, std::convert::Infallible>(
+                        Response::builder()
+                            .header(header::CONTENT_TYPE, "application/json")
+                            .body(Full::new(Bytes::from(body)))
+                            .unwrap(),
+                    )
+                }
+            },
+        );
+        let req = Request::builder()
+            .header(header::ACCEPT_ENCODING, "gzip, zstd")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
+        let resp = svc.ready().await.unwrap().call(req).await.unwrap();
+        let encoding = resp
+            .headers()
+            .get(header::CONTENT_ENCODING)
+            .expect("Large responses (> 1KB) should be compressed");
+        let enc = encoding.to_str().unwrap();
+        assert!(
+            enc == "gzip" || enc == "zstd",
+            "Expected gzip or zstd encoding, got {enc}"
+        );
+    }
 }
