@@ -22,6 +22,15 @@ ignore = [
   "RUSTSEC-2021-0139",
   "RUSTSEC-2024-0388", # `derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it
   "RUSTSEC-2024-0436", # `paste` is an unmaintained dependency of various crates (like alloy-primitives, sqlx-core)
+  "RUSTSEC-2025-0052", # `async-std` is discontinued, transitive dependency
+  "RUSTSEC-2025-0134", # `rustls-pemfile` is unmaintained, transitive dependency via old rustls versions
+  "RUSTSEC-2025-0141", # `bincode` is unmaintained, transitive dependency
+  # aws-lc-sys vulnerabilities, pinned by aws-lc-rs 1.13.1 via rustls 0.23. Requires jsonrpsee 0.25+ (tower 0.5) to upgrade.
+  "RUSTSEC-2026-0045",
+  "RUSTSEC-2026-0046",
+  "RUSTSEC-2026-0047",
+  "RUSTSEC-2026-0048",
+  "RUSTSEC-2026-0049", # `rustls-webpki` CRL vulnerability, old 0.101.7/0.102.8 pinned by rustls 0.21/0.22 (transitive deps of aws-smithy, hyper-rustls)
 ]
 
 [licenses]
