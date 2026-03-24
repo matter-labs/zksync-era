@@ -143,8 +143,8 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 51] = [
         ContractLanguage::Yul,
     ),
     (
-        "",
-        "SystemContext",
+        "../../l1-contracts/zkout/",
+        "SystemContextEra",
         SYSTEM_CONTEXT_ADDRESS,
         ContractLanguage::Sol,
     ),
