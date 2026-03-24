@@ -8,6 +8,7 @@ use axum::{
     Router,
 };
 use tokio::sync::watch;
+use tower_http::compression::predicate::Predicate;
 use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
 use zksync_proof_data_handler::{Processor, ProcessorError, Readonly};
@@ -54,7 +55,15 @@ impl Api {
                 post(Api::verify_proof).layer(middleware_factory(Method::VerifyProof)),
             )
             .with_state(processor)
-            .layer(tower_http::compression::CompressionLayer::new());
+            .layer(
+                tower_http::compression::CompressionLayer::new()
+                    .no_br()
+                    .no_deflate()
+                    .compress_when(
+                        tower_http::compression::predicate::DefaultPredicate::new()
+                            .and(tower_http::compression::predicate::SizeAbove::new(1024)),
+                    ),
+            );
 
         Self { router, port }
     }
