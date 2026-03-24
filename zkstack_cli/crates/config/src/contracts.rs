@@ -432,23 +432,36 @@ pub struct CoreEcosystemContracts {
 /// This contracts are deployed only once per CTM, ecosystem can have multiple CTMs
 #[derive(Debug, Deserialize, Serialize, Clone, Default, PartialEq)]
 pub struct ChainTransitionManagerContracts {
+    #[serde(default)]
     pub governance: Address,
+    #[serde(default)]
     pub chain_admin: Address,
+    #[serde(default)]
     pub proxy_admin: Address,
     pub state_transition_proxy_addr: Address,
     pub validator_timelock_addr: Address,
     pub diamond_cut_data: String,
     pub force_deployments_data: Option<String>,
     pub l1_bytecodes_supplier_addr: Address,
+    #[serde(default)]
     pub expected_rollup_l2_da_validator: Address,
+    #[serde(default)]
     pub l1_wrapped_base_token_store: Option<Address>,
+    #[serde(default)]
     pub server_notifier_proxy_addr: Address,
+    #[serde(default)]
     pub default_upgrade_addr: Address,
+    #[serde(default)]
     pub genesis_upgrade_addr: Address,
+    #[serde(default)]
     pub verifier_addr: Address,
+    #[serde(default)]
     pub rollup_l1_da_validator_addr: Address,
+    #[serde(default)]
     pub no_da_validium_l1_validator_addr: Address,
+    #[serde(default)]
     pub avail_l1_da_validator_addr: Address,
+    #[serde(default)]
     pub l1_rollup_da_manager: Address,
 }
 
