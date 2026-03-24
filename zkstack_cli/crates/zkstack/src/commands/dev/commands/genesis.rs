@@ -39,8 +39,9 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     .await?;
     reset_database(shell, chain.link_to_code().clone(), dal).await?;
     shell.change_dir(chain.link_to_code());
+    let genesis_path = chain.path_to_genesis_config().canonicalize()?;
     let _dir = shell.push_dir("core");
-    Cmd::new(cmd!(shell,"cargo run --package genesis_generator --bin genesis_generator -- --config-path={secrets_path}")).run()?;
+    Cmd::new(cmd!(shell,"cargo run --package genesis_generator --bin genesis_generator -- --config-path={secrets_path} --genesis-path={genesis_path}")).run()?;
     spinner.finish();
     Ok(())
 }
