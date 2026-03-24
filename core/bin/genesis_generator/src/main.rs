@@ -18,12 +18,15 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_types::{url::SensitiveUrl, L1ChainId};
 
 pub const DEFAULT_GENESIS_FILE_PATH: &str = "../contracts/configs/genesis/era/latest.json";
+pub const DEFAULT_GENESIS_CONFIG_PATH: &str = "../chains/era/configs/genesis.yaml";
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Genesis config generator", long_about = None)]
 struct Cli {
     #[arg(long)]
     config_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    genesis_path: Option<std::path::PathBuf>,
     #[arg(long, default_value = "false")]
     check: bool,
 }
@@ -32,8 +35,12 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
+    let genesis_path = opt
+        .genesis_path
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_GENESIS_CONFIG_PATH));
     let config_file_paths = ConfigFilePaths {
         secrets: opt.config_path,
+        genesis: Some(genesis_path),
         ..ConfigFilePaths::default()
     };
     let config_sources =
