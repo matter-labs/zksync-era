@@ -55,6 +55,7 @@ members = [
   "lib/da_client",
   "lib/eth_client",
   "lib/eth_signer",
+  "lib/operator_signer",
   "lib/l1_contract_interface",
   "lib/mempool",
   "lib/merkle_tree",
@@ -109,6 +110,9 @@ categories = ["cryptography"]
 
 [workspace.dependencies]
 # "External" dependencies
+alloy-primitives = "1.4"
+alloy-signer = "1.0"
+alloy-signer-gcp = "1.0"
 anyhow = "1"
 assert_matches = "1.5"
 async-trait = "0.1"
@@ -120,6 +124,7 @@ aws-runtime = "1.5.5"
 aws-sdk-s3 = "1.76.0"
 axum = "0.8.4"
 backon = "0.4.4"
+base64 = "0.22"
 bigdecimal = "0.4.5"
 bincode = "1"
 bip39 = "2.1.0"
@@ -139,6 +144,7 @@ flate2 = "1.0.28"
 fraction = "0.15.3"
 futures = "0.3"
 futures-util = "0.3"
+gcloud-sdk = { version = "0.27", features = ["google-cloud-kms-v1", "google-longrunning"] }
 glob = "0.3"
 google-cloud-auth = "0.16.0"
 google-cloud-storage = "0.20.0"
@@ -300,6 +306,7 @@ zksync_db_connection = { version = "29.14.0-non-semver-compat", path = "lib/db_c
 zksync_eth_client = { version = "29.14.0-non-semver-compat", path = "lib/eth_client" }
 zksync_da_client = { version = "29.14.0-non-semver-compat", path = "lib/da_client" }
 zksync_eth_signer = { version = "29.14.0-non-semver-compat", path = "lib/eth_signer" }
+zksync_operator_signer = { version = "29.14.0-non-semver-compat", path = "lib/operator_signer" }
 zksync_health_check = { version = "29.14.0-non-semver-compat", path = "lib/health_check" }
 zksync_instrument = { version = "29.14.0-non-semver-compat", path = "lib/instrument" }
 zksync_l1_contract_interface = { version = "29.14.0-non-semver-compat", path = "lib/l1_contract_interface" }

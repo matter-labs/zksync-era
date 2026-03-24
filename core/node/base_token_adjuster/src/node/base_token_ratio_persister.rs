@@ -4,7 +4,7 @@ use zksync_config::configs::{base_token_adjuster::BaseTokenAdjusterConfig, walle
 use zksync_contracts::{chain_admin_contract, getters_facet_contract};
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_eth_client::{
-    clients::PKSigningClient,
+    clients::SigningClient,
     node::contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
     web3_decl::{
         client::{DynClient, L1},
@@ -19,6 +19,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_operator_signer::OperatorSigner;
 use zksync_types::{settlement::SettlementLayer, L1ChainId};
 
 use crate::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
@@ -97,40 +98,48 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
             }
         };
 
-        let l1_behaviour = self
-            .wallets_config
-            .token_multiplier_setter
-            .map(|token_multiplier_setter| {
-                let tms_private_key = token_multiplier_setter.private_key();
-                let tms_address = token_multiplier_setter.address();
-                let l1_diamond_proxy_addr = input
-                    .l1_contracts
-                    .0
-                    .chain_contracts_config
-                    .diamond_proxy_addr;
+        let l1_behaviour = if let Some(ref token_multiplier_setter) =
+            self.wallets_config.token_multiplier_setter
+        {
+            let operator_signer = OperatorSigner::from_wallet(token_multiplier_setter);
+            let tms_address = operator_signer
+                .address()
+                .await
+                .map_err(|e| WiringError::Internal(e.into()))?;
+            tracing::info!("Token multiplier setter address: {tms_address:?}");
 
-                let signing_client = PKSigningClient::new_raw(
-                    tms_private_key.clone(),
-                    l1_diamond_proxy_addr,
-                    self.config.default_priority_fee_per_gas,
-                    self.l1_chain_id.into(),
-                    input.eth_client.for_component("base_token_adjuster"),
-                );
-                BaseTokenL1Behaviour::UpdateOnL1 {
-                    params: UpdateOnL1Params {
-                        eth_client: Box::new(signing_client),
-                        gas_adjuster: input.tx_params,
-                        token_multiplier_setter_account_address: tms_address,
-                        chain_admin_contract: chain_admin_contract(),
-                        getters_facet_contract: getters_facet_contract(),
-                        diamond_proxy_contract_address: l1_diamond_proxy_addr,
-                        chain_admin_contract_address: input.l1_ecosystem_contracts.0.chain_admin,
-                        config: self.config.clone(),
-                    },
-                    last_persisted_l1_ratio: None,
-                }
-            })
-            .unwrap_or(BaseTokenL1Behaviour::NoOp);
+            let l1_diamond_proxy_addr = input
+                .l1_contracts
+                .0
+                .chain_contracts_config
+                .diamond_proxy_addr;
+
+            let signing_client = SigningClient::new(
+                input.eth_client.for_component("base_token_adjuster"),
+                zksync_contracts::hyperchain_contract(),
+                tms_address,
+                operator_signer,
+                l1_diamond_proxy_addr,
+                self.config.default_priority_fee_per_gas.into(),
+                self.l1_chain_id.into(),
+            );
+
+            BaseTokenL1Behaviour::UpdateOnL1 {
+                params: UpdateOnL1Params {
+                    eth_client: Box::new(signing_client),
+                    gas_adjuster: input.tx_params,
+                    token_multiplier_setter_account_address: tms_address,
+                    chain_admin_contract: chain_admin_contract(),
+                    getters_facet_contract: getters_facet_contract(),
+                    diamond_proxy_contract_address: l1_diamond_proxy_addr,
+                    chain_admin_contract_address: input.l1_ecosystem_contracts.0.chain_admin,
+                    config: self.config.clone(),
+                },
+                last_persisted_l1_ratio: None,
+            }
+        } else {
+            BaseTokenL1Behaviour::NoOp
+        };
 
         let persister = BaseTokenRatioPersister::new(
             master_pool,
