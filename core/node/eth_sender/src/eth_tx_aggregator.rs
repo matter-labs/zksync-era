@@ -858,8 +858,8 @@ impl EthTxAggregator {
                 .is_waiting_for_batches_with_current_settlement_layer_to_be_committed(storage)
                 .await?
             {
-                // For migration from gateway to L1, keep commits/precommits flowing
-                // once old settlement layer batches are finalized.
+                // While old-settlement-layer batches are still uncommitted, keep
+                // commits/precommits flowing so migration can finish draining them.
                 op_restrictions.commit_restriction = None;
                 op_restrictions.precommit_restriction = None;
             }
