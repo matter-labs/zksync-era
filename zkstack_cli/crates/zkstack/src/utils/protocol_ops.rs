@@ -281,18 +281,15 @@ pub struct ProtocolOpsChainOutput {
     #[serde(default)]
     pub l2_legacy_shared_bridge_addr: Option<Address>,
     #[serde(default)]
-    pub l2_contracts: Option<ProtocolOpsL2ContractsOutput>,
+    pub l2_default_upgrader: Option<Address>,
     #[serde(default)]
-    pub paymaster_addr: Option<Address>,
-}
-
-/// L2 contracts output from protocol_ops chain init.
-#[derive(Debug, Deserialize)]
-pub struct ProtocolOpsL2ContractsOutput {
-    pub l2_default_upgrader: Address,
-    pub consensus_registry_addr: Address,
-    pub multicall3_addr: Address,
-    pub timestamp_asserter_addr: Address,
+    pub l2_consensus_registry_addr: Option<Address>,
+    #[serde(default)]
+    pub l2_multicall3_addr: Option<Address>,
+    #[serde(default)]
+    pub l2_timestamp_asserter_addr: Option<Address>,
+    #[serde(default)]
+    pub l2_paymaster_addr: Option<Address>,
 }
 
 impl ProtocolOpsChainOutput {
@@ -356,15 +353,19 @@ impl ProtocolOpsChainOutput {
             other: Default::default(),
         };
 
-        // Fill L2 contract addresses if available
-        if let Some(l2) = &self.l2_contracts {
-            contracts.l2.default_l2_upgrader = l2.l2_default_upgrader;
-            contracts.l2.consensus_registry = Some(l2.consensus_registry_addr);
-            contracts.l2.multicall3 = Some(l2.multicall3_addr);
-            contracts.l2.timestamp_asserter_addr = Some(l2.timestamp_asserter_addr);
+        if let Some(upgrader) = self.l2_default_upgrader {
+            contracts.l2.default_l2_upgrader = upgrader;
         }
-
-        if let Some(paymaster) = self.paymaster_addr {
+        if let Some(consensus) = self.l2_consensus_registry_addr {
+            contracts.l2.consensus_registry = Some(consensus);
+        }
+        if let Some(multicall3) = self.l2_multicall3_addr {
+            contracts.l2.multicall3 = Some(multicall3);
+        }
+        if let Some(ts_asserter) = self.l2_timestamp_asserter_addr {
+            contracts.l2.timestamp_asserter_addr = Some(ts_asserter);
+        }
+        if let Some(paymaster) = self.l2_paymaster_addr {
             contracts.l2.testnet_paymaster_addr = paymaster;
         }
 
@@ -419,11 +420,11 @@ impl ProtocolOpsEcosystemOutput {
             bridges: BridgesContracts {
                 erc20: BridgeContractsDefinition {
                     l1_address: hub.erc20_bridge_proxy_addr,
-                    l2_address: None,
+                    ..Default::default()
                 },
                 shared: BridgeContractsDefinition {
                     l1_address: hub.shared_bridge_proxy_addr,
-                    l2_address: None,
+                    ..Default::default()
                 },
                 l1_nullifier_addr: Some(hub.l1_nullifier_proxy_addr),
             },
