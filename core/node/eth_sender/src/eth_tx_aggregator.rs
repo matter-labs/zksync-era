@@ -819,9 +819,6 @@ impl EthTxAggregator {
             precommit_restriction: commit_restriction,
         };
 
-        // // When migrating to or from gateway, the DA validator pair will be reset and so the chain should not
-        // // send new commit transactions before the da validator pair is updated
-
         if chain_protocol_version_id.is_pre_medium_interop() {
             if da_validator_pair.l1_validator == Address::zero()
                 || da_validator_pair.l2_validator == Some(Address::zero())
