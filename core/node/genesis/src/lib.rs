@@ -2,7 +2,11 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
-use std::{collections::HashMap, fmt::Formatter, path::Path};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fmt::Formatter,
+    path::Path,
+};
 
 use anyhow::Context as _;
 use kzg::ZK_SYNC_BYTES_PER_BLOB;
@@ -20,10 +24,11 @@ use zksync_types::{
     bytecode::BytecodeHash,
     commitment::{CommitmentInput, L1BatchCommitment, PubdataParams},
     fee_model::BatchFeeInput,
+    get_known_code_key,
     protocol_upgrade::decode_genesis_upgrade_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     settlement::SettlementLayer,
-    system_contracts::get_system_smart_contracts,
+    system_contracts::{get_genesis_additional_factory_deps, get_system_smart_contracts},
     u256_to_h256,
     web3::{BlockNumber, FilterBuilder},
     zk_evm_types::LogQuery,
@@ -326,9 +331,9 @@ pub async fn insert_genesis_batch_with_custom_state(
                     .map(|f| (H256(f.bytecode_hash), f.bytecode))
                     .collect(),
             ),
-            None => (
-                get_storage_logs(&genesis_params.system_contracts),
-                genesis_params
+            None => {
+                let mut storage_logs = get_storage_logs(&genesis_params.system_contracts);
+                let mut factory_deps: HashMap<H256, Vec<u8>> = genesis_params
                     .system_contracts
                     .iter()
                     .map(|c| {
@@ -337,8 +342,21 @@ pub async fn insert_genesis_batch_with_custom_state(
                             c.bytecode.clone(),
                         )
                     })
-                    .collect(),
-            ),
+                    .collect();
+
+                for bytecode in get_genesis_additional_factory_deps() {
+                    let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value();
+                    if let Entry::Vacant(entry) = factory_deps.entry(bytecode_hash) {
+                        storage_logs.push(StorageLog::new_write_log(
+                            get_known_code_key(&bytecode_hash),
+                            H256::from_low_u64_be(1),
+                        ));
+                        entry.insert(bytecode);
+                    }
+                }
+
+                (storage_logs, factory_deps)
+            }
         };
 
     // This action disregards how leaf indeces used to be ordered before, and it reorders them by
