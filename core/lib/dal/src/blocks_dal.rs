@@ -267,11 +267,12 @@ impl BlocksDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             SELECT
-                interop_fee,
-                is_sealed
+                interop_fee
             FROM
                 l1_batches
-            WHERE number = $1
+            WHERE
+                number = $1
+                AND is_sealed
             "#,
             i64::from(number.0),
         )
@@ -280,7 +281,7 @@ impl BlocksDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        Ok(row.and_then(|row| row.is_sealed.then_some(U256::from(row.interop_fee as u64))))
+        Ok(row.map(|row| U256::from(row.interop_fee as u64)))
     }
 
     /// Returns latest sealed L1 batch header. Returns `None` if there are no sealed batches.
