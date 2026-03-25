@@ -177,7 +177,7 @@ async fn wait_for_migration_to_gateway_ready(
     let started_at = Instant::now();
 
     loop {
-        let state = get_gateway_migration_state(
+        let state = match get_gateway_migration_state(
             l1_rpc_url.clone(),
             l1_bridgehub_addr,
             l2_chain_id,
@@ -185,7 +185,17 @@ async fn wait_for_migration_to_gateway_ready(
             gw_rpc_url.clone(),
             MigrationDirection::ToGateway,
         )
-        .await?;
+        .await
+        {
+            Ok(state) => state,
+            Err(err) if is_server_cross_check_unavailable(&err) => {
+                logger::warn(format!(
+                    "Could not query migration readiness from chain server ({err:#}); proceeding without server-side readiness wait"
+                ));
+                return Ok(());
+            }
+            Err(err) => return Err(err),
+        };
 
         match state {
             GatewayMigrationProgressState::ServerReady => {
@@ -227,6 +237,16 @@ async fn wait_for_migration_to_gateway_ready(
             }
         }
     }
+}
+
+fn is_server_cross_check_unavailable(err: &anyhow::Error) -> bool {
+    let error_text = format!("{err:#}").to_lowercase();
+    error_text.contains("failed to retrieve gateway migration status from the server")
+        && (error_text.contains("connection refused")
+            || error_text.contains("tcp connect error")
+            || error_text.contains("connecterror")
+            || error_text.contains("transport(")
+            || error_text.contains("timed out"))
 }
 
 pub(crate) async fn get_migrate_to_gateway_context(
