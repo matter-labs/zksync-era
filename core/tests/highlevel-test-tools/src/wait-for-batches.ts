@@ -1,4 +1,4 @@
-import { getL1BatchDetails, getL1BatchNumber, getRpcUrl, queryJsonRpc } from './rpc-utils';
+import { getL1BatchDetails, getL1BatchNumber } from './rpc-utils';
 import { runIntegrationTests } from './run-integration-tests';
 
 /**
@@ -20,7 +20,6 @@ export async function waitForAllBatchesToBeExecuted(chainName: string, timeoutMs
                 console.log(
                     `✅ L1 batch ${batchNumber} executed successfully. ExecuteTxHash: ${l1BatchDetails.executeTxHash}`
                 );
-                await waitForMigrationBatchesToBeCommitted(chainName, timeoutMs);
                 return l1BatchDetails;
             }
 
@@ -32,37 +31,6 @@ export async function waitForAllBatchesToBeExecuted(chainName: string, timeoutMs
     }
 
     throw new Error(`Timeout waiting for L1 batch ${batchNumber} execution after ${timeoutMs}ms`);
-}
-
-async function waitForMigrationBatchesToBeCommitted(chainName: string, timeoutMs: number): Promise<void> {
-    const rpcUrl = getRpcUrl(chainName);
-    let migrationStatus: any;
-
-    try {
-        migrationStatus = await queryJsonRpc(rpcUrl, 'unstable_gatewayMigrationStatus');
-    } catch (error) {
-        // Non-migration tests / nodes without the unstable namespace should not fail here.
-        console.log(`ℹ️ Skipping migration commit-drain check for ${chainName}: ${error}`);
-        return;
-    }
-
-    const migrationInProgress = migrationStatus?.state === 'inProgress';
-    if (!migrationInProgress || !migrationStatus?.waitForBatchesToBeCommitted) {
-        return;
-    }
-
-    console.log(`⏳ Waiting for migration batches to be committed on ${chainName}...`);
-    const startTime = Date.now();
-    while (Date.now() - startTime < timeoutMs) {
-        migrationStatus = await queryJsonRpc(rpcUrl, 'unstable_gatewayMigrationStatus');
-        if (!migrationStatus?.waitForBatchesToBeCommitted) {
-            console.log(`✅ Migration batches committed for ${chainName}`);
-            return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-
-    throw new Error(`Timeout waiting for migration batches to be committed after ${timeoutMs}ms`);
 }
 
 /**
