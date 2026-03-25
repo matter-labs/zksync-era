@@ -309,27 +309,31 @@ pub(crate) async fn get_gateway_migration_state(
         anyhow::bail!("Server has seen notification, does not use the settlement layer, but still the migration is not in progress. Status: {:#?}", gateway_migration_status);
     }
 
-    // For migration from Gateway we also require that all batches have been executed
-
-    if direction == MigrationDirection::FromGateway {
-        let (total_batches_committed, total_batches_executed) =
-            get_batch_execution_status(&gw_rpc_url, L2_BRIDGEHUB_ADDRESS, l2_chain_id).await?;
-
-        if total_batches_committed != total_batches_executed {
-            // Server still waits for the batches to get executed
-            return Ok(GatewayMigrationProgressState::NotificationReceived(
-                NotificationReceivedState::NotAllBatchesExecuted(
-                    total_batches_committed,
-                    total_batches_executed,
-                ),
-            ));
+    // For migrations in both directions we require all committed batches to be executed
+    // on the current settlement layer before continuing.
+    let (total_batches_committed, total_batches_executed) = match direction {
+        MigrationDirection::ToGateway => {
+            get_batch_execution_status(&l1_rpc_url, l1_bridgehub_addr, l2_chain_id).await?
         }
-
-        if gateway_migration_status.wait_for_batches_to_be_committed {
-            return Ok(GatewayMigrationProgressState::NotificationReceived(
-                NotificationReceivedState::NotAllBatchesCommitted,
-            ));
+        MigrationDirection::FromGateway => {
+            get_batch_execution_status(&gw_rpc_url, L2_BRIDGEHUB_ADDRESS, l2_chain_id).await?
         }
+    };
+
+    if total_batches_committed != total_batches_executed {
+        // Server still waits for the batches to get executed
+        return Ok(GatewayMigrationProgressState::NotificationReceived(
+            NotificationReceivedState::NotAllBatchesExecuted(
+                total_batches_committed,
+                total_batches_executed,
+            ),
+        ));
+    }
+
+    if gateway_migration_status.wait_for_batches_to_be_committed {
+        return Ok(GatewayMigrationProgressState::NotificationReceived(
+            NotificationReceivedState::NotAllBatchesCommitted,
+        ));
     }
 
     let unconfirmed_txs = zk_client.get_unconfirmed_txs_count().await?;
