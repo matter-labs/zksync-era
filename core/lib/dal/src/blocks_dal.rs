@@ -1124,7 +1124,7 @@ impl BlocksDal<'_, '_> {
             unsealed_batch_header.interop_fee.as_u64() as i64,
             unsealed_batch_header.pubdata_limit.map(|l| l as i64),
             settlement_layer_type,
-            settlement_layer_chain_id as i32
+            settlement_layer_chain_id
         )
         .instrument("insert_l1_batch")
         .with_arg("number", &unsealed_batch_header.number)
