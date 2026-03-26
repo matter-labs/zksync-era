@@ -855,8 +855,8 @@ impl EthTxAggregator {
                 .is_waiting_for_batches_with_current_settlement_layer_to_be_committed(storage)
                 .await?
             {
-                // For migration from gateway to L1, keep commits/precommits flowing
-                // once old settlement layer batches are finalized.
+                // While old-settlement-layer batches are still uncommitted, keep
+                // commits/precommits flowing so migration can finish draining them.
                 op_restrictions.commit_restriction = None;
                 op_restrictions.precommit_restriction = None;
             }
@@ -1384,9 +1384,24 @@ impl EthTxAggregator {
         &self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<bool, EthSenderError> {
-        let settlement_layer = self
-            .settlement_layer
-            .expect("settlement layer should be known");
+        let settlement_layer = if let Some(settlement_layer) = self.settlement_layer {
+            settlement_layer
+        } else if let Some(header) = storage
+            .blocks_dal()
+            .get_latest_sealed_l1_batch_header()
+            .await?
+        {
+            tracing::info!(
+                "Settlement layer for sending txs is unknown during gateway migration; using latest sealed L1 batch settlement layer for wait checks"
+            );
+            header.settlement_layer
+        } else {
+            tracing::info!(
+                "Settlement layer for sending txs is unknown during gateway migration and there are no sealed L1 batches yet; keep commit/precommit restrictions"
+            );
+            return Ok(false);
+        };
+
         let has_uncommitted_batches = storage
             .blocks_dal()
             .has_uncommitted_batches_on_settlement_layer(&settlement_layer)

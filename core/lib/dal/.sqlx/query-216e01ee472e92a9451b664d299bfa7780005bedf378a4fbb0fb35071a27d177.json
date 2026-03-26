@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT EXISTS(\n                SELECT 1\n                FROM l1_batches\n                WHERE\n                    number > 0\n                    AND settlement_layer_type = $1\n                    AND settlement_layer_chain_id = $2\n                    AND (\n                        eth_commit_tx_id IS NULL\n                        OR NOT EXISTS (\n                            SELECT 1 FROM eth_txs_history\n                            WHERE id = l1_batches.eth_commit_tx_id\n                                AND finality_status = 'finalized'\n                        )\n                    )\n            )\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "216e01ee472e92a9451b664d299bfa7780005bedf378a4fbb0fb35071a27d177"
+}

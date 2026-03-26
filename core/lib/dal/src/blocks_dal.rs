@@ -3318,27 +3318,24 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<bool> {
         let (settlement_layer_type, settlement_layer_chain_id) =
             from_settlement_layer(settlement_layer);
-        let count = sqlx::query_scalar!(
+        let has_uncommitted_batches = sqlx::query_scalar!(
             r#"
-            SELECT COUNT(*)
-            FROM l1_batches
-            WHERE
-                number > 0
-                AND
-                settlement_layer_type = $1
-                AND settlement_layer_chain_id = $2
-                AND (
-                    NOT is_sealed
-                    OR l1_batches.eth_commit_tx_id IS NULL
-                    OR NOT EXISTS (
-                        SELECT 1
-                        FROM eth_txs_history
-                        WHERE
-                            eth_tx_id = l1_batches.eth_commit_tx_id
-                            AND sent_successfully = TRUE
-                            AND finality_status = 'finalized'
+            SELECT EXISTS(
+                SELECT 1
+                FROM l1_batches
+                WHERE
+                    number > 0
+                    AND settlement_layer_type = $1
+                    AND settlement_layer_chain_id = $2
+                    AND (
+                        eth_commit_tx_id IS NULL
+                        OR NOT EXISTS (
+                            SELECT 1 FROM eth_txs_history
+                            WHERE id = l1_batches.eth_commit_tx_id
+                                AND finality_status = 'finalized'
+                        )
                     )
-                )
+            )
             "#,
             settlement_layer_type.as_str(),
             settlement_layer_chain_id
@@ -3348,9 +3345,9 @@ impl BlocksDal<'_, '_> {
         .with_arg("settlement_layer_chain_id", &settlement_layer_chain_id)
         .fetch_one(self.storage)
         .await?
-        .unwrap_or(0);
+        .unwrap_or_default();
 
-        Ok(count != 0)
+        Ok(has_uncommitted_batches)
     }
 
     // methods used for measuring Eth tx stage transition latencies

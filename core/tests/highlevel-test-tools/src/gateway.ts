@@ -43,6 +43,13 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
         try {
             await executeCommand(
                 'zkstack',
+                ['chain', 'gateway', 'notify-about-to-gateway-update', '--chain', chainName],
+                chainName,
+                'gateway_migration'
+            );
+
+            await executeCommand(
+                'zkstack',
                 ['chain', 'gateway', 'migrate-to-gateway', '--chain', chainName, '--gateway-chain-name', 'gateway'],
                 chainName,
                 'gateway_migration'
