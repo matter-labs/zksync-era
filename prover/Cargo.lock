@@ -6101,7 +6101,7 @@ dependencies = [
 
 [[package]]
 name = "prover_cli"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -6133,7 +6133,7 @@ dependencies = [
 
 [[package]]
 name = "prover_version"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "zksync_prover_fri_types",
 ]
@@ -10078,7 +10078,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -10123,7 +10123,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -10145,7 +10145,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover_service"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10184,7 +10184,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "secrecy",
@@ -10270,7 +10270,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "hex",
  "once_cell",
@@ -10282,7 +10282,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -10310,7 +10310,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_dal"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10348,7 +10348,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_db_connection"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -10364,7 +10364,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_client"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10386,7 +10386,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_signer"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
@@ -10425,7 +10425,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_gpu_checker"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -10464,7 +10464,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_l1_contract_interface"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -10481,7 +10481,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -10490,7 +10490,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_multivm"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api",
@@ -10517,7 +10517,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_object_store"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10543,7 +10543,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_operator_signer"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -10573,7 +10573,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_fri_compressor"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -10596,7 +10596,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_fri_compressor_service"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10655,7 +10655,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_autoscaler"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10689,7 +10689,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_dal"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "sqlx",
  "strum",
@@ -10700,7 +10700,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_gateway"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10725,7 +10725,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_types"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "circuit_definitions",
  "serde",
@@ -10735,7 +10735,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_utils"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "vise",
  "zksync_prover_fri_types",
@@ -10744,7 +10744,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_interface"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "chrono",
  "ciborium",
@@ -10760,7 +10760,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_monitor"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10782,7 +10782,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_processor"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10795,7 +10795,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_keystore"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -10824,7 +10824,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_task"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10834,7 +10834,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_queued_job_processor"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10863,7 +10863,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -10871,7 +10871,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_task_management"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "futures 0.3.31",
@@ -10883,7 +10883,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10912,7 +10912,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -10922,7 +10922,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vk_setup_data_generator_server_fri"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -10942,7 +10942,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vlog"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10990,7 +10990,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm_interface"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11006,7 +11006,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "29.14.0-non-semver-compat"
+version = "29.15.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11033,7 +11033,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_witness_generator"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11071,7 +11071,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_witness_generator_service"
-version = "25.1.0"
+version = "25.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
