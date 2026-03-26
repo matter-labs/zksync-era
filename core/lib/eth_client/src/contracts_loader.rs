@@ -218,10 +218,18 @@ pub async fn get_zk_chain_on_chain_params(
     })?;
 
     let l2_da_commitment_scheme = match output_tokens.as_slice() {
-        [Token::Address(_), Token::Uint(value)] if *value <= U256::from(u8::MAX) => Some(
-            L2DACommitmentScheme::try_from(value.as_u64() as u8)
-                .expect("Wrong L2DACommitmentScheme"),
-        ),
+        [Token::Address(_), Token::Uint(value)] if *value <= U256::from(u8::MAX) => {
+            let raw = value.as_u64() as u8;
+            Some(L2DACommitmentScheme::try_from(raw).map_err(|_| {
+                ContractCallError::DetokenizeOutput {
+                    signature: func.signature(),
+                    output: output_tokens.clone(),
+                    source: web3::contract::Error::InvalidOutputType(format!(
+                        "Unsupported L2DACommitmentScheme for Era: {raw}"
+                    )),
+                }
+            })?)
+        }
         [Token::Address(_), Token::Address(_)] => Some(L2DACommitmentScheme::None),
         [Token::Address(_), Token::Uint(_)] => Some(L2DACommitmentScheme::None),
         _ => {
