@@ -355,12 +355,6 @@ impl L1BatchParamsProvider {
         .await
         .context("failed getting base system contracts")?;
 
-        let interop_fee = conn
-            .blocks_dal()
-            .get_l1_batch_interop_fee(first_l2_block_in_batch.l1_batch_number)
-            .await
-            .map_err(DalError::generalize)?;
-
         let (system_env, l1_batch_env) = l1_batch_params(
             first_l2_block_in_batch.l1_batch_number,
             first_l2_block_in_batch.header.fee_account_address,
@@ -379,7 +373,7 @@ impl L1BatchParamsProvider {
             chain_id,
             l1_batch_header.settlement_layer,
             first_l2_block_in_batch.interop_roots.clone(),
-            interop_fee,
+            l1_batch_header.interop_fee,
         );
 
         Ok(RestoredL1BatchEnv {

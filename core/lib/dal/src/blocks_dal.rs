@@ -182,6 +182,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_type,
                 settlement_layer_chain_id
@@ -222,6 +223,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 settlement_layer_type,
                 settlement_layer_chain_id
@@ -240,24 +242,6 @@ impl BlocksDal<'_, '_> {
         };
 
         Ok(Some(header.into()))
-    }
-
-    pub async fn get_l1_batch_interop_fee(&mut self, number: L1BatchNumber) -> DalResult<U256> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                interop_fee
-            FROM
-                l1_batches
-            WHERE number = $1
-            "#,
-            i64::from(number.0),
-        )
-        .instrument("get_l1_batch_interop_fee")
-        .with_arg("number", &number)
-        .fetch_one(self.storage)
-        .await?;
-        Ok(U256::from(row.interop_fee as u64))
     }
 
     pub async fn get_l1_batch_interop_fee_if_sealed(

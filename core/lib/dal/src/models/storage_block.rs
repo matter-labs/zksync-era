@@ -377,6 +377,7 @@ pub(crate) struct CommonStorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub interop_fee: i64,
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_chain_id: Option<i64>,
     pub settlement_layer_type: Option<String>,
@@ -402,6 +403,7 @@ impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
+            interop_fee: U256::from(batch.interop_fee as u64),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         }
