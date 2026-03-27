@@ -65,8 +65,8 @@ pub(crate) struct StorageL1BatchHeader {
     pub interop_fee: i64,
 
     pub pubdata_limit: Option<i64>,
-    pub settlement_layer_chain_id: Option<i64>,
-    pub settlement_layer_type: Option<String>,
+    pub settlement_layer_chain_id: i64,
+    pub settlement_layer_type: String,
 }
 
 impl StorageL1BatchHeader {
@@ -193,8 +193,8 @@ pub(crate) struct StorageL1Batch {
     pub interop_fee: i64,
 
     pub pubdata_limit: Option<i64>,
-    pub settlement_layer_chain_id: Option<i64>,
-    pub settlement_layer_type: Option<String>,
+    pub settlement_layer_chain_id: i64,
+    pub settlement_layer_type: String,
 }
 
 impl StorageL1Batch {
@@ -337,8 +337,8 @@ pub(crate) struct UnsealedStorageL1Batch {
     pub fair_pubdata_price: Option<i64>,
     pub interop_fee: i64,
     pub pubdata_limit: Option<i64>,
-    pub settlement_layer_chain_id: Option<i64>,
-    pub settlement_layer_type: Option<String>,
+    pub settlement_layer_chain_id: i64,
+    pub settlement_layer_type: String,
 }
 
 impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
@@ -379,8 +379,8 @@ pub(crate) struct CommonStorageL1BatchHeader {
     pub fair_pubdata_price: Option<i64>,
     pub interop_fee: i64,
     pub pubdata_limit: Option<i64>,
-    pub settlement_layer_chain_id: Option<i64>,
-    pub settlement_layer_type: Option<String>,
+    pub settlement_layer_chain_id: i64,
+    pub settlement_layer_type: String,
 }
 
 impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
@@ -767,17 +767,18 @@ impl From<StoragePubdataParams> for PubdataParams {
 }
 
 pub(crate) fn to_settlement_layer(
-    settlement_layer_type: Option<String>,
-    settlement_layer_chain_id: Option<i64>,
+    settlement_layer_type: String,
+    settlement_layer_chain_id: i64,
 ) -> SettlementLayer {
-    match settlement_layer_type.as_deref() {
-        Some("L1") => {
-            SettlementLayer::L1(SLChainId(settlement_layer_chain_id.unwrap_or(29) as u64))
-        }
-        Some("Gateway") => {
-            SettlementLayer::Gateway(SLChainId(settlement_layer_chain_id.unwrap_or(506) as u64))
-        }
-        _ => SettlementLayer::L1(SLChainId(settlement_layer_chain_id.unwrap_or(19) as u64)),
+    let settlement_layer_chain_id = u64::try_from(settlement_layer_chain_id)
+        .expect("invalid settlement_layer_chain_id in l1_batches; value must be non-negative");
+
+    match settlement_layer_type.as_str() {
+        "L1" => SettlementLayer::L1(SLChainId(settlement_layer_chain_id)),
+        "Gateway" => SettlementLayer::Gateway(SLChainId(settlement_layer_chain_id)),
+        other => panic!(
+            "invalid settlement_layer_type `{other}` in l1_batches; expected `L1` or `Gateway`",
+        ),
     }
 }
 
