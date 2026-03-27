@@ -76,6 +76,8 @@ impl Manager {
                         .map(|(k, v)| (k.clone(), v.into_map_gpukey()))
                         .collect(),
                     c.speed.into_map_gpukey(),
+                    c.max_running_weight,
+                    c.max_desired_burst_weight,
                     c.hysteresis,
                     scaler_config.clone(),
                     c.priority.clone(),
@@ -89,6 +91,8 @@ impl Manager {
                         .map(|(k, v)| (k.clone(), v.into_map_nokey()))
                         .collect(),
                     c.speed.into_map_nokey(),
+                    c.max_running_weight,
+                    c.max_desired_burst_weight,
                     c.hysteresis,
                     scaler_config.clone(),
                     c.priority.clone(),
@@ -129,18 +133,40 @@ impl Task for Manager {
                 return Ok(());
             }
 
-            for (ns, ppv) in &self.namespaces {
-                for scaler in &self.scalers {
-                    let q = queue
-                        .get(&(ppv.to_string(), scaler.queue_report_field()))
-                        .cloned()
-                        .unwrap_or(0);
-                    AUTOSCALER_METRICS.queue[&(ns.clone(), scaler.deployment())].set(q);
+            for scaler in &self.scalers {
+                let mut namespace_queues: Vec<_> = self
+                    .namespaces
+                    .iter()
+                    .map(|(ns, ppv)| {
+                        let q = queue
+                            .get(&(ppv.to_string(), scaler.queue_report_field()))
+                            .cloned()
+                            .unwrap_or(0);
+                        AUTOSCALER_METRICS.queue[&(ns.clone(), scaler.deployment())].set(q);
+                        (ns.clone(), ppv.clone(), q)
+                    })
+                    .collect();
+
+                namespace_queues.sort_by(|(ns_a, _, q_a), (ns_b, _, q_b)| {
+                    q_b.cmp(q_a).then_with(|| ns_a.cmp(ns_b))
+                });
+
+                let mut remaining_desired_weight = scaler
+                    .max_desired_weight()
+                    .map(|max| max as i64);
+
+                for (ns, ppv, q) in namespace_queues {
                     tracing::debug!(
                         "Running eval for namespace {ns}, PPV {ppv}, scaler {} found queue {q}",
                         scaler.deployment()
                     );
-                    scaler.run(ns, q, &guard.clusters, &mut scale_requests);
+                    scaler.run(
+                        &ns,
+                        q,
+                        &guard.clusters,
+                        &mut scale_requests,
+                        remaining_desired_weight.as_mut(),
+                    );
                 }
             }
         } // Unlock self.watcher.data.

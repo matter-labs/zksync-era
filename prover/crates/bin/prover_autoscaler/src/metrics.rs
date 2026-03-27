@@ -30,6 +30,14 @@ pub(crate) struct AutoscalerMetrics {
     pub scale_errors: LabeledFamily<ClusterName, Gauge<u64>>,
     #[metrics(labels = ["target_namespace", "job"])]
     pub queue: LabeledFamily<(NamespaceName, DeploymentName), Gauge<usize>, 2>,
+    #[metrics(labels = ["target_namespace", "job"])]
+    pub target_weight: LabeledFamily<(NamespaceName, DeploymentName), Gauge<usize>, 2>,
+    #[metrics(labels = ["job"])]
+    pub target_max_weight: LabeledFamily<DeploymentName, Gauge<usize>>,
+    #[metrics(labels = ["target_namespace", "job"])]
+    pub target_running_weight: LabeledFamily<(NamespaceName, DeploymentName), Gauge<usize>, 2>,
+    #[metrics(labels = ["job"])]
+    pub target_max_running_weight: LabeledFamily<DeploymentName, Gauge<usize>>,
     #[metrics(labels = ["pod_name"])]
     pub stale_pods: LabeledFamily<String, Counter, 1>,
 }
