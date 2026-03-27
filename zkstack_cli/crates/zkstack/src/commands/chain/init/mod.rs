@@ -101,7 +101,7 @@ pub async fn init(
     let chain_output = runner.chain_init(shell, &protocol_ops_args)?;
 
     // Build full ContractsConfig from protocol_ops output + ecosystem contracts
-    let contracts_config = chain_output.to_contracts_config(&core_contracts, chain_config);
+    let contracts_config = chain_output.to_contracts_config(&core_contracts, chain_config)?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     if let Some(genesis_args) = &init_args.genesis_args {
@@ -202,7 +202,6 @@ fn build_chain_init_args(
             VMOption::ZKSyncOsVM => wallets.execute_operator.as_ref().map(|w| w.address),
         },
         token_multiplier_setter: wallets.token_multiplier_setter.as_ref().map(|w| w.address),
-        governance_addr: wallets.governor.address,
         with_legacy_bridge: chain_config.legacy_bridge.unwrap_or(false),
         pause_deposits: init_args.pause_deposits,
         evm_emulator: chain_config.evm_emulator,

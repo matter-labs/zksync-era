@@ -1,23 +1,19 @@
 use std::path::PathBuf;
 
 use ethers::types::{Address, H256};
-use serde::Deserialize;
 use xshell::Shell;
 use zkstack_cli_common::contracts::encode_ntv_asset_id;
 use zkstack_cli_config::{
-    BridgeContractsDefinition, BridgesContracts, ChainConfig, ChainTransitionManagerContracts,
-    ContractsConfig, CoreContractsConfig, CoreEcosystemContracts, EcosystemConfig,
-    EcosystemContracts, L1Contracts, L1CoreContracts, L2Contracts,
+    raw::RawConfig, BridgeContractsDefinition, BridgesContracts, ChainConfig,
+    ChainTransitionManagerContracts, ContractsConfig, CoreContractsConfig, CoreEcosystemContracts,
+    EcosystemConfig, EcosystemContracts, L1Contracts, L1CoreContracts, L2Contracts,
 };
 use zkstack_cli_types::VMOption;
 
 /// Arguments for invoking `protocol_ops ecosystem init`.
 pub struct EcosystemInitProtocolOpsArgs {
-    /// Deployer private key (sender)
     pub private_key: H256,
-    /// Governor address (owner of deployed contracts)
     pub owner: Address,
-    /// Governor private key (for accepting ownership when owner != sender)
     pub owner_private_key: Option<H256>,
     pub l1_rpc_url: String,
     pub era_chain_id: u64,
@@ -26,15 +22,9 @@ pub struct EcosystemInitProtocolOpsArgs {
     pub with_legacy_bridge: bool,
 }
 
-/// Runner that invokes protocol_ops CLI via `cargo run`.
-pub struct ProtocolOpsRunner {
-    manifest_path: PathBuf,
-}
-
 /// Arguments for invoking `protocol_ops chain init`.
 pub struct ChainInitProtocolOpsArgs {
     pub private_key: H256,
-    /// Chain governor private key (for accepting ownership when owner != sender)
     pub owner_private_key: Option<H256>,
     pub l1_rpc_url: String,
     pub ctm_proxy: Address,
@@ -49,7 +39,6 @@ pub struct ChainInitProtocolOpsArgs {
     pub prove_operator: Address,
     pub execute_operator: Option<Address>,
     pub token_multiplier_setter: Option<Address>,
-    pub governance_addr: Address,
     pub with_legacy_bridge: bool,
     pub pause_deposits: bool,
     pub evm_emulator: bool,
@@ -58,6 +47,11 @@ pub struct ChainInitProtocolOpsArgs {
     pub skip_priority_txs: bool,
     pub create2_factory_addr: Option<Address>,
     pub create2_factory_salt: Option<H256>,
+}
+
+/// Runner that invokes protocol_ops CLI via `cargo run`.
+pub struct ProtocolOpsRunner {
+    manifest_path: PathBuf,
 }
 
 impl ProtocolOpsRunner {
@@ -112,8 +106,9 @@ impl ProtocolOpsRunner {
         .run()?;
 
         let json_str = std::fs::read_to_string(&out_path)?;
-        let output: ProtocolOpsJsonOutput = serde_json::from_str(&json_str)?;
-        Ok(output.output)
+        let inner: serde_yaml::Value = serde_json::from_str(&json_str)?;
+        let config = RawConfig::from_value(inner);
+        Ok(ProtocolOpsEcosystemOutput(config.sub("output")?))
     }
 
     pub fn chain_init(
@@ -140,7 +135,6 @@ impl ProtocolOpsRunner {
         let owner = format!("{:#x}", args.owner);
         let commit_operator = format!("{:#x}", args.commit_operator);
         let prove_operator = format!("{:#x}", args.prove_operator);
-        let governance_addr = format!("{:#x}", args.governance_addr);
         let with_legacy_bridge = format!("--with-legacy-bridge={}", args.with_legacy_bridge);
         let pause_deposits = format!("--pause-deposits={}", args.pause_deposits);
         let evm_emulator = format!("--evm-emulator={}", args.evm_emulator);
@@ -182,7 +176,6 @@ impl ProtocolOpsRunner {
              --owner {owner}
              --commit-operator {commit_operator}
              --prove-operator {prove_operator}
-             --governance-addr {governance_addr}
              {with_legacy_bridge}
              {pause_deposits}
              {evm_emulator}
@@ -195,102 +188,104 @@ impl ProtocolOpsRunner {
         .run()?;
 
         let json_str = std::fs::read_to_string(&out_path)?;
-        let output: ProtocolOpsChainJsonOutput = serde_json::from_str(&json_str)?;
-        Ok(output.output)
+        let inner: serde_yaml::Value = serde_json::from_str(&json_str)?;
+        let config = RawConfig::from_value(inner);
+        Ok(ProtocolOpsChainOutput(config.sub("output")?))
     }
 }
 
-/// Top-level JSON structure from protocol_ops `--out` file.
-/// Uses the standard CommandEnvelope format: { version, command, input, output, runs }.
-#[derive(Debug, Deserialize)]
-struct ProtocolOpsJsonOutput {
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub version: Option<u32>,
-    pub output: ProtocolOpsEcosystemOutput,
+// ── Output types ─────────────────────────────────────────────────────────────
+
+pub struct ProtocolOpsEcosystemOutput(RawConfig);
+
+impl ProtocolOpsEcosystemOutput {
+    /// Convert the protocol_ops output into zkstack's `CoreContractsConfig`.
+    pub fn to_core_contracts_config(
+        &self,
+        vm_option: VMOption,
+    ) -> anyhow::Result<CoreContractsConfig> {
+        let c = &self.0;
+        let hub = c.sub("hub")?;
+        let hub_deployed = c.sub("hub.deployed_addresses")?;
+        let ctm = c.sub("ctm")?;
+        let ctm_deployed = c.sub("ctm.deployed_addresses")?;
+
+        let ctm_contracts = ChainTransitionManagerContracts {
+            governance: ctm_deployed.get("governance_addr")?,
+            chain_admin: ctm_deployed.get("chain_admin")?,
+            proxy_admin: ctm_deployed.get("transparent_proxy_admin_addr")?,
+            state_transition_proxy_addr: ctm_deployed
+                .get("state_transition.state_transition_proxy_addr")?,
+            validator_timelock_addr: ctm_deployed.get("validator_timelock_addr")?,
+            diamond_cut_data: ctm.get("contracts_config.diamond_cut_data")?,
+            force_deployments_data: ctm.get_opt("contracts_config.force_deployments_data")?,
+            l1_bytecodes_supplier_addr: ctm_deployed
+                .get("state_transition.bytecodes_supplier_addr")?,
+            l1_wrapped_base_token_store: None,
+            server_notifier_proxy_addr: ctm_deployed.get("server_notifier_proxy_addr")?,
+            default_upgrade_addr: ctm_deployed.get("state_transition.default_upgrade_addr")?,
+            genesis_upgrade_addr: ctm_deployed.get("state_transition.genesis_upgrade_addr")?,
+            verifier_addr: ctm_deployed.get("state_transition.verifier_addr")?,
+            rollup_l1_da_validator_addr: ctm_deployed.get("rollup_l1_da_validator_addr")?,
+            no_da_validium_l1_validator_addr: ctm_deployed
+                .get("no_da_validium_l1_validator_addr")?,
+            avail_l1_da_validator_addr: ctm_deployed.get("avail_l1_da_validator_addr")?,
+            l1_rollup_da_manager: ctm_deployed.get("l1_rollup_da_manager")?,
+            blobs_zksync_os_l1_da_validator_addr: ctm_deployed
+                .get_opt("blobs_zksync_os_l1_da_validator_addr")?,
+        };
+
+        let (era_ctm, zksync_os_ctm) = match vm_option {
+            VMOption::EraVM => (Some(ctm_contracts), None),
+            VMOption::ZKSyncOsVM => (None, Some(ctm_contracts)),
+        };
+
+        Ok(CoreContractsConfig {
+            create2_factory_addr: hub.get("contracts.create2_factory_addr")?,
+            create2_factory_salt: hub.get("contracts.create2_factory_salt")?,
+            multicall3_addr: ctm.get("multicall3_addr")?,
+            core_ecosystem_contracts: CoreEcosystemContracts {
+                bridgehub_proxy_addr: hub_deployed.get("bridgehub.bridgehub_proxy_addr")?,
+                message_root_proxy_addr: Some(
+                    hub_deployed.get("bridgehub.message_root_proxy_addr")?,
+                ),
+                transparent_proxy_admin_addr: hub_deployed.get("transparent_proxy_admin_addr")?,
+                stm_deployment_tracker_proxy_addr: Some(
+                    hub_deployed.get("bridgehub.ctm_deployment_tracker_proxy_addr")?,
+                ),
+                native_token_vault_addr: Some(hub_deployed.get("native_token_vault_addr")?),
+                chain_asset_handler_proxy_addr: Some(
+                    hub_deployed.get("bridgehub.chain_asset_handler_proxy_addr")?,
+                ),
+            },
+            bridges: BridgesContracts {
+                erc20: BridgeContractsDefinition {
+                    l1_address: hub_deployed.get("bridges.erc20_bridge_proxy_addr")?,
+                    ..Default::default()
+                },
+                shared: BridgeContractsDefinition {
+                    l1_address: hub_deployed.get("bridges.shared_bridge_proxy_addr")?,
+                    ..Default::default()
+                },
+                l1_nullifier_addr: Some(hub_deployed.get("bridges.l1_nullifier_proxy_addr")?),
+            },
+            l1: L1CoreContracts {
+                governance_addr: hub_deployed.get("governance_addr")?,
+                chain_admin_addr: hub_deployed.get("chain_admin")?,
+                access_control_restriction_addr: Some(
+                    hub_deployed.get("access_control_restriction_addr")?,
+                ),
+                chain_proxy_admin_addr: None,
+                transaction_filterer_addr: None,
+            },
+            era_ctm,
+            zksync_os_ctm,
+            proof_manager_contracts: None,
+        })
+    }
 }
 
-/// The `"output"` object from protocol_ops ecosystem init JSON.
-#[derive(Debug, Deserialize)]
-pub struct ProtocolOpsEcosystemOutput {
-    pub hub: HubOutput,
-    pub ctm: CtmOutput,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct HubOutput {
-    pub create2_factory_addr: Address,
-    pub create2_factory_salt: H256,
-    pub bridgehub_proxy_addr: Address,
-    pub message_root_proxy_addr: Address,
-    pub transparent_proxy_admin_addr: Address,
-    pub stm_deployment_tracker_proxy_addr: Address,
-    pub native_token_vault_addr: Address,
-    pub chain_asset_handler_proxy_addr: Address,
-    pub shared_bridge_proxy_addr: Address,
-    pub erc20_bridge_proxy_addr: Address,
-    pub l1_nullifier_proxy_addr: Address,
-    pub governance_addr: Address,
-    pub chain_admin_addr: Address,
-    pub access_control_restriction_addr: Address,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CtmOutput {
-    pub state_transition_proxy_addr: Address,
-    pub verifier_addr: Address,
-    pub genesis_upgrade_addr: Address,
-    pub default_upgrade_addr: Address,
-    pub bytecodes_supplier_addr: Address,
-    pub validator_timelock_addr: Address,
-    pub rollup_l1_da_validator_addr: Address,
-    pub no_da_validium_l1_validator_addr: Address,
-    pub avail_l1_da_validator_addr: Address,
-    pub l1_rollup_da_manager: Address,
-    pub blobs_zksync_os_l1_da_validator_addr: Option<Address>,
-    pub server_notifier_proxy_addr: Address,
-    pub governance_addr: Address,
-    pub chain_admin_addr: Address,
-    pub transparent_proxy_admin_addr: Address,
-    pub multicall3_addr: Address,
-    pub diamond_cut_data: String,
-    pub force_deployments_data: Option<String>,
-}
-
-/// Top-level JSON structure from protocol_ops chain init `--out` file.
-/// Uses the standard CommandEnvelope format: { version, command, input, output, runs }.
-#[derive(Debug, Deserialize)]
-struct ProtocolOpsChainJsonOutput {
-    #[serde(default)]
-    #[allow(dead_code)]
-    pub version: Option<u32>,
-    pub output: ProtocolOpsChainOutput,
-}
-
-/// The `"output"` object from protocol_ops chain init JSON.
-#[derive(Debug, Deserialize)]
-pub struct ProtocolOpsChainOutput {
-    pub diamond_proxy_addr: Address,
-    #[serde(default)]
-    pub governance_addr: Option<Address>,
-    pub chain_admin_addr: Address,
-    #[serde(default)]
-    pub access_control_restriction_addr: Option<Address>,
-    #[serde(default)]
-    pub chain_proxy_admin_addr: Option<Address>,
-    #[serde(default)]
-    pub l2_legacy_shared_bridge_addr: Option<Address>,
-    #[serde(default)]
-    pub l2_default_upgrader: Option<Address>,
-    #[serde(default)]
-    pub l2_consensus_registry_addr: Option<Address>,
-    #[serde(default)]
-    pub l2_multicall3_addr: Option<Address>,
-    #[serde(default)]
-    pub l2_timestamp_asserter_addr: Option<Address>,
-    #[serde(default)]
-    pub l2_paymaster_addr: Option<Address>,
-}
+pub struct ProtocolOpsChainOutput(RawConfig);
 
 impl ProtocolOpsChainOutput {
     /// Build a full `ContractsConfig` from the protocol_ops output + ecosystem contracts.
@@ -298,7 +293,8 @@ impl ProtocolOpsChainOutput {
         &self,
         core_contracts: &CoreContractsConfig,
         chain_config: &ChainConfig,
-    ) -> ContractsConfig {
+    ) -> anyhow::Result<ContractsConfig> {
+        let c = &self.0;
         let ctm = core_contracts.ctm(chain_config.vm_option);
 
         let mut contracts = ContractsConfig {
@@ -327,11 +323,11 @@ impl ProtocolOpsChainOutput {
             proof_manager_contracts: core_contracts.proof_manager_contracts.clone(),
             l1: L1Contracts {
                 default_upgrade_addr: ctm.default_upgrade_addr,
-                diamond_proxy_addr: self.diamond_proxy_addr,
-                governance_addr: self.governance_addr.unwrap_or(ctm.governance),
-                chain_admin_addr: self.chain_admin_addr,
-                access_control_restriction_addr: self.access_control_restriction_addr,
-                chain_proxy_admin_addr: self.chain_proxy_admin_addr,
+                diamond_proxy_addr: c.get("diamond_proxy_addr")?,
+                governance_addr: c.get("governance_addr")?,
+                chain_admin_addr: c.get("chain_admin_addr")?,
+                access_control_restriction_addr: c.get_opt("access_control_restriction_addr")?,
+                chain_proxy_admin_addr: c.get_opt("chain_proxy_admin_addr")?,
                 validator_timelock_addr: ctm.validator_timelock_addr,
                 base_token_addr: chain_config.base_token.address,
                 rollup_l1_da_validator_addr: Some(ctm.rollup_l1_da_validator_addr),
@@ -347,97 +343,29 @@ impl ProtocolOpsChainOutput {
                 no_da_validium_l1_validator_addr: Some(ctm.no_da_validium_l1_validator_addr),
             },
             l2: L2Contracts {
-                legacy_shared_bridge_addr: self.l2_legacy_shared_bridge_addr,
+                legacy_shared_bridge_addr: c.get_opt("l2_legacy_shared_bridge_addr")?,
                 ..Default::default()
             },
             other: Default::default(),
         };
 
-        if let Some(upgrader) = self.l2_default_upgrader {
+        let l2 = c.sub("l2_contracts")?;
+        if let Some(upgrader) = l2.get_opt("l2_default_upgrader")? {
             contracts.l2.default_l2_upgrader = upgrader;
         }
-        if let Some(consensus) = self.l2_consensus_registry_addr {
+        if let Some(consensus) = l2.get_opt("consensus_registry_addr")? {
             contracts.l2.consensus_registry = Some(consensus);
         }
-        if let Some(multicall3) = self.l2_multicall3_addr {
+        if let Some(multicall3) = l2.get_opt("multicall3_addr")? {
             contracts.l2.multicall3 = Some(multicall3);
         }
-        if let Some(ts_asserter) = self.l2_timestamp_asserter_addr {
+        if let Some(ts_asserter) = l2.get_opt("timestamp_asserter_addr")? {
             contracts.l2.timestamp_asserter_addr = Some(ts_asserter);
         }
-        if let Some(paymaster) = self.l2_paymaster_addr {
+        if let Some(paymaster) = c.get_opt("paymaster_addr")? {
             contracts.l2.testnet_paymaster_addr = paymaster;
         }
 
-        contracts
-    }
-}
-
-impl ProtocolOpsEcosystemOutput {
-    /// Convert the protocol_ops output into zkstack's `CoreContractsConfig`.
-    pub fn to_core_contracts_config(&self, vm_option: VMOption) -> CoreContractsConfig {
-        let hub = &self.hub;
-        let ctm = &self.ctm;
-
-        let ctm_contracts = ChainTransitionManagerContracts {
-            governance: ctm.governance_addr,
-            chain_admin: ctm.chain_admin_addr,
-            proxy_admin: ctm.transparent_proxy_admin_addr,
-            state_transition_proxy_addr: ctm.state_transition_proxy_addr,
-            validator_timelock_addr: ctm.validator_timelock_addr,
-            diamond_cut_data: ctm.diamond_cut_data.clone(),
-            force_deployments_data: ctm.force_deployments_data.clone(),
-            l1_bytecodes_supplier_addr: ctm.bytecodes_supplier_addr,
-            l1_wrapped_base_token_store: None,
-            server_notifier_proxy_addr: ctm.server_notifier_proxy_addr,
-            default_upgrade_addr: ctm.default_upgrade_addr,
-            genesis_upgrade_addr: ctm.genesis_upgrade_addr,
-            verifier_addr: ctm.verifier_addr,
-            rollup_l1_da_validator_addr: ctm.rollup_l1_da_validator_addr,
-            no_da_validium_l1_validator_addr: ctm.no_da_validium_l1_validator_addr,
-            avail_l1_da_validator_addr: ctm.avail_l1_da_validator_addr,
-            l1_rollup_da_manager: ctm.l1_rollup_da_manager,
-            blobs_zksync_os_l1_da_validator_addr: ctm.blobs_zksync_os_l1_da_validator_addr,
-        };
-
-        let (era_ctm, zksync_os_ctm) = match vm_option {
-            VMOption::EraVM => (Some(ctm_contracts), None),
-            VMOption::ZKSyncOsVM => (None, Some(ctm_contracts)),
-        };
-
-        CoreContractsConfig {
-            create2_factory_addr: hub.create2_factory_addr,
-            create2_factory_salt: hub.create2_factory_salt,
-            multicall3_addr: ctm.multicall3_addr,
-            core_ecosystem_contracts: CoreEcosystemContracts {
-                bridgehub_proxy_addr: hub.bridgehub_proxy_addr,
-                message_root_proxy_addr: Some(hub.message_root_proxy_addr),
-                transparent_proxy_admin_addr: hub.transparent_proxy_admin_addr,
-                stm_deployment_tracker_proxy_addr: Some(hub.stm_deployment_tracker_proxy_addr),
-                native_token_vault_addr: Some(hub.native_token_vault_addr),
-                chain_asset_handler_proxy_addr: Some(hub.chain_asset_handler_proxy_addr),
-            },
-            bridges: BridgesContracts {
-                erc20: BridgeContractsDefinition {
-                    l1_address: hub.erc20_bridge_proxy_addr,
-                    ..Default::default()
-                },
-                shared: BridgeContractsDefinition {
-                    l1_address: hub.shared_bridge_proxy_addr,
-                    ..Default::default()
-                },
-                l1_nullifier_addr: Some(hub.l1_nullifier_proxy_addr),
-            },
-            l1: L1CoreContracts {
-                governance_addr: hub.governance_addr,
-                chain_admin_addr: hub.chain_admin_addr,
-                access_control_restriction_addr: Some(hub.access_control_restriction_addr),
-                chain_proxy_admin_addr: None,
-                transaction_filterer_addr: None,
-            },
-            era_ctm,
-            zksync_os_ctm,
-            proof_manager_contracts: None,
-        }
+        Ok(contracts)
     }
 }

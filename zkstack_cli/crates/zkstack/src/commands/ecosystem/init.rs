@@ -205,5 +205,5 @@ async fn deploy_ecosystem(
     let output = runner.ecosystem_init(shell, &args)?;
     spinner.finish();
 
-    Ok(output.to_core_contracts_config(vm_option))
+    output.to_core_contracts_config(vm_option)
 }
