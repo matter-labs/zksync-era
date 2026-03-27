@@ -151,9 +151,8 @@ impl Task for Manager {
                     q_b.cmp(q_a).then_with(|| ns_a.cmp(ns_b))
                 });
 
-                let mut remaining_desired_weight = scaler
-                    .max_desired_weight()
-                    .map(|max| max as i64);
+                let mut remaining_desired_weight =
+                    scaler.max_desired_weight().map(|max| max as i64);
 
                 for (ns, ppv, q) in namespace_queues {
                     tracing::debug!(
