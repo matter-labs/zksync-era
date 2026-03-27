@@ -406,6 +406,10 @@ impl TxSender {
         self.0.whitelisted_tokens_for_aa_cache.read().await.clone()
     }
 
+    pub(crate) fn configured_interop_fee(&self) -> u64 {
+        self.0.sender_config.interop_fee
+    }
+
     async fn acquire_replica_connection(&self) -> anyhow::Result<Connection<'static, Core>> {
         self.0
             .replica_connection_pool
