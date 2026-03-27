@@ -395,6 +395,12 @@ describe('Migration From/To gateway test', function () {
             tryCount += 1;
             await utils.sleep(1);
         }
+
+        await zkstackExecWithMutex(
+            `zkstack chain gateway notify-about-to-gateway-update --chain ${fileConfig.chain}`,
+            'notifying about to gateway update'
+        );
+
         // Wait for all batches to be executed
         await waitForAllBatchesToBeExecuted(fileConfig.chain!);
 

@@ -29,14 +29,13 @@ use zksync_system_constants::{
     GW_ASSET_TRACKER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_TRACKER_ADDRESS,
     L2_NATIVE_TOKEN_VAULT_ADDRESS,
 };
-use zksync_types::{L2ChainId, H256};
+use zksync_types::H256;
 
 use crate::{
     abi::{
         BridgehubAbi, MessageRootAbi, ZkChainAbi, IL1ASSETROUTERABI_ABI, IL1ASSETTRACKERABI_ABI,
         IL1NATIVETOKENVAULTABI_ABI, IL2ASSETROUTERABI_ABI, IL2NATIVETOKENVAULTABI_ABI,
     },
-    commands::dev::commands::{rich_account, rich_account::args::RichAccountArgs},
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 
@@ -56,9 +55,6 @@ pub struct InitiateTokenBalanceMigrationArgs {
 
     #[clap(long)]
     pub gateway_chain_name: String,
-
-    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
-    pub skip_funding: Option<bool>,
 
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub to_gateway: Option<bool>,
@@ -90,7 +86,7 @@ pub async fn run_initiate(
     args: InitiateTokenBalanceMigrationArgs,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let (wallet, _l1_bridgehub_addr, l2_chain_id, gw_chain_id, l1_url, l2_url, gw_rpc_url) =
+    let (wallet, _l1_bridgehub_addr, _l2_chain_id, _gw_chain_id, _l1_url, l2_url, gw_rpc_url) =
         load_migration_context(shell, args.gateway_chain_name).await?;
 
     let to_gateway = args.to_gateway.unwrap_or(true);
@@ -101,12 +97,8 @@ pub async fn run_initiate(
 
     initiate_token_balance_migration(
         shell,
-        args.skip_funding.unwrap_or(false),
         to_gateway,
         wallet,
-        l2_chain_id,
-        gw_chain_id,
-        l1_url.clone(),
         gw_rpc_url.clone(),
         l2_url.clone(),
     )
@@ -189,59 +181,12 @@ async fn load_migration_context(
 
 #[allow(clippy::too_many_arguments)]
 async fn initiate_token_balance_migration(
-    shell: &Shell,
-    skip_funding: bool,
+    _shell: &Shell,
     to_gateway: bool,
     wallet: Wallet,
-    l2_chain_id: u64,
-    gw_chain_id: u64,
-    l1_rpc_url: String,
     gw_rpc_url: String,
     l2_rpc_url: String,
 ) -> anyhow::Result<()> {
-    println!("l2_chain_id: {}", l2_chain_id);
-    println!("wallet.address: {}", wallet.address);
-
-    if !skip_funding {
-        let (rpc_url, chain_id, label) = if to_gateway {
-            (&l2_rpc_url, l2_chain_id, "L2")
-        } else {
-            (&gw_rpc_url, gw_chain_id, "Gateway")
-        };
-
-        let provider = Provider::<Http>::try_from(rpc_url.as_str())?;
-        let balance = provider.get_balance(wallet.address, None).await?;
-
-        if balance.is_zero() {
-            rich_account::run(
-                shell,
-                RichAccountArgs {
-                    l2_account: Some(wallet.address),
-                    l1_account_private_key: Some(
-                        "0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110"
-                            .to_string(),
-                    ),
-                    l1_rpc_url: Some(l1_rpc_url.clone()),
-                    amount: Some(U256::from(1_000_000_000_000_000_000u64)),
-                },
-                Some(L2ChainId::from(chain_id as u32)),
-            )
-            .await?;
-
-            println!("Waiting for {label} account to be funded...");
-            loop {
-                let balance = provider.get_balance(wallet.address, None).await?;
-                if !balance.is_zero() {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(LOOK_WAITING_TIME_MS)).await;
-            }
-            println!("{label} account funded");
-        } else {
-            println!("{label} account already funded, skipping");
-        }
-    }
-
     let mut tx_hashes = Vec::new();
     let asset_ids = get_asset_ids(&l2_rpc_url).await?;
 

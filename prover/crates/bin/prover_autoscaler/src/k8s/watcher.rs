@@ -271,6 +271,9 @@ impl Watcher {
                                     // insufficient GPU resources. The k8s scheduler
                                     // emits FailedScheduling with "Insufficient
                                     // nvidia.com/gpu" when no node can fit the pod.
+                                    // This is a pod-level signal only; namespace
+                                    // scale_errors remain reserved for separate
+                                    // autoscaler-level failures.
                                     let is_out_of_resources = involved_object_kind == "Pod"
                                         && reason == "FailedScheduling"
                                         && event_message.contains("Insufficient nvidia.com/gpu");
@@ -300,16 +303,33 @@ impl Watcher {
                                                 involved_object_name
                                             );
                                         }
+                                    }
 
-                                        // Also record as a scale error on the namespace.
+                                    let is_failed_scale_up = involved_object_kind == "Pod"
+                                        && reason == "FailedScaleUp"
+                                        && event_message.contains("GCE out of resources");
+
+                                    if is_failed_scale_up {
                                         let name = e.name_any();
                                         let time: DateTime<Utc> = match e.last_timestamp {
                                             Some(t) => t.0,
                                             None => Utc::now(),
                                         };
+                                        tracing::info!(
+                                            "Detected failed scale-up for pod {} in namespace {}: {}",
+                                            involved_object_name,
+                                            namespace,
+                                            event_message
+                                        );
                                         let mut cluster_guard = self.cluster.lock().await;
-                                        if let Some(v) = cluster_guard.namespaces.get_mut(&namespace) {
-                                            v.scale_errors.push(ScaleEvent { name, time });
+                                        if let Some(ns_data) = cluster_guard.namespaces.get_mut(&namespace) {
+                                            ns_data.scale_errors.push(ScaleEvent { name, time });
+                                        } else {
+                                            tracing::warn!(
+                                                "Namespace {} not found for failed scale-up event for pod {}",
+                                                namespace,
+                                                involved_object_name
+                                            );
                                         }
                                     }
                                 }

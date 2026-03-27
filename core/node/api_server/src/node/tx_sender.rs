@@ -42,8 +42,6 @@ use crate::{
     },
 };
 
-const MAIN_NODE_INTEROP_FEE_POLL_INTERVAL: Duration = Duration::from_secs(1);
-
 #[derive(Debug)]
 pub struct PostgresStorageCachesConfig {
     pub factory_deps_cache_size: u64,
@@ -79,6 +77,7 @@ pub struct TxSenderLayer {
     vm_mode: FastVmMode,
     timestamp_asserter_config: TimestampAsserterConfig,
     tx_sender_config: TxSenderConfig,
+    main_node_interop_fee_poll_interval: Duration,
 }
 
 #[derive(Debug, FromContext)]
@@ -112,6 +111,7 @@ impl TxSenderLayer {
         max_vm_concurrency: usize,
         tx_sender_config: TxSenderConfig,
         timestamp_asserter_config: TimestampAsserterConfig,
+        main_node_interop_fee_poll_interval: Duration,
     ) -> Self {
         Self {
             postgres_storage_caches_config,
@@ -120,6 +120,7 @@ impl TxSenderLayer {
             vm_mode: FastVmMode::Old,
             timestamp_asserter_config,
             tx_sender_config,
+            main_node_interop_fee_poll_interval,
         }
     }
 
@@ -224,6 +225,7 @@ impl WiringLayer for TxSenderLayer {
                     main_node_client: main_node_client
                         .clone()
                         .for_component("interop_fee_fetcher"),
+                    poll_interval: self.main_node_interop_fee_poll_interval,
                 });
 
         // Add the task for updating the whitelisted tokens for the AA cache.
@@ -308,6 +310,7 @@ pub struct WhitelistedTokensForAaUpdateTask {
 pub struct MainNodeInteropFeeUpdateTask {
     interop_fee_fallback: Arc<AtomicU64>,
     main_node_client: Box<DynClient<L2>>,
+    poll_interval: Duration,
 }
 
 #[async_trait::async_trait]
@@ -360,12 +363,9 @@ impl Task for MainNodeInteropFeeUpdateTask {
             }
 
             // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
-            tokio::time::timeout(
-                MAIN_NODE_INTEROP_FEE_POLL_INTERVAL,
-                stop_receiver.0.changed(),
-            )
-            .await
-            .ok();
+            tokio::time::timeout(self.poll_interval, stop_receiver.0.changed())
+                .await
+                .ok();
         }
         Ok(())
     }

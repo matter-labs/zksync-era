@@ -37,8 +37,8 @@ pub(crate) struct StorageSyncBlock {
     pub l2_da_commitment_scheme: Option<i32>,
     pub pubdata_type: String,
     pub pubdata_limit: Option<i64>,
-    pub settlement_layer_type: Option<String>,
-    pub settlement_layer_chain_id: Option<i64>,
+    pub settlement_layer_type: String,
+    pub settlement_layer_chain_id: i64,
     pub interop_fee: i64,
 }
 
