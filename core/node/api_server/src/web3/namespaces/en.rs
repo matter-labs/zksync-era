@@ -223,4 +223,22 @@ impl EnNamespace {
             .map_err(DalError::generalize)?;
         Ok(protocol_version_info)
     }
+
+    pub async fn get_interop_fee_impl(&self) -> Result<u64, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+        if let Some(unsealed_batch) = storage
+            .blocks_dal()
+            .get_unsealed_l1_batch()
+            .await
+            .map_err(DalError::generalize)?
+        {
+            return u64::try_from(unsealed_batch.interop_fee).map_err(|err| {
+                Web3Error::InternalError(anyhow::anyhow!(
+                    "unsealed interop fee does not fit in u64: {err}"
+                ))
+            });
+        }
+
+        Ok(self.state.tx_sender.configured_interop_fee())
+    }
 }

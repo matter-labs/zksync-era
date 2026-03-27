@@ -59,4 +59,7 @@ pub trait EnNamespace {
         &self,
         version_id: Option<u16>,
     ) -> RpcResult<Option<ProtocolVersionInfo>>;
+
+    #[method(name = "getInteropFee")]
+    async fn get_interop_fee(&self) -> RpcResult<u64>;
 }

@@ -1,8 +1,5 @@
 use std::{
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
+    sync::{atomic::AtomicU64, Arc},
     time::Duration,
 };
 
@@ -20,20 +17,15 @@ use zksync_node_framework::{
 use zksync_object_store::ObjectStore;
 use zksync_shared_resources::contracts::L2ContractsResource;
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
-use zksync_types::{
-    api::{BlockIdVariant, BlockNumber},
-    transaction_request::CallRequest,
-    vm::FastVmMode,
-    web3::Bytes,
-    AccountTreeId, Address, U256,
-};
+use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
 use zksync_vm_executor::node::ApiTransactionFilter;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     jsonrpsee,
-    namespaces::{EnNamespaceClient as _, EthNamespaceClient as _},
+    namespaces::EnNamespaceClient as _,
 };
 
+use self::main_node_interop_fee_update_task::MainNodeInteropFeeUpdateTask;
 use crate::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
     tx_sender::{
@@ -41,6 +33,8 @@ use crate::{
         TxSenderBuilder, TxSenderConfig,
     },
 };
+
+mod main_node_interop_fee_update_task;
 
 #[derive(Debug)]
 pub struct PostgresStorageCachesConfig {
@@ -201,8 +195,8 @@ impl WiringLayer for TxSenderLayer {
             config.validation_computational_gas_limit,
         )
         .await?;
-        let interop_fee_fallback = Arc::new(AtomicU64::new(config.interop_fee));
-        executor_options.set_interop_fee_fallback_provider(interop_fee_fallback.clone());
+        let interop_fee = Arc::new(AtomicU64::new(config.interop_fee));
+        executor_options.set_interop_fee_fallback_provider(interop_fee.clone());
         executor_options.set_fast_vm_mode(self.vm_mode);
 
         if let Some(store) = input.core_object_store {
@@ -217,16 +211,15 @@ impl WiringLayer for TxSenderLayer {
 
         let main_node_client = input.main_node_client;
 
-        let interop_fee_update_task =
-            main_node_client
-                .as_ref()
-                .map(|main_node_client| MainNodeInteropFeeUpdateTask {
-                    interop_fee_fallback: interop_fee_fallback.clone(),
-                    main_node_client: main_node_client
-                        .clone()
-                        .for_component("interop_fee_fetcher"),
-                    poll_interval: self.main_node_interop_fee_poll_interval,
-                });
+        let interop_fee_update_task = main_node_client.as_ref().map(|main_node_client| {
+            MainNodeInteropFeeUpdateTask::new(
+                interop_fee.clone(),
+                main_node_client
+                    .clone()
+                    .for_component("interop_fee_fetcher"),
+                self.main_node_interop_fee_poll_interval,
+            )
+        });
 
         // Add the task for updating the whitelisted tokens for the AA cache.
         let whitelisted_tokens_for_aa_update_task = if self.whitelisted_tokens_for_aa_cache {
@@ -306,13 +299,6 @@ pub struct WhitelistedTokensForAaUpdateTask {
     main_node_client: Box<DynClient<L2>>,
 }
 
-#[derive(Debug)]
-pub struct MainNodeInteropFeeUpdateTask {
-    interop_fee_fallback: Arc<AtomicU64>,
-    main_node_client: Box<DynClient<L2>>,
-    poll_interval: Duration,
-}
-
 #[async_trait::async_trait]
 impl Task for WhitelistedTokensForAaUpdateTask {
     fn id(&self) -> TaskId {
@@ -342,57 +328,4 @@ impl Task for WhitelistedTokensForAaUpdateTask {
         }
         Ok(())
     }
-}
-
-#[async_trait::async_trait]
-impl Task for MainNodeInteropFeeUpdateTask {
-    fn id(&self) -> TaskId {
-        "main_node_interop_fee_update_task".into()
-    }
-
-    async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        while !*stop_receiver.0.borrow_and_update() {
-            match fetch_main_node_interop_fee(self.main_node_client.as_ref()).await {
-                Ok(interop_fee) => {
-                    self.interop_fee_fallback
-                        .store(interop_fee, Ordering::Relaxed);
-                }
-                Err(err) => {
-                    tracing::error!("Failed to query `interopProtocolFee`, error: {err:#}");
-                }
-            }
-
-            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
-            tokio::time::timeout(self.poll_interval, stop_receiver.0.changed())
-                .await
-                .ok();
-        }
-        Ok(())
-    }
-}
-
-async fn fetch_main_node_interop_fee(main_node_client: &DynClient<L2>) -> anyhow::Result<u64> {
-    const INTEROP_PROTOCOL_FEE_SELECTOR: [u8; 4] = [0x1b, 0xde, 0x8e, 0xdf];
-    let interop_center_address = Address::from_low_u64_be(0x0001_000d);
-
-    let request = CallRequest::builder()
-        .to(Some(interop_center_address))
-        .data(Bytes(INTEROP_PROTOCOL_FEE_SELECTOR.to_vec()))
-        .build();
-    let block = Some(BlockIdVariant::BlockNumber(BlockNumber::Pending));
-    let response = main_node_client.call(request, block, None).await?;
-
-    if response.0.len() > 32 {
-        anyhow::bail!(
-            "Unexpected interopProtocolFee response length: {} bytes",
-            response.0.len()
-        );
-    }
-    let mut raw_value = [0_u8; 32];
-    let offset = 32 - response.0.len();
-    raw_value[offset..].copy_from_slice(&response.0);
-    let value = U256::from_big_endian(&raw_value);
-
-    u64::try_from(value)
-        .map_err(|err| anyhow::anyhow!("interopProtocolFee does not fit in u64: {err}"))
 }
