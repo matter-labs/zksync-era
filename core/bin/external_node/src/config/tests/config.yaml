@@ -54,6 +54,7 @@ api:
     filters_limit: 5000
     subscriptions_limit: 5000
     pubsub_polling_interval: 200
+    main_node_interop_fee_poll_interval_ms: 450
     max_nonce_ahead: 33
     gas_price_scale_factor: 1.4
     gas_price_scale_factor_open_batch: 1.35

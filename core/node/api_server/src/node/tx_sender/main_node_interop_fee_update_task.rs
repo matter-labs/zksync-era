@@ -1,0 +1,67 @@
+use std::{
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+
+use zksync_node_framework::{
+    service::StopReceiver,
+    task::{Task, TaskId},
+};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    namespaces::EnNamespaceClient as _,
+};
+
+#[derive(Debug)]
+pub(super) struct MainNodeInteropFeeUpdateTask {
+    interop_fee: Arc<AtomicU64>,
+    main_node_client: Box<DynClient<L2>>,
+    poll_interval: Duration,
+}
+
+impl MainNodeInteropFeeUpdateTask {
+    pub(super) fn new(
+        interop_fee: Arc<AtomicU64>,
+        main_node_client: Box<DynClient<L2>>,
+        poll_interval: Duration,
+    ) -> Self {
+        Self {
+            interop_fee,
+            main_node_client,
+            poll_interval,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl Task for MainNodeInteropFeeUpdateTask {
+    fn id(&self) -> TaskId {
+        "main_node_interop_fee_update_task".into()
+    }
+
+    async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        while !*stop_receiver.0.borrow_and_update() {
+            match fetch_main_node_interop_fee(self.main_node_client.as_ref()).await {
+                Ok(interop_fee) => {
+                    self.interop_fee.store(interop_fee, Ordering::Relaxed);
+                }
+                Err(err) => {
+                    tracing::error!("Failed to query `interopProtocolFee`, error: {err:#}");
+                }
+            }
+
+            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+            tokio::time::timeout(self.poll_interval, stop_receiver.0.changed())
+                .await
+                .ok();
+        }
+        Ok(())
+    }
+}
+
+async fn fetch_main_node_interop_fee(main_node_client: &DynClient<L2>) -> anyhow::Result<u64> {
+    Ok(main_node_client.get_interop_fee().await?)
+}
