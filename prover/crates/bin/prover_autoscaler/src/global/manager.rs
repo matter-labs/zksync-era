@@ -147,24 +147,46 @@ impl Task for Manager {
                     })
                     .collect();
 
+                // Busiest namespace first so it gets priority for the shared cap.
                 namespace_queues.sort_by(|(ns_a, _, q_a), (ns_b, _, q_b)| {
                     q_b.cmp(q_a).then_with(|| ns_a.cmp(ns_b))
                 });
 
-                let mut remaining_desired_weight =
-                    scaler.max_desired_weight().map(|max| max as i64);
+                // Compute total running weight across all namespaces.
+                let total_running_weight: usize = namespace_queues
+                    .iter()
+                    .map(|(ns, _, _)| scaler.current_running_weight(ns, &guard.clusters))
+                    .sum();
 
-                for (ns, ppv, q) in namespace_queues {
+                // Cap desired based on total running weight:
+                // - running < max: no cap, scale freely
+                // - running >= max: cap desired to max (stop scaling up,
+                //   only Pending pods get removed, Running stay)
+                // - running >= max+burst: cap desired to max+burst
+                //   (scale down Running to max+burst)
+                let mut desired_cap: Option<i64> = scaler.max_running().and_then(|max_running| {
+                    let max_with_burst = scaler.max_desired_weight().unwrap_or(max_running);
+                    if total_running_weight >= max_with_burst {
+                        Some(max_with_burst as i64)
+                    } else if total_running_weight >= max_running {
+                        Some(max_running as i64)
+                    } else {
+                        None
+                    }
+                });
+
+                for (ns, _ppv, q) in &namespace_queues {
                     tracing::debug!(
-                        "Running eval for namespace {ns}, PPV {ppv}, scaler {} found queue {q}",
-                        scaler.deployment()
+                        "Running eval for namespace {ns}, scaler {} found queue {q}, total_running_weight {total_running_weight}, desired_cap {:?}",
+                        scaler.deployment(),
+                        desired_cap
                     );
                     scaler.run(
-                        &ns,
-                        q,
+                        ns,
+                        *q,
                         &guard.clusters,
                         &mut scale_requests,
-                        remaining_desired_weight.as_mut(),
+                        desired_cap.as_mut(),
                     );
                 }
             }
