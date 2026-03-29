@@ -151,13 +151,28 @@ impl Task for Manager {
                     q_b.cmp(q_a).then_with(|| ns_a.cmp(ns_b))
                 });
 
+                // Compute total running weight across all namespaces to
+                // determine how much desired capacity we can still add.
+                let total_running_weight: usize = namespace_queues
+                    .iter()
+                    .map(|(ns, _, _)| {
+                        scaler.current_running_weight(ns, &guard.clusters)
+                    })
+                    .sum();
+
+                // The desired budget = max_running_weight + burst - total_running.
+                // This allows pods to be requested until the running weight reaches
+                // the cap, regardless of how many are desired/pending.
                 let mut remaining_desired_weight =
-                    scaler.max_desired_weight().map(|max| max as i64);
+                    scaler.max_desired_weight().map(|max| {
+                        (max as i64 - total_running_weight as i64).max(0)
+                    });
 
                 for (ns, ppv, q) in namespace_queues {
                     tracing::debug!(
-                        "Running eval for namespace {ns}, PPV {ppv}, scaler {} found queue {q}",
-                        scaler.deployment()
+                        "Running eval for namespace {ns}, PPV {ppv}, scaler {} found queue {q}, total_running_weight {total_running_weight}, remaining_desired_weight {:?}",
+                        scaler.deployment(),
+                        remaining_desired_weight
                     );
                     scaler.run(
                         &ns,

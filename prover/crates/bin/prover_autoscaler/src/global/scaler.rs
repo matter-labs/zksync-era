@@ -811,6 +811,7 @@ pub trait ScalerTrait {
     fn deployment(&self) -> DeploymentName;
     fn queue_report_field(&self) -> QueueReportFields;
     fn max_desired_weight(&self) -> Option<usize>;
+    fn current_running_weight(&self, namespace: &NamespaceName, clusters: &Clusters) -> usize;
     fn run(
         &self,
         namespace: &NamespaceName,
@@ -830,6 +831,9 @@ impl<K: Key> ScalerTrait for Scaler<K> {
     }
     fn max_desired_weight(&self) -> Option<usize> {
         Scaler::max_desired_weight(self)
+    }
+    fn current_running_weight(&self, namespace: &NamespaceName, clusters: &Clusters) -> usize {
+        Scaler::current_running_weight(self, namespace, clusters)
     }
 
     fn run(
