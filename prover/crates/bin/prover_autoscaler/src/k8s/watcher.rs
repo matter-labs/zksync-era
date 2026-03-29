@@ -24,6 +24,29 @@ use crate::{
     metrics::AUTOSCALER_METRICS,
 };
 
+/// Describes a k8s event pattern we want to watch and how to handle it.
+struct EventMatcher {
+    /// The k8s event `reason` field (used as server-side field selector).
+    reason: &'static str,
+    /// Substring the event `message` must contain (client-side filter).
+    message_contains: &'static str,
+}
+
+/// Event patterns the agent watches for. Each entry produces a separate
+/// server-side filtered watch stream (`fieldSelector=involvedObject.kind=Pod,reason=<reason>`)
+/// so that the initial LIST only fetches relevant events instead of the full
+/// namespace event history.
+const GPU_EVENT_MATCHERS: &[EventMatcher] = &[
+    EventMatcher {
+        reason: "FailedScheduling",
+        message_contains: "Insufficient nvidia.com/gpu",
+    },
+    EventMatcher {
+        reason: "FailedScaleUp",
+        message_contains: "GCE out of resources",
+    },
+];
+
 #[derive(Clone)]
 pub struct Watcher {
     pub client: kube::Client,
@@ -170,15 +193,22 @@ impl Watcher {
                     .boxed(),
             );
 
-            let events: Api<api::core::v1::Event> =
-                Api::namespaced(self.client.clone(), namespace.to_str());
-            watchers.push(
-                watcher(events, watcher::Config::default())
+            for matcher in GPU_EVENT_MATCHERS {
+                let events: Api<api::core::v1::Event> =
+                    Api::namespaced(self.client.clone(), namespace.to_str());
+                let field_selector =
+                    format!("involvedObject.kind=Pod,reason={}", matcher.reason);
+                watchers.push(
+                    watcher(
+                        events,
+                        watcher::Config::default().fields(&field_selector),
+                    )
                     .default_backoff()
                     .applied_objects()
                     .map_ok(Watched::Event)
                     .boxed(),
-            );
+                );
+            }
         }
         // select on applied events from all watchers
         let mut combo_stream = stream::select_all(watchers);
@@ -261,76 +291,63 @@ impl Watcher {
                                         Some(n) => n.into(),
                                         None => "".into(),
                                     };
-                                    let event_message = e.message.clone().unwrap_or_default();
-                                    let involved_object_name = e.involved_object.name.clone().unwrap_or_default();
-                                    let involved_object_kind = e.involved_object.kind.clone().unwrap_or_default();
-
                                     let reason = e.reason.clone().unwrap_or_default();
+                                    let message = e.message.clone().unwrap_or_default();
+                                    let pod_name = e.involved_object.name.clone().unwrap_or_default();
 
-                                    // Detect pods that can't be scheduled due to
-                                    // insufficient GPU resources. The k8s scheduler
-                                    // emits FailedScheduling with "Insufficient
-                                    // nvidia.com/gpu" when no node can fit the pod.
-                                    // This is a pod-level signal only; namespace
-                                    // scale_errors remain reserved for separate
-                                    // autoscaler-level failures.
-                                    let is_out_of_resources = involved_object_kind == "Pod"
-                                        && reason == "FailedScheduling"
-                                        && event_message.contains("Insufficient nvidia.com/gpu");
+                                    // Match against declared event patterns.
+                                    // The server-side field selector already filters by
+                                    // reason, but we still need the client-side message
+                                    // check since field selectors can't filter on message.
+                                    let matched = GPU_EVENT_MATCHERS.iter().find(|m| {
+                                        reason == m.reason && message.contains(m.message_contains)
+                                    });
 
-                                    if is_out_of_resources {
-                                        tracing::info!(
-                                            "Detected resource exhaustion for pod {} in namespace {}: {}",
-                                            involved_object_name,
+                                    let Some(matcher) = matched else {
+                                        continue;
+                                    };
+
+                                    tracing::info!(
+                                        "GPU event: reason={}, pod={}, namespace={}, message={}",
+                                        reason,
+                                        pod_name,
+                                        namespace,
+                                        &message[..200.min(message.len())]
+                                    );
+
+                                    let mut cluster_guard = self.cluster.lock().await;
+                                    let Some(ns_data) = cluster_guard.namespaces.get_mut(&namespace) else {
+                                        tracing::warn!(
+                                            "Namespace {} not found for {} event for pod {}",
                                             namespace,
-                                            event_message
+                                            reason,
+                                            pod_name
                                         );
-                                        let mut cluster_guard = self.cluster.lock().await;
-                                        if let Some(ns_data) = cluster_guard.namespaces.get_mut(&namespace.clone()) {
-                                            if let Some(pod_data) = ns_data.pods.get_mut(&involved_object_name) {
-                                                pod_data.out_of_resources = true;
-                                            } else {
-                                                tracing::warn!(
-                                                    "Pod {} not found in namespace {} for resource exhaustion event",
-                                                    involved_object_name,
-                                                    namespace
-                                                );
-                                            }
+                                        continue;
+                                    };
+
+                                    // FailedScheduling → mark pod as out_of_resources
+                                    if matcher.reason == "FailedScheduling" {
+                                        if let Some(pod_data) = ns_data.pods.get_mut(&pod_name) {
+                                            pod_data.out_of_resources = true;
                                         } else {
                                             tracing::warn!(
-                                                "Namespace {} not found for resource exhaustion event for pod {}",
+                                                "Pod {} not found in namespace {} for {} event",
+                                                pod_name,
                                                 namespace,
-                                                involved_object_name
+                                                reason
                                             );
                                         }
                                     }
 
-                                    let is_failed_scale_up = involved_object_kind == "Pod"
-                                        && reason == "FailedScaleUp"
-                                        && event_message.contains("GCE out of resources");
-
-                                    if is_failed_scale_up {
+                                    // FailedScaleUp → record namespace-level scale error
+                                    if matcher.reason == "FailedScaleUp" {
                                         let name = e.name_any();
                                         let time: DateTime<Utc> = match e.last_timestamp {
                                             Some(t) => t.0,
                                             None => Utc::now(),
                                         };
-                                        tracing::info!(
-                                            "Detected failed scale-up for pod {} in namespace {}: {}",
-                                            involved_object_name,
-                                            namespace,
-                                            event_message
-                                        );
-                                        let mut cluster_guard = self.cluster.lock().await;
-                                        if let Some(ns_data) = cluster_guard.namespaces.get_mut(&namespace) {
-                                            ns_data.scale_errors.push(ScaleEvent { name, time });
-                                        } else {
-                                            tracing::warn!(
-                                                "Namespace {} not found for failed scale-up event for pod {}",
-                                                namespace,
-                                                involved_object_name
-                                            );
-                                        }
+                                        ns_data.scale_errors.push(ScaleEvent { name, time });
                                     }
                                 }
                             },
