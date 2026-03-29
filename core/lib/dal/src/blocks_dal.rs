@@ -3727,7 +3727,7 @@ impl BlocksDal<'_, '_> {
             .collect::<Vec<Vec<u8>>>();
 
         Ok(messages)
-    } //
+    }
 
     pub async fn get_message_root(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<H256> {
         let row = sqlx::query!(
