@@ -818,7 +818,7 @@ pub trait ScalerTrait {
         queue: usize,
         clusters: &Clusters,
         requests: &mut HashMap<ClusterName, ScaleRequest>,
-        remaining_desired_weight: Option<&mut i64>,
+        total_running_weight: usize,
     );
 }
 
@@ -842,23 +842,29 @@ impl<K: Key> ScalerTrait for Scaler<K> {
         queue: usize,
         clusters: &Clusters,
         requests: &mut HashMap<ClusterName, ScaleRequest>,
-        mut remaining_desired_weight: Option<&mut i64>,
+        total_running_weight: usize,
     ) {
         let mut replicas = self.calculate(namespace, queue, clusters);
         let running_weight = self.current_running_weight(namespace, clusters);
-        let mut total_weight = self.total_weight(&replicas);
-        let sorted_clusters = self.sorted_clusters(namespace, clusters);
+        let total_weight = self.total_weight(&replicas);
 
-        if let Some(remaining) = remaining_desired_weight.as_mut() {
-            let limit = (**remaining).max(0) as usize;
-            total_weight = self.enforce_total_weight_limit(
-                &mut replicas,
-                &sorted_clusters,
-                total_weight as i64,
-                limit,
-            ) as usize;
-            **remaining -= total_weight as i64;
+        // If max_running_weight is set and total running is at or above
+        // the cap, scale everything down to just what's running (no new pods).
+        if let Some(max_running) = self.max_running_weight {
+            let max_desired = max_running + self.max_desired_burst_weight;
+            if total_running_weight >= max_desired {
+                // At or over cap — only keep currently running pods, request nothing new.
+                let sorted_clusters = self.sorted_clusters(namespace, clusters);
+                self.enforce_total_weight_limit(
+                    &mut replicas,
+                    &sorted_clusters,
+                    total_weight as i64,
+                    0,
+                );
+            }
         }
+
+        let total_weight = self.total_weight(&replicas);
 
         AUTOSCALER_METRICS.target_weight[&(namespace.clone(), self.deployment.clone())]
             .set(total_weight);
@@ -1437,16 +1443,13 @@ mod tests {
 
     #[tracing_test::traced_test]
     #[test]
-    fn test_run_respects_shared_desired_weight_budget() {
+    fn test_run_stops_scaling_when_running_at_cap() {
+        // max_running_weight=1000, burst=0 → cap at 1000 running weight.
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
             0,
-            [
-                ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
-                ("bar".into(), [(GpuKey(Gpu::L4), 100)].into()),
-            ]
-            .into(),
+            [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
             [(GpuKey(Gpu::L4), 500)].into(),
             Some(1000),
             0,
@@ -1456,63 +1459,39 @@ mod tests {
         );
 
         let clusters = Clusters {
-            clusters: [
-                (
-                    "foo".into(),
-                    Cluster {
-                        name: "foo".into(),
-                        namespaces: [(
-                            "prover".into(),
-                            Namespace {
-                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
-                                    .into(),
-                                ..Default::default()
-                            },
-                        )]
-                        .into(),
-                    },
-                ),
-                (
-                    "bar".into(),
-                    Cluster {
-                        name: "bar".into(),
-                        namespaces: [(
-                            "prover".into(),
-                            Namespace {
-                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
-                                    .into(),
-                                ..Default::default()
-                            },
-                        )]
-                        .into(),
-                    },
-                ),
-            ]
+            clusters: [(
+                "foo".into(),
+                Cluster {
+                    name: "foo".into(),
+                    namespaces: [(
+                        "prover".into(),
+                        Namespace {
+                            deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                .into(),
+                            ..Default::default()
+                        },
+                    )]
+                    .into(),
+                },
+            )]
             .into(),
             ..Default::default()
         };
 
+        // When running weight (1000) >= cap (1000), no new pods should be requested.
         let mut requests = HashMap::new();
-        let mut remaining_weight = 1000_i64;
-        scaler.run(
-            &"prover".into(),
-            5000,
-            &clusters,
-            &mut requests,
-            Some(&mut remaining_weight),
+        scaler.run(&"prover".into(), 5000, &clusters, &mut requests, 1000);
+        assert!(
+            requests.is_empty(),
+            "Should not request pods when running is at cap"
         );
 
-        assert_eq!(remaining_weight, 0);
-        assert_eq!(requests.len(), 1);
-        assert_eq!(
-            requests
-                .get(&ClusterName::from("foo"))
-                .unwrap()
-                .deployments
-                .first()
-                .unwrap()
-                .size,
-            2
+        // When running weight (0) < cap (1000), pods should be requested.
+        let mut requests = HashMap::new();
+        scaler.run(&"prover".into(), 5000, &clusters, &mut requests, 0);
+        assert!(
+            !requests.is_empty(),
+            "Should request pods when running is under cap"
         );
     }
 

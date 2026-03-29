@@ -134,7 +134,7 @@ impl Task for Manager {
             }
 
             for scaler in &self.scalers {
-                let mut namespace_queues: Vec<_> = self
+                let namespace_queues: Vec<_> = self
                     .namespaces
                     .iter()
                     .map(|(ns, ppv)| {
@@ -147,39 +147,23 @@ impl Task for Manager {
                     })
                     .collect();
 
-                namespace_queues.sort_by(|(ns_a, _, q_a), (ns_b, _, q_b)| {
-                    q_b.cmp(q_a).then_with(|| ns_a.cmp(ns_b))
-                });
-
-                // Compute total running weight across all namespaces to
-                // determine how much desired capacity we can still add.
+                // Compute total running weight across all namespaces.
                 let total_running_weight: usize = namespace_queues
                     .iter()
-                    .map(|(ns, _, _)| {
-                        scaler.current_running_weight(ns, &guard.clusters)
-                    })
+                    .map(|(ns, _, _)| scaler.current_running_weight(ns, &guard.clusters))
                     .sum();
 
-                // The desired budget = max_running_weight + burst - total_running.
-                // This allows pods to be requested until the running weight reaches
-                // the cap, regardless of how many are desired/pending.
-                let mut remaining_desired_weight =
-                    scaler.max_desired_weight().map(|max| {
-                        (max as i64 - total_running_weight as i64).max(0)
-                    });
-
-                for (ns, ppv, q) in namespace_queues {
+                for (ns, _ppv, q) in &namespace_queues {
                     tracing::debug!(
-                        "Running eval for namespace {ns}, PPV {ppv}, scaler {} found queue {q}, total_running_weight {total_running_weight}, remaining_desired_weight {:?}",
-                        scaler.deployment(),
-                        remaining_desired_weight
+                        "Running eval for namespace {ns}, scaler {} found queue {q}, total_running_weight {total_running_weight}",
+                        scaler.deployment()
                     );
                     scaler.run(
-                        &ns,
-                        q,
+                        ns,
+                        *q,
                         &guard.clusters,
                         &mut scale_requests,
-                        remaining_desired_weight.as_mut(),
+                        total_running_weight,
                     );
                 }
             }
