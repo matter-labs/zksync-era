@@ -53,7 +53,7 @@ impl IoCursor {
                     .settlement_layer
             } else {
                 // Legacy fallback for snapshot-only DBs where settlement-layer data isn't present in batches.
-                SettlementLayer::for_tests()
+                SettlementLayer::default()
             };
 
         if let (Some((l1_batch_number, l1_batch_timestamp)), Some(l2_block_header)) = (
