@@ -248,6 +248,8 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<U256>> {
+        let instrumentation =
+            Instrumented::new("get_l1_batch_interop_fee_if_sealed").with_arg("number", &number);
         let row = sqlx::query!(
             r#"
             SELECT
@@ -265,7 +267,14 @@ impl BlocksDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        Ok(row.map(|row| U256::from(row.interop_fee as u64)))
+        let interop_fee = row
+            .map(|row| {
+                u64::try_from(row.interop_fee)
+                    .map(U256::from)
+                    .map_err(|err| instrumentation.arg_error("interop_fee", err))
+            })
+            .transpose()?;
+        Ok(interop_fee)
     }
 
     /// Returns latest sealed L1 batch header. Returns `None` if there are no sealed batches.
@@ -1047,9 +1056,21 @@ impl BlocksDal<'_, '_> {
         unsealed_batch_header: UnsealedL1BatchHeader,
         conn: &mut Connection<'_, Core>,
     ) -> DalResult<()> {
+        let instrumentation =
+            Instrumented::new("insert_l1_batch").with_arg("number", &unsealed_batch_header.number);
         let (settlement_layer_type, settlement_layer_chain_id) =
             from_settlement_layer(&unsealed_batch_header.settlement_layer);
-        sqlx::query!(
+        let interop_fee = if unsealed_batch_header.interop_fee > U256::from(i64::MAX as u64) {
+            Err(instrumentation.arg_error(
+                "unsealed_batch_header.interop_fee",
+                anyhow::anyhow!("doesn't fit in i64"),
+            ))
+        } else {
+            i64::try_from(unsealed_batch_header.interop_fee.as_u64())
+                .map_err(|err| instrumentation.arg_error("unsealed_batch_header.interop_fee", err))
+        }?;
+
+        let query = sqlx::query!(
             r#"
             INSERT INTO
             l1_batches (
@@ -1105,15 +1126,12 @@ impl BlocksDal<'_, '_> {
             unsealed_batch_header.fee_input.l1_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_l2_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_pubdata_price() as i64,
-            unsealed_batch_header.interop_fee.as_u64() as i64,
+            interop_fee,
             unsealed_batch_header.pubdata_limit.map(|l| l as i64),
             settlement_layer_type,
             settlement_layer_chain_id
-        )
-        .instrument("insert_l1_batch")
-        .with_arg("number", &unsealed_batch_header.number)
-        .execute(conn)
-        .await?;
+        );
+        instrumentation.with(query).execute(conn).await?;
         Ok(())
     }
 
@@ -1267,7 +1285,12 @@ impl BlocksDal<'_, '_> {
             .map(|input| input.len() as u64)
             .unwrap_or(0)
             .div_ceil(bytes_per_blob);
-        let interop_fee = interop_fee.as_u64() as i64;
+        let interop_fee = if interop_fee > U256::from(i64::MAX as u64) {
+            Err(instrumentation.arg_error("interop_fee", anyhow::anyhow!("doesn't fit in i64")))
+        } else {
+            i64::try_from(interop_fee.as_u64())
+                .map_err(|err| instrumentation.arg_error("interop_fee", err))
+        }?;
 
         let query = sqlx::query!(
             r#"
