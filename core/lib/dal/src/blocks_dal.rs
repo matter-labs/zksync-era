@@ -3969,8 +3969,8 @@ impl BlocksDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        aggregated_operations::AggregatedActionType, tx::IncludedTxLocation, Address,
-        ProtocolVersion,
+        aggregated_operations::AggregatedActionType, eth_sender::EthTxFinalityStatus,
+        tx::IncludedTxLocation, Address, ProtocolVersion,
     };
 
     use super::*;
@@ -3982,7 +3982,7 @@ mod tests {
     async fn save_mock_eth_tx(
         action_type: L1BatchAggregatedActionType,
         conn: &mut Connection<'_, Core>,
-    ) {
+    ) -> u32 {
         conn.eth_sender_dal()
             .save_eth_tx(
                 1,
@@ -3995,7 +3995,8 @@ mod tests {
                 false,
             )
             .await
-            .unwrap();
+            .unwrap()
+            .id
     }
 
     fn mock_l1_batch_header() -> L1BatchHeader {
