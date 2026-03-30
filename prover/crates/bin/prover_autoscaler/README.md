@@ -194,6 +194,10 @@ agent_config:
   - `max_replicas` is a map of cluster name to maximum number of replicas. Note: it can be a number of map of GPU types
     to a number.
   - `speed` is a divider for corresponding queue. Note: it can be a number of map of GPU types to a number.
+  - `max_running_weight` is an optional empirical hard cap for the total running target capacity across all watched
+    namespaces, expressed in the same units as `speed`.
+  - `max_desired_burst_weight` is an optional extra desired capacity above `max_running_weight` to tolerate temporary
+    sourcing churn. Default: `0`.
   - `hysteresis` is a percentage of queue over provisioning for smoother scaling. Meaningful range: 0 to 100.
   - `priority` is an optional field to override global cluster priorities for this target. For GPU targets it's a sorted
     list of `[cluster, gpu]` pairs, for simple targets it's just list of clusters.
@@ -241,6 +245,8 @@ scaler_config:
       speed:
         L4: 500
         T4: 400
+      max_running_weight: 2000
+      max_desired_burst_weight: 400
       priority:
         - [cluster1, H100]
         - [cluster2, H100]
