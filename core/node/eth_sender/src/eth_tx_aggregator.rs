@@ -627,19 +627,27 @@ impl EthTxAggregator {
                 l2_da_commitment_scheme: None,
             }
         } else {
+            let raw_l2_da_commitment_scheme =
+                U256::from_big_endian(&multicall_data[L2_DA_VALIDATOR_OFFSET..64]);
+            if raw_l2_da_commitment_scheme > U256::from(u8::MAX) {
+                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                    format!(
+                        "Invalid L2DACommitmentScheme value in {name}: {}",
+                        raw_l2_da_commitment_scheme
+                    ),
+                )));
+            }
+
             DAValidatorPair {
                 l1_validator,
                 l2_da_commitment_scheme: Some(
-                    L2DACommitmentScheme::try_from(
-                        U256::from_big_endian(&multicall_data[L2_DA_VALIDATOR_OFFSET..64]).as_u64()
-                            as u8,
-                    )
-                    .map_err(|_| {
-                        EthSenderError::Parse(Web3ContractError::InvalidOutputType(format!(
-                            "Invalid L2DACommitmentScheme value in {name}: {:?}",
-                            multicall_data
-                        )))
-                    })?,
+                    L2DACommitmentScheme::try_from(raw_l2_da_commitment_scheme.as_u64() as u8)
+                        .map_err(|_| {
+                            EthSenderError::Parse(Web3ContractError::InvalidOutputType(format!(
+                                "Unsupported L2DACommitmentScheme value in {name}: {}",
+                                raw_l2_da_commitment_scheme
+                            )))
+                        })?,
                 ),
                 l2_validator: None,
             }
