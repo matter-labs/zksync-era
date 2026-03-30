@@ -12,6 +12,7 @@ use zksync_node_framework::{
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
+    jsonrpsee,
     namespaces::EnNamespaceClient as _,
 };
 
@@ -44,9 +45,14 @@ impl Task for MainNodeInteropFeeUpdateTask {
 
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         while !*stop_receiver.0.borrow_and_update() {
-            match fetch_main_node_interop_fee(self.main_node_client.as_ref()).await {
+            match self.main_node_client.get_interop_fee().await {
                 Ok(interop_fee) => {
                     self.interop_fee.store(interop_fee, Ordering::Relaxed);
+                }
+                Err(jsonrpsee::core::client::Error::Call(error))
+                    if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
+                {
+                    // Method is not supported by the main node, do nothing.
                 }
                 Err(err) => {
                     tracing::error!("Failed to query `interopProtocolFee`, error: {err:#}");
@@ -60,8 +66,4 @@ impl Task for MainNodeInteropFeeUpdateTask {
         }
         Ok(())
     }
-}
-
-async fn fetch_main_node_interop_fee(main_node_client: &DynClient<L2>) -> anyhow::Result<u64> {
-    Ok(main_node_client.get_interop_fee().await?)
 }
