@@ -36,7 +36,6 @@ pub async fn run(
     args: EcosystemUpgradeArgs,
     run_upgrade: bool,
 ) -> anyhow::Result<()> {
-    println!("Running ecosystem gateway upgrade args");
     let vm_option = args.common.vm_option();
 
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
@@ -256,8 +255,6 @@ async fn governance_stage_1(
     upgrade_version: &UpgradeVersion,
     vm_option: VMOption,
 ) -> anyhow::Result<()> {
-    println!("Executing governance stage 1!");
-
     let previous_output = EcosystemUpgradeOutput::read(
         shell,
         get_ecosystem_upgrade_params(upgrade_version)

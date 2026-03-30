@@ -186,7 +186,6 @@ impl BlocksDal<'_, '_> {
                 pubdata_limit,
                 settlement_layer_type,
                 settlement_layer_chain_id
-            
             FROM
                 l1_batches
             ORDER BY
