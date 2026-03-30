@@ -4226,4 +4226,57 @@ mod tests {
             "non-genesis uncommitted batch should be detected"
         );
     }
+
+    #[tokio::test]
+    async fn has_uncommitted_batches_ignores_batches_with_finalized_commit_tx() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let regular_batch_header = create_l1_batch_header(1);
+        insert_mock_l1_batch_header(&mut conn, &regular_batch_header).await;
+
+        // Create an unrelated tx first to ensure `eth_txs.id` and `eth_txs_history.id` diverge.
+        save_mock_eth_tx(L1BatchAggregatedActionType::Commit, &mut conn).await;
+        let commit_eth_tx_id =
+            save_mock_eth_tx(L1BatchAggregatedActionType::Commit, &mut conn).await;
+        conn.blocks_dal()
+            .set_eth_tx_id_for_l1_batches(
+                L1BatchNumber(1)..=L1BatchNumber(1),
+                commit_eth_tx_id,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
+            )
+            .await
+            .unwrap();
+
+        let tx_hash = H256::repeat_byte(0x11);
+        let tx_history_id = conn
+            .eth_sender_dal()
+            .insert_tx_history(commit_eth_tx_id, 1, 1, None, None, tx_hash, &[0u8], 1, None)
+            .await
+            .unwrap();
+        assert!(
+            tx_history_id.is_some(),
+            "tx history row should be inserted for the commit tx"
+        );
+        conn.eth_sender_dal()
+            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::from(1u64))
+            .await
+            .unwrap();
+
+        let settlement_layer = SettlementLayer::for_tests();
+        let has_uncommitted = conn
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .unwrap();
+        assert!(
+            !has_uncommitted,
+            "batch with finalized commit tx should not be considered uncommitted"
+        );
+    }
 }
