@@ -811,13 +811,15 @@ pub trait ScalerTrait {
     fn deployment(&self) -> DeploymentName;
     fn queue_report_field(&self) -> QueueReportFields;
     fn max_desired_weight(&self) -> Option<usize>;
+    fn max_running(&self) -> Option<usize>;
+    fn current_running_weight(&self, namespace: &NamespaceName, clusters: &Clusters) -> usize;
     fn run(
         &self,
         namespace: &NamespaceName,
         queue: usize,
         clusters: &Clusters,
         requests: &mut HashMap<ClusterName, ScaleRequest>,
-        remaining_desired_weight: Option<&mut i64>,
+        desired_cap: Option<&mut i64>,
     );
 }
 
@@ -831,6 +833,12 @@ impl<K: Key> ScalerTrait for Scaler<K> {
     fn max_desired_weight(&self) -> Option<usize> {
         Scaler::max_desired_weight(self)
     }
+    fn max_running(&self) -> Option<usize> {
+        self.max_running_weight
+    }
+    fn current_running_weight(&self, namespace: &NamespaceName, clusters: &Clusters) -> usize {
+        Scaler::current_running_weight(self, namespace, clusters)
+    }
 
     fn run(
         &self,
@@ -838,22 +846,28 @@ impl<K: Key> ScalerTrait for Scaler<K> {
         queue: usize,
         clusters: &Clusters,
         requests: &mut HashMap<ClusterName, ScaleRequest>,
-        mut remaining_desired_weight: Option<&mut i64>,
+        mut desired_cap: Option<&mut i64>,
     ) {
         let mut replicas = self.calculate(namespace, queue, clusters);
         let running_weight = self.current_running_weight(namespace, clusters);
         let mut total_weight = self.total_weight(&replicas);
-        let sorted_clusters = self.sorted_clusters(namespace, clusters);
 
-        if let Some(remaining) = remaining_desired_weight.as_mut() {
-            let limit = (**remaining).max(0) as usize;
-            total_weight = self.enforce_total_weight_limit(
-                &mut replicas,
-                &sorted_clusters,
-                total_weight as i64,
-                limit,
-            ) as usize;
-            **remaining -= total_weight as i64;
+        // Apply global desired cap if set by the manager.
+        // - running >= max: cap = max (stop scaling up, kill Pending only)
+        // - running >= max+burst: cap = max+burst (scale down Running)
+        // The cap is shared across namespaces (busiest first).
+        if let Some(cap) = desired_cap.as_mut() {
+            let limit = (**cap).max(0) as usize;
+            if total_weight > limit {
+                let sorted_clusters = self.sorted_clusters(namespace, clusters);
+                total_weight = self.enforce_total_weight_limit(
+                    &mut replicas,
+                    &sorted_clusters,
+                    total_weight as i64,
+                    limit,
+                ) as usize;
+            }
+            **cap -= total_weight as i64;
         }
 
         AUTOSCALER_METRICS.target_weight[&(namespace.clone(), self.deployment.clone())]
@@ -1433,16 +1447,12 @@ mod tests {
 
     #[tracing_test::traced_test]
     #[test]
-    fn test_run_respects_shared_desired_weight_budget() {
+    fn test_run_no_cap_scales_freely() {
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
             "circuit-prover-gpu".into(),
             0,
-            [
-                ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
-                ("bar".into(), [(GpuKey(Gpu::L4), 100)].into()),
-            ]
-            .into(),
+            [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
             [(GpuKey(Gpu::L4), 500)].into(),
             Some(1000),
             0,
@@ -1452,64 +1462,168 @@ mod tests {
         );
 
         let clusters = Clusters {
-            clusters: [
-                (
-                    "foo".into(),
-                    Cluster {
-                        name: "foo".into(),
-                        namespaces: [(
-                            "prover".into(),
-                            Namespace {
-                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
-                                    .into(),
-                                ..Default::default()
-                            },
-                        )]
-                        .into(),
-                    },
-                ),
-                (
-                    "bar".into(),
-                    Cluster {
-                        name: "bar".into(),
-                        namespaces: [(
-                            "prover".into(),
-                            Namespace {
-                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
-                                    .into(),
-                                ..Default::default()
-                            },
-                        )]
-                        .into(),
-                    },
-                ),
-            ]
+            clusters: [(
+                "foo".into(),
+                Cluster {
+                    name: "foo".into(),
+                    namespaces: [(
+                        "prover".into(),
+                        Namespace {
+                            deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                .into(),
+                            ..Default::default()
+                        },
+                    )]
+                    .into(),
+                },
+            )]
             .into(),
             ..Default::default()
         };
 
+        // running < max → manager passes None (no cap). Scale freely.
         let mut requests = HashMap::new();
-        let mut remaining_weight = 1000_i64;
+        scaler.run(&"prover".into(), 5000, &clusters, &mut requests, None);
+        assert!(!requests.is_empty(), "Should scale freely with no cap");
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_run_no_cap_when_under_max() {
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
+            [(GpuKey(Gpu::L4), 500)].into(),
+            Some(1000),
+            0,
+            0,
+            scaler_config("prover"),
+            None,
+        );
+
+        let clusters = Clusters {
+            clusters: [(
+                "foo".into(),
+                Cluster {
+                    name: "foo".into(),
+                    namespaces: [(
+                        "prover".into(),
+                        Namespace {
+                            deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                .into(),
+                            ..Default::default()
+                        },
+                    )]
+                    .into(),
+                },
+            )]
+            .into(),
+            ..Default::default()
+        };
+
+        // running < max → manager passes None. Desired is uncapped.
+        let mut requests = HashMap::new();
+        scaler.run(&"prover".into(), 5000, &clusters, &mut requests, None);
+        assert!(!requests.is_empty(), "Should scale freely when under max");
+
+        // running >= max (1000) → manager passes cap = max (1000).
+        // Desired trimmed to 1000 (only Pending killed, Running stays).
+        let mut cap = 1000_i64;
+        let mut requests = HashMap::new();
         scaler.run(
             &"prover".into(),
             5000,
             &clusters,
             &mut requests,
-            Some(&mut remaining_weight),
+            Some(&mut cap),
+        );
+        assert!(cap <= 0, "Cap should be consumed");
+
+        // running >= max+burst (1000, burst=0) → same as above with burst=0.
+        // Desired trimmed to 1000, Running scaled down to 1000.
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_run_cap_shared_across_namespaces() {
+        // Simulate manager calling run() for two namespaces with a shared cap.
+        // running >= max+burst(1000) → cap desired to 1000, shared across namespaces.
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
+            [(GpuKey(Gpu::L4), 500)].into(),
+            Some(1000),
+            0,
+            0,
+            scaler_config("prover"),
+            None,
         );
 
-        assert_eq!(remaining_weight, 0);
-        assert_eq!(requests.len(), 1);
-        assert_eq!(
-            requests
-                .get(&ClusterName::from("foo"))
-                .unwrap()
-                .deployments
-                .first()
-                .unwrap()
-                .size,
-            2
+        let clusters = Clusters {
+            clusters: [(
+                "foo".into(),
+                Cluster {
+                    name: "foo".into(),
+                    namespaces: [
+                        (
+                            "ns1".into(),
+                            Namespace {
+                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                    .into(),
+                                ..Default::default()
+                            },
+                        ),
+                        (
+                            "ns2".into(),
+                            Namespace {
+                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                    .into(),
+                                ..Default::default()
+                            },
+                        ),
+                    ]
+                    .into(),
+                },
+            )]
+            .into(),
+            ..Default::default()
+        };
+
+        let mut cap = 1000_i64; // running >= max+burst → cap = max+burst = 1000
+        let mut requests = HashMap::new();
+
+        // ns1 wants 5000 queue → needs 10 pods × 500 = 5000 weight.
+        // Cap is 1000, so trimmed to 2 pods × 500 = 1000.
+        scaler.run(
+            &"ns1".into(),
+            5000,
+            &clusters,
+            &mut requests,
+            Some(&mut cap),
         );
+        assert!(cap <= 0, "ns1 should consume entire cap, got {}", cap);
+
+        // ns2 also wants pods but cap is exhausted → nothing.
+        let mut requests2 = HashMap::new();
+        scaler.run(
+            &"ns2".into(),
+            5000,
+            &clusters,
+            &mut requests2,
+            Some(&mut cap),
+        );
+        // ns2 should get 0 desired since cap is exhausted.
+        let ns2_desired: usize = requests2
+            .values()
+            .flat_map(|r| &r.deployments)
+            .filter(|d| d.namespace == "ns2".into())
+            .map(|d| d.size)
+            .sum();
+        assert_eq!(ns2_desired, 0, "ns2 should get nothing with exhausted cap");
     }
 
     #[tracing_test::traced_test]
