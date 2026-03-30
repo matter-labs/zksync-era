@@ -3315,7 +3315,7 @@ impl BlocksDal<'_, '_> {
                         eth_commit_tx_id IS NULL
                         OR NOT EXISTS (
                             SELECT 1 FROM eth_txs_history
-                            WHERE id = l1_batches.eth_commit_tx_id
+                            WHERE eth_tx_id = l1_batches.eth_commit_tx_id
                                 AND finality_status = 'finalized'
                         )
                     )
