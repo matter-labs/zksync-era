@@ -6,13 +6,11 @@ use zkstack_cli_config::{
     traits::SaveConfigWithBasePath, ChainConfig, ContractsConfig, CoreContractsConfig,
     EcosystemConfig, ZkStackConfig, ZkStackConfigTrait,
 };
-use zkstack_cli_types::{BaseToken, L1BatchCommitmentMode, VMOption};
+use zkstack_cli_types::{L1BatchCommitmentMode, VMOption};
 use zksync_basic_types::{commitment::L2DACommitmentScheme, Address};
 
 use crate::{
-    admin_functions::{
-        accept_admin, make_permanent_rollup, set_da_validator_pair, unpause_deposits,
-    },
+    admin_functions::set_da_validator_pair,
     commands::chain::{
         args::init::{
             configs::{InitConfigsArgs, InitConfigsArgsFinal},

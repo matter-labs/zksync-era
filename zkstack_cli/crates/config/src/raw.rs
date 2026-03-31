@@ -89,7 +89,7 @@ impl RawConfig {
 /// Mutable YAML configuration file.
 #[derive(Debug)]
 #[must_use = "Must be persisted"]
-pub(crate) struct PatchedConfig {
+pub struct PatchedConfig {
     base: RawConfig,
 }
 
