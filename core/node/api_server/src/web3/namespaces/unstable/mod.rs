@@ -77,7 +77,6 @@ impl UnstableNamespace {
                 proof: proof.proof,
                 proved_at: DateTime::<Utc>::from_naive_utc_and_offset(proof.updated_at, Utc),
                 status: proof.status,
-                attestation: proof.attestation,
             })
             .collect::<Vec<_>>();
 

@@ -12,14 +12,13 @@ pub struct L1BatchAirbenderProofForL1 {
     // signature generated within the TEE enclave, using the privkey corresponding to the pubkey
     #[serde_as(as = "Hex")]
     pub signature: Vec<u8>,
-    // pubkey used for signature verification; each key pair is attested by the TEE attestation
-    // stored in the db
+    // pubkey used for signature verification
     #[serde_as(as = "Hex")]
     pub pubkey: Vec<u8>,
     // data that was signed
     #[serde_as(as = "Hex")]
     pub proof: Vec<u8>,
-    // type of TEE used for attestation
+    // type of prover
     pub tee_type: TeeType,
 }
 

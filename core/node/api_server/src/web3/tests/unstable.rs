@@ -28,12 +28,8 @@ impl HttpTest for GetAirbenderProofsTest {
         assert!(proof.is_empty());
 
         let pubkey = vec![0xDE, 0xAD, 0xBE, 0xEF];
-        let attestation = vec![0xC0, 0xFF, 0xEE];
         let mut storage = pool.connection().await.unwrap();
         let mut airbender_proof_generation_dal = storage.airbender_proof_generation_dal();
-        airbender_proof_generation_dal
-            .save_attestation(&pubkey, &attestation)
-            .await?;
         airbender_proof_generation_dal
             .insert_airbender_proof_generation_job(batch_no, tee_type)
             .await?;
@@ -52,7 +48,6 @@ impl HttpTest for GetAirbenderProofsTest {
         assert!(proof.pubkey.as_ref() == Some(&pubkey));
         assert!(proof.signature.as_ref() == Some(&signature));
         assert!(proof.proof.as_ref() == Some(&proof_vec));
-        assert!(proof.attestation.as_ref() == Some(&attestation));
 
         Ok(())
     }

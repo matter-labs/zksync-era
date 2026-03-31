@@ -14,7 +14,7 @@ use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_airbender_prover_interface::api::{
-    RegisterAirbenderAttestationRequest, SubmitAirbenderProofRequest, AirbenderProofGenerationDataRequest,
+    SubmitAirbenderProofRequest, AirbenderProofGenerationDataRequest,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
@@ -69,7 +69,6 @@ fn create_proof_processing_router(
     let get_airbender_proof_gen_processor =
         AirbenderRequestProcessor::new(blob_store, connection_pool, config.clone(), l2_chain_id);
     let submit_airbender_proof_processor = get_airbender_proof_gen_processor.clone();
-    let register_tee_attestation_processor = get_airbender_proof_gen_processor.clone();
     let observe_airbender_proof_gen_processor = get_airbender_proof_gen_processor.clone();
     let present_batches_processor = get_airbender_proof_gen_processor.clone();
 
@@ -121,16 +120,6 @@ fn create_proof_processing_router(
                 move |l1_batch_number: Path<u32>, payload: Json<SubmitAirbenderProofRequest>| async move {
                     submit_airbender_proof_processor
                         .submit_proof(l1_batch_number, payload)
-                        .await
-                },
-            ),
-        )
-        .route(
-            "/airbender/register_attestation",
-            post(
-                move |payload: Json<RegisterAirbenderAttestationRequest>| async move {
-                    register_tee_attestation_processor
-                        .register_tee_attestation(payload)
                         .await
                 },
             ),

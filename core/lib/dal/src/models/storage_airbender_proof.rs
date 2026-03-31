@@ -10,7 +10,6 @@ pub struct StorageAirbenderProof {
     pub proof: Option<Vec<u8>>,
     pub updated_at: NaiveDateTime,
     pub status: String,
-    pub attestation: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]

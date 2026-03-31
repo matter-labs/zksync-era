@@ -1049,8 +1049,6 @@ pub struct AirbenderProof {
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
     pub status: String,
-    #[serde_as(as = "Option<Hex>")]
-    pub attestation: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

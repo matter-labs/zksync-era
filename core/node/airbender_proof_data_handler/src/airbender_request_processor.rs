@@ -11,9 +11,8 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
 use zksync_airbender_prover_interface::{
     api::{
-        RegisterAirbenderAttestationRequest, RegisterAirbenderAttestationResponse, SubmitAirbenderProofRequest,
-        SubmitAirbenderProofResponse, AirbenderPresentBatchesResponse, AirbenderProofGenerationDataRequest,
-        AirbenderProofGenerationDataResponse,
+        SubmitAirbenderProofRequest, SubmitAirbenderProofResponse, AirbenderPresentBatchesResponse,
+        AirbenderProofGenerationDataRequest, AirbenderProofGenerationDataResponse,
     },
     inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
 };
@@ -313,20 +312,5 @@ impl AirbenderRequestProcessor {
         );
 
         Ok(Json(SubmitAirbenderProofResponse::Success))
-    }
-
-    pub(crate) async fn register_tee_attestation(
-        &self,
-        Json(payload): Json<RegisterAirbenderAttestationRequest>,
-    ) -> Result<Json<RegisterAirbenderAttestationResponse>, AirbenderProcessorError> {
-        tracing::info!("Received attestation: {:?}", payload);
-
-        let mut connection = self.pool.connection_tagged("airbender_request_processor").await?;
-        let mut dal = connection.airbender_proof_generation_dal();
-
-        dal.save_attestation(&payload.pubkey, &payload.attestation)
-            .await?;
-
-        Ok(Json(RegisterAirbenderAttestationResponse::Success))
     }
 }

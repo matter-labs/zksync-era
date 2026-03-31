@@ -134,16 +134,11 @@ impl Task for AirbenderProver {
         tracing::info!("Starting the task {}", self.id());
 
         let config = &self.config.prover_api;
-        let attestation_quote_bytes =
-            std::fs::read(&self.config.sig_conf.attestation_quote_file_path)?;
         let public_key = self
             .config
             .sig_conf
             .signing_key
             .public_key(&Secp256k1::new());
-        self.api_client
-            .register_attestation(attestation_quote_bytes, &public_key)
-            .await?;
 
         let mut retries = 1;
         let mut backoff = config.initial_retry_backoff;
@@ -195,7 +190,7 @@ impl Task for AirbenderProver {
 
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf, time::Duration};
+    use std::time::Duration;
 
     use secp256k1::SecretKey;
     use url::Url;
@@ -215,7 +210,6 @@ mod tests {
         let airbender_prover_config = AirbenderProverConfig {
             sig_conf: AirbenderProverSigConfig {
                 signing_key,
-                attestation_quote_file_path: PathBuf::from("/tmp/mock"),
                 tee_type: TeeType::Sgx,
             },
             prover_api: AirbenderProverApiConfig {

@@ -204,23 +204,6 @@ async fn submit_airbender_proof() {
         L2ChainId::default(),
     );
 
-    // this should fail because we haven't saved the attestation for the pubkey yet
-
-    let response = send_submit_airbender_proof_request(&app, &uri, &airbender_proof_request).await;
-    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-
-    // save the attestation for the pubkey
-
-    let attestation = [15, 16, 17, 18, 19];
-    let mut proof_dal = db_conn_pool.connection().await.unwrap();
-    proof_dal
-        .airbender_proof_generation_dal()
-        .save_attestation(&airbender_proof_request.0.pubkey, &attestation)
-        .await
-        .expect("Failed to save attestation");
-
-    // resend the same request; this time, it should be successful
-
     let response = send_submit_airbender_proof_request(&app, &uri, &airbender_proof_request).await;
     assert_eq!(response.status(), StatusCode::OK);
 
@@ -248,7 +231,6 @@ async fn submit_airbender_proof() {
     let proof = &proofs[0];
 
     assert_eq!(proof.proof.as_ref().unwrap(), &airbender_proof_request.0.proof);
-    assert_eq!(proof.attestation.as_ref().unwrap(), &attestation);
     assert_eq!(
         proof.signature.as_ref().unwrap(),
         &airbender_proof_request.0.signature

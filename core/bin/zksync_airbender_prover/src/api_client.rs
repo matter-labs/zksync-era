@@ -4,7 +4,7 @@ use serde::Serialize;
 use url::Url;
 use zksync_basic_types::{tee_types::TeeType, L1BatchNumber, H256};
 use zksync_airbender_prover_interface::{
-    api::{RegisterAirbenderAttestationRequest, SubmitAirbenderProofRequest, AirbenderProofGenerationDataRequest},
+    api::{SubmitAirbenderProofRequest, AirbenderProofGenerationDataRequest},
     inputs::AirbenderVerifierInput,
     outputs::L1BatchAirbenderProofForL1,
 };
@@ -42,26 +42,6 @@ impl AirbenderApiClient {
             .send()
             .await?
             .error_for_status()
-    }
-
-    /// Registers the attestation quote with the Airbender prover interface API, effectively proving that
-    /// the private key associated with the given public key was used to sign the root hash within a
-    /// trusted execution environment.
-    pub async fn register_attestation(
-        &self,
-        attestation_quote_bytes: Vec<u8>,
-        public_key: &PublicKey,
-    ) -> Result<(), AirbenderProverError> {
-        let request = RegisterAirbenderAttestationRequest {
-            attestation: attestation_quote_bytes,
-            pubkey: public_key.serialize().to_vec(),
-        };
-        self.post("/airbender/register_attestation", request).await?;
-        tracing::info!(
-            "Attestation quote was successfully registered for the public key {}",
-            public_key
-        );
-        Ok(())
     }
 
     /// Fetches the next job for the Airbender prover to process, verifying and signing it if the

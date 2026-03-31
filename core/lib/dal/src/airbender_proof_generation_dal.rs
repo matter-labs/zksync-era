@@ -244,30 +244,6 @@ impl AirbenderProofGenerationDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn save_attestation(&mut self, pubkey: &[u8], attestation: &[u8]) -> DalResult<()> {
-        let query = sqlx::query!(
-            r#"
-            INSERT INTO
-            airbender_attestations (pubkey, attestation)
-            VALUES
-            ($1, $2)
-            ON CONFLICT (pubkey) DO NOTHING
-            "#,
-            pubkey,
-            attestation
-        );
-        let instrumentation = Instrumented::new("save_attestation")
-            .with_arg("pubkey", &pubkey)
-            .with_arg("attestation", &attestation);
-        instrumentation
-            .clone()
-            .with(query)
-            .execute(self.storage)
-            .await?;
-
-        Ok(())
-    }
-
     pub async fn get_airbender_proofs(
         &mut self,
         batch_number: L1BatchNumber,
@@ -282,12 +258,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 tp.signature,
                 tp.proof,
                 tp.updated_at,
-                tp.status,
-                ta.attestation
+                tp.status
             FROM
                 airbender_proof_generation_details tp
-            LEFT JOIN
-                airbender_attestations ta ON tp.pubkey = ta.pubkey
             WHERE
                 tp.l1_batch_number = $1
             "#,

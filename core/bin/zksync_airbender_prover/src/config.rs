@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::time::Duration;
 
 use anyhow::Context as _;
 use secp256k1::SecretKey;
@@ -25,9 +25,6 @@ pub(crate) struct AirbenderProverSigConfig {
     /// The private key used to sign the proofs.
     #[config(secret, with = Serde![str])]
     pub signing_key: SecretKey,
-    /// The path to the file containing the TEE quote.
-    pub attestation_quote_file_path: PathBuf,
-    /// Attestation quote file.
     #[config(default_t = TeeType::Sgx, with = Serde![str])]
     pub tee_type: TeeType,
 }
@@ -128,8 +125,6 @@ impl AppConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use super::*;
 
     #[tokio::test] // Observability can only be installed in the Tokio runtime context
@@ -168,7 +163,6 @@ mod tests {
 
         let env = r#"
             TEE_PROVER_SIGNING_KEY="b50b38c8d396c88728fc032ece558ebda96907a0b1a9340289715eef7bf29deb"
-            TEE_PROVER_ATTESTATION_QUOTE_FILE_PATH="/tmp/test"
             TEE_PROVER_TEE_TYPE="sgx"
         "#;
         let env = Environment::from_dotenv("test.env", env).unwrap();
@@ -180,10 +174,6 @@ mod tests {
         );
         assert_eq!(app_config.prover.prover_api.max_retries, 10);
         assert_eq!(app_config.prover.sig_conf.tee_type, TeeType::Sgx);
-        assert_eq!(
-            app_config.prover.sig_conf.attestation_quote_file_path,
-            Path::new("/tmp/test")
-        );
         assert_eq!(app_config.prometheus.listener_port, Some(3_321));
     }
 }

@@ -10,16 +10,15 @@ mod error;
 mod metrics;
 mod airbender_prover;
 
-/// This application serves as a TEE verifier, a.k.a. a Airbender prover.
+/// This application serves as an Airbender prover.
 ///
 /// - It's an application that retrieves data about batches executed by the sequencer and verifies
-///   them in the TEE.
+///   them.
 /// - It's a stateless application, e.g. it interacts with the sequencer via API and does not have
 ///   any kind of persistent state.
 /// - It submits proofs for proven batches back to the sequencer.
-/// - When the application starts, it registers the attestation on the sequencer, and then runs in a
-///   loop, polling the sequencer for new jobs (batches), verifying them, and submitting generated
-///   proofs back.
+/// - It runs in a loop, polling the sequencer for new jobs (batches), verifying them, and
+///   submitting generated proofs back.
 fn main() -> anyhow::Result<()> {
     let mut builder = ZkStackServiceBuilder::new()?;
 

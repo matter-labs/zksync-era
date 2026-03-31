@@ -1,2 +1,3 @@
+ALTER TABLE tee_proof_generation_details DROP CONSTRAINT IF EXISTS tee_proof_generation_details_pubkey_fkey;
 ALTER TABLE tee_proof_generation_details RENAME TO airbender_proof_generation_details;
-ALTER TABLE tee_attestations RENAME TO airbender_attestations;
+DROP TABLE IF EXISTS tee_attestations;
