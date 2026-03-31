@@ -13508,6 +13508,96 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_airbender_proof_data_handler"
+version = "29.15.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum 0.8.4",
+ "chrono",
+ "hyper 1.6.0",
+ "jsonrpsee",
+ "reqwest 0.12.22",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http 0.5.2",
+ "tracing",
+ "vise",
+ "zksync_airbender_prover_interface",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_multivm",
+ "zksync_node_framework",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_types",
+ "zksync_vm_executor",
+]
+
+[[package]]
+name = "zksync_airbender_prover"
+version = "29.15.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "hex",
+ "reqwest 0.12.22",
+ "secp256k1 0.27.0",
+ "serde",
+ "serde_json",
+ "smart-config",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+ "url",
+ "vise",
+ "zksync_airbender_prover_interface",
+ "zksync_airbender_verifier",
+ "zksync_basic_types",
+ "zksync_config",
+ "zksync_crypto_primitives",
+ "zksync_node_framework",
+ "zksync_vlog",
+]
+
+[[package]]
+name = "zksync_airbender_prover_interface"
+version = "29.15.0-non-semver-compat"
+dependencies = [
+ "bincode",
+ "serde",
+ "serde_json",
+ "serde_with 1.14.0",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_types",
+ "zksync_vm_interface",
+]
+
+[[package]]
+name = "zksync_airbender_verifier"
+version = "29.15.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "tracing",
+ "zksync_airbender_prover_interface",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_crypto_primitives",
+ "zksync_merkle_tree",
+ "zksync_multivm",
+ "zksync_prover_interface",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_base_token_adjuster"
 version = "29.15.0-non-semver-compat"
 dependencies = [
@@ -15100,6 +15190,7 @@ dependencies = [
  "tikv-jemallocator",
  "tokio",
  "tracing",
+ "zksync_airbender_proof_data_handler",
  "zksync_base_token_adjuster",
  "zksync_circuit_breaker",
  "zksync_commitment_generator",
@@ -15136,7 +15227,6 @@ dependencies = [
  "zksync_state",
  "zksync_state_keeper",
  "zksync_storage",
- "zksync_airbender_proof_data_handler",
  "zksync_types",
  "zksync_vlog",
  "zksync_vm_runner",
@@ -15333,96 +15423,6 @@ dependencies = [
  "tracing",
  "zksync_utils",
  "zksync_vlog",
-]
-
-[[package]]
-name = "zksync_airbender_proof_data_handler"
-version = "29.15.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum 0.8.4",
- "chrono",
- "hyper 1.6.0",
- "jsonrpsee",
- "reqwest 0.12.22",
- "serde_json",
- "thiserror 2.0.12",
- "tokio",
- "tower 0.4.13",
- "tower-http 0.5.2",
- "tracing",
- "vise",
- "zksync_config",
- "zksync_contracts",
- "zksync_dal",
- "zksync_multivm",
- "zksync_node_framework",
- "zksync_object_store",
- "zksync_prover_interface",
- "zksync_airbender_prover_interface",
- "zksync_types",
- "zksync_vm_executor",
-]
-
-[[package]]
-name = "zksync_airbender_prover"
-version = "29.15.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "async-trait",
- "hex",
- "reqwest 0.12.22",
- "secp256k1 0.27.0",
- "serde",
- "serde_json",
- "smart-config",
- "thiserror 2.0.12",
- "tokio",
- "tracing",
- "url",
- "vise",
- "zksync_basic_types",
- "zksync_config",
- "zksync_crypto_primitives",
- "zksync_node_framework",
- "zksync_airbender_prover_interface",
- "zksync_airbender_verifier",
- "zksync_vlog",
-]
-
-[[package]]
-name = "zksync_airbender_prover_interface"
-version = "29.15.0-non-semver-compat"
-dependencies = [
- "bincode",
- "serde",
- "serde_json",
- "serde_with 1.14.0",
- "zksync_object_store",
- "zksync_prover_interface",
- "zksync_types",
- "zksync_vm_interface",
-]
-
-[[package]]
-name = "zksync_airbender_verifier"
-version = "29.15.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "bincode",
- "once_cell",
- "serde",
- "serde_json",
- "tracing",
- "zksync_config",
- "zksync_contracts",
- "zksync_crypto_primitives",
- "zksync_merkle_tree",
- "zksync_multivm",
- "zksync_prover_interface",
- "zksync_airbender_prover_interface",
- "zksync_types",
 ]
 
 [[package]]

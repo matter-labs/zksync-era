@@ -5,6 +5,7 @@
 //! merkle path.
 
 use anyhow::{bail, Context, Result};
+use zksync_airbender_prover_interface::inputs::V1AirbenderVerifierInput;
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof, ValueHash,
@@ -20,7 +21,6 @@ use zksync_multivm::{
     LegacyVmInstance,
 };
 use zksync_prover_interface::inputs::{StorageLogMetadata, WitnessInputMerklePaths};
-use zksync_airbender_prover_interface::inputs::V1AirbenderVerifierInput;
 use zksync_types::{
     block::L2BlockExecutionData, commitment::PubdataParams, u256_to_h256, L1BatchNumber,
     ProtocolVersionId, StorageLog, StorageValue, Transaction, H256,
@@ -306,10 +306,10 @@ fn execute_tx<S: ReadStorage>(
 
 #[cfg(test)]
 mod tests {
+    use zksync_airbender_prover_interface::inputs::AirbenderVerifierInput;
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_prover_interface::inputs::VMRunWitnessInputData;
-    use zksync_airbender_prover_interface::inputs::AirbenderVerifierInput;
     use zksync_types::{
         commitment::{L2DACommitmentScheme, L2PubdataValidator},
         settlement::SettlementLayer,
@@ -380,9 +380,10 @@ mod tests {
             .unwrap(),
         );
         let tvi = AirbenderVerifierInput::new(tvi);
-        let serialized = serde_json::to_vec(&tvi).expect("Failed to serialize AirbenderVerifierInput.");
-        let deserialized: AirbenderVerifierInput =
-            serde_json::from_slice(&serialized).expect("Failed to deserialize AirbenderVerifierInput.");
+        let serialized =
+            serde_json::to_vec(&tvi).expect("Failed to serialize AirbenderVerifierInput.");
+        let deserialized: AirbenderVerifierInput = serde_json::from_slice(&serialized)
+            .expect("Failed to deserialize AirbenderVerifierInput.");
 
         assert_eq!(tvi, deserialized);
     }

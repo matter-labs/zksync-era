@@ -8,11 +8,11 @@ use axum::{
 };
 use serde_json::json;
 use tower::ServiceExt;
+use zksync_airbender_prover_interface::api::SubmitAirbenderProofRequest;
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::MockObjectStore;
-use zksync_airbender_prover_interface::api::SubmitAirbenderProofRequest;
 use zksync_types::{
     block::L1BatchHeader, commitment::L1BatchCommitmentMode, settlement::SettlementLayer,
     tee_types::TeeType, L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
@@ -247,13 +247,19 @@ async fn submit_airbender_proof() {
 
     let proof = &proofs[0];
 
-    assert_eq!(proof.proof.as_ref().unwrap(), &airbender_proof_request.0.proof);
+    assert_eq!(
+        proof.proof.as_ref().unwrap(),
+        &airbender_proof_request.0.proof
+    );
     assert_eq!(proof.attestation.as_ref().unwrap(), &attestation);
     assert_eq!(
         proof.signature.as_ref().unwrap(),
         &airbender_proof_request.0.signature
     );
-    assert_eq!(proof.pubkey.as_ref().unwrap(), &airbender_proof_request.0.pubkey);
+    assert_eq!(
+        proof.pubkey.as_ref().unwrap(),
+        &airbender_proof_request.0.pubkey
+    );
 }
 
 // Mock SQL db with information about the status of the Airbender proof generation

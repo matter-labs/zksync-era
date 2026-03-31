@@ -90,7 +90,9 @@ impl GeneralConfig {
     }
 
     pub fn airbender_proof_data_handler_url(&self) -> anyhow::Result<Option<String>> {
-        let port = self.0.get_opt::<u16>("airbender_proof_data_handler.http_port")?;
+        let port = self
+            .0
+            .get_opt::<u16>("airbender_proof_data_handler.http_port")?;
         Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
     }
 
@@ -202,7 +204,8 @@ impl GeneralConfigPatch {
     }
 
     pub fn set_airbender_proof_data_handler_url(&mut self, url: String) -> anyhow::Result<()> {
-        self.0.insert("airbender_proof_data_handler.gateway_api_url", url)
+        self.0
+            .insert("airbender_proof_data_handler.gateway_api_url", url)
     }
 
     pub fn proof_compressor_setup_download_url(&self) -> anyhow::Result<String> {

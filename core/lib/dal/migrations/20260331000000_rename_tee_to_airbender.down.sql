@@ -1,0 +1,2 @@
+ALTER TABLE airbender_proof_generation_details RENAME TO tee_proof_generation_details;
+ALTER TABLE airbender_attestations RENAME TO tee_attestations;

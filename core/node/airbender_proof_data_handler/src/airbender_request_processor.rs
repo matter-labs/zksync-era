@@ -2,21 +2,22 @@ use std::sync::Arc;
 
 use axum::{extract::Path, Json};
 use chrono::{Duration as ChronoDuration, Utc};
+use zksync_airbender_prover_interface::{
+    api::{
+        AirbenderPresentBatchesResponse, AirbenderProofGenerationDataRequest,
+        AirbenderProofGenerationDataResponse, RegisterAirbenderAttestationRequest,
+        RegisterAirbenderAttestationResponse, SubmitAirbenderProofRequest,
+        SubmitAirbenderProofResponse,
+    },
+    inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
+};
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{
-    airbender_proof_generation_dal::{LockedBatch, AirbenderProofGenerationJobStatus},
+    airbender_proof_generation_dal::{AirbenderProofGenerationJobStatus, LockedBatch},
     ConnectionPool, Core, CoreDal,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
-use zksync_airbender_prover_interface::{
-    api::{
-        RegisterAirbenderAttestationRequest, RegisterAirbenderAttestationResponse, SubmitAirbenderProofRequest,
-        SubmitAirbenderProofResponse, AirbenderPresentBatchesResponse, AirbenderProofGenerationDataRequest,
-        AirbenderProofGenerationDataResponse,
-    },
-    inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
-};
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
@@ -76,7 +77,9 @@ impl AirbenderRequestProcessor {
                 .await
             {
                 Ok(input) => {
-                    break Ok(Some(Json(AirbenderProofGenerationDataResponse(Box::new(input)))));
+                    break Ok(Some(Json(AirbenderProofGenerationDataResponse(Box::new(
+                        input,
+                    )))));
                 }
                 Err(AirbenderProcessorError::ObjectStore {
                     source: ObjectStoreError::KeyNotFound(_),
@@ -127,7 +130,9 @@ impl AirbenderRequestProcessor {
             .airbender_verifier_input_for_existing_batch(l1_batch_number)
             .await
         {
-            Ok(input) => Ok(Some(Json(AirbenderProofGenerationDataResponse(Box::new(input))))),
+            Ok(input) => Ok(Some(Json(AirbenderProofGenerationDataResponse(Box::new(
+                input,
+            ))))),
             Err(AirbenderProcessorError::ObjectStore {
                 source: ObjectStoreError::KeyNotFound(_),
                 ..
@@ -181,7 +186,10 @@ impl AirbenderRequestProcessor {
                 context: "Failed to get WitnessInputMerklePaths".into(),
             })?;
 
-        let mut connection = self.pool.connection_tagged("airbender_request_processor").await?;
+        let mut connection = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?;
 
         let l2_blocks_execution_data = connection
             .transactions_dal()
@@ -280,7 +288,10 @@ impl AirbenderRequestProcessor {
         Json(proof): Json<SubmitAirbenderProofRequest>,
     ) -> Result<Json<SubmitAirbenderProofResponse>, AirbenderProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
-        let mut connection = self.pool.connection_tagged("airbender_request_processor").await?;
+        let mut connection = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?;
         let mut dal = connection.airbender_proof_generation_dal();
         dal.save_proof_artifacts_metadata(
             l1_batch_number,
@@ -321,7 +332,10 @@ impl AirbenderRequestProcessor {
     ) -> Result<Json<RegisterAirbenderAttestationResponse>, AirbenderProcessorError> {
         tracing::info!("Received attestation: {:?}", payload);
 
-        let mut connection = self.pool.connection_tagged("airbender_request_processor").await?;
+        let mut connection = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?;
         let mut dal = connection.airbender_proof_generation_dal();
 
         dal.save_attestation(&payload.pubkey, &payload.attestation)

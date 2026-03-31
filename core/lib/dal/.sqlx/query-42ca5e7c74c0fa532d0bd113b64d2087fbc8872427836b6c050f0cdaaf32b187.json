@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                tp.pubkey,\n                tp.signature,\n                tp.proof,\n                tp.updated_at,\n                tp.status,\n                ta.attestation\n            FROM\n                tee_proof_generation_details tp\n            LEFT JOIN\n                tee_attestations ta ON tp.pubkey = ta.pubkey\n            WHERE\n                tp.l1_batch_number = $1\n            AND tp.tee_type = $2ORDER BY tp.l1_batch_number ASC, tp.tee_type ASC",
+  "query": "\n            SELECT\n                tp.pubkey,\n                tp.signature,\n                tp.proof,\n                tp.updated_at,\n                tp.status,\n                ta.attestation\n            FROM\n                airbender_proof_generation_details tp\n            LEFT JOIN\n                airbender_attestations ta ON tp.pubkey = ta.pubkey\n            WHERE\n                tp.l1_batch_number = $1\n            ORDER BY tp.l1_batch_number ASC, tp.tee_type ASC",
   "describe": {
     "columns": [
       {
@@ -36,8 +36,7 @@
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Text"
+        "Int8"
       ]
     },
     "nullable": [
@@ -49,5 +48,5 @@
       true
     ]
   },
-  "hash": "b7fa581d662640236d11143953e3a0aedbd2455b2ff728fe88cab94728925c0e"
+  "hash": "42ca5e7c74c0fa532d0bd113b64d2087fbc8872427836b6c050f0cdaaf32b187"
 }

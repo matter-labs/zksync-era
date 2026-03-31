@@ -2,12 +2,15 @@ use reqwest::{Client, Response, StatusCode};
 use secp256k1::PublicKey;
 use serde::Serialize;
 use url::Url;
-use zksync_basic_types::{tee_types::TeeType, L1BatchNumber, H256};
 use zksync_airbender_prover_interface::{
-    api::{RegisterAirbenderAttestationRequest, SubmitAirbenderProofRequest, AirbenderProofGenerationDataRequest},
+    api::{
+        AirbenderProofGenerationDataRequest, RegisterAirbenderAttestationRequest,
+        SubmitAirbenderProofRequest,
+    },
     inputs::AirbenderVerifierInput,
     outputs::L1BatchAirbenderProofForL1,
 };
+use zksync_basic_types::{tee_types::TeeType, L1BatchNumber, H256};
 
 use crate::{error::AirbenderProverError, metrics::METRICS};
 
@@ -56,7 +59,8 @@ impl AirbenderApiClient {
             attestation: attestation_quote_bytes,
             pubkey: public_key.serialize().to_vec(),
         };
-        self.post("/airbender/register_attestation", request).await?;
+        self.post("/airbender/register_attestation", request)
+            .await?;
         tracing::info!(
             "Attestation quote was successfully registered for the public key {}",
             public_key

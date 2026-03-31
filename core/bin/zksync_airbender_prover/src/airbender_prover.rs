@@ -1,6 +1,8 @@
 use std::fmt;
 
 use secp256k1::{PublicKey, Secp256k1};
+use zksync_airbender_prover_interface::inputs::AirbenderVerifierInput;
+use zksync_airbender_verifier::Verify;
 use zksync_basic_types::{L1BatchNumber, H256};
 use zksync_crypto_primitives::{sign, K256PrivateKey, Signature};
 use zksync_node_framework::{
@@ -9,11 +11,10 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
-use zksync_airbender_prover_interface::inputs::AirbenderVerifierInput;
-use zksync_airbender_verifier::Verify;
 
 use crate::{
-    api_client::AirbenderApiClient, config::AirbenderProverConfig, error::AirbenderProverError, metrics::METRICS,
+    api_client::AirbenderApiClient, config::AirbenderProverConfig, error::AirbenderProverError,
+    metrics::METRICS,
 };
 
 /// Wiring layer for `AirbenderProver`
@@ -70,8 +71,8 @@ impl AirbenderProver {
     /// Signs the message in Ethereum-compatible format for on-chain verification.
     pub fn sign_message(&self, message: &H256) -> Result<Signature, AirbenderProverError> {
         let private_key: K256PrivateKey = self.config.sig_conf.signing_key.into();
-        let signature =
-            sign(&private_key, message).map_err(|e| AirbenderProverError::Verification(e.into()))?;
+        let signature = sign(&private_key, message)
+            .map_err(|e| AirbenderProverError::Verification(e.into()))?;
         Ok(signature)
     }
 
@@ -82,7 +83,8 @@ impl AirbenderProver {
         match tvi {
             AirbenderVerifierInput::V1(tvi) => {
                 let observer = METRICS.proof_generation_time.start();
-                let verification_result = tvi.verify().map_err(AirbenderProverError::Verification)?;
+                let verification_result =
+                    tvi.verify().map_err(AirbenderProverError::Verification)?;
                 let batch_number = verification_result.batch_number;
                 let signature = self.sign_message(&verification_result.value_hash)?;
                 let duration = observer.observe();
@@ -100,7 +102,10 @@ impl AirbenderProver {
         }
     }
 
-    async fn step(&self, public_key: &PublicKey) -> Result<Option<L1BatchNumber>, AirbenderProverError> {
+    async fn step(
+        &self,
+        public_key: &PublicKey,
+    ) -> Result<Option<L1BatchNumber>, AirbenderProverError> {
         match self.api_client.get_job(self.config.sig_conf.tee_type).await {
             Ok(Some(job)) => {
                 let (signature, batch_number, root_hash) = self.verify(job)?;

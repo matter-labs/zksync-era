@@ -4,11 +4,11 @@ use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 
 use crate::config::AppConfig;
 
+mod airbender_prover;
 mod api_client;
 mod config;
 mod error;
 mod metrics;
-mod airbender_prover;
 
 /// This application serves as a TEE verifier, a.k.a. a Airbender prover.
 ///

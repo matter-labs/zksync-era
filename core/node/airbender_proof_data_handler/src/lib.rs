@@ -1,5 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
+use airbender_request_processor::AirbenderRequestProcessor;
 use anyhow::Context as _;
 use axum::{
     extract::Path,
@@ -8,20 +9,20 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use airbender_request_processor::AirbenderRequestProcessor;
 use tokio::sync::watch;
+use zksync_airbender_prover_interface::api::{
+    AirbenderProofGenerationDataRequest, RegisterAirbenderAttestationRequest,
+    SubmitAirbenderProofRequest,
+};
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_airbender_prover_interface::api::{
-    RegisterAirbenderAttestationRequest, SubmitAirbenderProofRequest, AirbenderProofGenerationDataRequest,
-};
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
+mod airbender_request_processor;
 mod errors;
 mod metrics;
 pub mod node;
-mod airbender_request_processor;
 #[cfg(test)]
 mod tests;
 
@@ -73,68 +74,70 @@ fn create_proof_processing_router(
     let observe_airbender_proof_gen_processor = get_airbender_proof_gen_processor.clone();
     let present_batches_processor = get_airbender_proof_gen_processor.clone();
 
-    let router = Router::new()
-        .route(
-            "/airbender/proof_inputs",
-            post(
-                move |payload: Json<AirbenderProofGenerationDataRequest>| async move {
-                    let result = get_airbender_proof_gen_processor
-                        .get_proof_generation_data(payload)
+    let router =
+        Router::new()
+            .route(
+                "/airbender/proof_inputs",
+                post(
+                    move |payload: Json<AirbenderProofGenerationDataRequest>| async move {
+                        let result = get_airbender_proof_gen_processor
+                            .get_proof_generation_data(payload)
+                            .await;
+
+                        match result {
+                            Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                            Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                            Err(e) => e.into_response(),
+                        }
+                    },
+                ),
+            )
+            .route(
+                "/airbender/proof_inputs_no_lock/{batch}",
+                get(move |batch: Path<u32>| async move {
+                    let result = observe_airbender_proof_gen_processor
+                        .get_proof_generation_data_no_lock(batch)
                         .await;
 
                     match result {
                         Ok(Some(data)) => (StatusCode::OK, data).into_response(),
-                        Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                        Ok(None) => StatusCode::NOT_FOUND.into_response(),
                         Err(e) => e.into_response(),
                     }
-                },
-            ),
-        )
-        .route(
-            "/airbender/proof_inputs_no_lock/{batch}",
-            get(move |batch: Path<u32>| async move {
-                let result = observe_airbender_proof_gen_processor
-                    .get_proof_generation_data_no_lock(batch)
-                    .await;
+                }),
+            )
+            .route(
+                "/airbender/present_batches",
+                get(move || async move {
+                    let result = present_batches_processor.get_present_batches().await;
 
-                match result {
-                    Ok(Some(data)) => (StatusCode::OK, data).into_response(),
-                    Ok(None) => StatusCode::NOT_FOUND.into_response(),
-                    Err(e) => e.into_response(),
-                }
-            }),
-        )
-        .route(
-            "/airbender/present_batches",
-            get(move || async move {
-                let result = present_batches_processor.get_present_batches().await;
-
-                match result {
-                    Ok(data) => (StatusCode::OK, data).into_response(),
-                    Err(e) => e.into_response(),
-                }
-            }),
-        )
-        .route(
-            "/airbender/submit_proofs/{l1_batch_number}",
-            post(
-                move |l1_batch_number: Path<u32>, payload: Json<SubmitAirbenderProofRequest>| async move {
-                    submit_airbender_proof_processor
-                        .submit_proof(l1_batch_number, payload)
-                        .await
-                },
-            ),
-        )
-        .route(
-            "/airbender/register_attestation",
-            post(
-                move |payload: Json<RegisterAirbenderAttestationRequest>| async move {
-                    register_tee_attestation_processor
-                        .register_tee_attestation(payload)
-                        .await
-                },
-            ),
-        );
+                    match result {
+                        Ok(data) => (StatusCode::OK, data).into_response(),
+                        Err(e) => e.into_response(),
+                    }
+                }),
+            )
+            .route(
+                "/airbender/submit_proofs/{l1_batch_number}",
+                post(
+                    move |l1_batch_number: Path<u32>,
+                          payload: Json<SubmitAirbenderProofRequest>| async move {
+                        submit_airbender_proof_processor
+                            .submit_proof(l1_batch_number, payload)
+                            .await
+                    },
+                ),
+            )
+            .route(
+                "/airbender/register_attestation",
+                post(
+                    move |payload: Json<RegisterAirbenderAttestationRequest>| async move {
+                        register_tee_attestation_processor
+                            .register_tee_attestation(payload)
+                            .await
+                    },
+                ),
+            );
 
     router
         .layer(tower_http::compression::CompressionLayer::new())
