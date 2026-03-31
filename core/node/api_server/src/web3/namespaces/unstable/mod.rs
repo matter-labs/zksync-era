@@ -11,8 +11,8 @@ use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     api,
     api::{
-        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, AirbenderProof,
-        TransactionDetailedResult, TransactionExecutionInfo,
+        AirbenderProof, ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus,
+        L1ToL2TxsStatus, TransactionDetailedResult, TransactionExecutionInfo,
     },
     eth_sender::EthTxFinalityStatus,
     server_notification::GatewayMigrationState,

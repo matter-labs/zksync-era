@@ -1,7 +1,6 @@
 #![doc = include_str!("../doc/ProofGenerationDal.md")]
 use std::time::Duration;
 
-use sqlx::Row;
 use strum::{Display, EnumString};
 use zksync_config::configs::proof_data_handler::ProvingMode;
 use zksync_db_connection::{
@@ -458,7 +457,6 @@ impl ProofGenerationDal<'_, '_> {
 
         Ok(result)
     }
-
 }
 
 #[cfg(test)]

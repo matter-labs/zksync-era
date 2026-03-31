@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                tp.proof,\n                tp.updated_at,\n                tp.status\n            FROM\n                airbender_proof_generation_details tp\n            WHERE\n                tp.l1_batch_number = $1\n            ORDER BY tp.l1_batch_number ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "proof",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "a85499bebae62c2c7d7d45ee1555b7b5c34c2f610597177d991b7515ab0a8dad"
+}

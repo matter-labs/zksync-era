@@ -4,6 +4,7 @@
 use std::{mem, time::Duration};
 
 use anyhow::{bail, Context};
+use zksync_airbender_proof_data_handler::node::AirbenderProofDataHandlerLayer;
 use zksync_base_token_adjuster::node::{
     BaseTokenRatioPersisterLayer, BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
 };
@@ -72,7 +73,6 @@ use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{
     MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
 };
-use zksync_airbender_proof_data_handler::node::AirbenderProofDataHandlerLayer;
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, L2DACommitmentScheme, PubdataType},
     pubdata_da::PubdataSendingMode,

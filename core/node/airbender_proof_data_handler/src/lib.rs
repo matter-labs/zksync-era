@@ -1,25 +1,19 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use anyhow::Context as _;
-use axum::{
-    extract::Path,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::post,
-    Json, Router,
-};
 use airbender_request_processor::AirbenderRequestProcessor;
+use anyhow::Context as _;
+use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use tokio::sync::watch;
+use zksync_airbender_prover_interface::api::SubmitAirbenderProofRequest;
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_airbender_prover_interface::api::SubmitAirbenderProofRequest;
 use zksync_types::L2ChainId;
 
+mod airbender_request_processor;
 mod errors;
 mod metrics;
 pub mod node;
-mod airbender_request_processor;
 #[cfg(test)]
 mod tests;
 
@@ -32,12 +26,7 @@ pub async fn run_server(
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::info!("Starting proof data handler server on {bind_address}");
-    let app = create_proof_processing_router(
-        blob_store,
-        connection_pool,
-        config,
-        l2_chain_id,
-    );
+    let app = create_proof_processing_router(blob_store, connection_pool, config, l2_chain_id);
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
@@ -65,31 +54,33 @@ fn create_proof_processing_router(
         AirbenderRequestProcessor::new(blob_store, connection_pool, config.clone(), l2_chain_id);
     let submit_airbender_proof_processor = get_airbender_proof_gen_processor.clone();
 
-    let router = Router::new()
-        .route(
-            "/airbender/proof_inputs",
-            post(move || async move {
-                let result = get_airbender_proof_gen_processor
-                    .get_proof_generation_data()
-                    .await;
+    let router =
+        Router::new()
+            .route(
+                "/airbender/proof_inputs",
+                post(move || async move {
+                    let result = get_airbender_proof_gen_processor
+                        .get_proof_generation_data()
+                        .await;
 
-                match result {
-                    Ok(Some(data)) => (StatusCode::OK, data).into_response(),
-                    Ok(None) => StatusCode::NO_CONTENT.into_response(),
-                    Err(e) => e.into_response(),
-                }
-            }),
-        )
-        .route(
-            "/airbender/submit_proofs/{l1_batch_number}",
-            post(
-                move |l1_batch_number: Path<u32>, payload: Json<SubmitAirbenderProofRequest>| async move {
-                    submit_airbender_proof_processor
-                        .submit_proof(l1_batch_number, payload)
-                        .await
-                },
-            ),
-        );
+                    match result {
+                        Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                        Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                        Err(e) => e.into_response(),
+                    }
+                }),
+            )
+            .route(
+                "/airbender/submit_proofs/{l1_batch_number}",
+                post(
+                    move |l1_batch_number: Path<u32>,
+                          payload: Json<SubmitAirbenderProofRequest>| async move {
+                        submit_airbender_proof_processor
+                            .submit_proof(l1_batch_number, payload)
+                            .await
+                    },
+                ),
+            );
 
     router
         .layer(tower_http::compression::CompressionLayer::new())

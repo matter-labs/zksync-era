@@ -7,10 +7,10 @@ use axum::{
     Router,
 };
 use tower::ServiceExt;
-use zksync_config::configs::AirbenderProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::MockObjectStore;
 use zksync_airbender_prover_interface::api::SubmitAirbenderProofRequest;
+use zksync_config::configs::AirbenderProofDataHandlerConfig;
+use zksync_dal::{ConnectionPool, CoreDal};
+use zksync_object_store::MockObjectStore;
 use zksync_types::{L1BatchNumber, L2ChainId};
 
 use crate::create_proof_processing_router;
@@ -94,7 +94,10 @@ async fn submit_airbender_proof() {
     assert_eq!(proofs.len(), 1);
 
     let proof = &proofs[0];
-    assert_eq!(proof.proof.as_ref().unwrap(), &airbender_proof_request.proof);
+    assert_eq!(
+        proof.proof.as_ref().unwrap(),
+        &airbender_proof_request.proof
+    );
 }
 
 // Mock SQL db with information about the status of the Airbender proof generation

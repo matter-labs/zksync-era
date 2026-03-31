@@ -12,7 +12,7 @@ use zksync_db_connection::{
 use zksync_types::L1BatchNumber;
 
 use crate::{
-    models::storage_airbender_proof::{StorageLockedBatch, StorageAirbenderProof},
+    models::storage_airbender_proof::{StorageAirbenderProof, StorageLockedBatch},
     Core,
 };
 

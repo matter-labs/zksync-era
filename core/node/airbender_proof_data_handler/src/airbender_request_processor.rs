@@ -2,20 +2,20 @@ use std::sync::Arc;
 
 use axum::{extract::Path, Json};
 use chrono::Utc;
+use zksync_airbender_prover_interface::{
+    api::{
+        AirbenderProofGenerationDataResponse, SubmitAirbenderProofRequest,
+        SubmitAirbenderProofResponse,
+    },
+    inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
+};
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{
-    airbender_proof_generation_dal::{LockedBatch, AirbenderProofGenerationJobStatus},
+    airbender_proof_generation_dal::{AirbenderProofGenerationJobStatus, LockedBatch},
     ConnectionPool, Core, CoreDal,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
-use zksync_airbender_prover_interface::{
-    api::{
-        SubmitAirbenderProofRequest, SubmitAirbenderProofResponse,
-        AirbenderProofGenerationDataResponse,
-    },
-    inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
-};
 use zksync_types::{L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
@@ -51,10 +51,7 @@ impl AirbenderRequestProcessor {
 
         let min_batch_number = self.config.first_processed_batch;
 
-        let Some(locked_batch) = self
-            .lock_batch_for_proving(min_batch_number)
-            .await?
-        else {
+        let Some(locked_batch) = self.lock_batch_for_proving(min_batch_number).await? else {
             return Ok(None); // no job available
         };
         let batch_number = locked_batch.l1_batch_number;
@@ -63,9 +60,9 @@ impl AirbenderRequestProcessor {
             .airbender_verifier_input_for_existing_batch(batch_number)
             .await
         {
-            Ok(input) => {
-                Ok(Some(Json(AirbenderProofGenerationDataResponse(Box::new(input)))))
-            }
+            Ok(input) => Ok(Some(Json(AirbenderProofGenerationDataResponse(Box::new(
+                input,
+            ))))),
             Err(AirbenderProcessorError::ObjectStore {
                 source: ObjectStoreError::KeyNotFound(_),
                 context,
@@ -110,7 +107,10 @@ impl AirbenderRequestProcessor {
                 context: "Failed to get WitnessInputMerklePaths".into(),
             })?;
 
-        let mut connection = self.pool.connection_tagged("airbender_request_processor").await?;
+        let mut connection = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?;
 
         let l2_blocks_execution_data = connection
             .transactions_dal()
@@ -162,10 +162,7 @@ impl AirbenderRequestProcessor {
             .connection_tagged("airbender_request_processor")
             .await?
             .airbender_proof_generation_dal()
-            .lock_batch_for_proving(
-                self.config.proof_generation_timeout,
-                min_batch_number,
-            )
+            .lock_batch_for_proving(self.config.proof_generation_timeout, min_batch_number)
             .await
             .map_err(Into::into)
     }
@@ -190,7 +187,10 @@ impl AirbenderRequestProcessor {
         Json(proof): Json<SubmitAirbenderProofRequest>,
     ) -> Result<Json<SubmitAirbenderProofResponse>, AirbenderProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
-        let mut connection = self.pool.connection_tagged("airbender_request_processor").await?;
+        let mut connection = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?;
         let mut dal = connection.airbender_proof_generation_dal();
         dal.save_proof_artifacts_metadata(l1_batch_number, &proof.proof)
             .await?;

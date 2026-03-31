@@ -1,5 +1,6 @@
 // Public re-exports
 pub use self::{
+    airbender_proof_data_handler::AirbenderProofDataHandlerConfig,
     api::ApiConfig,
     base_token_adjuster::BaseTokenAdjusterConfig,
     commitment_generator::CommitmentGeneratorConfig,
@@ -33,11 +34,11 @@ pub use self::{
     },
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
-    airbender_proof_data_handler::AirbenderProofDataHandlerConfig,
     utils::PrometheusConfig,
     vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
 };
 
+pub mod airbender_proof_data_handler;
 pub mod api;
 pub mod base_token_adjuster;
 pub mod chain;
@@ -74,7 +75,6 @@ pub mod pruning;
 pub mod secrets;
 pub mod snapshot_recovery;
 pub mod snapshots_creator;
-pub mod airbender_proof_data_handler;
 pub mod utils;
 pub mod vm_runner;
 pub mod wallets;
