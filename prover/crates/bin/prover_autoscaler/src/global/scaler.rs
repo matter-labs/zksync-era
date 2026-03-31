@@ -592,8 +592,13 @@ impl<K: Key> Scaler<K> {
             total_capacity += self.pods_to_speed(cluster.key, total_in_pool);
         }
 
-        // Update operation mode based on resource availability
-        self.update_operation_mode(total_running, queue);
+        // Update operation mode based on resource availability.
+        // Skip for namespaces with no queue — a zero-queue namespace
+        // would falsely trigger cooldown (running >= 0) and exit
+        // aggressive mode that another namespace still needs.
+        if queue > 0 {
+            self.update_operation_mode(total_running, queue);
+        }
 
         tracing::info!(
             "Aggressive mode: Running capacity = {}, Total capacity (Running+Pending) = {}, Queue = {}",
