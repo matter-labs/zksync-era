@@ -13,6 +13,17 @@ use crate::{
 
 const DEFAULT_SPEED: usize = 500;
 
+/// Cap mode passed from the manager to each namespace's `run()` call.
+#[derive(Debug, Clone, Copy)]
+pub enum CapMode {
+    /// Freeze each pool's desired at its current running count.
+    /// Kills Pending pods but preserves all Running pods, keeping GCE nodes alive.
+    FreezeAtRunning,
+    /// Scale down to a target weight. First freezes at running (kills Pending),
+    /// then trims Running from lowest-priority pools until total <= target.
+    ScaleDown { target_weight: usize },
+}
+
 /// Operation mode for the scaler
 #[derive(Debug, Clone)]
 enum OperationMode {
@@ -819,7 +830,7 @@ pub trait ScalerTrait {
         queue: usize,
         clusters: &Clusters,
         requests: &mut HashMap<ClusterName, ScaleRequest>,
-        desired_cap: Option<&mut i64>,
+        cap_mode: Option<CapMode>,
     );
 }
 
@@ -846,29 +857,57 @@ impl<K: Key> ScalerTrait for Scaler<K> {
         queue: usize,
         clusters: &Clusters,
         requests: &mut HashMap<ClusterName, ScaleRequest>,
-        mut desired_cap: Option<&mut i64>,
+        cap_mode: Option<CapMode>,
     ) {
         let mut replicas = self.calculate(namespace, queue, clusters);
         let running_weight = self.current_running_weight(namespace, clusters);
-        let mut total_weight = self.total_weight(&replicas);
+        let sorted_clusters = self.sorted_clusters(namespace, clusters);
 
-        // Apply global desired cap if set by the manager.
-        // - running >= max: cap = max (stop scaling up, kill Pending only)
-        // - running >= max+burst: cap = max+burst (scale down Running)
-        // The cap is shared across namespaces (busiest first).
-        if let Some(cap) = desired_cap.as_mut() {
-            let limit = (**cap).max(0) as usize;
-            if total_weight > limit {
-                let sorted_clusters = self.sorted_clusters(namespace, clusters);
-                total_weight = self.enforce_total_weight_limit(
-                    &mut replicas,
-                    &sorted_clusters,
-                    total_weight as i64,
-                    limit,
-                ) as usize;
+        // Apply cap if set by the manager.
+        if let Some(mode) = cap_mode {
+            match mode {
+                CapMode::FreezeAtRunning => {
+                    // Set each pool's desired = min(desired, running).
+                    // Kills Pending pods, preserves Running, keeps GCE nodes alive.
+                    for pool in &sorted_clusters {
+                        let running = pool.sum_by_pod_status(PodStatus::Running);
+                        if let Some(desired) = replicas.get_mut(&pool.to_key()) {
+                            if *desired > running {
+                                tracing::debug!(
+                                    "Freezing pool {}:{:?} at running: {} → {}",
+                                    pool.name,
+                                    pool.key,
+                                    *desired,
+                                    running,
+                                );
+                                *desired = running;
+                            }
+                        }
+                    }
+                }
+                CapMode::ScaleDown { target_weight } => {
+                    // First freeze at running (kill all Pending).
+                    for pool in &sorted_clusters {
+                        let running = pool.sum_by_pod_status(PodStatus::Running);
+                        if let Some(desired) = replicas.get_mut(&pool.to_key()) {
+                            *desired = running;
+                        }
+                    }
+                    // Then trim Running from lowest-priority pools.
+                    let frozen_weight = self.total_weight(&replicas);
+                    if frozen_weight > target_weight {
+                        self.enforce_total_weight_limit(
+                            &mut replicas,
+                            &sorted_clusters,
+                            frozen_weight as i64,
+                            target_weight,
+                        );
+                    }
+                }
             }
-            **cap -= total_weight as i64;
         }
+
+        let total_weight = self.total_weight(&replicas);
 
         AUTOSCALER_METRICS.target_weight[&(namespace.clone(), self.deployment.clone())]
             .set(total_weight);
@@ -1528,102 +1567,27 @@ mod tests {
         scaler.run(&"prover".into(), 5000, &clusters, &mut requests, None);
         assert!(!requests.is_empty(), "Should scale freely when under max");
 
-        // running >= max (1000) → manager passes cap = max (1000).
-        // Desired trimmed to 1000 (only Pending killed, Running stays).
-        let mut cap = 1000_i64;
+        // FreezeAtRunning → desired capped to running per pool.
+        // No pods running in this cluster, so desired goes to 0.
         let mut requests = HashMap::new();
         scaler.run(
             &"prover".into(),
             5000,
             &clusters,
             &mut requests,
-            Some(&mut cap),
+            Some(CapMode::FreezeAtRunning),
         );
-        assert!(cap <= 0, "Cap should be consumed");
+        // No running pods → all desired frozen to 0 → no scale request.
 
-        // running >= max+burst (1000, burst=0) → same as above with burst=0.
-        // Desired trimmed to 1000, Running scaled down to 1000.
-    }
-
-    #[tracing_test::traced_test]
-    #[test]
-    fn test_run_cap_shared_across_namespaces() {
-        // Simulate manager calling run() for two namespaces with a shared cap.
-        // running >= max+burst(1000) → cap desired to 1000, shared across namespaces.
-        let scaler = Scaler::new(
-            QueueReportFields::prover_jobs,
-            "circuit-prover-gpu".into(),
-            0,
-            [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
-            [(GpuKey(Gpu::L4), 500)].into(),
-            Some(1000),
-            0,
-            0,
-            scaler_config("prover"),
-            None,
-        );
-
-        let clusters = Clusters {
-            clusters: [(
-                "foo".into(),
-                Cluster {
-                    name: "foo".into(),
-                    namespaces: [
-                        (
-                            "ns1".into(),
-                            Namespace {
-                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
-                                    .into(),
-                                ..Default::default()
-                            },
-                        ),
-                        (
-                            "ns2".into(),
-                            Namespace {
-                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
-                                    .into(),
-                                ..Default::default()
-                            },
-                        ),
-                    ]
-                    .into(),
-                },
-            )]
-            .into(),
-            ..Default::default()
-        };
-
-        let mut cap = 1000_i64; // running >= max+burst → cap = max+burst = 1000
+        // ScaleDown → same as freeze when nothing is running.
         let mut requests = HashMap::new();
-
-        // ns1 wants 5000 queue → needs 10 pods × 500 = 5000 weight.
-        // Cap is 1000, so trimmed to 2 pods × 500 = 1000.
         scaler.run(
-            &"ns1".into(),
+            &"prover".into(),
             5000,
             &clusters,
             &mut requests,
-            Some(&mut cap),
+            Some(CapMode::ScaleDown { target_weight: 500 }),
         );
-        assert!(cap <= 0, "ns1 should consume entire cap, got {}", cap);
-
-        // ns2 also wants pods but cap is exhausted → nothing.
-        let mut requests2 = HashMap::new();
-        scaler.run(
-            &"ns2".into(),
-            5000,
-            &clusters,
-            &mut requests2,
-            Some(&mut cap),
-        );
-        // ns2 should get 0 desired since cap is exhausted.
-        let ns2_desired: usize = requests2
-            .values()
-            .flat_map(|r| &r.deployments)
-            .filter(|d| d.namespace == "ns2".into())
-            .map(|d| d.size)
-            .sum();
-        assert_eq!(ns2_desired, 0, "ns2 should get nothing with exhausted cap");
     }
 
     #[tracing_test::traced_test]
