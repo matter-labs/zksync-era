@@ -12,7 +12,6 @@ members = [
   "bin/verified_sources_fetcher",
   "bin/zksync_server",
   "bin/genesis_generator",
-  "bin/zksync_airbender_prover",
   # Node services
   "node/jemalloc",
   "node/proof_data_handler",
