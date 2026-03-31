@@ -367,7 +367,9 @@ impl<K: Key> Scaler<K> {
                 let pools_with_errors = active_pools
                     .iter()
                     .filter(|p| {
-                        p.sum_by_pod_status(PodStatus::NeedToMove) > 0 || p.scale_errors > 0
+                        p.sum_by_pod_status(PodStatus::NeedToMove) > 0
+                            || p.scale_errors > 0
+                            || p.sum_by_pod_status(PodStatus::LongPending) > 0
                     })
                     .count();
 
