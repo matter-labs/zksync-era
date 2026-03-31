@@ -42,10 +42,10 @@
 
           packages = {
             # to ease potential cross-compilation, the overlay is used
-            inherit (appliedOverlay.zksync-era) zksync tee_prover zkstack foundry-zksync;
-            default = appliedOverlay.zksync-era.tee_prover;
+            inherit (appliedOverlay.zksync-era) zksync airbender_prover zkstack foundry-zksync;
+            default = appliedOverlay.zksync-era.airbender_prover;
           } // (pkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.isx86_64 && pkgs.stdenv.hostPlatform.isLinux) {
-            inherit (appliedOverlay.zksync-era) container-tee-prover-azure container-tee-prover-dcap container-tee-prover-tdx;
+            inherit (appliedOverlay.zksync-era) container-airbender-prover-azure container-airbender-prover-dcap container-airbender-prover-tdx;
           });
 
           devShells = {

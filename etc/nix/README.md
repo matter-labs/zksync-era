@@ -1,7 +1,7 @@
 # Declarative and Reproducible builds with Nix
 
 This directory contains the nix build recipes for various components of this project. Most importantly it is used to
-reproducibly build `zksync_tee_prover` and create a container containing all what is needed to run it on an SGX machine.
+reproducibly build `zksync_airbender_prover` and create a container containing all what is needed to run it on an SGX machine.
 
 ## Prerequisites
 
@@ -40,9 +40,9 @@ nix run github:nixos/nixpkgs/nixos-24.11#nixci -- build -- --no-sandbox
 ### Build individual parts
 
 ```shell
-nix build .#tee_prover
-nix build .#container-tee-prover-dcap
-nix build .#container-tee-prover-azure
+nix build .#airbender_prover
+nix build .#container-airbender-prover-dcap
+nix build .#container-airbender-prover-azure
 ```
 
 or `zksync`, which requires an internet connection while building (not reproducible)

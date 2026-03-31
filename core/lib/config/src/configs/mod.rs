@@ -33,7 +33,7 @@ pub use self::{
     },
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
-    tee_proof_data_handler::TeeProofDataHandlerConfig,
+    airbender_proof_data_handler::AirbenderProofDataHandlerConfig,
     utils::PrometheusConfig,
     vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
 };
@@ -74,7 +74,7 @@ pub mod pruning;
 pub mod secrets;
 pub mod snapshot_recovery;
 pub mod snapshots_creator;
-pub mod tee_proof_data_handler;
+pub mod airbender_proof_data_handler;
 pub mod utils;
 pub mod vm_runner;
 pub mod wallets;

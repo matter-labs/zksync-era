@@ -1,6 +1,6 @@
 use zksync_types::{
     api::{
-        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
+        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, AirbenderProof,
         TransactionDetailedResult, TransactionExecutionInfo,
     },
     tee_types::TeeType,
@@ -24,12 +24,12 @@ impl UnstableNamespaceServer for UnstableNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn tee_proofs(
+    async fn airbender_proofs(
         &self,
         l1_batch_number: L1BatchNumber,
         tee_type: Option<TeeType>,
-    ) -> RpcResult<Vec<TeeProof>> {
-        self.get_tee_proofs_impl(l1_batch_number, tee_type)
+    ) -> RpcResult<Vec<AirbenderProof>> {
+        self.get_airbender_proofs_impl(l1_batch_number, tee_type)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

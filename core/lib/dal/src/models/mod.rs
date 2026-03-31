@@ -13,7 +13,7 @@ pub mod storage_log;
 pub mod storage_oracle_info;
 pub mod storage_protocol_version;
 pub mod storage_sync;
-pub mod storage_tee_proof;
+pub mod storage_airbender_proof;
 pub mod storage_transaction;
 pub mod storage_verification_request;
 

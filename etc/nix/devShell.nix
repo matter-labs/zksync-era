@@ -1,5 +1,5 @@
 { pkgs
-, tee_prover
+, airbender_prover
 , coreCommonArgs
 , inputs
 , ...
@@ -12,7 +12,7 @@ let
   };
 in
 pkgs.mkShell {
-  inputsFrom = [ tee_prover ];
+  inputsFrom = [ airbender_prover ];
   packages = [ ];
 
   inherit (coreCommonArgs) hardeningEnable;
