@@ -248,7 +248,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-            tee_attestations (pubkey, attestation)
+            airbender_attestations (pubkey, attestation)
             VALUES
             ($1, $2)
             ON CONFLICT (pubkey) DO NOTHING
@@ -287,7 +287,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
             FROM
                 airbender_proof_generation_details tp
             LEFT JOIN
-                tee_attestations ta ON tp.pubkey = ta.pubkey
+                airbender_attestations ta ON tp.pubkey = ta.pubkey
             WHERE
                 tp.l1_batch_number = $1
             "#,
