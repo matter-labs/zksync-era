@@ -6,12 +6,12 @@
 , nixsgx
 , openssl
 , strace
-, airbender_prover
+, tee_prover
 , teepot
 , ...
 }:
 dockerTools.buildLayeredImage {
-  name = "zksync-airbender-prover-tdx";
+  name = "zksync-tee-prover-tdx";
 
   config = {
     Entrypoint = [ "/bin/sh" "-c" ];
@@ -19,7 +19,7 @@ dockerTools.buildLayeredImage {
       ''
         ${teepot.teepot.tee_key_preexec}/bin/tee-key-preexec \
           --env-prefix TEE_PROVER_ -- \
-          ${airbender_prover}/bin/zksync_airbender_prover
+          ${tee_prover}/bin/zksync_tee_prover
       ''
     ];
     Env = [

@@ -1,8 +1,8 @@
 { lib
 , pkgs
 , teepot
-, airbender_prover
-, container-name ? "zksync-airbender-prover-azure"
+, tee_prover
+, container-name ? "zksync-tee-prover-azure"
 , isAzure ? true
 , tag ? null
 , ...
@@ -16,7 +16,7 @@ pkgs.lib.tee.sgxGramineContainer
     inherit name;
     inherit tag;
 
-    packages = [ teepot.teepot.tee_key_preexec airbender_prover ];
+    packages = [ teepot.teepot.tee_key_preexec tee_prover ];
     inherit entrypoint;
     inherit isAzure;
 
@@ -27,7 +27,7 @@ pkgs.lib.tee.sgxGramineContainer
           "--env-prefix"
           "TEE_PROVER_"
           "--"
-          "${airbender_prover}/bin/zksync_airbender_prover"
+          "${tee_prover}/bin/zksync_tee_prover"
         ];
 
         log_level = "error";
@@ -44,7 +44,7 @@ pkgs.lib.tee.sgxGramineContainer
 
           ### DEBUG ###
           RUST_BACKTRACE = "1";
-          RUST_LOG = "warning,zksync_airbender_prover=debug";
+          RUST_LOG = "warning,zksync_tee_prover=debug";
         };
       };
 
@@ -56,8 +56,8 @@ pkgs.lib.tee.sgxGramineContainer
     };
   } // {
   meta = {
-    description = "SGX on Azure container for the ZKsync Airbender prover";
-    homepage = "https://github.com/matter-labs/zksync-era/tree/main/core/bin/zksync_airbender_prover";
+    description = "SGX on Azure container for the ZKsync TEE prover";
+    homepage = "https://github.com/matter-labs/zksync-era/tree/main/core/bin/zksync_tee_prover";
     platforms = [ "x86_64-linux" ];
     license = [ lib.licenses.asl20 lib.licenses.mit ];
   };

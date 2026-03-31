@@ -3,8 +3,8 @@
 , ...
 }:
 let
-  pname = "zksync_airbender_prover";
-  cargoExtraArgs = "--locked -p zksync_airbender_prover";
+  pname = "zksync_tee_prover";
+  cargoExtraArgs = "--locked -p zksync_tee_prover";
 in
 craneLib.buildPackage (coreCommonArgs // {
   inherit pname;
@@ -17,7 +17,7 @@ craneLib.buildPackage (coreCommonArgs // {
   });
 
   postInstall = ''
-    strip $out/bin/zksync_airbender_prover
+    strip $out/bin/zksync_tee_prover
   '';
 
   # zksync-protobuf has store paths
