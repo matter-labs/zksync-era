@@ -11,7 +11,7 @@ use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     api,
     api::{
-        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
+        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, AirbenderProof,
         TransactionDetailedResult, TransactionExecutionInfo,
     },
     eth_sender::EthTxFinalityStatus,
@@ -57,19 +57,19 @@ impl UnstableNamespace {
             .map(|execution_info| TransactionExecutionInfo { execution_info }))
     }
 
-    pub async fn get_tee_proofs_impl(
+    pub async fn get_airbender_proofs_impl(
         &self,
         l1_batch_number: L1BatchNumber,
         tee_type: Option<TeeType>,
-    ) -> Result<Vec<TeeProof>, Web3Error> {
+    ) -> Result<Vec<AirbenderProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
         let proofs = storage
-            .tee_proof_generation_dal()
-            .get_tee_proofs(l1_batch_number, tee_type)
+            .airbender_proof_generation_dal()
+            .get_airbender_proofs(l1_batch_number, tee_type)
             .await
             .map_err(DalError::generalize)?
             .into_iter()
-            .map(|proof| TeeProof {
+            .map(|proof| AirbenderProof {
                 l1_batch_number,
                 tee_type,
                 pubkey: proof.pubkey,

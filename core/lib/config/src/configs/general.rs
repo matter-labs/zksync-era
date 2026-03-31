@@ -17,7 +17,7 @@ use crate::{
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, GatewayMigratorConfig,
         GenesisConfigWrapper, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        Secrets, TeeProofDataHandlerConfig,
+        Secrets, AirbenderProofDataHandlerConfig,
     },
     ApiConfig, ContractVerifierConfig, ContractsConfig, DAClientConfig, DBConfig, EthConfig,
     ExternalProofIntegrationApiConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
@@ -53,8 +53,8 @@ pub struct GeneralConfig {
     pub prometheus_config: PrometheusConfig,
     #[config(nest, rename = "data_handler")]
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
-    #[config(nest, rename = "tee_proof_data_handler")]
-    pub tee_proof_data_handler_config: Option<TeeProofDataHandlerConfig>,
+    #[config(nest, rename = "airbender_proof_data_handler")]
+    pub airbender_proof_data_handler_config: Option<AirbenderProofDataHandlerConfig>,
     #[config(nest, rename = "db", alias = "database")]
     pub db_config: DBConfig,
     #[config(nest)]
