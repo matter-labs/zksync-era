@@ -322,21 +322,23 @@ impl Watcher {
                                         continue;
                                     };
 
-                                    // FailedScheduling → mark pod as out_of_resources
-                                    if matcher.reason == "FailedScheduling" {
-                                        if let Some(pod_data) = ns_data.pods.get_mut(&pod_name) {
-                                            pod_data.out_of_resources = true;
-                                        } else {
-                                            tracing::warn!(
-                                                "Pod {} not found in namespace {} for {} event",
-                                                pod_name,
-                                                namespace,
-                                                reason
-                                            );
-                                        }
+                                    // Both event types mark the pod as out_of_resources
+                                    // (sticky until pod becomes Running or is deleted).
+                                    // This matches Yurii's original behavior where any
+                                    // "GCE out of resources" event set the flag.
+                                    if let Some(pod_data) = ns_data.pods.get_mut(&pod_name) {
+                                        pod_data.out_of_resources = true;
+                                    } else {
+                                        tracing::warn!(
+                                            "Pod {} not found in namespace {} for {} event",
+                                            pod_name,
+                                            namespace,
+                                            reason
+                                        );
                                     }
 
-                                    // FailedScaleUp → record namespace-level scale error
+                                    // FailedScaleUp → also record namespace-level scale error
+                                    // (time-expiring, used as secondary signal).
                                     if matcher.reason == "FailedScaleUp" {
                                         let name = e.name_any();
                                         let time: DateTime<Utc> = match e.last_timestamp {
