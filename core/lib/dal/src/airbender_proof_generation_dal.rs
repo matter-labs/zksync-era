@@ -7,10 +7,9 @@ use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
     instrument::{InstrumentExt, Instrumented},
-    interpolate_query, match_query_as,
     utils::pg_interval_from_duration,
 };
-use zksync_types::{tee_types::TeeType, L1BatchNumber};
+use zksync_types::L1BatchNumber;
 
 use crate::{
     models::storage_airbender_proof::{StorageLockedBatch, StorageAirbenderProof},
@@ -24,7 +23,7 @@ pub struct AirbenderProofGenerationDal<'a, 'c> {
 
 #[derive(Debug, Clone, Copy, EnumString, Display)]
 pub enum AirbenderProofGenerationJobStatus {
-    /// The batch has been picked by a Airbender prover and is currently being processed.
+    /// The batch has been picked by an Airbender prover and is currently being processed.
     #[strum(serialize = "picked_by_prover")]
     PickedByProver,
     /// The proof has been successfully generated and submitted for the batch.
@@ -41,7 +40,7 @@ pub enum AirbenderProofGenerationJobStatus {
     PermanentlyIgnored,
 }
 
-/// Represents a locked batch picked by a Airbender prover. A batch is locked when taken by a Airbender prover
+/// Represents a locked batch picked by an Airbender prover. A batch is locked when taken by an Airbender prover
 /// ([AirbenderProofGenerationJobStatus::PickedByProver]). It can transition to one of three states:
 /// 1. [AirbenderProofGenerationJobStatus::Generated].
 /// 2. [AirbenderProofGenerationJobStatus::Failed].
@@ -58,7 +57,6 @@ pub struct LockedBatch {
 impl AirbenderProofGenerationDal<'_, '_> {
     pub async fn lock_batch_for_proving(
         &mut self,
-        tee_type: TeeType,
         processing_timeout: Duration,
         min_batch_number: L1BatchNumber,
     ) -> DalResult<Option<LockedBatch>> {
@@ -83,33 +81,30 @@ impl AirbenderProofGenerationDal<'_, '_> {
             FROM
                 proof_generation_details p
             LEFT JOIN
-                airbender_proof_generation_details tee
+                airbender_proof_generation_details apgd
                 ON
-                    p.l1_batch_number = tee.l1_batch_number
-                    AND tee.tee_type = $1
+                    p.l1_batch_number = apgd.l1_batch_number
             WHERE
                 (
-                    p.l1_batch_number >= $5
+                    p.l1_batch_number >= $4
                     AND p.vm_run_data_blob_url IS NOT NULL
                     AND p.proof_gen_data_blob_url IS NOT NULL
                 )
                 AND (
-                    tee.l1_batch_number IS NULL
+                    apgd.l1_batch_number IS NULL
                     OR (
-                        (tee.status = $2 OR tee.status = $3)
-                        AND tee.prover_taken_at < NOW() - $4::INTERVAL
+                        (apgd.status = $1 OR apgd.status = $2)
+                        AND apgd.prover_taken_at < NOW() - $3::INTERVAL
                     )
                 )
             LIMIT 1
             "#,
-            tee_type.to_string(),
             AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
             AirbenderProofGenerationJobStatus::Failed.to_string(),
             processing_timeout,
             min_batch_number
         )
         .instrument("lock_batch_for_proving#get_batch_no")
-        .with_arg("tee_type", &tee_type)
         .with_arg("processing_timeout", &processing_timeout)
         .with_arg("min_batch_number", &min_batch_number)
         .fetch_optional(&mut transaction)
@@ -127,21 +122,20 @@ impl AirbenderProofGenerationDal<'_, '_> {
             r#"
             INSERT INTO
             airbender_proof_generation_details (
-                l1_batch_number, tee_type, status, created_at, updated_at, prover_taken_at
+                l1_batch_number, status, created_at, updated_at, prover_taken_at
             )
             VALUES
             (
                 $1,
                 $2,
-                $3,
                 NOW(),
                 NOW(),
                 NOW()
             )
-            ON CONFLICT (l1_batch_number, tee_type) DO
+            ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
-            status = $3,
+            status = $2,
             updated_at = NOW(),
             prover_taken_at = NOW()
             RETURNING
@@ -149,12 +143,10 @@ impl AirbenderProofGenerationDal<'_, '_> {
             created_at
             "#,
             batch_number,
-            tee_type.to_string(),
             AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
         )
         .instrument("lock_batch_for_proving#insert")
         .with_arg("batch_number", &batch_number)
-        .with_arg("tee_type", &tee_type)
         .fetch_optional(&mut transaction)
         .await?
         .map(Into::into);
@@ -166,7 +158,6 @@ impl AirbenderProofGenerationDal<'_, '_> {
     pub async fn unlock_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        tee_type: TeeType,
         status: AirbenderProofGenerationJobStatus,
     ) -> DalResult<()> {
         let batch_number = i64::from(l1_batch_number.0);
@@ -178,15 +169,12 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $2
-                AND tee_type = $3
             "#,
             status.to_string(),
             batch_number,
-            tee_type.to_string()
         )
         .instrument("unlock_batch")
         .with_arg("l1_batch_number", &batch_number)
-        .with_arg("tee_type", &tee_type)
         .execute(self.storage)
         .await?;
 
@@ -196,9 +184,6 @@ impl AirbenderProofGenerationDal<'_, '_> {
     pub async fn save_proof_artifacts_metadata(
         &mut self,
         batch_number: L1BatchNumber,
-        tee_type: TeeType,
-        pubkey: &[u8],
-        signature: &[u8],
         proof: &[u8],
     ) -> DalResult<()> {
         let batch_number = i64::from(batch_number.0);
@@ -206,26 +191,17 @@ impl AirbenderProofGenerationDal<'_, '_> {
             r#"
             UPDATE airbender_proof_generation_details
             SET
-                status = $2,
-                pubkey = $3,
-                signature = $4,
-                proof = $5,
+                status = $1,
+                proof = $2,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $6
-                AND tee_type = $1
+                l1_batch_number = $3
             "#,
-            tee_type.to_string(),
             AirbenderProofGenerationJobStatus::Generated.to_string(),
-            pubkey,
-            signature,
             proof,
             batch_number
         );
         let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
-            .with_arg("tee_type", &tee_type)
-            .with_arg("pubkey", &pubkey)
-            .with_arg("signature", &signature)
             .with_arg("proof", &proof)
             .with_arg("l1_batch_number", &batch_number);
         let result = instrumentation
@@ -247,15 +223,11 @@ impl AirbenderProofGenerationDal<'_, '_> {
     pub async fn get_airbender_proofs(
         &mut self,
         batch_number: L1BatchNumber,
-        tee_type: Option<TeeType>,
     ) -> DalResult<Vec<StorageAirbenderProof>> {
-        let query = match_query_as!(
+        let proofs = sqlx::query_as!(
             StorageAirbenderProof,
-            [
             r#"
             SELECT
-                tp.pubkey,
-                tp.signature,
                 tp.proof,
                 tp.updated_at,
                 tp.status
@@ -263,22 +235,14 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 airbender_proof_generation_details tp
             WHERE
                 tp.l1_batch_number = $1
+            ORDER BY tp.l1_batch_number ASC
             "#,
-            _,
-            "ORDER BY tp.l1_batch_number ASC, tp.tee_type ASC"
-            ],
-            match(&tee_type) {
-                Some(tee_type) =>
-                    ("AND tp.tee_type = $2"; i64::from(batch_number.0), tee_type.to_string()),
-                None => (""; i64::from(batch_number.0)),
-            }
-        );
-
-        let proofs = query
-            .instrument("get_airbender_proofs")
-            .with_arg("l1_batch_number", &batch_number)
-            .fetch_all(self.storage)
-            .await?;
+            i64::from(batch_number.0)
+        )
+        .instrument("get_airbender_proofs")
+        .with_arg("l1_batch_number", &batch_number)
+        .fetch_all(self.storage)
+        .await?;
 
         Ok(proofs)
     }
@@ -287,26 +251,23 @@ impl AirbenderProofGenerationDal<'_, '_> {
     pub async fn insert_airbender_proof_generation_job(
         &mut self,
         batch_number: L1BatchNumber,
-        tee_type: TeeType,
     ) -> DalResult<()> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
             r#"
             INSERT INTO
             airbender_proof_generation_details (
-                l1_batch_number, tee_type, status, created_at, updated_at
+                l1_batch_number, status, created_at, updated_at
             )
             VALUES
-            ($1, $2, $3, NOW(), NOW())
-            ON CONFLICT (l1_batch_number, tee_type) DO NOTHING
+            ($1, $2, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             batch_number,
-            tee_type.to_string(),
             AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
         );
         let instrumentation = Instrumented::new("insert_airbender_proof_generation_job")
-            .with_arg("l1_batch_number", &batch_number)
-            .with_arg("tee_type", &tee_type);
+            .with_arg("l1_batch_number", &batch_number);
         instrumentation
             .clone()
             .with(query)

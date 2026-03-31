@@ -16,7 +16,6 @@ use zksync_types::{
     },
     eth_sender::EthTxFinalityStatus,
     server_notification::GatewayMigrationState,
-    tee_types::TeeType,
     web3,
     web3::Bytes,
     L1BatchNumber, L2BlockNumber, L2ChainId,
@@ -60,20 +59,16 @@ impl UnstableNamespace {
     pub async fn get_airbender_proofs_impl(
         &self,
         l1_batch_number: L1BatchNumber,
-        tee_type: Option<TeeType>,
     ) -> Result<Vec<AirbenderProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
         let proofs = storage
             .airbender_proof_generation_dal()
-            .get_airbender_proofs(l1_batch_number, tee_type)
+            .get_airbender_proofs(l1_batch_number)
             .await
             .map_err(DalError::generalize)?
             .into_iter()
             .map(|proof| AirbenderProof {
                 l1_batch_number,
-                tee_type,
-                pubkey: proof.pubkey,
-                signature: proof.signature,
                 proof: proof.proof,
                 proved_at: DateTime::<Utc>::from_naive_utc_and_offset(proof.updated_at, Utc),
                 status: proof.status,

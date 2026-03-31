@@ -13,9 +13,7 @@ use tokio::sync::watch;
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_airbender_prover_interface::api::{
-    SubmitAirbenderProofRequest, AirbenderProofGenerationDataRequest,
-};
+use zksync_airbender_prover_interface::api::SubmitAirbenderProofRequest;
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 mod errors;
@@ -75,19 +73,17 @@ fn create_proof_processing_router(
     let router = Router::new()
         .route(
             "/airbender/proof_inputs",
-            post(
-                move |payload: Json<AirbenderProofGenerationDataRequest>| async move {
-                    let result = get_airbender_proof_gen_processor
-                        .get_proof_generation_data(payload)
-                        .await;
+            post(move || async move {
+                let result = get_airbender_proof_gen_processor
+                    .get_proof_generation_data()
+                    .await;
 
-                    match result {
-                        Ok(Some(data)) => (StatusCode::OK, data).into_response(),
-                        Ok(None) => StatusCode::NO_CONTENT.into_response(),
-                        Err(e) => e.into_response(),
-                    }
-                },
-            ),
+                match result {
+                    Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                    Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                    Err(e) => e.into_response(),
+                }
+            }),
         )
         .route(
             "/airbender/proof_inputs_no_lock/{batch}",

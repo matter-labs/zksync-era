@@ -1,6 +1,5 @@
 use std::fmt;
 
-use secp256k1::{PublicKey, Secp256k1};
 use zksync_basic_types::{L1BatchNumber, H256};
 use zksync_crypto_primitives::{sign, K256PrivateKey, Signature};
 use zksync_node_framework::{
@@ -78,13 +77,12 @@ impl AirbenderProver {
     fn verify(
         &self,
         tvi: AirbenderVerifierInput,
-    ) -> Result<(Signature, L1BatchNumber, H256), AirbenderProverError> {
+    ) -> Result<(L1BatchNumber, Vec<u8>), AirbenderProverError> {
         match tvi {
             AirbenderVerifierInput::V1(tvi) => {
                 let observer = METRICS.proof_generation_time.start();
                 let verification_result = tvi.verify().map_err(AirbenderProverError::Verification)?;
                 let batch_number = verification_result.batch_number;
-                let signature = self.sign_message(&verification_result.value_hash)?;
                 let duration = observer.observe();
                 tracing::info!(
                     proof_generation_time = duration.as_secs_f64(),
@@ -92,7 +90,7 @@ impl AirbenderProver {
                     l1_root_hash = ?verification_result.value_hash,
                     "L1 batch verified",
                 );
-                Ok((signature, batch_number, verification_result.value_hash))
+                Ok((batch_number, verification_result.value_hash.as_bytes().to_vec()))
             }
             _ => Err(AirbenderProverError::Verification(anyhow::anyhow!(
                 "Only AirbenderVerifierInput::V1 verification supported."
@@ -100,18 +98,12 @@ impl AirbenderProver {
         }
     }
 
-    async fn step(&self, public_key: &PublicKey) -> Result<Option<L1BatchNumber>, AirbenderProverError> {
-        match self.api_client.get_job(self.config.sig_conf.tee_type).await {
+    async fn step(&self) -> Result<Option<L1BatchNumber>, AirbenderProverError> {
+        match self.api_client.get_job().await {
             Ok(Some(job)) => {
-                let (signature, batch_number, root_hash) = self.verify(job)?;
+                let (batch_number, proof) = self.verify(job)?;
                 self.api_client
-                    .submit_proof(
-                        batch_number,
-                        signature.into_electrum(),
-                        public_key,
-                        root_hash,
-                        self.config.sig_conf.tee_type,
-                    )
+                    .submit_proof(batch_number, proof)
                     .await?;
                 Ok(Some(batch_number))
             }
@@ -134,11 +126,6 @@ impl Task for AirbenderProver {
         tracing::info!("Starting the task {}", self.id());
 
         let config = &self.config.prover_api;
-        let public_key = self
-            .config
-            .sig_conf
-            .signing_key
-            .public_key(&Secp256k1::new());
 
         let mut retries = 1;
         let mut backoff = config.initial_retry_backoff;
@@ -146,10 +133,10 @@ impl Task for AirbenderProver {
 
         loop {
             if *stop_receiver.0.borrow() {
-                tracing::info!("Stop request received, shutting down TEE Prover component");
+                tracing::info!("Stop request received, shutting down Airbender Prover component");
                 return Ok(());
             }
-            let result = self.step(&public_key).await;
+            let result = self.step().await;
             let need_to_sleep = match result {
                 Ok(batch_number) => {
                     retries = 1;
@@ -194,7 +181,6 @@ mod tests {
 
     use secp256k1::SecretKey;
     use url::Url;
-    use zksync_basic_types::{self, tee_types::TeeType};
     use zksync_crypto_primitives::{public_to_address, recover};
 
     use super::*;
@@ -210,7 +196,6 @@ mod tests {
         let airbender_prover_config = AirbenderProverConfig {
             sig_conf: AirbenderProverSigConfig {
                 signing_key,
-                tee_type: TeeType::Sgx,
             },
             prover_api: AirbenderProverApiConfig {
                 api_url: Url::parse("http://mock").unwrap(),

@@ -2,9 +2,9 @@
 //! This module defines the types used in the API.
 
 use serde::{Deserialize, Serialize};
-use zksync_types::tee_types::TeeType;
+use serde_with::{hex::Hex, serde_as};
 
-use crate::{inputs::AirbenderVerifierInput, outputs::L1BatchAirbenderProofForL1};
+use crate::inputs::AirbenderVerifierInput;
 
 // Structs for holding data returned in HTTP responses
 
@@ -22,12 +22,15 @@ pub enum SubmitAirbenderProofResponse {
     Success,
     Error(String),
 }
+
 // Structs to hold data necessary for making HTTP requests
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct AirbenderProofGenerationDataRequest {
-    pub tee_type: TeeType,
-}
+pub struct AirbenderProofGenerationDataRequest;
 
+#[serde_as]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub struct SubmitAirbenderProofRequest(pub Box<L1BatchAirbenderProofForL1>);
+pub struct SubmitAirbenderProofRequest {
+    #[serde_as(as = "Hex")]
+    pub proof: Vec<u8>,
+}

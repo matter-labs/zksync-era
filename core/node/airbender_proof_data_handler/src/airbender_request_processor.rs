@@ -12,11 +12,11 @@ use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerkleP
 use zksync_airbender_prover_interface::{
     api::{
         SubmitAirbenderProofRequest, SubmitAirbenderProofResponse, AirbenderPresentBatchesResponse,
-        AirbenderProofGenerationDataRequest, AirbenderProofGenerationDataResponse,
+        AirbenderProofGenerationDataResponse,
     },
     inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
 };
-use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
+use zksync_types::{L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
 use crate::{errors::AirbenderProcessorError, metrics::METRICS};
@@ -46,9 +46,8 @@ impl AirbenderRequestProcessor {
 
     pub(crate) async fn get_proof_generation_data(
         &self,
-        request: Json<AirbenderProofGenerationDataRequest>,
     ) -> Result<Option<Json<AirbenderProofGenerationDataResponse>>, AirbenderProcessorError> {
-        tracing::info!("Received request for proof generation data: {:?}", request);
+        tracing::info!("Received request for proof generation data");
 
         let batch_ignored_timeout = ChronoDuration::from_std(
             self.config.batch_permanently_ignored_timeout,
@@ -63,7 +62,7 @@ impl AirbenderRequestProcessor {
 
         loop {
             let Some(locked_batch) = self
-                .lock_batch_for_proving(request.tee_type, min_batch_number)
+                .lock_batch_for_proving(min_batch_number)
                 .await?
             else {
                 break Ok(None); // no job available
@@ -87,8 +86,7 @@ impl AirbenderRequestProcessor {
                     } else {
                         AirbenderProofGenerationJobStatus::Failed
                     };
-                    self.unlock_batch(batch_number, request.tee_type, status)
-                        .await?;
+                    self.unlock_batch(batch_number, status).await?;
                     tracing::warn!(
                         "Assigned status `{}` to batch {} created at {}: {context}",
                         status,
@@ -99,7 +97,6 @@ impl AirbenderRequestProcessor {
                 Err(err) => {
                     self.unlock_batch(
                         batch_number,
-                        request.tee_type,
                         AirbenderProofGenerationJobStatus::Failed,
                     )
                     .await?;
@@ -226,7 +223,6 @@ impl AirbenderRequestProcessor {
 
     async fn lock_batch_for_proving(
         &self,
-        tee_type: TeeType,
         min_batch_number: L1BatchNumber,
     ) -> Result<Option<LockedBatch>, AirbenderProcessorError> {
         self.pool
@@ -234,7 +230,6 @@ impl AirbenderRequestProcessor {
             .await?
             .airbender_proof_generation_dal()
             .lock_batch_for_proving(
-                tee_type,
                 self.config.proof_generation_timeout,
                 min_batch_number,
             )
@@ -261,14 +256,13 @@ impl AirbenderRequestProcessor {
     async fn unlock_batch(
         &self,
         l1_batch_number: L1BatchNumber,
-        tee_type: TeeType,
         status: AirbenderProofGenerationJobStatus,
     ) -> Result<(), AirbenderProcessorError> {
         self.pool
             .connection_tagged("airbender_request_processor")
             .await?
             .airbender_proof_generation_dal()
-            .unlock_batch(l1_batch_number, tee_type, status)
+            .unlock_batch(l1_batch_number, status)
             .await?;
         Ok(())
     }
@@ -281,14 +275,8 @@ impl AirbenderRequestProcessor {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
         let mut connection = self.pool.connection_tagged("airbender_request_processor").await?;
         let mut dal = connection.airbender_proof_generation_dal();
-        dal.save_proof_artifacts_metadata(
-            l1_batch_number,
-            proof.0.tee_type,
-            &proof.0.pubkey,
-            &proof.0.signature,
-            &proof.0.proof,
-        )
-        .await?;
+        dal.save_proof_artifacts_metadata(l1_batch_number, &proof.proof)
+            .await?;
 
         let sealed_at = connection
             .blocks_dal()
@@ -298,7 +286,7 @@ impl AirbenderRequestProcessor {
         let duration = sealed_at.and_then(|sealed_at| (Utc::now() - sealed_at).to_std().ok());
 
         let duration_secs_f64 = if let Some(duration) = duration {
-            METRICS.airbender_proof_roundtrip_time[&proof.0.tee_type.into()].observe(duration);
+            METRICS.airbender_proof_roundtrip_time.observe(duration);
             duration.as_secs_f64()
         } else {
             f64::NAN
@@ -307,8 +295,8 @@ impl AirbenderRequestProcessor {
         tracing::info!(
             l1_batch_number = %l1_batch_number,
             sealed_to_proven_in_secs = duration_secs_f64,
-            "Received proof {:?}",
-            proof
+            "Received proof for batch {}",
+            l1_batch_number
         );
 
         Ok(Json(SubmitAirbenderProofResponse::Success))

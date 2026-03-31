@@ -5,8 +5,6 @@ use crate::airbender_proof_generation_dal::LockedBatch;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageAirbenderProof {
-    pub pubkey: Option<Vec<u8>>,
-    pub signature: Option<Vec<u8>>,
     pub proof: Option<Vec<u8>>,
     pub updated_at: NaiveDateTime,
     pub status: String,

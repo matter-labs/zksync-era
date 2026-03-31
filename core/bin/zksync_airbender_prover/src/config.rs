@@ -6,7 +6,6 @@ use smart_config::{
     de::Serde, ConfigRepository, ConfigSchema, DescribeConfig, DeserializeConfig, Environment, Json,
 };
 use url::Url;
-use zksync_basic_types::tee_types::TeeType;
 use zksync_config::configs::{ObservabilityConfig, PrometheusConfig};
 use zksync_vlog::ObservabilityGuard;
 
@@ -25,8 +24,6 @@ pub(crate) struct AirbenderProverSigConfig {
     /// The private key used to sign the proofs.
     #[config(secret, with = Serde![str])]
     pub signing_key: SecretKey,
-    #[config(default_t = TeeType::Sgx, with = Serde![str])]
-    pub tee_type: TeeType,
 }
 
 /// Airbender proof data handler API parameter.
@@ -163,7 +160,6 @@ mod tests {
 
         let env = r#"
             TEE_PROVER_SIGNING_KEY="b50b38c8d396c88728fc032ece558ebda96907a0b1a9340289715eef7bf29deb"
-            TEE_PROVER_TEE_TYPE="sgx"
         "#;
         let env = Environment::from_dotenv("test.env", env).unwrap();
 
@@ -173,7 +169,6 @@ mod tests {
             "http://prover_api/"
         );
         assert_eq!(app_config.prover.prover_api.max_retries, 10);
-        assert_eq!(app_config.prover.sig_conf.tee_type, TeeType::Sgx);
         assert_eq!(app_config.prometheus.listener_port, Some(3_321));
     }
 }

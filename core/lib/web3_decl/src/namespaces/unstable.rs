@@ -6,7 +6,6 @@ use zksync_types::{
         ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, AirbenderProof,
         TransactionDetailedResult, TransactionExecutionInfo,
     },
-    tee_types::TeeType,
     L1BatchNumber, L2BlockNumber, L2ChainId, H256,
 };
 
@@ -35,7 +34,6 @@ pub trait UnstableNamespace {
     async fn airbender_proofs(
         &self,
         l1_batch_number: L1BatchNumber,
-        tee_type: Option<TeeType>,
     ) -> RpcResult<Vec<AirbenderProof>>;
 
     #[method(name = "getChainLogProof")]

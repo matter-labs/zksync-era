@@ -1,12 +1,10 @@
 use reqwest::{Client, Response, StatusCode};
-use secp256k1::PublicKey;
 use serde::Serialize;
 use url::Url;
-use zksync_basic_types::{tee_types::TeeType, L1BatchNumber, H256};
+use zksync_basic_types::L1BatchNumber;
 use zksync_airbender_prover_interface::{
     api::{SubmitAirbenderProofRequest, AirbenderProofGenerationDataRequest},
     inputs::AirbenderVerifierInput,
-    outputs::L1BatchAirbenderProofForL1,
 };
 
 use crate::{error::AirbenderProverError, metrics::METRICS};
@@ -44,13 +42,11 @@ impl AirbenderApiClient {
             .error_for_status()
     }
 
-    /// Fetches the next job for the Airbender prover to process, verifying and signing it if the
-    /// verification is successful.
+    /// Fetches the next job for the Airbender prover to process.
     pub async fn get_job(
         &self,
-        tee_type: TeeType,
     ) -> Result<Option<AirbenderVerifierInput>, AirbenderProverError> {
-        let request = AirbenderProofGenerationDataRequest { tee_type };
+        let request = AirbenderProofGenerationDataRequest;
         let response = self.post("/airbender/proof_inputs", request).await?;
         match response.status() {
             StatusCode::OK => Ok(Some(response.json::<AirbenderVerifierInput>().await?)),
@@ -66,21 +62,9 @@ impl AirbenderApiClient {
     pub async fn submit_proof(
         &self,
         batch_number: L1BatchNumber,
-        signature: [u8; 65],
-        pubkey: &PublicKey,
-        root_hash: H256,
-        tee_type: TeeType,
+        proof: Vec<u8>,
     ) -> Result<(), AirbenderProverError> {
-        if tee_type == TeeType::None {
-            tracing::info!("Not submitting proof from none TEE.");
-            return Ok(());
-        }
-        let request = SubmitAirbenderProofRequest(Box::new(L1BatchAirbenderProofForL1 {
-            signature: signature.into(),
-            pubkey: pubkey.serialize().into(),
-            proof: root_hash.as_bytes().into(),
-            tee_type,
-        }));
+        let request = SubmitAirbenderProofRequest { proof };
         let observer = METRICS.proof_submitting_time.start();
         self.post(
             format!("/airbender/submit_proofs/{batch_number}").as_str(),
