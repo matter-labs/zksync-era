@@ -51,43 +51,38 @@ impl AirbenderRequestProcessor {
 
         let min_batch_number = self.config.first_processed_batch;
 
-        loop {
-            let Some(locked_batch) = self
-                .lock_batch_for_proving(min_batch_number)
-                .await?
-            else {
-                break Ok(None); // no job available
-            };
-            let batch_number = locked_batch.l1_batch_number;
+        let Some(locked_batch) = self
+            .lock_batch_for_proving(min_batch_number)
+            .await?
+        else {
+            return Ok(None); // no job available
+        };
+        let batch_number = locked_batch.l1_batch_number;
 
-            match self
-                .airbender_verifier_input_for_existing_batch(batch_number)
-                .await
-            {
-                Ok(input) => {
-                    break Ok(Some(Json(AirbenderProofGenerationDataResponse(Box::new(input)))));
-                }
-                Err(AirbenderProcessorError::ObjectStore {
-                    source: ObjectStoreError::KeyNotFound(_),
-                    context,
-                }) => {
-                    self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
-                        .await?;
-                    tracing::warn!(
-                        "Assigned status `{}` to batch {} created at {}: {context}",
-                        AirbenderProofGenerationJobStatus::Failed,
-                        batch_number,
-                        locked_batch.created_at
-                    );
-                }
-                Err(err) => {
-                    self.unlock_batch(
-                        batch_number,
-                        AirbenderProofGenerationJobStatus::Failed,
-                    )
+        match self
+            .airbender_verifier_input_for_existing_batch(batch_number)
+            .await
+        {
+            Ok(input) => {
+                Ok(Some(Json(AirbenderProofGenerationDataResponse(Box::new(input)))))
+            }
+            Err(AirbenderProcessorError::ObjectStore {
+                source: ObjectStoreError::KeyNotFound(_),
+                context,
+            }) => {
+                self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
                     .await?;
-                    break Err(err);
-                }
+                tracing::warn!(
+                    "Data not available on GCS for batch {} created at {}: {context}",
+                    batch_number,
+                    locked_batch.created_at
+                );
+                Ok(None)
+            }
+            Err(err) => {
+                self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
+                    .await?;
+                Err(err)
             }
         }
     }
