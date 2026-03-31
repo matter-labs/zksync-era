@@ -323,12 +323,28 @@ impl<K: Key> Scaler<K> {
             .map(|weight| weight + self.max_desired_burst_weight)
     }
 
-    /// Check if we should enter/stay in aggressive mode based on percentage of pools with errors
-    /// Also handles state transitions between Regular, Aggressive, and AggressiveCooldown
-    fn is_aggressive_mode(&self, pools: &[Pool<K>], total_running: usize, queue: usize) -> bool {
-        // If threshold is 0, aggressive mode is disabled
+    /// Check if aggressive mode is currently active (read-only, no transitions).
+    fn is_aggressive(&self) -> bool {
+        let mode = self
+            .operation_mode
+            .lock()
+            .expect("operation_mode mutex is poisoned");
+        matches!(
+            *mode,
+            OperationMode::Aggressive | OperationMode::AggressiveCooldown(_)
+        )
+    }
+
+    /// Evaluate and update aggressive mode state based on the worst-case
+    /// namespace. Called once per cycle by the manager with aggregated data.
+    fn evaluate_aggressive_mode_inner(
+        &self,
+        all_pools: &[Pool<K>],
+        total_running: usize,
+        total_queue: usize,
+    ) {
         if self.config.aggressive_mode_threshold == 0 {
-            return false;
+            return;
         }
 
         let mut mode = self
@@ -338,22 +354,16 @@ impl<K: Key> Scaler<K> {
 
         match *mode {
             OperationMode::Regular => {
-                // Check if we should enter aggressive mode
-                if pools.is_empty() {
-                    return false;
+                if all_pools.is_empty() {
+                    return;
                 }
 
-                // Only consider active pools (max_pool_size > 0) for threshold
-                // calculation. Disabled pools can never have errors, so including
-                // them would inflate the denominator and make the threshold harder
-                // to reach.
-                let active_pools: Vec<_> = pools.iter().filter(|p| p.max_pool_size > 0).collect();
-
+                let active_pools: Vec<_> =
+                    all_pools.iter().filter(|p| p.max_pool_size > 0).collect();
                 if active_pools.is_empty() {
-                    return false;
+                    return;
                 }
 
-                // Count active pools with out_of_resources issues (NeedToMove or scale_errors).
                 let pools_with_errors = active_pools
                     .iter()
                     .filter(|p| {
@@ -373,7 +383,6 @@ impl<K: Key> Scaler<K> {
                         self.config.aggressive_mode_threshold
                     );
                     *mode = OperationMode::Aggressive;
-                    return true;
                 } else if pools_with_errors > 0 {
                     tracing::debug!(
                         "Resource errors detected: {}/{} active pools ({}%) have errors, but threshold {}% not reached",
@@ -383,73 +392,45 @@ impl<K: Key> Scaler<K> {
                         self.config.aggressive_mode_threshold
                     );
                 }
-                false
             }
             OperationMode::Aggressive => {
-                // Stay in aggressive mode
-                true
+                if total_running >= total_queue {
+                    let now = Utc::now();
+                    tracing::info!(
+                        "Resources obtained (Running: {}, MaxQueue: {}), entering AggressiveCooldown mode",
+                        total_running,
+                        total_queue
+                    );
+                    *mode = OperationMode::AggressiveCooldown(now);
+                } else {
+                    tracing::debug!(
+                        "Still need more resources (Running: {}, MaxQueue: {})",
+                        total_running,
+                        total_queue
+                    );
+                }
             }
             OperationMode::AggressiveCooldown(cooldown_start) => {
-                // Check if we still have enough resources
-                if total_running < queue {
-                    // Lost resources - go back to Aggressive mode
-                    tracing::warn!("Lost resources during cooldown, returning to Aggressive mode");
+                if total_running < total_queue {
+                    tracing::warn!(
+                        "Lost resources during cooldown (Running: {}, MaxQueue: {}), returning to Aggressive mode",
+                        total_running,
+                        total_queue
+                    );
                     *mode = OperationMode::Aggressive;
-                    return true;
-                }
-
-                // Check if cooldown period has passed
-                if Utc::now() >= cooldown_start + self.config.aggressive_mode_cooldown {
+                } else if Utc::now() >= cooldown_start + self.config.aggressive_mode_cooldown {
                     tracing::info!(
                         "Aggressive mode cooldown complete after having sufficient resources for {:?}, returning to Regular mode",
                         self.config.aggressive_mode_cooldown
                     );
                     *mode = OperationMode::Regular;
-                    return false;
-                }
-
-                // Still in cooldown with enough resources
-                true
-            }
-        }
-    }
-
-    /// Update operation mode based on current resource availability
-    fn update_operation_mode(&self, total_running: usize, queue: usize) {
-        let mut mode = self
-            .operation_mode
-            .lock()
-            .expect("operation_mode mutex is poisoned");
-
-        match *mode {
-            OperationMode::Aggressive => {
-                if total_running >= queue {
-                    // Got enough resources - start cooldown
-                    let now = Utc::now();
-                    tracing::info!(
-                        "Resources obtained (Running: {}, Queue: {}), entering AggressiveCooldown mode",
-                        total_running,
-                        queue
-                    );
-                    *mode = OperationMode::AggressiveCooldown(now);
                 } else {
                     tracing::debug!(
-                        "Still need more resources (Running: {}, Queue: {})",
+                        "AggressiveCooldown continues (Running: {}, MaxQueue: {})",
                         total_running,
-                        queue
+                        total_queue
                     );
                 }
-            }
-            OperationMode::AggressiveCooldown(_) => {
-                // Just log that we're still in cooldown
-                tracing::debug!(
-                    "AggressiveCooldown mode continues (Running: {}, Queue: {})",
-                    total_running,
-                    queue
-                );
-            }
-            OperationMode::Regular => {
-                // Nothing to update in regular mode
             }
         }
     }
@@ -592,13 +573,8 @@ impl<K: Key> Scaler<K> {
             total_capacity += self.pods_to_speed(cluster.key, total_in_pool);
         }
 
-        // Update operation mode based on resource availability.
-        // Skip for namespaces with no queue — a zero-queue namespace
-        // would falsely trigger cooldown (running >= 0) and exit
-        // aggressive mode that another namespace still needs.
-        if queue > 0 {
-            self.update_operation_mode(total_running, queue);
-        }
+        // Mode transitions are handled by evaluate_aggressive_mode()
+        // in the manager, not here.
 
         tracing::info!(
             "Aggressive mode: Running capacity = {}, Total capacity (Running+Pending) = {}, Queue = {}",
@@ -727,7 +703,7 @@ impl<K: Key> Scaler<K> {
             }
         }
 
-        if self.is_aggressive_mode(&sorted_clusters, total_running, queue) {
+        if self.is_aggressive() {
             return self.calculate_aggressive(queue, sorted_clusters);
         }
 
@@ -829,6 +805,14 @@ pub trait ScalerTrait {
     fn max_desired_weight(&self) -> Option<usize>;
     fn max_running(&self) -> Option<usize>;
     fn current_running_weight(&self, namespace: &NamespaceName, clusters: &Clusters) -> usize;
+    /// Evaluate aggressive mode using aggregated data from all namespaces.
+    fn evaluate_aggressive_mode(
+        &self,
+        namespaces: &[NamespaceName],
+        clusters: &Clusters,
+        total_running: usize,
+        total_queue: usize,
+    );
     fn run(
         &self,
         namespace: &NamespaceName,
@@ -854,6 +838,21 @@ impl<K: Key> ScalerTrait for Scaler<K> {
     }
     fn current_running_weight(&self, namespace: &NamespaceName, clusters: &Clusters) -> usize {
         Scaler::current_running_weight(self, namespace, clusters)
+    }
+
+    fn evaluate_aggressive_mode(
+        &self,
+        namespaces: &[NamespaceName],
+        clusters: &Clusters,
+        total_running: usize,
+        total_queue: usize,
+    ) {
+        // Collect pools from all namespaces for the error-percentage check.
+        let all_pools: Vec<_> = namespaces
+            .iter()
+            .flat_map(|ns| self.sorted_clusters(ns, clusters))
+            .collect();
+        self.evaluate_aggressive_mode_inner(&all_pools, total_running, total_queue);
     }
 
     fn run(
@@ -2531,6 +2530,12 @@ mod tests {
         };
 
         // 2 out of 4 pools have errors = 50%, should trigger aggressive mode
+        // Force aggressive mode (normally set by manager via evaluate_aggressive_mode).
+        {
+            let mut mode = scaler.operation_mode.lock().unwrap();
+            *mode = OperationMode::Aggressive;
+        }
+
         let result = scaler.calculate(&"prover".into(), 6000, &clusters);
 
         // In aggressive mode, should request pods from ALL pools
@@ -2662,6 +2667,12 @@ mod tests {
             .into(),
             ..Default::default()
         };
+
+        // Force aggressive mode (normally set by manager via evaluate_aggressive_mode).
+        {
+            let mut mode = scaler.operation_mode.lock().unwrap();
+            *mode = OperationMode::Aggressive;
+        }
 
         // Queue needs 6000, H100s provide 2*3000 = 6000 (sufficient!)
         let result = scaler.calculate(&"prover".into(), 6000, &clusters);
@@ -2897,6 +2908,12 @@ mod tests {
         };
 
         // 2 out of 4 pools have errors (50%), should trigger aggressive mode
+        // Force aggressive mode (normally set by manager via evaluate_aggressive_mode).
+        {
+            let mut mode = scaler.operation_mode.lock().unwrap();
+            *mode = OperationMode::Aggressive;
+        }
+
         let result = scaler.calculate(&"prover".into(), 6000, &clusters);
 
         // Should request from H100 (fallback) since L4s have errors
@@ -3016,6 +3033,12 @@ mod tests {
             .into(),
             ..Default::default()
         };
+
+        // Force aggressive mode (normally set by manager via evaluate_aggressive_mode).
+        {
+            let mut mode = scaler.operation_mode.lock().unwrap();
+            *mode = OperationMode::Aggressive;
+        }
 
         let result = scaler.calculate(&"prover".into(), 3000, &clusters);
 

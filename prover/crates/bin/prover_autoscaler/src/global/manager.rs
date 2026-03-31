@@ -152,27 +152,33 @@ impl Task for Manager {
                     q_b.cmp(q_a).then_with(|| ns_a.cmp(ns_b))
                 });
 
-                // Compute total running weight across all namespaces.
+                // Compute aggregated metrics across all namespaces.
                 let total_running_weight: usize = namespace_queues
                     .iter()
                     .map(|(ns, _, _)| scaler.current_running_weight(ns, &guard.clusters))
                     .sum();
+                let total_queue: usize = namespace_queues.iter().map(|(_, _, q)| *q).sum();
+                let all_namespaces: Vec<_> = namespace_queues
+                    .iter()
+                    .map(|(ns, _, _)| ns.clone())
+                    .collect();
 
-                // Determine cap mode based on total running weight:
-                // - running < max: no cap, scale freely
-                // - running >= max: freeze each pool at its current running
-                //   (kills Pending, preserves Running, keeps GCE nodes alive)
+                // Evaluate aggressive mode once with the worst-case view.
+                scaler.evaluate_aggressive_mode(
+                    &all_namespaces,
+                    &guard.clusters,
+                    total_running_weight,
+                    total_queue,
+                );
+
+                // Determine cap mode based on total running weight.
                 let cap_mode = scaler.max_running().and_then(|max_running| {
                     let max_with_burst = scaler.max_desired_weight().unwrap_or(max_running);
                     if total_running_weight >= max_with_burst {
-                        // Over hard limit — freeze at running, then scale down
-                        // Running from lowest priority until total <= max+burst.
                         Some(CapMode::ScaleDown {
                             target_weight: max_with_burst,
                         })
                     } else if total_running_weight >= max_running {
-                        // At or above max — freeze each pool at its running count.
-                        // Kills Pending, preserves Running, keeps GCE nodes alive.
                         Some(CapMode::FreezeAtRunning)
                     } else {
                         None
