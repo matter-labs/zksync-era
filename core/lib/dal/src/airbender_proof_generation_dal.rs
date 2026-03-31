@@ -34,10 +34,6 @@ pub enum AirbenderProofGenerationJobStatus {
     /// period, as defined in the configuration.
     #[strum(serialize = "failed")]
     Failed,
-    /// The batch will not be processed again because the proof generation has been failing for an
-    /// extended period, as specified in the configuration.
-    #[strum(serialize = "permanently_ignored")]
-    PermanentlyIgnored,
 }
 
 /// Represents a locked batch picked by an Airbender prover. A batch is locked when taken by an Airbender prover

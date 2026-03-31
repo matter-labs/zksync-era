@@ -9,14 +9,10 @@ pub struct AirbenderProofDataHandlerConfig {
     /// All batches before this one are considered to be processed.
     #[config(default, with = Serde![int])]
     pub first_processed_batch: L1BatchNumber,
-    /// Timeout in seconds for retrying the preparation of input for Airbender proof generation if it
-    /// previously failed (e.g., due to a transient network issue) or if it was picked by a TEE
-    /// prover but the Airbender proof was not submitted within that time.
+    /// Timeout for retrying proof generation if it previously failed or if it was picked by a
+    /// prover but the proof was not submitted within that time.
     #[config(default_t = 1 * TimeUnit::Minutes)]
     pub proof_generation_timeout: Duration,
-    /// Timeout in hours after which a batch will be permanently ignored if repeated retries failed.
-    #[config(default_t = 10 * TimeUnit::Days)]
-    pub batch_permanently_ignored_timeout: Duration,
 }
 
 #[cfg(test)]
@@ -30,7 +26,6 @@ mod tests {
             http_port: 4320,
             first_processed_batch: L1BatchNumber(123),
             proof_generation_timeout: Duration::from_secs(90),
-            batch_permanently_ignored_timeout: 5 * TimeUnit::Days,
         }
     }
 
@@ -40,7 +35,6 @@ mod tests {
           http_port: 4320
           first_processed_batch: 123
           proof_generation_timeout_in_secs: 90
-          batch_permanently_ignored_timeout_in_hours: 120
         "#;
         let yaml = serde_yaml::from_str(yaml).unwrap();
         let yaml = Yaml::new("test.yml", yaml).unwrap();
@@ -55,7 +49,6 @@ mod tests {
           http_port: 4320
           first_processed_batch: 123
           proof_generation_timeout: 90s
-          batch_permanently_ignored_timeout: 5 days
         "#;
         let yaml = serde_yaml::from_str(yaml).unwrap();
         let yaml = Yaml::new("test.yml", yaml).unwrap();

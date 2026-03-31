@@ -150,7 +150,6 @@ data_handler:
 airbender_proof_data_handler:
   http_port: 4320
   proof_generation_timeout_in_secs: 60
-  batch_permanently_ignored_timeout_in_hours: 240
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 15
