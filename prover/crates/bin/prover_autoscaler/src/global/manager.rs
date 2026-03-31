@@ -152,11 +152,12 @@ impl Task for Manager {
                     q_b.cmp(q_a).then_with(|| ns_a.cmp(ns_b))
                 });
 
-                // Compute aggregated metrics across all namespaces.
-                let total_running_weight: usize = namespace_queues
+                // Compute per-namespace running weights and aggregate.
+                let ns_running_weights: Vec<usize> = namespace_queues
                     .iter()
                     .map(|(ns, _, _)| scaler.current_running_weight(ns, &guard.clusters))
-                    .sum();
+                    .collect();
+                let total_running_weight: usize = ns_running_weights.iter().sum();
                 let total_queue: usize = namespace_queues.iter().map(|(_, _, q)| *q).sum();
                 let all_namespaces: Vec<_> = namespace_queues
                     .iter()
@@ -185,13 +186,20 @@ impl Task for Manager {
                     }
                 });
 
-                for (ns, _ppv, q) in &namespace_queues {
+                for (i, (ns, _ppv, q)) in namespace_queues.iter().enumerate() {
                     tracing::debug!(
                         "Running eval for namespace {ns}, scaler {} found queue {q}, total_running_weight {total_running_weight}, cap_mode {:?}",
                         scaler.deployment(),
                         cap_mode
                     );
-                    scaler.run(ns, *q, &guard.clusters, &mut scale_requests, cap_mode);
+                    scaler.run(
+                        ns,
+                        *q,
+                        &guard.clusters,
+                        &mut scale_requests,
+                        cap_mode,
+                        ns_running_weights[i],
+                    );
                 }
             }
         } // Unlock self.watcher.data.

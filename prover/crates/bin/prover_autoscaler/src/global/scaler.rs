@@ -818,6 +818,7 @@ pub trait ScalerTrait {
         clusters: &Clusters,
         requests: &mut HashMap<ClusterName, ScaleRequest>,
         cap_mode: Option<CapMode>,
+        ns_running_weight: usize,
     );
 }
 
@@ -860,9 +861,10 @@ impl<K: Key> ScalerTrait for Scaler<K> {
         clusters: &Clusters,
         requests: &mut HashMap<ClusterName, ScaleRequest>,
         cap_mode: Option<CapMode>,
+        ns_running_weight: usize,
     ) {
         let mut replicas = self.calculate(namespace, queue, clusters);
-        let running_weight = self.current_running_weight(namespace, clusters);
+        let running_weight = ns_running_weight;
         let sorted_clusters = self.sorted_clusters(namespace, clusters);
 
         // Apply cap if set by the manager.
@@ -1524,7 +1526,7 @@ mod tests {
 
         // running < max → manager passes None (no cap). Scale freely.
         let mut requests = HashMap::new();
-        scaler.run(&"prover".into(), 5000, &clusters, &mut requests, None);
+        scaler.run(&"prover".into(), 5000, &clusters, &mut requests, None, 0);
         assert!(!requests.is_empty(), "Should scale freely with no cap");
     }
 
@@ -1566,7 +1568,7 @@ mod tests {
 
         // running < max → manager passes None. Desired is uncapped.
         let mut requests = HashMap::new();
-        scaler.run(&"prover".into(), 5000, &clusters, &mut requests, None);
+        scaler.run(&"prover".into(), 5000, &clusters, &mut requests, None, 0);
         assert!(!requests.is_empty(), "Should scale freely when under max");
 
         // FreezeAtRunning → desired capped to running per pool.
@@ -1578,6 +1580,7 @@ mod tests {
             &clusters,
             &mut requests,
             Some(CapMode::FreezeAtRunning),
+            0,
         );
         // No running pods → all desired frozen to 0 → no scale request.
 
@@ -1589,6 +1592,7 @@ mod tests {
             &clusters,
             &mut requests,
             Some(CapMode::ScaleDown { target_weight: 500 }),
+            0,
         );
     }
 
