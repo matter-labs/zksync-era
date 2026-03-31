@@ -206,13 +206,17 @@ impl<K: Key> Scaler<K> {
             .flat_map(|c| self.convert_to_pool(namespace, c))
             .collect();
 
-        // If a pool has NeedToMove pod, max_pool_size is set to number of Running+Pending pods.
+        // If a pool has NeedToMove or LongPending pods, cap max_pool_size to
+        // Running + Pending (excluding LongPending/NeedToMove). This forces
+        // the regular allocation path to overflow to the next priority pool.
         for pool in &mut pools {
-            if pool.sum_by_pod_status(PodStatus::NeedToMove) > 0 {
+            if pool.sum_by_pod_status(PodStatus::NeedToMove) > 0
+                || pool.sum_by_pod_status(PodStatus::LongPending) > 0
+            {
                 pool.max_pool_size = pool.sum_by_pod_status(PodStatus::Running)
                     + pool.sum_by_pod_status(PodStatus::Pending);
                 tracing::debug!(
-                    "Pool {}:{:?} has NeedToMove pods, max_pool_size adjusted to {}",
+                    "Pool {}:{:?} has stuck pods, max_pool_size adjusted to {}",
                     pool.name,
                     pool.key,
                     pool.max_pool_size
