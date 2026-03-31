@@ -36,16 +36,15 @@ struct EventMatcher {
 /// server-side filtered watch stream (`fieldSelector=involvedObject.kind=Pod,reason=<reason>`)
 /// so that the initial LIST only fetches relevant events instead of the full
 /// namespace event history.
-const GPU_EVENT_MATCHERS: &[EventMatcher] = &[
-    EventMatcher {
-        reason: "FailedScheduling",
-        message_contains: "Insufficient nvidia.com/gpu",
-    },
-    EventMatcher {
-        reason: "FailedScaleUp",
-        message_contains: "GCE out of resources",
-    },
-];
+///
+/// FailedScaleUp with "GCE out of resources" is the definitive signal that
+/// GPU nodes are unavailable — the cluster autoscaler tried to provision a
+/// node and GCE refused. This sets pod.out_of_resources (sticky) which caps
+/// the pool and triggers aggressive mode.
+const GPU_EVENT_MATCHERS: &[EventMatcher] = &[EventMatcher {
+    reason: "FailedScaleUp",
+    message_contains: "GCE out of resources",
+}];
 
 #[derive(Clone)]
 pub struct Watcher {
