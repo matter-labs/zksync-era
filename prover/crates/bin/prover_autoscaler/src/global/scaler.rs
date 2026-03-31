@@ -684,16 +684,12 @@ impl<K: Key> Scaler<K> {
         };
 
         let mut total: i64 = 0;
-        let mut total_running: usize = 0;
         let mut pods: HashMap<PoolKey<K>, usize> = HashMap::new();
         for cluster in &sorted_clusters {
             for (status, replicas) in &cluster.pods {
                 match status {
                     PodStatus::Running | PodStatus::Pending => {
                         total += self.pods_to_speed(cluster.key, *replicas) as i64;
-                        if *status == PodStatus::Running {
-                            total_running += self.pods_to_speed(cluster.key, *replicas);
-                        }
                         pods.entry(cluster.to_key())
                             .and_modify(|x| *x += replicas)
                             .or_insert(*replicas);
