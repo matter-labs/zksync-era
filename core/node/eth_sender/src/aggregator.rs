@@ -441,7 +441,7 @@ impl Aggregator {
             &mut self.execute_criteria,
             ready_for_execute_batches,
             last_sealed_l1_batch,
-            self.settlement_layer.is_gateway(),
+            is_gateway,
         )
         .await
         else {

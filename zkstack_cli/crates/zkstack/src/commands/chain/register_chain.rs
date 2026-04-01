@@ -75,11 +75,6 @@ pub async fn register_chain(
     let register_chain_contract = BaseContract::from(IREGISTERZKCHAINABI_ABI.clone());
 
     let ctm = contracts.ctm(chain_config.vm_option);
-    println!("ctm: {:?}", ctm.state_transition_proxy_addr);
-    println!(
-        "chain_config.chain_id: {:?}",
-        chain_config.chain_id.as_u64()
-    );
     let calldata = register_chain_contract
         .encode(
             "run",

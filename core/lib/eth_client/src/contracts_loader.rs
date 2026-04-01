@@ -231,7 +231,15 @@ pub async fn get_zk_chain_on_chain_params(
             })?)
         }
         [Token::Address(_), Token::Address(_)] => Some(L2DACommitmentScheme::None),
-        [Token::Address(_), Token::Uint(_)] => Some(L2DACommitmentScheme::None),
+        [Token::Address(_), Token::Uint(raw)] => {
+            return Err(ContractCallError::DetokenizeOutput {
+                signature: func.signature(),
+                output: output_tokens.clone(),
+                source: web3::contract::Error::InvalidOutputType(format!(
+                    "Invalid L2DACommitmentScheme for Era (out of u8 range): {raw}"
+                )),
+            });
+        }
         _ => {
             return Err(ContractCallError::DetokenizeOutput {
                 signature: func.signature(),

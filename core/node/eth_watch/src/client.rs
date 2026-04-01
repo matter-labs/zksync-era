@@ -455,6 +455,8 @@ where
             return Ok(vec![]);
         };
 
+        let to_block = self.client.block_number().await?;
+
         let from_block = self
             .block_for_diamond_cut_for_version(from_version.pack())
             .await
@@ -478,7 +480,7 @@ where
         let logs = self
             .get_events_inner(
                 from_block.into(),
-                from_block.into(),
+                to_block.into(),
                 Some(vec![self.new_upgrade_cut_data_signature]),
                 None,
                 Some(vec![state_transition_manager_address]),
