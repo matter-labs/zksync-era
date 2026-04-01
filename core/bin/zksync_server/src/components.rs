@@ -75,7 +75,7 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
-            "airbender_proof_data_handler" => {
+            "airbender_proof_data_handler" | "tee_proof_data_handler" => {
                 Ok(Components(vec![Component::AirbenderProofDataHandler]))
             }
             "consensus" => Ok(Components(vec![Component::Consensus])),
