@@ -1,2 +1,3 @@
-ALTER TABLE airbender_proof_generation_details RENAME TO tee_proof_generation_details;
-ALTER TABLE airbender_attestations RENAME TO tee_attestations;
+DROP INDEX IF EXISTS idx_airbender_proof_generation_details_status_prover_taken_at;
+DROP TABLE IF EXISTS airbender_proof_generation_details;
+DROP TABLE IF EXISTS airbender_attestations;
