@@ -382,7 +382,6 @@ impl MainNodeBuilder {
     fn add_airbender_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(AirbenderProofDataHandlerLayer::new(
             try_load_config!(self.configs.airbender_proof_data_handler_config),
-            self.genesis_config.l1_batch_commit_data_generator_mode,
             self.genesis_config.l2_chain_id,
         ));
         Ok(self)

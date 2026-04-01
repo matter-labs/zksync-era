@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                p.l1_batch_number\n            FROM\n                proof_generation_details p\n            LEFT JOIN\n                airbender_proof_generation_details apgd\n                ON\n                    p.l1_batch_number = apgd.l1_batch_number\n            WHERE\n                (\n                    p.l1_batch_number >= $4\n                    AND p.vm_run_data_blob_url IS NOT NULL\n                    AND p.proof_gen_data_blob_url IS NOT NULL\n                )\n                AND (\n                    apgd.l1_batch_number IS NULL\n                    OR (\n                        (apgd.status = $1 OR apgd.status = $2)\n                        AND apgd.prover_taken_at < NOW() - $3::INTERVAL\n                    )\n                )\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Interval",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b906d4af69bd43c5ceda5235b601155fd9c0c6c2510075cd58de4a45687fa53b"
+}
