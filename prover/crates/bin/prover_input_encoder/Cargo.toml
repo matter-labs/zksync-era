@@ -1,0 +1,17 @@
+[package]
+name = "zksync_prover_input_encoder"
+description = "Encodes airbender verifier input into packed words"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+bincode.workspace = true
+zksync_airbender_prover_interface = { path = "../../../../core/lib/airbender_prover_interface" }
