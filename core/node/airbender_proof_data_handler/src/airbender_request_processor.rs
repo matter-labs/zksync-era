@@ -49,8 +49,9 @@ impl AirbenderRequestProcessor {
         tracing::info!("Received request for proof generation data");
 
         let min_batch_number = self.config.first_processed_batch;
+        const MAX_ATTEMPTS: usize = 5;
 
-        loop {
+        for attempt in 0..MAX_ATTEMPTS {
             let Some(locked_batch) = self.lock_batch_for_proving(min_batch_number).await? else {
                 return Ok(None); // no job available
             };
@@ -75,9 +76,11 @@ impl AirbenderRequestProcessor {
                     self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
                         .await?;
                     tracing::warn!(
-                        "Data not available on GCS for batch {} created at {}: {context}",
+                        "Data not available on GCS for batch {} created at {} (attempt {}/{}): {context}",
                         batch_number,
-                        locked_batch.created_at
+                        locked_batch.created_at,
+                        attempt + 1,
+                        MAX_ATTEMPTS,
                     );
                     continue; // try the next batch
                 }
@@ -88,6 +91,9 @@ impl AirbenderRequestProcessor {
                 }
             }
         }
+
+        tracing::warn!("Exhausted {MAX_ATTEMPTS} attempts to find a batch with available GCS data");
+        Ok(None)
     }
 
     #[tracing::instrument(skip(self))]
