@@ -206,18 +206,20 @@ impl<K: Key> Scaler<K> {
             .flat_map(|c| self.convert_to_pool(namespace, c))
             .collect();
 
-        // If a pool has NeedToMove pods (out_of_resources from FailedScheduling),
-        // cap max_pool_size to Running+Pending. This forces the regular allocation
-        // path to overflow to the next priority pool. NeedToMove pods convert back
-        // to Running when they get scheduled, naturally uncapping the pool.
-        // Note: LongPending is NOT used for capping — LongPending pods never
-        // convert back, so the pool would stay capped forever.
+        // If a pool has NeedToMove or LongPending pods, cap max_pool_size to
+        // Running + Pending (fresh pods only, excluding stuck ones). This forces
+        // the regular allocation path to overflow to the next priority pool.
+        // When stuck pods get scheduled (become Running), they're no longer
+        // NeedToMove/LongPending, so Running count increases and the pool
+        // naturally uncaps.
         for pool in &mut pools {
-            if pool.sum_by_pod_status(PodStatus::NeedToMove) > 0 {
+            if pool.sum_by_pod_status(PodStatus::NeedToMove) > 0
+                || pool.sum_by_pod_status(PodStatus::LongPending) > 0
+            {
                 pool.max_pool_size = pool.sum_by_pod_status(PodStatus::Running)
                     + pool.sum_by_pod_status(PodStatus::Pending);
                 tracing::debug!(
-                    "Pool {}:{:?} has NeedToMove pods, max_pool_size adjusted to {}",
+                    "Pool {}:{:?} has stuck pods, max_pool_size adjusted to {}",
                     pool.name,
                     pool.key,
                     pool.max_pool_size
