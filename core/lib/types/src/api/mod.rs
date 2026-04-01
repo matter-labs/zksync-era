@@ -3,7 +3,6 @@ use chrono::{DateTime, Utc};
 use derive_more::Display;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
-use serde_with::{hex::Hex, serde_as};
 use zksync_basic_types::{
     commitment::PubdataType,
     settlement::SettlementLayer,
@@ -20,7 +19,6 @@ use crate::{
     eth_sender::EthTxFinalityStatus,
     protocol_version::L1VerifierConfig,
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
-    tee_types::TeeType,
     Address, L2BlockNumber, ProtocolVersionId,
 };
 
@@ -1035,22 +1033,13 @@ pub struct Proof {
     pub storage_proof: Vec<StorageProof>,
 }
 
-#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TeeProof {
+pub struct AirbenderProof {
     pub l1_batch_number: L1BatchNumber,
-    pub tee_type: Option<TeeType>,
-    #[serde_as(as = "Option<Hex>")]
-    pub pubkey: Option<Vec<u8>>,
-    #[serde_as(as = "Option<Hex>")]
-    pub signature: Option<Vec<u8>>,
-    #[serde_as(as = "Option<Hex>")]
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
     pub status: String,
-    #[serde_as(as = "Option<Hex>")]
-    pub attestation: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
