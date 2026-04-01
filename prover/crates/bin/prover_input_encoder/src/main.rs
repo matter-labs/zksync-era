@@ -1,5 +1,6 @@
-use clap::Parser;
 use std::path::Path;
+
+use clap::Parser;
 use zksync_airbender_prover_interface::inputs::AirbenderVerifierInput;
 
 const DEFAULT_INPUT_FILE: &str = "proof_input_local.json";
