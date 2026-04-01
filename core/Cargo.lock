@@ -9809,7 +9809,6 @@ checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
  "rand 0.8.5",
  "secp256k1-sys 0.8.1",
- "serde",
 ]
 
 [[package]]
@@ -13535,32 +13534,6 @@ dependencies = [
  "zksync_prover_interface",
  "zksync_types",
  "zksync_vm_executor",
-]
-
-[[package]]
-name = "zksync_airbender_prover"
-version = "29.15.0-non-semver-compat"
-dependencies = [
- "anyhow",
- "async-trait",
- "hex",
- "reqwest 0.12.22",
- "secp256k1 0.27.0",
- "serde",
- "serde_json",
- "smart-config",
- "thiserror 2.0.12",
- "tokio",
- "tracing",
- "url",
- "vise",
- "zksync_airbender_prover_interface",
- "zksync_airbender_verifier",
- "zksync_basic_types",
- "zksync_config",
- "zksync_crypto_primitives",
- "zksync_node_framework",
- "zksync_vlog",
 ]
 
 [[package]]
