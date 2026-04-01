@@ -66,10 +66,11 @@ const DEFAULT_INSTANCE_METADATA_BASE_URL: &str =
 impl AppConfig {
     fn full_schema() -> ConfigSchema {
         // `unwrap()`s are safe; we know that config locations don't conflict
-        let mut schema =
-            ConfigSchema::new(&AirbenderProverSigConfig::DESCRIPTION, "airbender_prover");
+        // Keep "tee_prover" as the mount point so existing TEE_PROVER_* environment
+        // variables continue to work in deployed environments.
+        let mut schema = ConfigSchema::new(&AirbenderProverSigConfig::DESCRIPTION, "tee_prover");
         schema
-            .insert(&AirbenderProverApiConfig::DESCRIPTION, "airbender_prover")
+            .insert(&AirbenderProverApiConfig::DESCRIPTION, "tee_prover")
             .unwrap()
             .push_alias("prover_api")
             .unwrap();
