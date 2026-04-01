@@ -238,11 +238,15 @@ impl Watcher {
 
                                     // Track how long a deployment has been stuck
                                     // (desired > 0 but running < desired).
+                                    // Only clear when the pool actually recovered
+                                    // (running >= desired with desired > 0). When desired == 0
+                                    // (our scaler capped the pool), keep stuck_since so
+                                    // deployment_stuck survives the cap cycle.
                                     if dep.desired > 0 && dep.running < dep.desired {
                                         if dep.stuck_since.is_none() {
                                             dep.stuck_since = Some(Utc::now());
                                         }
-                                    } else {
+                                    } else if dep.desired > 0 && dep.running >= dep.desired {
                                         dep.stuck_since = None;
                                     }
 
