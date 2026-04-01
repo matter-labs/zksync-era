@@ -40,7 +40,8 @@ impl HttpTest for GetAirbenderProofsTest {
         assert!(proofs.len() == 1);
         let proof = &proofs[0];
         assert!(proof.l1_batch_number == batch_no);
-        assert!(proof.proof_blob_url.as_deref() == Some(proof_blob_url));
+        // proof bytes are None because the test doesn't configure an object store
+        assert!(proof.proof.is_none());
 
         Ok(())
     }

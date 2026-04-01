@@ -1037,7 +1037,7 @@ pub struct Proof {
 #[serde(rename_all = "camelCase")]
 pub struct AirbenderProof {
     pub l1_batch_number: L1BatchNumber,
-    pub proof_blob_url: Option<String>,
+    pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
     pub status: String,
 }

@@ -14691,6 +14691,7 @@ dependencies = [
  "tracing",
  "vise",
  "zk_evm 0.151.8",
+ "zksync_airbender_prover_interface",
  "zksync_circuit_breaker",
  "zksync_config",
  "zksync_consensus_roles",

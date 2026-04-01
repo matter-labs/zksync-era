@@ -3,6 +3,7 @@ use itertools::Itertools;
 use utils::{
     chain_id_leaf_preimage, get_chain_count, get_chain_id_from_index, get_chain_root_from_id,
 };
+use zksync_airbender_prover_interface::outputs::L1BatchAirbenderProofForL1;
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -61,19 +62,36 @@ impl UnstableNamespace {
         l1_batch_number: L1BatchNumber,
     ) -> Result<Vec<AirbenderProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        let proofs = storage
+        let stored_proofs = storage
             .airbender_proof_generation_dal()
             .get_airbender_proofs(l1_batch_number)
             .await
-            .map_err(DalError::generalize)?
-            .into_iter()
-            .map(|proof| AirbenderProof {
+            .map_err(DalError::generalize)?;
+
+        let mut proofs = Vec::with_capacity(stored_proofs.len());
+        for stored in stored_proofs {
+            let proof_data = if stored.proof_blob_url.is_some() {
+                if let Some(object_store) = &self.state.object_store {
+                    let proof_for_l1: L1BatchAirbenderProofForL1 =
+                        object_store.get(l1_batch_number).await.map_err(|e| {
+                            Web3Error::InternalError(anyhow::anyhow!(
+                                "Failed to load airbender proof from GCS: {e}"
+                            ))
+                        })?;
+                    Some(proof_for_l1.proof)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            proofs.push(AirbenderProof {
                 l1_batch_number,
-                proof_blob_url: proof.proof_blob_url,
-                proved_at: DateTime::<Utc>::from_naive_utc_and_offset(proof.updated_at, Utc),
-                status: proof.status,
-            })
-            .collect::<Vec<_>>();
+                proof: proof_data,
+                proved_at: DateTime::<Utc>::from_naive_utc_and_offset(stored.updated_at, Utc),
+                status: stored.status,
+            });
+        }
 
         Ok(proofs)
     }

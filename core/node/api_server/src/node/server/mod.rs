@@ -3,6 +3,7 @@ use std::{collections::HashSet, num::NonZeroU32, sync::Arc, time::Duration};
 use zksync_config::configs::api::{MaxResponseSize, Namespace};
 use zksync_dal::node::{PoolResource, ReplicaPool};
 use zksync_health_check::AppHealthCheck;
+use zksync_object_store::ObjectStore;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -121,6 +122,7 @@ pub struct Input {
     initial_settlement_mode: SettlementModeResource,
     dummy_verifier: DummyVerifierResource,
     l1batch_commitment_mode: L1BatchCommitmentModeResource,
+    object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -247,6 +249,9 @@ impl WiringLayer for Web3ServerLayer {
         }
         if let Some(main_node_client) = input.main_node_client {
             api_builder = api_builder.with_l2_l1_log_proof_handler(main_node_client);
+        }
+        if let Some(object_store) = input.object_store {
+            api_builder = api_builder.with_object_store(object_store);
         }
         api_builder = self.optional_config.apply(api_builder);
 
