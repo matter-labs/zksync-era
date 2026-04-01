@@ -3,13 +3,13 @@ use std::{collections::HashSet, num::NonZeroU32, sync::Arc, time::Duration};
 use zksync_config::configs::api::{MaxResponseSize, Namespace};
 use zksync_dal::node::{PoolResource, ReplicaPool};
 use zksync_health_check::AppHealthCheck;
-use zksync_object_store::ObjectStore;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_object_store::ObjectStore;
 use zksync_shared_resources::{
     api::{BridgeAddressesHandle, SyncState},
     contracts::{L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource},
