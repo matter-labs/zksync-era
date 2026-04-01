@@ -3,10 +3,8 @@ use std::sync::Arc;
 use axum::{extract::Path, Json};
 use chrono::Utc;
 use zksync_airbender_prover_interface::{
-    api::{
-        AirbenderProofGenerationDataResponse, SubmitAirbenderProofRequest,
-        SubmitAirbenderProofResponse,
-    },
+    api::{SubmitAirbenderProofRequest, SubmitAirbenderProofResponse},
+    encoding::encode_input_to_hex,
     inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
     outputs::L1BatchAirbenderProofForL1,
 };
@@ -47,7 +45,7 @@ impl AirbenderRequestProcessor {
 
     pub(crate) async fn get_proof_generation_data(
         &self,
-    ) -> Result<Option<Json<AirbenderProofGenerationDataResponse>>, AirbenderProcessorError> {
+    ) -> Result<Option<String>, AirbenderProcessorError> {
         tracing::info!("Received request for proof generation data");
 
         let min_batch_number = self.config.first_processed_batch;
@@ -61,9 +59,14 @@ impl AirbenderRequestProcessor {
             .airbender_verifier_input_for_existing_batch(batch_number)
             .await
         {
-            Ok(input) => Ok(Some(Json(AirbenderProofGenerationDataResponse(Box::new(
-                input,
-            ))))),
+            Ok(input) => {
+                let hex = encode_input_to_hex(&input).map_err(|err| {
+                    AirbenderProcessorError::GeneralError(format!(
+                        "Failed to encode verifier input for batch {batch_number}: {err}"
+                    ))
+                })?;
+                Ok(Some(hex))
+            }
             Err(AirbenderProcessorError::ObjectStore {
                 source: ObjectStoreError::KeyNotFound(_),
                 context,

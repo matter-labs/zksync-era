@@ -1,7 +1,9 @@
 use std::path::Path;
 
 use clap::Parser;
-use zksync_airbender_prover_interface::inputs::AirbenderVerifierInput;
+use zksync_airbender_prover_interface::{
+    encoding::encode_input_to_hex, inputs::AirbenderVerifierInput,
+};
 
 const DEFAULT_INPUT_FILE: &str = "proof_input_local.json";
 const DEFAULT_OUTPUT_FILE: &str = "encoded_input.txt";
@@ -19,78 +21,20 @@ struct Cli {
     folder: bool,
 }
 
-fn encode_to_words(bytes: &[u8]) -> Result<Vec<u32>, String> {
-    if bytes.len() > u32::MAX as usize {
-        return Err("Encoded input is larger than u32::MAX bytes".to_string());
-    }
-
-    println!("Encoding {} bytes into words", bytes.len());
-
-    let mut words = Vec::with_capacity(1 + (bytes.len() + 3) / 4);
-    words.push(bytes.len() as u32);
-
-    for chunk in bytes.chunks(4) {
-        let mut buf = [0u8; 4];
-        buf[..chunk.len()].copy_from_slice(chunk);
-        words.push(u32::from_be_bytes(buf));
-    }
-
-    Ok(words)
-}
-
-#[cfg(test)]
-fn decode_from_words(words: &[u32]) -> Result<Vec<u8>, String> {
-    if words.is_empty() {
-        return Err("No words provided".to_string());
-    }
-
-    let byte_len = words[0] as usize;
-    let available = words.len().saturating_sub(1) * 4;
-    if byte_len > available {
-        return Err(format!(
-            "Declared length {} exceeds available bytes {}",
-            byte_len, available
-        ));
-    }
-
-    let mut bytes = Vec::with_capacity(byte_len);
-    for word in &words[1..] {
-        bytes.extend_from_slice(&word.to_be_bytes());
-    }
-    bytes.truncate(byte_len);
-    Ok(bytes)
-}
-
 fn encode_single_file(input_file: &Path, output_file: &Path) -> Result<(), String> {
     let json_input = std::fs::read_to_string(input_file)
         .map_err(|err| format!("Failed to read input file {}: {err}", input_file.display()))?;
     let verifier_input: AirbenderVerifierInput = serde_json::from_str(&json_input)
         .map_err(|err| format!("Failed to parse JSON input {}: {err}", input_file.display()))?;
 
-    let encoded_input = bincode::serialize(&verifier_input).map_err(|err| {
-        format!(
-            "Failed to serialize verifier input {}: {err}",
-            input_file.display()
-        )
-    })?;
+    let hex = encode_input_to_hex(&verifier_input)?;
 
-    let words = encode_to_words(&encoded_input)?;
-    let output = std::fs::File::create(output_file).map_err(|err| {
+    std::fs::write(output_file, hex).map_err(|err| {
         format!(
-            "Failed to create output file {}: {err}",
+            "Failed to write output file {}: {err}",
             output_file.display()
         )
     })?;
-    let mut writer = std::io::BufWriter::new(output);
-    for word in words {
-        use std::io::Write;
-        write!(writer, "{:08x}", word).map_err(|err| {
-            format!(
-                "Failed to write output word to {}: {err}",
-                output_file.display()
-            )
-        })?;
-    }
 
     Ok(())
 }
@@ -158,30 +102,14 @@ fn encode_missing_from_folders(input_folder: &Path, output_folder: &Path) -> Res
                     panic!("Failed to parse JSON input {}: {err}", input_path.display())
                 });
 
-            let encoded_input = bincode::serialize(&verifier_input).unwrap_or_else(|err| {
-                panic!(
-                    "Failed to serialize verifier input {}: {err}",
-                    input_path.display()
-                )
-            });
+            let hex = encode_input_to_hex(&verifier_input).unwrap();
 
-            let words = encode_to_words(&encoded_input).unwrap();
-            let output = std::fs::File::create(&output_path).unwrap_or_else(|err| {
+            std::fs::write(&output_path, hex).unwrap_or_else(|err| {
                 panic!(
-                    "Failed to create output file {}: {err}",
+                    "Failed to write output file {}: {err}",
                     output_path.display()
                 )
             });
-            let mut writer = std::io::BufWriter::new(output);
-            for word in words {
-                use std::io::Write;
-                write!(writer, "{:08x}", word).unwrap_or_else(|err| {
-                    panic!(
-                        "Failed to write output word to {}: {err}",
-                        output_path.display()
-                    )
-                });
-            }
         });
 
         handles.push(handle);
@@ -209,7 +137,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_from_words, encode_to_words};
+    use zksync_airbender_prover_interface::encoding::{decode_from_words, encode_to_words};
 
     #[test]
     fn encode_decode_roundtrip_with_padding() {
