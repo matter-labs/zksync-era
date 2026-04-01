@@ -22,7 +22,7 @@ impl fmt::Debug for L1BatchAirbenderProofForL1 {
 }
 
 impl StoredObject for L1BatchAirbenderProofForL1 {
-    const BUCKET: Bucket = Bucket::ProofsTee;
+    const BUCKET: Bucket = Bucket::ProofsAirbender;
     type Key<'a> = L1BatchNumber;
 
     fn encode_key(key: Self::Key<'_>) -> String {
