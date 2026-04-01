@@ -50,40 +50,42 @@ impl AirbenderRequestProcessor {
 
         let min_batch_number = self.config.first_processed_batch;
 
-        let Some(locked_batch) = self.lock_batch_for_proving(min_batch_number).await? else {
-            return Ok(None); // no job available
-        };
-        let batch_number = locked_batch.l1_batch_number;
+        loop {
+            let Some(locked_batch) = self.lock_batch_for_proving(min_batch_number).await? else {
+                return Ok(None); // no job available
+            };
+            let batch_number = locked_batch.l1_batch_number;
 
-        match self
-            .airbender_verifier_input_for_existing_batch(batch_number)
-            .await
-        {
-            Ok(input) => {
-                let hex = encode_input_to_hex(&input).map_err(|err| {
-                    AirbenderProcessorError::GeneralError(format!(
-                        "Failed to encode verifier input for batch {batch_number}: {err}"
-                    ))
-                })?;
-                Ok(Some(hex))
-            }
-            Err(AirbenderProcessorError::ObjectStore {
-                source: ObjectStoreError::KeyNotFound(_),
-                context,
-            }) => {
-                self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
-                    .await?;
-                tracing::warn!(
-                    "Data not available on GCS for batch {} created at {}: {context}",
-                    batch_number,
-                    locked_batch.created_at
-                );
-                Ok(None)
-            }
-            Err(err) => {
-                self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
-                    .await?;
-                Err(err)
+            match self
+                .airbender_verifier_input_for_existing_batch(batch_number)
+                .await
+            {
+                Ok(input) => {
+                    let hex = encode_input_to_hex(&input).map_err(|err| {
+                        AirbenderProcessorError::GeneralError(format!(
+                            "Failed to encode verifier input for batch {batch_number}: {err}"
+                        ))
+                    })?;
+                    return Ok(Some(hex));
+                }
+                Err(AirbenderProcessorError::ObjectStore {
+                    source: ObjectStoreError::KeyNotFound(_),
+                    context,
+                }) => {
+                    self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
+                        .await?;
+                    tracing::warn!(
+                        "Data not available on GCS for batch {} created at {}: {context}",
+                        batch_number,
+                        locked_batch.created_at
+                    );
+                    continue; // try the next batch
+                }
+                Err(err) => {
+                    self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
+                        .await?;
+                    return Err(err);
+                }
             }
         }
     }

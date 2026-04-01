@@ -59,6 +59,11 @@ impl AirbenderProofGenerationDal<'_, '_> {
         let min_batch_number = i64::from(min_batch_number.0);
         let mut transaction = self.storage.start_transaction().await?;
 
+        sqlx::query!("LOCK TABLE airbender_proof_generation_details IN EXCLUSIVE MODE")
+            .instrument("lock_batch_for_proving#lock")
+            .execute(&mut transaction)
+            .await?;
+
         let batch_number = sqlx::query!(
             r#"
             SELECT
