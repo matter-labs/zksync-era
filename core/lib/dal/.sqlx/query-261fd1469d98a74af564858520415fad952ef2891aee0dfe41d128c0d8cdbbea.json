@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "LOCK TABLE airbender_proof_generation_details IN EXCLUSIVE MODE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "261fd1469d98a74af564858520415fad952ef2891aee0dfe41d128c0d8cdbbea"
+}
