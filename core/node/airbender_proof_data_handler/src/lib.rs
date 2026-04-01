@@ -2,7 +2,13 @@ use std::{net::SocketAddr, sync::Arc};
 
 use airbender_request_processor::AirbenderRequestProcessor;
 use anyhow::Context as _;
-use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
+use axum::{
+    extract::Path,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+    Json, Router,
+};
 use tokio::sync::watch;
 use zksync_airbender_prover_interface::api::SubmitAirbenderProofRequest;
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
@@ -50,18 +56,18 @@ fn create_proof_processing_router(
     config: AirbenderProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
 ) -> Router {
-    let get_airbender_proof_gen_processor =
+    let processor =
         AirbenderRequestProcessor::new(blob_store, connection_pool, config.clone(), l2_chain_id);
-    let submit_airbender_proof_processor = get_airbender_proof_gen_processor.clone();
+    let get_processor = processor.clone();
+    let get_batch_processor = processor.clone();
+    let submit_processor = processor.clone();
 
     let router =
         Router::new()
             .route(
                 "/airbender/proof_inputs",
                 post(move || async move {
-                    let result = get_airbender_proof_gen_processor
-                        .get_proof_generation_data()
-                        .await;
+                    let result = get_processor.get_proof_generation_data().await;
 
                     match result {
                         Ok(Some(data)) => (StatusCode::OK, data).into_response(),
@@ -71,11 +77,19 @@ fn create_proof_processing_router(
                 }),
             )
             .route(
+                "/airbender/proof_inputs/{l1_batch_number}",
+                get(move |l1_batch_number: Path<u32>| async move {
+                    get_batch_processor
+                        .get_proof_generation_data_for_batch(l1_batch_number)
+                        .await
+                }),
+            )
+            .route(
                 "/airbender/submit_proofs/{l1_batch_number}",
                 post(
                     move |l1_batch_number: Path<u32>,
                           payload: Json<SubmitAirbenderProofRequest>| async move {
-                        submit_airbender_proof_processor
+                        submit_processor
                             .submit_proof(l1_batch_number, payload)
                             .await
                     },

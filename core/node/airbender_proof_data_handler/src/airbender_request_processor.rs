@@ -193,6 +193,24 @@ impl AirbenderRequestProcessor {
         Ok(())
     }
 
+    pub(crate) async fn get_proof_generation_data_for_batch(
+        &self,
+        Path(l1_batch_number): Path<u32>,
+    ) -> Result<String, AirbenderProcessorError> {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
+        tracing::info!("Received request for proof generation data for batch {l1_batch_number}");
+
+        let input = self
+            .airbender_verifier_input_for_existing_batch(l1_batch_number)
+            .await?;
+        let hex = encode_input_to_hex(&input).map_err(|err| {
+            AirbenderProcessorError::GeneralError(format!(
+                "Failed to encode verifier input for batch {l1_batch_number}: {err}"
+            ))
+        })?;
+        Ok(hex)
+    }
+
     pub(crate) async fn submit_proof(
         &self,
         Path(l1_batch_number): Path<u32>,
