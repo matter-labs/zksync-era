@@ -186,7 +186,6 @@ impl BlocksDal<'_, '_> {
                 pubdata_limit,
                 settlement_layer_type,
                 settlement_layer_chain_id
-            
             FROM
                 l1_batches
             ORDER BY
@@ -248,6 +247,8 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<U256>> {
+        let instrumentation =
+            Instrumented::new("get_l1_batch_interop_fee_if_sealed").with_arg("number", &number);
         let row = sqlx::query!(
             r#"
             SELECT
@@ -265,7 +266,14 @@ impl BlocksDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        Ok(row.map(|row| U256::from(row.interop_fee as u64)))
+        let interop_fee = row
+            .map(|row| {
+                u64::try_from(row.interop_fee)
+                    .map(U256::from)
+                    .map_err(|err| instrumentation.arg_error("interop_fee", err))
+            })
+            .transpose()?;
+        Ok(interop_fee)
     }
 
     /// Returns latest sealed L1 batch header. Returns `None` if there are no sealed batches.
@@ -1047,9 +1055,21 @@ impl BlocksDal<'_, '_> {
         unsealed_batch_header: UnsealedL1BatchHeader,
         conn: &mut Connection<'_, Core>,
     ) -> DalResult<()> {
+        let instrumentation =
+            Instrumented::new("insert_l1_batch").with_arg("number", &unsealed_batch_header.number);
         let (settlement_layer_type, settlement_layer_chain_id) =
             from_settlement_layer(&unsealed_batch_header.settlement_layer);
-        sqlx::query!(
+        let interop_fee = if unsealed_batch_header.interop_fee > U256::from(i64::MAX as u64) {
+            Err(instrumentation.arg_error(
+                "unsealed_batch_header.interop_fee",
+                anyhow::anyhow!("doesn't fit in i64"),
+            ))
+        } else {
+            i64::try_from(unsealed_batch_header.interop_fee.as_u64())
+                .map_err(|err| instrumentation.arg_error("unsealed_batch_header.interop_fee", err))
+        }?;
+
+        let query = sqlx::query!(
             r#"
             INSERT INTO
             l1_batches (
@@ -1105,15 +1125,12 @@ impl BlocksDal<'_, '_> {
             unsealed_batch_header.fee_input.l1_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_l2_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_pubdata_price() as i64,
-            unsealed_batch_header.interop_fee.as_u64() as i64,
+            interop_fee,
             unsealed_batch_header.pubdata_limit.map(|l| l as i64),
             settlement_layer_type,
             settlement_layer_chain_id
-        )
-        .instrument("insert_l1_batch")
-        .with_arg("number", &unsealed_batch_header.number)
-        .execute(conn)
-        .await?;
+        );
+        instrumentation.with(query).execute(conn).await?;
         Ok(())
     }
 
@@ -1267,7 +1284,12 @@ impl BlocksDal<'_, '_> {
             .map(|input| input.len() as u64)
             .unwrap_or(0)
             .div_ceil(bytes_per_blob);
-        let interop_fee = interop_fee.as_u64() as i64;
+        let interop_fee = if interop_fee > U256::from(i64::MAX as u64) {
+            Err(instrumentation.arg_error("interop_fee", anyhow::anyhow!("doesn't fit in i64")))
+        } else {
+            i64::try_from(interop_fee.as_u64())
+                .map_err(|err| instrumentation.arg_error("interop_fee", err))
+        }?;
 
         let query = sqlx::query!(
             r#"
@@ -3315,7 +3337,7 @@ impl BlocksDal<'_, '_> {
                         eth_commit_tx_id IS NULL
                         OR NOT EXISTS (
                             SELECT 1 FROM eth_txs_history
-                            WHERE id = l1_batches.eth_commit_tx_id
+                            WHERE eth_tx_id = l1_batches.eth_commit_tx_id
                                 AND finality_status = 'finalized'
                         )
                     )
@@ -3969,8 +3991,8 @@ impl BlocksDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        aggregated_operations::AggregatedActionType, tx::IncludedTxLocation, Address,
-        ProtocolVersion,
+        aggregated_operations::AggregatedActionType, eth_sender::EthTxFinalityStatus,
+        tx::IncludedTxLocation, Address, ProtocolVersion,
     };
 
     use super::*;
@@ -3982,7 +4004,7 @@ mod tests {
     async fn save_mock_eth_tx(
         action_type: L1BatchAggregatedActionType,
         conn: &mut Connection<'_, Core>,
-    ) {
+    ) -> u32 {
         conn.eth_sender_dal()
             .save_eth_tx(
                 1,
@@ -3995,7 +4017,8 @@ mod tests {
                 false,
             )
             .await
-            .unwrap();
+            .unwrap()
+            .id
     }
 
     fn mock_l1_batch_header() -> L1BatchHeader {
@@ -4224,6 +4247,59 @@ mod tests {
         assert!(
             has_uncommitted,
             "non-genesis uncommitted batch should be detected"
+        );
+    }
+
+    #[tokio::test]
+    async fn has_uncommitted_batches_ignores_batches_with_finalized_commit_tx() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let regular_batch_header = create_l1_batch_header(1);
+        insert_mock_l1_batch_header(&mut conn, &regular_batch_header).await;
+
+        // Create an unrelated tx first to ensure `eth_txs.id` and `eth_txs_history.id` diverge.
+        save_mock_eth_tx(L1BatchAggregatedActionType::Commit, &mut conn).await;
+        let commit_eth_tx_id =
+            save_mock_eth_tx(L1BatchAggregatedActionType::Commit, &mut conn).await;
+        conn.blocks_dal()
+            .set_eth_tx_id_for_l1_batches(
+                L1BatchNumber(1)..=L1BatchNumber(1),
+                commit_eth_tx_id,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
+            )
+            .await
+            .unwrap();
+
+        let tx_hash = H256::repeat_byte(0x11);
+        let tx_history_id = conn
+            .eth_sender_dal()
+            .insert_tx_history(commit_eth_tx_id, 1, 1, None, None, tx_hash, &[0u8], 1, None)
+            .await
+            .unwrap();
+        assert!(
+            tx_history_id.is_some(),
+            "tx history row should be inserted for the commit tx"
+        );
+        conn.eth_sender_dal()
+            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::from(1u64))
+            .await
+            .unwrap();
+
+        let settlement_layer = SettlementLayer::for_tests();
+        let has_uncommitted = conn
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .unwrap();
+        assert!(
+            !has_uncommitted,
+            "batch with finalized commit tx should not be considered uncommitted"
         );
     }
 }
