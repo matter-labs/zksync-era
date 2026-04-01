@@ -31,16 +31,16 @@ impl HttpTest for GetAirbenderProofsTest {
             .insert_airbender_proof_generation_job(batch_no)
             .await?;
 
-        let proof_vec = vec![5, 6, 7, 8, 9];
+        let proof_blob_url = "l1_batch_airbender_proof_1337.bin";
         airbender_proof_generation_dal
-            .save_proof_artifacts_metadata(batch_no, &proof_vec)
+            .save_proof_artifacts_metadata(batch_no, proof_blob_url)
             .await?;
 
         let proofs = client.airbender_proofs(batch_no).await?;
         assert!(proofs.len() == 1);
         let proof = &proofs[0];
         assert!(proof.l1_batch_number == batch_no);
-        assert!(proof.proof.as_ref() == Some(&proof_vec));
+        assert!(proof.proof_blob_url.as_deref() == Some(proof_blob_url));
 
         Ok(())
     }

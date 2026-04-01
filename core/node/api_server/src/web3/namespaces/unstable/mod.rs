@@ -69,7 +69,7 @@ impl UnstableNamespace {
             .into_iter()
             .map(|proof| AirbenderProof {
                 l1_batch_number,
-                proof: proof.proof,
+                proof_blob_url: proof.proof_blob_url,
                 proved_at: DateTime::<Utc>::from_naive_utc_and_offset(proof.updated_at, Utc),
                 status: proof.status,
             })

@@ -94,10 +94,7 @@ async fn submit_airbender_proof() {
     assert_eq!(proofs.len(), 1);
 
     let proof = &proofs[0];
-    assert_eq!(
-        proof.proof.as_ref().unwrap(),
-        &airbender_proof_request.proof
-    );
+    assert!(proof.proof_blob_url.is_some());
 }
 
 // Mock SQL db with information about the status of the Airbender proof generation

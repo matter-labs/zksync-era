@@ -3,7 +3,6 @@ use chrono::{DateTime, Utc};
 use derive_more::Display;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
-use serde_with::{hex::Hex, serde_as};
 use zksync_basic_types::{
     commitment::PubdataType,
     settlement::SettlementLayer,
@@ -1034,13 +1033,11 @@ pub struct Proof {
     pub storage_proof: Vec<StorageProof>,
 }
 
-#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AirbenderProof {
     pub l1_batch_number: L1BatchNumber,
-    #[serde_as(as = "Option<Hex>")]
-    pub proof: Option<Vec<u8>>,
+    pub proof_blob_url: Option<String>,
     pub proved_at: DateTime<Utc>,
     pub status: String,
 }

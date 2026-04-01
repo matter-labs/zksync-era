@@ -8,6 +8,7 @@ use zksync_airbender_prover_interface::{
         SubmitAirbenderProofResponse,
     },
     inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
+    outputs::L1BatchAirbenderProofForL1,
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{
@@ -187,12 +188,23 @@ impl AirbenderRequestProcessor {
         Json(proof): Json<SubmitAirbenderProofRequest>,
     ) -> Result<Json<SubmitAirbenderProofResponse>, AirbenderProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
+
+        let proof_for_gcs = L1BatchAirbenderProofForL1 { proof: proof.proof };
+        let proof_blob_url = self
+            .blob_store
+            .put(l1_batch_number, &proof_for_gcs)
+            .await
+            .map_err(|source| AirbenderProcessorError::ObjectStore {
+                source,
+                context: "Failed to upload proof to GCS".into(),
+            })?;
+
         let mut connection = self
             .pool
             .connection_tagged("airbender_request_processor")
             .await?;
         let mut dal = connection.airbender_proof_generation_dal();
-        dal.save_proof_artifacts_metadata(l1_batch_number, &proof.proof)
+        dal.save_proof_artifacts_metadata(l1_batch_number, &proof_blob_url)
             .await?;
 
         let sealed_at = connection
