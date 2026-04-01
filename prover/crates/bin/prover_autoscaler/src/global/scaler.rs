@@ -54,6 +54,9 @@ struct Pool<K: Eq + Hash + Copy> {
     pods: HashMap<PodStatus, usize>, // TODO: consider using i64 everywhere to avoid type casts.
     scale_errors: usize,
     max_pool_size: usize,
+    /// True when the deployment has been stuck (desired > 0, running < desired)
+    /// for longer than long_pending_duration. Survives pod recycling.
+    deployment_stuck: bool,
 }
 
 impl<K: Eq + Hash + Copy> Pool<K> {
@@ -134,11 +137,15 @@ impl<K: Key> Scaler<K> {
         };
 
         let mut pool_map = HashMap::new(); // <key, Pool>
-        for deployment in namespace_value.deployments.keys() {
+        for (deployment, dep_data) in namespace_value.deployments.iter() {
             // Processing only selected deployment(s).
             let Some(key) = K::new(self.deployment.to_str(), deployment) else {
                 continue;
             };
+            let deployment_stuck = dep_data
+                .stuck_since
+                .map(|since| since < Utc::now() - self.config.long_pending_duration)
+                .unwrap_or(false);
             let e = pool_map.entry(key).or_insert(Pool {
                 name: cluster.name.clone(),
                 key,
@@ -157,6 +164,7 @@ impl<K: Key> Scaler<K> {
                                 == Some(key)
                     })
                     .count(),
+                deployment_stuck,
                 ..Default::default()
             });
 
@@ -206,15 +214,13 @@ impl<K: Key> Scaler<K> {
             .flat_map(|c| self.convert_to_pool(namespace, c))
             .collect();
 
-        // If a pool has NeedToMove or LongPending pods, cap max_pool_size to
-        // Running + Pending (fresh pods only, excluding stuck ones). This forces
-        // the regular allocation path to overflow to the next priority pool.
-        // When stuck pods get scheduled (become Running), they're no longer
-        // NeedToMove/LongPending, so Running count increases and the pool
-        // naturally uncaps.
+        // Cap pool when it's stuck: NeedToMove (event-based), LongPending (per-pod),
+        // or deployment_stuck (deployment-level, survives pod recycling).
+        // Forces the regular allocation path to overflow to the next priority pool.
         for pool in &mut pools {
             if pool.sum_by_pod_status(PodStatus::NeedToMove) > 0
                 || pool.sum_by_pod_status(PodStatus::LongPending) > 0
+                || pool.deployment_stuck
             {
                 pool.max_pool_size = pool.sum_by_pod_status(PodStatus::Running)
                     + pool.sum_by_pod_status(PodStatus::Pending);
@@ -377,6 +383,7 @@ impl<K: Key> Scaler<K> {
                         p.sum_by_pod_status(PodStatus::NeedToMove) > 0
                             || p.scale_errors > 0
                             || p.sum_by_pod_status(PodStatus::LongPending) > 0
+                            || p.deployment_stuck
                     })
                     .count();
 
@@ -1071,6 +1078,7 @@ mod tests {
                                             Deployment {
                                                 running: 1,
                                                 desired: 1,
+                                                ..Default::default()
                                             },
                                         )]
                                         .into(),
@@ -1398,6 +1406,7 @@ mod tests {
                                             Deployment {
                                                 running: 3,
                                                 desired: 3,
+                                                ..Default::default()
                                             },
                                         )]
                                         .into(),
@@ -1443,6 +1452,7 @@ mod tests {
                                             Deployment {
                                                 running: 2,
                                                 desired: 2,
+                                                ..Default::default()
                                             },
                                         )]
                                         .into(),
@@ -1641,6 +1651,7 @@ mod tests {
                                             Deployment {
                                                 running: 3,
                                                 desired: 3,
+                                                ..Default::default()
                                             },
                                         )]
                                         .into(),
@@ -1850,6 +1861,7 @@ mod tests {
                                             Deployment {
                                                 running: 1,
                                                 desired: 1,
+                                                ..Default::default()
                                             },
                                         )]
                                         .into(),
@@ -2403,6 +2415,7 @@ mod tests {
                 .into(),
                 scale_errors: 3,
                 max_pool_size: 100,
+                deployment_stuck: false,
             }]
         );
     }
@@ -2644,6 +2657,7 @@ mod tests {
                                     Deployment {
                                         running: 2,
                                         desired: 2,
+                                        ..Default::default()
                                     },
                                 )]
                                 .into(),

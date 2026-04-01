@@ -236,6 +236,16 @@ impl Watcher {
                                     dep.running = nums.available_replicas.unwrap_or_default() as usize;
                                     dep.desired = nums.replicas.unwrap_or_default() as usize;
 
+                                    // Track how long a deployment has been stuck
+                                    // (desired > 0 but running < desired).
+                                    if dep.desired > 0 && dep.running < dep.desired {
+                                        if dep.stuck_since.is_none() {
+                                            dep.stuck_since = Some(Utc::now());
+                                        }
+                                    } else {
+                                        dep.stuck_since = None;
+                                    }
+
                                     tracing::info!(
                                         "Got deployment: {}, size: {}/{} un {}",
                                         d.name_any(),
