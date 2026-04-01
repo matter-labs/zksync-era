@@ -149,10 +149,9 @@ fn encode_missing_from_folders(input_folder: &Path, output_folder: &Path) -> Res
         }
 
         let handle = std::thread::spawn(move || {
-            let json_input = std::fs::read_to_string(&input_path)
-                .unwrap_or_else(|err| {
-                    panic!("Failed to read input file {}: {err}", input_path.display())
-                });
+            let json_input = std::fs::read_to_string(&input_path).unwrap_or_else(|err| {
+                panic!("Failed to read input file {}: {err}", input_path.display())
+            });
             let verifier_input: AirbenderVerifierInput = serde_json::from_str(&json_input)
                 .unwrap_or_else(|err| {
                     panic!("Failed to parse JSON input {}: {err}", input_path.display())
