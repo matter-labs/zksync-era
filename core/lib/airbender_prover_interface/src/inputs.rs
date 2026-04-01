@@ -7,7 +7,6 @@ use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 
 /// Version 1 of the data used as input for the airbender verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename = "V1TeeVerifierInput")]
 pub struct V1AirbenderVerifierInput {
     pub vm_run_data: VMRunWitnessInputData,
     pub merkle_paths: WitnessInputMerklePaths,
@@ -39,7 +38,6 @@ impl V1AirbenderVerifierInput {
 
 /// Data used as input for the airbender verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename = "TeeVerifierInput")]
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
 pub enum AirbenderVerifierInput {
