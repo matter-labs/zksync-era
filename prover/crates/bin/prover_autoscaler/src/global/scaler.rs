@@ -963,6 +963,7 @@ mod tests {
     use super::*;
     use crate::{
         cluster_types::{Deployment, Namespace, Pod, ScaleEvent},
+        config::PriorityConfig,
         key::{Gpu, GpuKey, NoKey},
     };
 
@@ -3078,5 +3079,477 @@ mod tests {
             "Aggressive mode should trigger and allocate to active2, got: {:?}",
             result
         );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_deployment_stuck_caps_pool() {
+        // When a deployment has been stuck longer than long_pending_duration,
+        // sorted_clusters should cap max_pool_size to Running+Pending (= 0 here),
+        // forcing overflow to the next priority pool.
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [
+                ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
+                ("bar".into(), [(GpuKey(Gpu::H100), 50)].into()),
+            ]
+            .into(),
+            [(GpuKey(Gpu::L4), 1000), (GpuKey(Gpu::H100), 3000)].into(),
+            None,
+            0,
+            0,
+            scaler_config("prover"),
+            Some(PriorityConfig::Gpu(vec![
+                ("foo".into(), GpuKey(Gpu::L4)),
+                ("bar".into(), GpuKey(Gpu::H100)),
+            ])),
+        );
+
+        let clusters = Clusters {
+            clusters: [
+                (
+                    "foo".into(),
+                    Cluster {
+                        name: "foo".into(),
+                        namespaces: [(
+                            "prover".into(),
+                            Namespace {
+                                deployments: [(
+                                    "circuit-prover-gpu".into(),
+                                    Deployment {
+                                        running: 0,
+                                        desired: 10,
+                                        // Stuck for 20 minutes (> long_pending_duration of 10min)
+                                        stuck_since: Some(
+                                            Utc::now() - chrono::Duration::minutes(20),
+                                        ),
+                                    },
+                                )]
+                                .into(),
+                                ..Default::default()
+                            },
+                        )]
+                        .into(),
+                    },
+                ),
+                (
+                    "bar".into(),
+                    Cluster {
+                        name: "bar".into(),
+                        namespaces: [(
+                            "prover".into(),
+                            Namespace {
+                                deployments: [(
+                                    "circuit-prover-gpu-h100".into(),
+                                    Deployment {
+                                        running: 0,
+                                        desired: 0,
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                                ..Default::default()
+                            },
+                        )]
+                        .into(),
+                    },
+                ),
+            ]
+            .into(),
+            ..Default::default()
+        };
+
+        // L4 pool should be capped (deployment_stuck), queue overflows to H100.
+        let result = scaler.calculate(&"prover".into(), 3000, &clusters);
+
+        let l4_pods = result
+            .get(&PoolKey {
+                cluster: "foo".into(),
+                key: GpuKey(Gpu::L4),
+            })
+            .copied()
+            .unwrap_or(0);
+        assert_eq!(l4_pods, 0, "Stuck L4 pool should be capped to 0");
+
+        let h100_pods = result
+            .get(&PoolKey {
+                cluster: "bar".into(),
+                key: GpuKey(Gpu::H100),
+            })
+            .copied()
+            .unwrap_or(0);
+        assert!(h100_pods > 0, "Queue should overflow to H100 pool");
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_deployment_not_stuck_when_recent() {
+        // A deployment stuck for less than long_pending_duration should NOT
+        // be marked as deployment_stuck (pool stays uncapped).
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
+            [(GpuKey(Gpu::L4), 1000)].into(),
+            None,
+            0,
+            0,
+            scaler_config("prover"),
+            None,
+        );
+
+        let clusters = Clusters {
+            clusters: [(
+                "foo".into(),
+                Cluster {
+                    name: "foo".into(),
+                    namespaces: [(
+                        "prover".into(),
+                        Namespace {
+                            deployments: [(
+                                "circuit-prover-gpu".into(),
+                                Deployment {
+                                    running: 0,
+                                    desired: 10,
+                                    // Stuck for only 2 minutes (< long_pending_duration of 10min)
+                                    stuck_since: Some(Utc::now() - chrono::Duration::minutes(2)),
+                                },
+                            )]
+                            .into(),
+                            ..Default::default()
+                        },
+                    )]
+                    .into(),
+                },
+            )]
+            .into(),
+            ..Default::default()
+        };
+
+        let result = scaler.calculate(&"prover".into(), 3000, &clusters);
+
+        let l4_pods = result
+            .get(&PoolKey {
+                cluster: "foo".into(),
+                key: GpuKey(Gpu::L4),
+            })
+            .copied()
+            .unwrap_or(0);
+        assert!(
+            l4_pods > 0,
+            "Recently stuck deployment should NOT cap the pool"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_evaluate_aggressive_mode_transitions() {
+        // Test the full Regular → Aggressive → AggressiveCooldown → Regular cycle.
+        let scaler_config = Arc::new(ScalerConfig {
+            cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
+            apply_min_to_namespace: Some("prover".into()),
+            long_pending_duration: chrono::Duration::seconds(600),
+            scale_errors_duration: chrono::Duration::seconds(3600),
+            aggressive_mode_threshold: 50,
+            aggressive_mode_cooldown: chrono::Duration::seconds(0), // Instant cooldown for test
+        });
+
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [
+                ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
+                ("bar".into(), [(GpuKey(Gpu::L4), 100)].into()),
+            ]
+            .into(),
+            [(GpuKey(Gpu::L4), 1000)].into(),
+            None,
+            0,
+            0,
+            scaler_config,
+            None,
+        );
+
+        // Start in Regular mode.
+        assert!(!scaler.is_aggressive());
+
+        // 2/2 pools stuck → should enter Aggressive.
+        let stuck_pools = vec![
+            Pool {
+                name: "foo".into(),
+                key: GpuKey(Gpu::L4),
+                pods: [(PodStatus::Running, 0)].into(),
+                scale_errors: 0,
+                max_pool_size: 100,
+                deployment_stuck: true,
+            },
+            Pool {
+                name: "bar".into(),
+                key: GpuKey(Gpu::L4),
+                pods: [(PodStatus::Running, 0)].into(),
+                scale_errors: 0,
+                max_pool_size: 100,
+                deployment_stuck: true,
+            },
+        ];
+        scaler.evaluate_aggressive_mode_inner(&stuck_pools, 0, 1000);
+        assert!(scaler.is_aggressive(), "Should enter Aggressive mode");
+
+        // Running >= queue → should transition to AggressiveCooldown.
+        scaler.evaluate_aggressive_mode_inner(&stuck_pools, 1000, 1000);
+        assert!(
+            scaler.is_aggressive(),
+            "Should be in AggressiveCooldown (still aggressive)"
+        );
+
+        // Cooldown is 0s, so next eval completes cooldown → Regular.
+        scaler.evaluate_aggressive_mode_inner(&stuck_pools, 1000, 1000);
+        assert!(
+            !scaler.is_aggressive(),
+            "Should return to Regular after cooldown"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_freeze_at_running_preserves_running_pods() {
+        // FreezeAtRunning should cap each pool's desired to its running count.
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [
+                ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
+                ("bar".into(), [(GpuKey(Gpu::L4), 100)].into()),
+            ]
+            .into(),
+            [(GpuKey(Gpu::L4), 500)].into(),
+            Some(1000),
+            0,
+            0,
+            scaler_config("prover"),
+            None,
+        );
+
+        let clusters = Clusters {
+            clusters: [
+                (
+                    "foo".into(),
+                    Cluster {
+                        name: "foo".into(),
+                        namespaces: [(
+                            "prover".into(),
+                            Namespace {
+                                deployments: [(
+                                    "circuit-prover-gpu".into(),
+                                    Deployment {
+                                        running: 5,
+                                        desired: 5,
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                                pods: (0..5)
+                                    .map(|i| {
+                                        (
+                                            format!("circuit-prover-gpu-pod-{i}"),
+                                            Pod {
+                                                status: "Running".into(),
+                                                ..Default::default()
+                                            },
+                                        )
+                                    })
+                                    .collect(),
+                                ..Default::default()
+                            },
+                        )]
+                        .into(),
+                    },
+                ),
+                (
+                    "bar".into(),
+                    Cluster {
+                        name: "bar".into(),
+                        namespaces: [(
+                            "prover".into(),
+                            Namespace {
+                                deployments: [(
+                                    "circuit-prover-gpu".into(),
+                                    Deployment {
+                                        running: 3,
+                                        desired: 3,
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                                pods: (0..3)
+                                    .map(|i| {
+                                        (
+                                            format!("circuit-prover-gpu-pod-{i}"),
+                                            Pod {
+                                                status: "Running".into(),
+                                                ..Default::default()
+                                            },
+                                        )
+                                    })
+                                    .collect(),
+                                ..Default::default()
+                            },
+                        )]
+                        .into(),
+                    },
+                ),
+            ]
+            .into(),
+            ..Default::default()
+        };
+
+        // Without cap: scaler wants to scale up well beyond 8 pods for queue=50000.
+        let mut requests_uncapped = HashMap::new();
+        scaler.run(
+            &"prover".into(),
+            50000,
+            &clusters,
+            &mut requests_uncapped,
+            None,
+            4000,
+        );
+        let total_uncapped: usize = requests_uncapped
+            .values()
+            .flat_map(|r| &r.deployments)
+            .map(|d| d.size)
+            .sum();
+        assert!(
+            total_uncapped > 8,
+            "Uncapped should want more than 8 pods, got {total_uncapped}"
+        );
+
+        // With FreezeAtRunning: desired capped to running (5 + 3 = 8).
+        // Since running already equals the frozen desired, diff() emits no
+        // scale requests — the key assertion is that no scale-UP happens.
+        let mut requests_frozen = HashMap::new();
+        scaler.run(
+            &"prover".into(),
+            50000,
+            &clusters,
+            &mut requests_frozen,
+            Some(CapMode::FreezeAtRunning),
+            4000,
+        );
+        let total_frozen: usize = requests_frozen
+            .values()
+            .flat_map(|r| &r.deployments)
+            .map(|d| d.size)
+            .sum();
+        // diff() only emits when desired != current. Frozen desired = running = current,
+        // so no scale requests are emitted (0), which means no scale-up beyond running.
+        assert!(
+            total_frozen <= 8,
+            "FreezeAtRunning should not scale up beyond running pods (8), got {total_frozen}"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_long_pending_caps_pool() {
+        // Pools with LongPending pods should be capped, overflowing to next pool.
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [
+                ("foo".into(), [(GpuKey(Gpu::L4), 100)].into()),
+                ("bar".into(), [(GpuKey(Gpu::H100), 50)].into()),
+            ]
+            .into(),
+            [(GpuKey(Gpu::L4), 1000), (GpuKey(Gpu::H100), 3000)].into(),
+            None,
+            0,
+            0,
+            scaler_config("prover"),
+            Some(PriorityConfig::Gpu(vec![
+                ("foo".into(), GpuKey(Gpu::L4)),
+                ("bar".into(), GpuKey(Gpu::H100)),
+            ])),
+        );
+
+        let clusters = Clusters {
+            clusters: [
+                (
+                    "foo".into(),
+                    Cluster {
+                        name: "foo".into(),
+                        namespaces: [(
+                            "prover".into(),
+                            Namespace {
+                                deployments: [(
+                                    "circuit-prover-gpu".into(),
+                                    Deployment::default(),
+                                )]
+                                .into(),
+                                pods: [(
+                                    "circuit-prover-gpu-pod-1".into(),
+                                    Pod {
+                                        status: "Pending".into(),
+                                        // Pending for 15 min (> long_pending_duration of 10min)
+                                        changed: Utc::now() - chrono::Duration::minutes(15),
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                                ..Default::default()
+                            },
+                        )]
+                        .into(),
+                    },
+                ),
+                (
+                    "bar".into(),
+                    Cluster {
+                        name: "bar".into(),
+                        namespaces: [(
+                            "prover".into(),
+                            Namespace {
+                                deployments: [(
+                                    "circuit-prover-gpu-h100".into(),
+                                    Deployment::default(),
+                                )]
+                                .into(),
+                                ..Default::default()
+                            },
+                        )]
+                        .into(),
+                    },
+                ),
+            ]
+            .into(),
+            ..Default::default()
+        };
+
+        let result = scaler.calculate(&"prover".into(), 3000, &clusters);
+
+        // L4 pool has LongPending pod → capped to 0 running + 0 pending = 0.
+        // (The LongPending pod doesn't count as Pending for the cap.)
+        let l4_pods = result
+            .get(&PoolKey {
+                cluster: "foo".into(),
+                key: GpuKey(Gpu::L4),
+            })
+            .copied()
+            .unwrap_or(0);
+        assert_eq!(l4_pods, 0, "LongPending L4 pool should be capped to 0");
+
+        let h100_pods = result
+            .get(&PoolKey {
+                cluster: "bar".into(),
+                key: GpuKey(Gpu::H100),
+            })
+            .copied()
+            .unwrap_or(0);
+        assert!(h100_pods > 0, "Queue should overflow to H100");
     }
 }
