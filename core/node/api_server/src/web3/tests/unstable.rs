@@ -1,6 +1,5 @@
 //! Tests for the `unstable` Web3 namespace.
 
-use zksync_types::tee_types::TeeType;
 use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
 use super::*;
@@ -22,37 +21,27 @@ impl HttpTest for GetAirbenderProofsTest {
         pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         let batch_no = L1BatchNumber(1337);
-        let tee_type = TeeType::Sgx;
-        let proof = client.airbender_proofs(batch_no, Some(tee_type)).await?;
+        let proof = client.airbender_proofs(batch_no).await?;
 
         assert!(proof.is_empty());
 
-        let pubkey = vec![0xDE, 0xAD, 0xBE, 0xEF];
-        let attestation = vec![0xC0, 0xFF, 0xEE];
         let mut storage = pool.connection().await.unwrap();
         let mut airbender_proof_generation_dal = storage.airbender_proof_generation_dal();
         airbender_proof_generation_dal
-            .save_attestation(&pubkey, &attestation)
-            .await?;
-        airbender_proof_generation_dal
-            .insert_airbender_proof_generation_job(batch_no, tee_type)
+            .insert_airbender_proof_generation_job(batch_no)
             .await?;
 
-        let signature = vec![0, 1, 2, 3, 4];
-        let proof_vec = vec![5, 6, 7, 8, 9];
+        let proof_blob_url = "l1_batch_airbender_proof_1337.bin";
         airbender_proof_generation_dal
-            .save_proof_artifacts_metadata(batch_no, tee_type, &pubkey, &signature, &proof_vec)
+            .save_proof_artifacts_metadata(batch_no, proof_blob_url)
             .await?;
 
-        let proofs = client.airbender_proofs(batch_no, Some(tee_type)).await?;
+        let proofs = client.airbender_proofs(batch_no).await?;
         assert!(proofs.len() == 1);
         let proof = &proofs[0];
         assert!(proof.l1_batch_number == batch_no);
-        assert!(proof.tee_type == Some(tee_type));
-        assert!(proof.pubkey.as_ref() == Some(&pubkey));
-        assert!(proof.signature.as_ref() == Some(&signature));
-        assert!(proof.proof.as_ref() == Some(&proof_vec));
-        assert!(proof.attestation.as_ref() == Some(&attestation));
+        // proof bytes are None because the test doesn't configure an object store
+        assert!(proof.proof.is_none());
 
         Ok(())
     }
