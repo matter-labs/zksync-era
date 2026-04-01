@@ -37,16 +37,15 @@ pub enum AirbenderProofGenerationJobStatus {
 }
 
 /// Represents a locked batch picked by an Airbender prover. A batch is locked when taken by an Airbender prover
-/// ([AirbenderProofGenerationJobStatus::PickedByProver]). It can transition to one of three states:
+/// ([AirbenderProofGenerationJobStatus::PickedByProver]). It can transition to one of two states:
 /// 1. [AirbenderProofGenerationJobStatus::Generated].
 /// 2. [AirbenderProofGenerationJobStatus::Failed].
-/// 3. [AirbenderProofGenerationJobStatus::PermanentlyIgnored].
 #[derive(Clone, Debug)]
 pub struct LockedBatch {
     /// Locked batch number.
     pub l1_batch_number: L1BatchNumber,
     /// The creation time of the job for this batch. It is used to determine if the batch should
-    /// transition to [AirbenderProofGenerationJobStatus::PermanentlyIgnored] or [AirbenderProofGenerationJobStatus::Failed].
+    /// transition to [AirbenderProofGenerationJobStatus::Failed].
     pub created_at: DateTime<Utc>,
 }
 

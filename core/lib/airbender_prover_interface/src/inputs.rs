@@ -5,7 +5,7 @@ use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerkleP
 use zksync_types::{block::L2BlockExecutionData, commitment::PubdataParams};
 use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 
-/// Version 1 of the data used as input for the TEE verifier.
+/// Version 1 of the data used as input for the airbender verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct V1AirbenderVerifierInput {
     pub vm_run_data: VMRunWitnessInputData,
@@ -36,7 +36,7 @@ impl V1AirbenderVerifierInput {
     }
 }
 
-/// Data used as input for the TEE verifier.
+/// Data used as input for the airbender verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
