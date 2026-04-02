@@ -31,7 +31,6 @@ complete -c zkstack -n "__fish_zkstack_needs_command" -s h -l help -d 'Print hel
 complete -c zkstack -n "__fish_zkstack_needs_command" -s V -l version -d 'Print version'
 complete -c zkstack -n "__fish_zkstack_needs_command" -f -a "autocomplete" -d 'Create shell autocompletion files'
 complete -c zkstack -n "__fish_zkstack_needs_command" -f -a "ecosystem" -d 'Ecosystem related commands'
-complete -c zkstack -n "__fish_zkstack_needs_command" -f -a "ctm" -d 'CTM related commands'
 complete -c zkstack -n "__fish_zkstack_needs_command" -f -a "chain" -d 'Chain related commands'
 complete -c zkstack -n "__fish_zkstack_needs_command" -f -a "dev" -d 'Supervisor related commands'
 complete -c zkstack -n "__fish_zkstack_needs_command" -f -a "prover" -d 'Prover related commands'
@@ -46,114 +45,120 @@ complete -c zkstack -n "__fish_zkstack_needs_command" -f -a "consensus" -d 'Cons
 complete -c zkstack -n "__fish_zkstack_needs_command" -f -a "update" -d 'Update ZKsync'
 complete -c zkstack -n "__fish_zkstack_needs_command" -f -a "markdown" -d 'Print markdown help'
 complete -c zkstack -n "__fish_zkstack_needs_command" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -l generate -d 'The shell to generate the autocomplete script for' -r -f -a "{bash\t'',elvish\t'',fish\t'',powershell\t'',zsh\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -l generate -d 'The shell to generate the autocomplete script for' -r -f -a "bash\t''
+elvish\t''
+fish\t''
+powershell\t''
+zsh\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -s o -l out -d 'The out directory to write the autocomplete script to' -r -F
 complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand autocomplete" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -f -a "create" -d 'Create a new ecosystem and chain, setting necessary configurations for later initialization'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -f -a "build-transactions" -d 'Create transactions to build ecosystem contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -f -a "init" -d 'Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -f -a "init-core-contracts" -d 'Initialize ecosystem core contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -f -a "change-default-chain" -d 'Change the default chain'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -f -a "setup-observability" -d 'Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -f -a "register-ctm" -d 'Register a new CTM on an existing BridgeHub. CTM must be already deployed.(ctm init command)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init init-core-contracts change-default-chain setup-observability register-ctm help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "create" -d 'Create a new ecosystem and chain, setting necessary configurations for later initialization'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "build-transactions" -d 'Create transactions to build ecosystem contracts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "init" -d 'Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "change-default-chain" -d 'Change the default chain'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "setup-observability" -d 'Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and not __fish_seen_subcommand_from create build-transactions init change-default-chain setup-observability help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l ecosystem-name -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l l1-network -d 'L1 Network' -r -f -a "{localhost\t'',sepolia\t'',holesky\t'',mainnet\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l l1-network -d 'L1 Network' -r -f -a "localhost\t''
+sepolia\t''
+holesky\t''
+mainnet\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l link-to-code -d 'Code link' -r -f -a "(__fish_complete_directories)"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l chain-name -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l chain-id -d 'Chain ID' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l prover-mode -d 'Prover options' -r -f -a "{no-proofs\t'',gpu\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l wallet-creation -d 'Wallet options' -r -f -a "{localhost\t'Load wallets from localhost mnemonic, they are funded for localhost env',random\t'Generate random wallets',empty\t'Generate placeholder wallets',in-file\t'Specify file with wallets'}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l prover-mode -d 'Prover options' -r -f -a "no-proofs\t''
+gpu\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l wallet-creation -d 'Wallet options' -r -f -a "localhost\t'Load wallets from localhost mnemonic, they are funded for localhost env'
+random\t'Generate random wallets'
+empty\t'Generate placeholder wallets'
+in-file\t'Specify file with wallets'"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l wallet-path -d 'Wallet path' -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l l1-batch-commit-data-generator-mode -d 'Commit data generation mode' -r -f -a "{rollup\t'',validium\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l l1-batch-commit-data-generator-mode -d 'Commit data generation mode' -r -f -a "rollup\t''
+validium\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l base-token-address -d 'Base token address' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l base-token-price-nominator -d 'Base token nominator' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l base-token-price-denominator -d 'Base token denominator' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l set-as-default -d 'Set as default chain' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l evm-emulator -d 'Enable EVM emulator' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l start-containers -d 'Start reth and postgres containers after creation' -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l set-as-default -d 'Set as default chain' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l evm-emulator -d 'Enable EVM emulator' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l update-submodules -d 'Whether to update git submodules of repo' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l start-containers -d 'Start reth and postgres containers after creation' -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l legacy-bridge
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l tight-ports -d 'Use tight ports allocation (no offset between chains)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l zksync-os -d 'Use zksync os contracts and settings'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from create" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l update-submodules -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l l1-rpc-url -d 'L1 RPC URL' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l sender -d 'Address of the transaction sender' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l l1-rpc-url -d 'L1 RPC URL' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -s o -l out -d 'Output directory for the generated files' -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l bridgehub -d 'Bridgehub address of existing ecosystem' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l zksync-os
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l skip-contract-compilation-override
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l resume
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l zksync
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from build-transactions" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l update-submodules -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l deploy-erc20 -d 'Deploy ERC20 contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l deploy-ecosystem -d 'Deploy ecosystem contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l ecosystem-contracts-path -d 'Path to ecosystem contracts' -r -F
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l l1-rpc-url -d 'L1 RPC URL' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l deploy-ecosystem -d 'Deploy ecosystem contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l deploy-erc20 -d 'Deploy ERC20 contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l ecosystem-contracts-path -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l deploy-paymaster -d 'Deploy Paymaster contract' -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l deploy-paymaster -d 'Deploy Paymaster contract' -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l server-db-url -d 'Server database url without database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l server-db-name -d 'Server database name' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -s o -l observability -d 'Enable Grafana' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l validium-type -d 'Type of the Validium network' -r -f -a "{no-da\t'',avail\t'',eigen-da\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l support-l2-legacy-shared-bridge-test -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l make-permanent-rollup -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -s o -l observability -d 'Enable Grafana' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l update-submodules -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l validium-type -d 'Type of the Validium network' -r -f -a "no-da\t''
+avail\t''
+eigen-da\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l support-l2-legacy-shared-bridge-test -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l make-permanent-rollup -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l server-command -d 'Command to run the server binary' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l zksync-os
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l skip-contract-compilation-override
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l resume
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l zksync
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -s d -l dont-drop
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l ecosystem-only -d 'Initialize ecosystem only and skip chain initialization (chain can be initialized later with `chain init` subcommand)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l dev -d 'Use defaults for all options and flags. Suitable for local development'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l no-port-reallocation -d 'Do not reallocate ports'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l skip-priority-txs
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l no-genesis -d 'Bridgehub address of existing ecosystem'
+complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l skip-contract-compilation-override
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l update-submodules -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l l1-rpc-url -d 'L1 RPC URL' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l deploy-erc20 -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l verifier-api-key -d 'Verifier API key' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l support-l2-legacy-shared-bridge-test -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l zksync-os
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l skip-contract-compilation-override
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l resume
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l zksync
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l dev -d 'Use defaults for all options and flags. Suitable for local development'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from init-core-contracts" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from change-default-chain" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from change-default-chain" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from change-default-chain" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -162,70 +167,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_se
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from setup-observability" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from setup-observability" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from setup-observability" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l update-submodules -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l l1-rpc-url -d 'L1 RPC URL' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l verifier-api-key -d 'Verifier API key' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l only-save-calldata -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l bridgehub -d 'Bridgehub address of existing ecosystem' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l ctm -d 'Chain type manager address that has to be registered' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l zksync-os
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l skip-contract-compilation-override
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l resume
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l zksync
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l dev -d 'Use defaults for all options and flags. Suitable for local development'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from register-ctm" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "create" -d 'Create a new ecosystem and chain, setting necessary configurations for later initialization'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "build-transactions" -d 'Create transactions to build ecosystem contracts'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "init" -d 'Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "init-core-contracts" -d 'Initialize ecosystem core contracts'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "change-default-chain" -d 'Change the default chain'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "setup-observability" -d 'Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "register-ctm" -d 'Register a new CTM on an existing BridgeHub. CTM must be already deployed.(ctm init command)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand ecosystem; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and not __fish_seen_subcommand_from init-new-ctm set-ctm-contracts help" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and not __fish_seen_subcommand_from init-new-ctm set-ctm-contracts help" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and not __fish_seen_subcommand_from init-new-ctm set-ctm-contracts help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and not __fish_seen_subcommand_from init-new-ctm set-ctm-contracts help" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and not __fish_seen_subcommand_from init-new-ctm set-ctm-contracts help" -f -a "init-new-ctm" -d 'Initialize new CTM on existing bridgehub'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and not __fish_seen_subcommand_from init-new-ctm set-ctm-contracts help" -f -a "set-ctm-contracts" -d 'Specify source contracts and configs for the specific CTM. These sources will be used in the future when deploying new CTM'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and not __fish_seen_subcommand_from init-new-ctm set-ctm-contracts help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l update-submodules -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l l1-rpc-url -d 'L1 RPC URL' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l support-l2-legacy-shared-bridge-test -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l bridgehub -d 'Bridgehub address of existing ecosystem' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l contracts-src-path -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l default-configs-src-path -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l verifier-api-key -d 'Verifier API key' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l zksync-os
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l skip-contract-compilation-override
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l reuse-gov-and-admin
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l resume
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l zksync
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from init-new-ctm" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from set-ctm-contracts" -l contracts-src-path -d 'Path to contracts sources' -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from set-ctm-contracts" -l default-configs-src-path -d 'Path to default configs sources' -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from set-ctm-contracts" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from set-ctm-contracts" -l zksync-os -d 'Whether to apply it to zksync os'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from set-ctm-contracts" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from set-ctm-contracts" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from set-ctm-contracts" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from help" -f -a "init-new-ctm" -d 'Initialize new CTM on existing bridgehub'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from help" -f -a "set-ctm-contracts" -d 'Specify source contracts and configs for the specific CTM. These sources will be used in the future when deploying new CTM'
-complete -c zkstack -n "__fish_zkstack_using_subcommand ctm; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and not __fish_seen_subcommand_from create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-l2da-validator deploy-upgrader deploy-paymaster update-token-multiplier-setter set-transaction-filterer-calldata set-da-validator-pair-calldata enable-evm-emulator set-pubdata-pricing-mode set-da-validator-pair gateway help" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and not __fish_seen_subcommand_from create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-l2da-validator deploy-upgrader deploy-paymaster update-token-multiplier-setter set-transaction-filterer-calldata set-da-validator-pair-calldata enable-evm-emulator set-pubdata-pricing-mode set-da-validator-pair gateway help" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and not __fish_seen_subcommand_from create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-l2da-validator deploy-upgrader deploy-paymaster update-token-multiplier-setter set-transaction-filterer-calldata set-da-validator-pair-calldata enable-evm-emulator set-pubdata-pricing-mode set-da-validator-pair gateway help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -253,25 +200,37 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and not __fish_se
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and not __fish_seen_subcommand_from create build-transactions init genesis register-chain deploy-l2-contracts accept-chain-ownership deploy-consensus-registry deploy-multicall3 deploy-timestamp-asserter deploy-l2da-validator deploy-upgrader deploy-paymaster update-token-multiplier-setter set-transaction-filterer-calldata set-da-validator-pair-calldata enable-evm-emulator set-pubdata-pricing-mode set-da-validator-pair gateway help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l chain-name -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l chain-id -d 'Chain ID' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l prover-mode -d 'Prover options' -r -f -a "{no-proofs\t'',gpu\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l wallet-creation -d 'Wallet options' -r -f -a "{localhost\t'Load wallets from localhost mnemonic, they are funded for localhost env',random\t'Generate random wallets',empty\t'Generate placeholder wallets',in-file\t'Specify file with wallets'}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l prover-mode -d 'Prover options' -r -f -a "no-proofs\t''
+gpu\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l wallet-creation -d 'Wallet options' -r -f -a "localhost\t'Load wallets from localhost mnemonic, they are funded for localhost env'
+random\t'Generate random wallets'
+empty\t'Generate placeholder wallets'
+in-file\t'Specify file with wallets'"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l wallet-path -d 'Wallet path' -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l l1-batch-commit-data-generator-mode -d 'Commit data generation mode' -r -f -a "{rollup\t'',validium\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l l1-batch-commit-data-generator-mode -d 'Commit data generation mode' -r -f -a "rollup\t''
+validium\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l base-token-address -d 'Base token address' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l base-token-price-nominator -d 'Base token nominator' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l base-token-price-denominator -d 'Base token denominator' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l set-as-default -d 'Set as default chain' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l evm-emulator -d 'Enable EVM emulator' -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l set-as-default -d 'Set as default chain' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l evm-emulator -d 'Enable EVM emulator' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l update-submodules -d 'Whether to update git submodules of repo' -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l legacy-bridge
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l tight-ports -d 'Use tight ports allocation (no offset between chains)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l zksync-os -d 'Use zksync os contracts and settings'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from create" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -s o -l out -d 'Output directory for the generated files' -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -282,26 +241,34 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from build-transactions" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l server-db-url -d 'Server database url without database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l server-db-name -d 'Server database name' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l deploy-paymaster -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l deploy-paymaster -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l l1-rpc-url -d 'L1 RPC URL' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l validium-type -d 'Type of the Validium network' -r -f -a "{no-da\t'',avail\t'',eigen-da\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l update-submodules -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l make-permanent-rollup -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l validium-type -d 'Type of the Validium network' -r -f -a "no-da\t''
+avail\t''
+eigen-da\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l server-command -d 'Command to run the server binary' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l resume
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l zksync
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -s d -l dont-drop
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l no-port-reallocation -d 'Do not reallocate ports'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l make-permanent-rollup
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l dev -d 'Use defaults for all options and flags. Suitable for local development'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -s n -l no-genesis -d 'Do not run genesis'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l skip-priority-txs
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from init" -s h -l help -d 'Print help (see more with \'--help\')'
@@ -319,8 +286,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from genesis" -f -a "init-database" -d 'Initialize databases'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from genesis" -f -a "server" -d 'Runs server genesis'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from genesis" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from register-chain" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from register-chain" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from register-chain" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from register-chain" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from register-chain" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from register-chain" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from register-chain" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -330,8 +301,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from register-chain" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from register-chain" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from register-chain" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2-contracts" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2-contracts" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2-contracts" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2-contracts" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2-contracts" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2-contracts" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2-contracts" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -341,8 +316,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2-contracts" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2-contracts" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2-contracts" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from accept-chain-ownership" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from accept-chain-ownership" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from accept-chain-ownership" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from accept-chain-ownership" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from accept-chain-ownership" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from accept-chain-ownership" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from accept-chain-ownership" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -352,8 +331,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from accept-chain-ownership" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from accept-chain-ownership" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from accept-chain-ownership" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-consensus-registry" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-consensus-registry" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-consensus-registry" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-consensus-registry" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-consensus-registry" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-consensus-registry" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-consensus-registry" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -363,8 +346,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-consensus-registry" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-consensus-registry" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-consensus-registry" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-multicall3" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-multicall3" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-multicall3" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-multicall3" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-multicall3" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-multicall3" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-multicall3" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -374,8 +361,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-multicall3" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-multicall3" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-multicall3" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-timestamp-asserter" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-timestamp-asserter" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-timestamp-asserter" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-timestamp-asserter" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-timestamp-asserter" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-timestamp-asserter" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-timestamp-asserter" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -385,8 +376,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-timestamp-asserter" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-timestamp-asserter" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-timestamp-asserter" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2da-validator" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2da-validator" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2da-validator" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2da-validator" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2da-validator" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2da-validator" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2da-validator" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -396,8 +391,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2da-validator" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2da-validator" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-l2da-validator" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-upgrader" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-upgrader" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-upgrader" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-upgrader" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-upgrader" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-upgrader" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-upgrader" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -407,8 +406,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-upgrader" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-upgrader" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-upgrader" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-paymaster" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-paymaster" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-paymaster" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-paymaster" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-paymaster" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-paymaster" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-paymaster" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -418,8 +421,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-paymaster" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-paymaster" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from deploy-paymaster" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from update-token-multiplier-setter" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from update-token-multiplier-setter" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from update-token-multiplier-setter" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from update-token-multiplier-setter" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from update-token-multiplier-setter" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from update-token-multiplier-setter" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from update-token-multiplier-setter" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -433,15 +440,16 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-transaction-filterer-calldata" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-transaction-filterer-calldata" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-transaction-filterer-calldata" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair-calldata" -l max-l1-gas-price -d 'Max L1 gas price to be used for L1->GW transaction (in case the chain is settling on top of ZK Gateway)' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair-calldata" -l refund-recipient -d 'The refund recipient for L1->GW transaction (in case the chain is settling on top of ZK Gateway)' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair-calldata" -l gw-rpc-url -d 'The ZK Gateway RPC URL (only used in case the chain is settling on top of ZK Gateway)' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair-calldata" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair-calldata" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair-calldata" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair-calldata" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from enable-evm-emulator" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from enable-evm-emulator" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from enable-evm-emulator" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from enable-evm-emulator" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from enable-evm-emulator" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from enable-evm-emulator" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from enable-evm-emulator" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -451,9 +459,14 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from enable-evm-emulator" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from enable-evm-emulator" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from enable-evm-emulator" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -s r -l rollup -d 'Whether set pubdata to rollup or validium (if false)' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -s r -l rollup -d 'Whether set pubdata to rollup or validium (if false)' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -463,8 +476,12 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-pubdata-pricing-mode" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair" -l verify -d 'Verify deployed contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair" -l verifier -d 'Verifier to use' -r -f -a "etherscan\t''
+sourcify\t''
+blockscout\t''
+oklink\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair" -l verifier-api-key -d 'Verifier API key' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from set-da-validator-pair" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
@@ -485,10 +502,8 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from gateway" -f -a "migrate-to-gateway-calldata"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from gateway" -f -a "migrate-from-gateway-calldata"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from gateway" -f -a "finalize-chain-migration-from-gateway"
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from gateway" -f -a "create-tx-filterer" -d 'Deploy tx filterer and set it for gateway'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from gateway" -f -a "convert-to-gateway" -d 'Prepare chain to be an eligible gateway'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from gateway" -f -a "migrate-to-gateway" -d 'Migrate chain to gateway'
-complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from gateway" -f -a "finalize-chain-migration-to-gateway" -d 'ForgeScriptArgs is a set of arguments that can be passed to the forge script command'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from gateway" -f -a "migrate-from-gateway" -d 'Migrate chain from gateway'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from gateway" -f -a "notify-about-to-gateway-update" -d 'ForgeScriptArgs is a set of arguments that can be passed to the forge script command'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from gateway" -f -a "notify-about-from-gateway-update" -d 'ForgeScriptArgs is a set of arguments that can be passed to the forge script command'
@@ -514,34 +529,26 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_s
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "set-da-validator-pair" -d 'Update da validator pair (used for Rollup -> Validium migration)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "gateway"
 complete -c zkstack -n "__fish_zkstack_using_subcommand chain; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "database" -d 'Database related commands'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "test" -d 'Run tests'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "clean" -d 'Clean artifacts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "snapshot" -d 'Snapshots creator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "lint" -d 'Lint code'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "fmt" -d 'Format code'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "prover" -d 'Protocol version used by provers'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "contracts" -d 'Build contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "config-writer" -d 'Overwrite general config'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "send-transactions" -d 'Send transactions from file'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "status" -d 'Get status of the server'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "generate-genesis" -d 'Generate new genesis file based on current contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "init-test-wallet" -d 'Initialize test wallet'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "rich-account" -d 'Make L2 account rich'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "track-priority-ops" -d 'Generate new genesis file based on current contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "v27-evm-interpreter-upgrade-calldata" -d 'EVM Interpreter (v27) upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "generate-v28-upgrade-calldata" -d 'Precompiles (v28) upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "generate-ecosystem-upgrade-calldata" -d 'General ecosystem upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "run-ecosystem-upgrade" -d 'General ecosystem upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "generate-chain-upgrade" -d 'General chain upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "run-chain-upgrade" -d 'General chain upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "run-v29-chain-upgrade" -d 'V29 chain upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "generate-v29-chain-upgrade" -d 'V29 chain upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops v27-evm-interpreter-upgrade-calldata generate-v28-upgrade-calldata generate-ecosystem-upgrade-calldata run-ecosystem-upgrade generate-chain-upgrade run-chain-upgrade run-v29-chain-upgrade generate-v29-chain-upgrade help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "database" -d 'Database related commands'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "test" -d 'Run tests'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "clean" -d 'Clean artifacts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "snapshot" -d 'Snapshots creator'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "lint" -d 'Lint code'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "fmt" -d 'Format code'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "prover" -d 'Protocol version used by provers'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "contracts" -d 'Build contracts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "config-writer" -d 'Overwrite general config'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "send-transactions" -d 'Send transactions from file'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "status" -d 'Get status of the server'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "generate-genesis" -d 'Generate new genesis file based on current contracts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "init-test-wallet" -d 'Initialize test wallet'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "rich-account" -d 'Make L2 account rich'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "track-priority-ops" -d 'Generate new genesis file based on current contracts'
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and not __fish_seen_subcommand_from database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis init-test-wallet rich-account track-priority-ops help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from database" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from database" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from database" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -585,7 +592,14 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_sub
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from snapshot" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from snapshot" -f -a "create"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from snapshot" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from lint" -s t -l targets -r -f -a "{md\t'',sol\t'',js\t'',ts\t'',rs\t'',contracts\t'',autocompletion\t'',rust-toolchain\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from lint" -s t -l targets -r -f -a "md\t''
+sol\t''
+js\t''
+ts\t''
+rs\t''
+contracts\t''
+autocompletion\t''
+rust-toolchain\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from lint" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from lint" -s c -l check
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from lint" -s v -l verbose -d 'Verbose mode'
@@ -604,10 +618,14 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_sub
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from prover" -f -a "insert-batch"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from prover" -f -a "insert-version"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from prover" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l l1-contracts -d 'Build L1 contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l l1-da-contracts -d 'Build L1 DA contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l l2-contracts -d 'Build L2 contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l system-contracts -d 'Build system contracts' -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l l1-contracts -d 'Build L1 contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l l1-da-contracts -d 'Build L1 DA contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l l2-contracts -d 'Build L2 contracts' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l system-contracts -d 'Build system contracts' -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from contracts" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -652,7 +670,8 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_sub
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -l l1-op-sender -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -l from-block -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -l limit -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -l watch -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -l watch -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -l update-frequency-ms -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -l l2-tx-hash -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -l l1-tx-hash -r
@@ -660,92 +679,6 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_sub
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from track-priority-ops" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from v27-evm-interpreter-upgrade-calldata" -l dangerous-no-cross-check -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from v27-evm-interpreter-upgrade-calldata" -l force-display-finalization-params -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from v27-evm-interpreter-upgrade-calldata" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from v27-evm-interpreter-upgrade-calldata" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from v27-evm-interpreter-upgrade-calldata" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from v27-evm-interpreter-upgrade-calldata" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v28-upgrade-calldata" -l dangerous-no-cross-check -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v28-upgrade-calldata" -l force-display-finalization-params -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v28-upgrade-calldata" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v28-upgrade-calldata" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v28-upgrade-calldata" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v28-upgrade-calldata" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l update-submodules -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l l1-rpc-url -d 'L1 RPC URL' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l verifier-api-key -d 'Verifier API key' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l upgrade-version -r -f -a "{v29-4\t'',v29-3\t'',v29-interop-a-ff\t'',v28-1vk\t'',v28-1vk-era\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l ecosystem-upgrade-stage -r -f -a "{no-governance-prepare\t'',ecosystem-admin\t'',governance-stage0\t'Pause migration to/from Gateway',governance-stage1\t'',governance-stage2\t'',no-governance-stage2\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l server-command -d 'Command to run the server binary' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l zksync-os
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l skip-contract-compilation-override
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l resume
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l zksync
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-ecosystem-upgrade-calldata" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l update-submodules -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l l1-rpc-url -d 'L1 RPC URL' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l verify -d 'Verify deployed contracts' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l verifier -d 'Verifier to use' -r -f -a "{etherscan\t'',sourcify\t'',blockscout\t'',oklink\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l verifier-url -d 'Verifier URL, if using a custom provider' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l verifier-api-key -d 'Verifier API key' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -s a -l additional-args -d 'List of additional arguments that can be passed through the CLI' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l upgrade-version -r -f -a "{v29-4\t'',v29-3\t'',v29-interop-a-ff\t'',v28-1vk\t'',v28-1vk-era\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l ecosystem-upgrade-stage -r -f -a "{no-governance-prepare\t'',ecosystem-admin\t'',governance-stage0\t'Pause migration to/from Gateway',governance-stage1\t'',governance-stage2\t'',no-governance-stage2\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l server-command -d 'Command to run the server binary' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l zksync-os
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l skip-contract-compilation-override
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l resume
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l zksync
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-ecosystem-upgrade" -s h -l help -d 'Print help (see more with \'--help\')'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-chain-upgrade" -l dangerous-no-cross-check -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-chain-upgrade" -l dangerous-local-default-overrides -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-chain-upgrade" -l force-display-finalization-params -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-chain-upgrade" -l refund-recipient -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-chain-upgrade" -l upgrade-version -r -f -a "{v29-4\t'',v29-3\t'',v29-interop-a-ff\t'',v28-1vk\t'',v28-1vk-era\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-chain-upgrade" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-chain-upgrade" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-chain-upgrade" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-chain-upgrade" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-chain-upgrade" -l dangerous-no-cross-check -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-chain-upgrade" -l dangerous-local-default-overrides -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-chain-upgrade" -l force-display-finalization-params -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-chain-upgrade" -l refund-recipient -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-chain-upgrade" -l upgrade-version -r -f -a "{v29-4\t'',v29-3\t'',v29-interop-a-ff\t'',v28-1vk\t'',v28-1vk-era\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-chain-upgrade" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-chain-upgrade" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-chain-upgrade" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-chain-upgrade" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-v29-chain-upgrade" -l dangerous-no-cross-check -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-v29-chain-upgrade" -l dangerous-local-default-overrides -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-v29-chain-upgrade" -l force-display-finalization-params -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-v29-chain-upgrade" -l refund-recipient -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-v29-chain-upgrade" -l operator -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-v29-chain-upgrade" -l blob-operator -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-v29-chain-upgrade" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-v29-chain-upgrade" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-v29-chain-upgrade" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from run-v29-chain-upgrade" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v29-chain-upgrade" -l dangerous-no-cross-check -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v29-chain-upgrade" -l dangerous-local-default-overrides -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v29-chain-upgrade" -l force-display-finalization-params -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v29-chain-upgrade" -l refund-recipient -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v29-chain-upgrade" -l operator -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v29-chain-upgrade" -l blob-operator -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v29-chain-upgrade" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v29-chain-upgrade" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v29-chain-upgrade" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from generate-v29-chain-upgrade" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "database" -d 'Database related commands'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "test" -d 'Run tests'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "clean" -d 'Clean artifacts'
@@ -761,74 +694,80 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_sub
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "init-test-wallet" -d 'Initialize test wallet'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "rich-account" -d 'Make L2 account rich'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "track-priority-ops" -d 'Generate new genesis file based on current contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "v27-evm-interpreter-upgrade-calldata" -d 'EVM Interpreter (v27) upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "generate-v28-upgrade-calldata" -d 'Precompiles (v28) upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "generate-ecosystem-upgrade-calldata" -d 'General ecosystem upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "run-ecosystem-upgrade" -d 'General ecosystem upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "generate-chain-upgrade" -d 'General chain upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "run-chain-upgrade" -d 'General chain upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "run-v29-chain-upgrade" -d 'V29 chain upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "generate-v29-chain-upgrade" -d 'V29 chain upgrade checker and calldata generator'
 complete -c zkstack -n "__fish_zkstack_using_subcommand dev; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -f -a "init" -d 'Initialize prover'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -f -a "setup-keys" -d 'Generate setup keys'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -f -a "run" -d 'Run prover'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -f -a "init-bellman-cuda" -d 'Initialize bellman-cuda'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -f -a "compressor-keys" -d 'Download compressor keys'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -f -a "deploy-proving-network" -d 'Deploy proving network'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys deploy-proving-network help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys help" -l chain -d 'Chain to use' -r
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys help" -s v -l verbose -d 'Verbose mode'
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys help" -l ignore-prerequisites -d 'Ignores prerequisites checks'
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys help" -s h -l help -d 'Print help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys help" -f -a "init" -d 'Initialize prover'
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys help" -f -a "setup-keys" -d 'Generate setup keys'
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys help" -f -a "run" -d 'Run prover'
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys help" -f -a "init-bellman-cuda" -d 'Initialize bellman-cuda'
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys help" -f -a "compressor-keys" -d 'Download compressor keys'
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and not __fish_seen_subcommand_from init setup-keys run init-bellman-cuda compressor-keys help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l proof-store-dir -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l bucket-base-url -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l credentials-file -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l bucket-name -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l location -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l project-id -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l deploy-proving-network -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l rpc-url -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l l1-rpc-url -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l fermah-address -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l lagrange-address -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l usdc-address -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l proof-manager-owner-address -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l proxy-owner-address -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l top-up-server-wallets -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l top-up-network-wallets -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l deploy-proving-networks -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l bellman-cuda-dir -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l bellman-cuda -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l setup-compressor-key -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l bellman-cuda -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l setup-compressor-key -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l path -r -F
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l region -r -f -a "{us\t'',europe\t'',asia\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l mode -r -f -a "{download\t'',generate\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l setup-keys -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l setup-database -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l region -r -f -a "us\t''
+europe\t''
+asia\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l mode -r -f -a "download\t''
+generate\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l setup-keys -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l setup-database -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l prover-db-url -d 'Prover database url without database name' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l prover-db-name -d 'Prover database name' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -s u -l use-default -d 'Use default database urls and names' -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -s d -l dont-drop -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -s u -l use-default -d 'Use default database urls and names' -r -f -a "true\t''
+false\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -s d -l dont-drop -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l dev
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l clone
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from init" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from setup-keys" -l region -r -f -a "{us\t'',europe\t'',asia\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from setup-keys" -l mode -r -f -a "{download\t'',generate\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from setup-keys" -l region -r -f -a "us\t''
+europe\t''
+asia\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from setup-keys" -l mode -r -f -a "download\t''
+generate\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from setup-keys" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from setup-keys" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from setup-keys" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from setup-keys" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l component -r -f -a "{gateway\t'',witness-generator\t'',circuit-prover\t'',compressor\t'',prover-job-monitor\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l round -r -f -a "{all-rounds\t'',basic-circuits\t'',leaf-aggregation\t'',node-aggregation\t'',recursion-tip\t'',scheduler\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l component -r -f -a "gateway\t''
+witness-generator\t''
+circuit-prover\t''
+compressor\t''
+prover-job-monitor\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l round -r -f -a "all-rounds\t''
+basic-circuits\t''
+leaf-aggregation\t''
+node-aggregation\t''
+recursion-tip\t''
+scheduler\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s l -l light-wvg-count -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s h -l heavy-wvg-count -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s t -l threads -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s m -l max-allocation -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l mode -r -f -a "{fflonk\t'',plonk\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l docker -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l mode -r -f -a "fflonk\t''
+plonk\t''"
+complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l docker -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l tag -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from run" -s v -l verbose -d 'Verbose mode'
@@ -845,25 +784,11 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from compressor-keys" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from compressor-keys" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from compressor-keys" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l rpc-url -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l l1-rpc-url -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l fermah-address -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l lagrange-address -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l usdc-address -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l proof-manager-owner-address -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l proxy-owner-address -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l top-up-server-wallets -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l top-up-network-wallets -r -f -a "{true\t'',false\t''}"
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l chain -d 'Chain to use' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -s v -l verbose -d 'Verbose mode'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -l ignore-prerequisites -d 'Ignores prerequisites checks'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from deploy-proving-network" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "init" -d 'Initialize prover'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "setup-keys" -d 'Generate setup keys'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "run" -d 'Run prover'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "init-bellman-cuda" -d 'Initialize bellman-cuda'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "compressor-keys" -d 'Download compressor keys'
-complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "deploy-proving-network" -d 'Deploy proving network'
 complete -c zkstack -n "__fish_zkstack_using_subcommand prover; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l components -d 'Components of server to run' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand server; and not __fish_seen_subcommand_from build run wait help" -l server-command -d 'Command to run the server binary' -r
@@ -928,7 +853,8 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fis
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from build" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from build" -s h -l help -d 'Print help'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -l components -d 'Components of server to run' -r
-complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -l enable-consensus -d 'Enable consensus' -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -l enable-consensus -d 'Enable consensus' -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -l reinit
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from run" -s v -l verbose -d 'Verbose mode'
@@ -946,7 +872,8 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fis
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from help" -f -a "run" -d 'Run external node'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from help" -f -a "wait" -d 'Wait for external node to start'
 complete -c zkstack -n "__fish_zkstack_using_subcommand external-node; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand containers" -s o -l observability -d 'Enable Grafana' -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand containers" -s o -l observability -d 'Enable Grafana' -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand containers" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand containers" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand containers" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -1027,7 +954,8 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and not __fish
 complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and not __fish_seen_subcommand_from init run-backend run help" -f -a "run-backend" -d 'Start explorer backend services (api, data_fetcher, worker) for a given chain. Uses default chain, unless --chain is passed'
 complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and not __fish_seen_subcommand_from init run-backend run help" -f -a "run" -d 'Run explorer app'
 complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and not __fish_seen_subcommand_from init run-backend run help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and __fish_seen_subcommand_from init" -l prividium -d 'Enable Prividium mode for this Block Explorer' -r -f -a "{true\t'',false\t''}"
+complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and __fish_seen_subcommand_from init" -l prividium -d 'Enable Prividium mode for this Block Explorer' -r -f -a "true\t''
+false\t''"
 complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and __fish_seen_subcommand_from init" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and __fish_seen_subcommand_from init" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand explorer; and __fish_seen_subcommand_from init" -l ignore-prerequisites -d 'Ignores prerequisites checks'
@@ -1086,7 +1014,6 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_se
 complete -c zkstack -n "__fish_zkstack_using_subcommand consensus; and __fish_seen_subcommand_from help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand update" -l chain -d 'Chain to use' -r
 complete -c zkstack -n "__fish_zkstack_using_subcommand update" -s c -l only-config -d 'Update only the config files'
-complete -c zkstack -n "__fish_zkstack_using_subcommand update" -l zksync-os
 complete -c zkstack -n "__fish_zkstack_using_subcommand update" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand update" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand update" -s h -l help -d 'Print help'
@@ -1094,32 +1021,27 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand markdown" -l chain -d 'C
 complete -c zkstack -n "__fish_zkstack_using_subcommand markdown" -s v -l verbose -d 'Verbose mode'
 complete -c zkstack -n "__fish_zkstack_using_subcommand markdown" -l ignore-prerequisites -d 'Ignores prerequisites checks'
 complete -c zkstack -n "__fish_zkstack_using_subcommand markdown" -s h -l help -d 'Print help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "autocomplete" -d 'Create shell autocompletion files'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "ecosystem" -d 'Ecosystem related commands'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "ctm" -d 'CTM related commands'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "chain" -d 'Chain related commands'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "dev" -d 'Supervisor related commands'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "prover" -d 'Prover related commands'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "server" -d 'Run server'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "external-node" -d 'External Node related commands'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "containers" -d 'Run containers for local development'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "contract-verifier" -d 'Run contract verifier'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "portal" -d 'Run dapp-portal'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "private-rpc" -d 'Run private RPC'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "explorer" -d 'Run block-explorer'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "consensus" -d 'Consensus utilities'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "update" -d 'Update ZKsync'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "markdown" -d 'Print markdown help'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem ctm chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "autocomplete" -d 'Create shell autocompletion files'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "ecosystem" -d 'Ecosystem related commands'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "chain" -d 'Chain related commands'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "dev" -d 'Supervisor related commands'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "prover" -d 'Prover related commands'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "server" -d 'Run server'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "external-node" -d 'External Node related commands'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "containers" -d 'Run containers for local development'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "contract-verifier" -d 'Run contract verifier'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "portal" -d 'Run dapp-portal'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "private-rpc" -d 'Run private RPC'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "explorer" -d 'Run block-explorer'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "consensus" -d 'Consensus utilities'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "update" -d 'Update ZKsync'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "markdown" -d 'Print markdown help'
+complete -c zkstack -n "__fish_zkstack_using_subcommand help; and not __fish_seen_subcommand_from autocomplete ecosystem chain dev prover server external-node containers contract-verifier portal private-rpc explorer consensus update markdown help" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "create" -d 'Create a new ecosystem and chain, setting necessary configurations for later initialization'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "build-transactions" -d 'Create transactions to build ecosystem contracts'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "init" -d 'Initialize ecosystem and chain, deploying necessary contracts and performing on-chain operations'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "init-core-contracts" -d 'Initialize ecosystem core contracts'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "change-default-chain" -d 'Change the default chain'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "setup-observability" -d 'Setup observability for the ecosystem, downloading Grafana dashboards from the era-observability repo'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ecosystem" -f -a "register-ctm" -d 'Register a new CTM on an existing BridgeHub. CTM must be already deployed.(ctm init command)'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ctm" -f -a "init-new-ctm" -d 'Initialize new CTM on existing bridgehub'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from ctm" -f -a "set-ctm-contracts" -d 'Specify source contracts and configs for the specific CTM. These sources will be used in the future when deploying new CTM'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "create" -d 'Create a new chain, setting the necessary configurations for later initialization'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "build-transactions" -d 'Create unsigned transactions for chain deployment'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from chain" -f -a "init" -d 'Initialize chain, deploying necessary contracts and performing on-chain operations'
@@ -1155,20 +1077,11 @@ complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_su
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "init-test-wallet" -d 'Initialize test wallet'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "rich-account" -d 'Make L2 account rich'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "track-priority-ops" -d 'Generate new genesis file based on current contracts'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "v27-evm-interpreter-upgrade-calldata" -d 'EVM Interpreter (v27) upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "generate-v28-upgrade-calldata" -d 'Precompiles (v28) upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "generate-ecosystem-upgrade-calldata" -d 'General ecosystem upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "run-ecosystem-upgrade" -d 'General ecosystem upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "generate-chain-upgrade" -d 'General chain upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "run-chain-upgrade" -d 'General chain upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "run-v29-chain-upgrade" -d 'V29 chain upgrade checker and calldata generator'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from dev" -f -a "generate-v29-chain-upgrade" -d 'V29 chain upgrade checker and calldata generator'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from prover" -f -a "init" -d 'Initialize prover'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from prover" -f -a "setup-keys" -d 'Generate setup keys'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from prover" -f -a "run" -d 'Run prover'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from prover" -f -a "init-bellman-cuda" -d 'Initialize bellman-cuda'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from prover" -f -a "compressor-keys" -d 'Download compressor keys'
-complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from prover" -f -a "deploy-proving-network" -d 'Deploy proving network'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from server" -f -a "build" -d 'Builds server'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from server" -f -a "run" -d 'Runs server'
 complete -c zkstack -n "__fish_zkstack_using_subcommand help; and __fish_seen_subcommand_from server" -f -a "wait" -d 'Waits for server to start'
