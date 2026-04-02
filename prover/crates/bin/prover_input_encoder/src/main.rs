@@ -1,8 +1,12 @@
-use std::path::Path;
+use std::{
+    io::{self, Read as _, Write as _},
+    path::Path,
+};
 
 use clap::Parser;
 use zksync_airbender_prover_interface::{
-    encoding::encode_input_to_hex, inputs::AirbenderVerifierInput,
+    encoding::{decode_from_words, encode_input_to_hex},
+    inputs::AirbenderVerifierInput,
 };
 
 const DEFAULT_INPUT_FILE: &str = "proof_input_local.json";
@@ -11,32 +15,86 @@ const DEFAULT_OUTPUT_FILE: &str = "encoded_input.txt";
 #[derive(Parser, Debug)]
 #[command(version, about = "Encodes airbender verifier input into packed words")]
 struct Cli {
+    /// Input file path, or "-" to read from stdin
     #[arg(short = 'i', long = "input", default_value = DEFAULT_INPUT_FILE)]
     input: String,
 
+    /// Output file path, or "-" to write to stdout
     #[arg(short = 'o', long = "output", default_value = DEFAULT_OUTPUT_FILE)]
     output: String,
 
+    /// Process all JSON files in input folder, writing to output folder
     #[arg(long = "folder")]
     folder: bool,
+
+    /// Decode hex input back to JSON instead of encoding
+    #[arg(short = 'd', long = "decode")]
+    decode: bool,
 }
 
-fn encode_single_file(input_file: &Path, output_file: &Path) -> Result<(), String> {
-    let json_input = std::fs::read_to_string(input_file)
-        .map_err(|err| format!("Failed to read input file {}: {err}", input_file.display()))?;
+fn read_input(input: &str) -> Result<String, String> {
+    if input == "-" {
+        let mut buf = String::new();
+        io::stdin()
+            .read_to_string(&mut buf)
+            .map_err(|err| format!("Failed to read stdin: {err}"))?;
+        Ok(buf)
+    } else {
+        std::fs::read_to_string(input)
+            .map_err(|err| format!("Failed to read input file {input}: {err}"))
+    }
+}
+
+fn write_output(output: &str, data: &str) -> Result<(), String> {
+    if output == "-" {
+        io::stdout()
+            .write_all(data.as_bytes())
+            .map_err(|err| format!("Failed to write to stdout: {err}"))
+    } else {
+        std::fs::write(output, data)
+            .map_err(|err| format!("Failed to write output file {output}: {err}"))
+    }
+}
+
+fn encode_single(input: &str, output: &str) -> Result<(), String> {
+    let json_input = read_input(input)?;
     let verifier_input: AirbenderVerifierInput = serde_json::from_str(&json_input)
-        .map_err(|err| format!("Failed to parse JSON input {}: {err}", input_file.display()))?;
+        .map_err(|err| format!("Failed to parse JSON input: {err}"))?;
 
     let hex = encode_input_to_hex(&verifier_input)?;
+    write_output(output, &hex)
+}
 
-    std::fs::write(output_file, hex).map_err(|err| {
-        format!(
-            "Failed to write output file {}: {err}",
-            output_file.display()
-        )
-    })?;
+fn decode_single(input: &str, output: &str) -> Result<(), String> {
+    let hex_input = read_input(input)?;
+    let hex_input = hex_input.trim();
 
-    Ok(())
+    if hex_input.len() % 8 != 0 {
+        return Err(format!(
+            "Hex input length {} is not a multiple of 8",
+            hex_input.len()
+        ));
+    }
+
+    let words: Vec<u32> = hex_input
+        .as_bytes()
+        .chunks(8)
+        .enumerate()
+        .map(|(i, chunk)| {
+            let s = std::str::from_utf8(chunk)
+                .map_err(|err| format!("Invalid UTF-8 at word {i}: {err}"))?;
+            u32::from_str_radix(s, 16)
+                .map_err(|err| format!("Invalid hex at word {i} ({s}): {err}"))
+        })
+        .collect::<Result<_, _>>()?;
+
+    let bytes = decode_from_words(&words)?;
+    let verifier_input: AirbenderVerifierInput = bincode::deserialize(&bytes)
+        .map_err(|err| format!("Failed to deserialize verifier input: {err}"))?;
+
+    let json = serde_json::to_string_pretty(&verifier_input)
+        .map_err(|err| format!("Failed to serialize to JSON: {err}"))?;
+    write_output(output, &json)
 }
 
 fn encode_missing_from_folders(input_folder: &Path, output_folder: &Path) -> Result<(), String> {
@@ -126,8 +184,10 @@ fn main() {
     let cli = Cli::parse();
     let result = if cli.folder {
         encode_missing_from_folders(Path::new(&cli.input), Path::new(&cli.output))
+    } else if cli.decode {
+        decode_single(&cli.input, &cli.output)
     } else {
-        encode_single_file(Path::new(&cli.input), Path::new(&cli.output))
+        encode_single(&cli.input, &cli.output)
     };
 
     if let Err(err) = result {

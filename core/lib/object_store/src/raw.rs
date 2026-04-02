@@ -36,7 +36,7 @@ impl Bucket {
             Self::NodeAggregationWitnessJobsFri => "node_aggregation_witness_jobs_fri",
             Self::SchedulerWitnessJobsFri => "scheduler_witness_jobs_fri",
             Self::ProofsFri => "proofs_fri",
-            Self::ProofsAirbender => "proofs_tee",
+            Self::ProofsAirbender => "proofs_airbender",
             Self::StorageSnapshot => "storage_logs_snapshots",
             Self::DataAvailability => "data_availability",
             Self::VmDumps => "vm_dumps",

@@ -60,7 +60,6 @@ fn create_proof_processing_router(
         AirbenderRequestProcessor::new(blob_store, connection_pool, config.clone(), l2_chain_id);
     let get_processor = processor.clone();
     let get_no_lock_processor = processor.clone();
-    let get_batch_processor = processor.clone();
     let present_batches_processor = processor.clone();
     let submit_processor = processor.clone();
 
@@ -90,14 +89,6 @@ fn create_proof_processing_router(
                         Ok(None) => StatusCode::NOT_FOUND.into_response(),
                         Err(e) => e.into_response(),
                     }
-                }),
-            )
-            .route(
-                "/airbender/proof_inputs/{l1_batch_number}",
-                get(move |l1_batch_number: Path<u32>| async move {
-                    get_batch_processor
-                        .get_proof_generation_data_for_batch(l1_batch_number)
-                        .await
                 }),
             )
             .route(
