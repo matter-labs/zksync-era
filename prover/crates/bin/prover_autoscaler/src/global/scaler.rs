@@ -54,6 +54,11 @@ struct Pool<K: Eq + Hash + Copy> {
     pods: HashMap<PodStatus, usize>, // TODO: consider using i64 everywhere to avoid type casts.
     scale_errors: usize,
     max_pool_size: usize,
+    /// The configured max_pool_size before runtime capping. Used to distinguish
+    /// pools disabled in config (max_replicas=0) from pools capped at runtime
+    /// due to stuck detection. Only config-disabled pools are excluded from
+    /// aggressive mode threshold calculation.
+    configured_max_pool_size: usize,
     /// True when the deployment has been stuck (desired > 0, running < desired)
     /// for longer than long_pending_duration. Survives pod recycling.
     deployment_stuck: bool,
@@ -146,15 +151,17 @@ impl<K: Key> Scaler<K> {
                 .stuck_since
                 .map(|since| since < Utc::now() - self.config.long_pending_duration)
                 .unwrap_or(false);
+            let configured_size = self
+                .max_replicas
+                .get(&cluster.name)
+                .and_then(|inner_map| inner_map.get(&key))
+                .copied()
+                .unwrap_or(0);
             let e = pool_map.entry(key).or_insert(Pool {
                 name: cluster.name.clone(),
                 key,
-                max_pool_size: self
-                    .max_replicas
-                    .get(&cluster.name)
-                    .and_then(|inner_map| inner_map.get(&key))
-                    .copied()
-                    .unwrap_or(0),
+                max_pool_size: configured_size,
+                configured_max_pool_size: configured_size,
                 scale_errors: namespace_value
                     .scale_errors
                     .iter()
@@ -216,11 +223,15 @@ impl<K: Key> Scaler<K> {
 
         // Cap pool when it's stuck: NeedToMove (event-based), LongPending (per-pod),
         // or deployment_stuck (deployment-level, survives pod recycling).
-        // Forces the regular allocation path to overflow to the next priority pool.
+        // deployment_stuck only caps GPU-keyed pools (L4/H100) where overflow to a
+        // different GPU type is possible. For NoKey scalers (compressor,
+        // witness-generators), ALL pools share the same node type — capping them
+        // all leaves no fallback, and aggressive mode also can't help since
+        // calculate_aggressive respects max_pool_size.
         for pool in &mut pools {
             if pool.sum_by_pod_status(PodStatus::NeedToMove) > 0
                 || pool.sum_by_pod_status(PodStatus::LongPending) > 0
-                || pool.deployment_stuck
+                || (pool.deployment_stuck && pool.key.gpu().is_some())
             {
                 pool.max_pool_size = pool.sum_by_pod_status(PodStatus::Running)
                     + pool.sum_by_pod_status(PodStatus::Pending);
@@ -371,8 +382,12 @@ impl<K: Key> Scaler<K> {
                     return;
                 }
 
-                let active_pools: Vec<_> =
-                    all_pools.iter().filter(|p| p.max_pool_size > 0).collect();
+                // Use configured_max_pool_size to exclude only pools disabled
+                // in config (max_replicas=0), not pools capped at runtime.
+                let active_pools: Vec<_> = all_pools
+                    .iter()
+                    .filter(|p| p.configured_max_pool_size > 0)
+                    .collect();
                 if active_pools.is_empty() {
                     return;
                 }
@@ -2416,6 +2431,7 @@ mod tests {
                 .into(),
                 scale_errors: 3,
                 max_pool_size: 100,
+                configured_max_pool_size: 100,
                 deployment_stuck: false,
             }]
         );
@@ -3285,6 +3301,7 @@ mod tests {
                 pods: [(PodStatus::Running, 0)].into(),
                 scale_errors: 0,
                 max_pool_size: 100,
+                configured_max_pool_size: 100,
                 deployment_stuck: true,
             },
             Pool {
@@ -3293,6 +3310,7 @@ mod tests {
                 pods: [(PodStatus::Running, 0)].into(),
                 scale_errors: 0,
                 max_pool_size: 100,
+                configured_max_pool_size: 100,
                 deployment_stuck: true,
             },
         ];
