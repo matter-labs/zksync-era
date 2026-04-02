@@ -1,5 +1,18 @@
 # Changelog
 
+## [25.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.2.0...prover-v25.3.0) (2026-04-02)
+
+
+### Features
+
+* **prover-autoscaler:** add max_running_weight cap for scaler targets ([#4744](https://github.com/matter-labs/zksync-era/issues/4744)) ([55382f3](https://github.com/matter-labs/zksync-era/commit/55382f38f47ad754c3ea14d9eb752fd7c18e679b))
+
+
+### Bug Fixes
+
+* **prover-autoscaler:** fix deadlock in k8s event watcher ([#4742](https://github.com/matter-labs/zksync-era/issues/4742)) ([7feb7aa](https://github.com/matter-labs/zksync-era/commit/7feb7aafa339431a002283b0bf767d960fb7258f))
+* **prover-autoscaler:** fix event watcher and running weight cap ([#4746](https://github.com/matter-labs/zksync-era/issues/4746)) ([9c049c4](https://github.com/matter-labs/zksync-era/commit/9c049c4f54b4ead1747b77097b9c59102b94d5cb))
+
 ## [25.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.1.0...prover-v25.2.0) (2026-03-25)
 
 
