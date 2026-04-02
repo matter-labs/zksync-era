@@ -13551,6 +13551,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_airbender_verifier"
+version = "29.15.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "tracing",
+ "zksync_airbender_prover_interface",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_crypto_primitives",
+ "zksync_merkle_tree",
+ "zksync_multivm",
+ "zksync_prover_interface",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_base_token_adjuster"
 version = "29.15.0-non-semver-compat"
 dependencies = [

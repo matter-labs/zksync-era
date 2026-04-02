@@ -12,6 +12,12 @@ use crate::inputs::AirbenderVerifierInput;
 pub struct AirbenderProofGenerationDataResponse(pub Box<AirbenderVerifierInput>);
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct AirbenderPresentBatchesResponse {
+    pub oldest_batch: Option<u32>,
+    pub latest_batch: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitAirbenderProofResponse {
     Success,
     Error(String),

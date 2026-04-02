@@ -68,6 +68,7 @@ members = [
   "lib/state",
   "lib/storage",
   "lib/airbender_prover_interface",
+  "lib/airbender_verifier",
   "lib/types",
   "lib/utils",
   "lib/vlog",
@@ -319,6 +320,7 @@ zksync_state = { version = "29.15.0-non-semver-compat", path = "lib/state" }
 zksync_storage = { version = "29.15.0-non-semver-compat", path = "lib/storage" }
 zksync_system_constants = { version = "29.15.0-non-semver-compat", path = "lib/constants" }
 zksync_airbender_prover_interface = { version = "29.15.0-non-semver-compat", path = "lib/airbender_prover_interface" }
+zksync_airbender_verifier = { version = "29.15.0-non-semver-compat", path = "lib/airbender_verifier" }
 zksync_test_contracts = { version = "29.15.0-non-semver-compat", path = "lib/test_contracts" }
 zksync_types = { version = "29.15.0-non-semver-compat", path = "lib/types" }
 zksync_utils = { version = "29.15.0-non-semver-compat", path = "lib/utils" }

@@ -59,7 +59,9 @@ fn create_proof_processing_router(
     let processor =
         AirbenderRequestProcessor::new(blob_store, connection_pool, config.clone(), l2_chain_id);
     let get_processor = processor.clone();
+    let get_no_lock_processor = processor.clone();
     let get_batch_processor = processor.clone();
+    let present_batches_processor = processor.clone();
     let submit_processor = processor.clone();
 
     let router =
@@ -77,11 +79,36 @@ fn create_proof_processing_router(
                 }),
             )
             .route(
+                "/airbender/proof_inputs_no_lock/{batch}",
+                get(move |batch: Path<u32>| async move {
+                    let result = get_no_lock_processor
+                        .get_proof_generation_data_no_lock(batch)
+                        .await;
+
+                    match result {
+                        Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+                        Err(e) => e.into_response(),
+                    }
+                }),
+            )
+            .route(
                 "/airbender/proof_inputs/{l1_batch_number}",
                 get(move |l1_batch_number: Path<u32>| async move {
                     get_batch_processor
                         .get_proof_generation_data_for_batch(l1_batch_number)
                         .await
+                }),
+            )
+            .route(
+                "/airbender/present_batches",
+                get(move || async move {
+                    let result = present_batches_processor.get_present_batches().await;
+
+                    match result {
+                        Ok(data) => (StatusCode::OK, data).into_response(),
+                        Err(e) => e.into_response(),
+                    }
                 }),
             )
             .route(

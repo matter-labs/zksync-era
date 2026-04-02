@@ -3,7 +3,9 @@ use std::sync::Arc;
 use axum::{extract::Path, Json};
 use chrono::Utc;
 use zksync_airbender_prover_interface::{
-    api::{SubmitAirbenderProofRequest, SubmitAirbenderProofResponse},
+    api::{
+        AirbenderPresentBatchesResponse, SubmitAirbenderProofRequest, SubmitAirbenderProofResponse,
+    },
     encoding::encode_input_to_hex,
     inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
     outputs::L1BatchAirbenderProofForL1,
@@ -96,6 +98,61 @@ impl AirbenderRequestProcessor {
         Ok(None)
     }
 
+    pub(crate) async fn get_proof_generation_data_no_lock(
+        &self,
+        Path(l1_batch_number): Path<u32>,
+    ) -> Result<Option<String>, AirbenderProcessorError> {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
+
+        if !self
+            .is_batch_present_for_airbender_proof_inputs(l1_batch_number)
+            .await?
+        {
+            return Ok(None);
+        }
+
+        match self
+            .airbender_verifier_input_for_existing_batch(l1_batch_number)
+            .await
+        {
+            Ok(input) => {
+                let hex = encode_input_to_hex(&input).map_err(|err| {
+                    AirbenderProcessorError::GeneralError(format!(
+                        "Failed to encode verifier input for batch {l1_batch_number}: {err}"
+                    ))
+                })?;
+                Ok(Some(hex))
+            }
+            Err(AirbenderProcessorError::ObjectStore {
+                source: ObjectStoreError::KeyNotFound(_),
+                ..
+            }) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub(crate) async fn get_present_batches(
+        &self,
+    ) -> Result<Json<AirbenderPresentBatchesResponse>, AirbenderProcessorError> {
+        let bounds = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?
+            .proof_generation_dal()
+            .get_present_batch_bounds_for_airbender_proof_inputs(self.config.first_processed_batch)
+            .await?;
+
+        let (oldest_batch, latest_batch) = match bounds {
+            Some((oldest_batch, latest_batch)) => (Some(oldest_batch.0), Some(latest_batch.0)),
+            None => (None, None),
+        };
+
+        Ok(Json(AirbenderPresentBatchesResponse {
+            oldest_batch,
+            latest_batch,
+        }))
+    }
+
     #[tracing::instrument(skip(self))]
     async fn airbender_verifier_input_for_existing_batch(
         &self,
@@ -175,6 +232,22 @@ impl AirbenderRequestProcessor {
             .await?
             .airbender_proof_generation_dal()
             .lock_batch_for_proving(self.config.proof_generation_timeout, min_batch_number)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn is_batch_present_for_airbender_proof_inputs(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<bool, AirbenderProcessorError> {
+        self.pool
+            .connection_tagged("airbender_request_processor")
+            .await?
+            .proof_generation_dal()
+            .is_batch_present_for_airbender_proof_inputs(
+                l1_batch_number,
+                self.config.first_processed_batch,
+            )
             .await
             .map_err(Into::into)
     }

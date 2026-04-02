@@ -1,17 +1,22 @@
 use std::time::Duration;
 
 use axum::{
-    body::Body,
+    body::{to_bytes, Body},
     http::{self, Method, Request, StatusCode},
     response::Response,
     Router,
 };
+use serde_json::json;
 use tower::ServiceExt;
 use zksync_airbender_prover_interface::api::SubmitAirbenderProofRequest;
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
-use zksync_dal::{ConnectionPool, CoreDal};
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::MockObjectStore;
-use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_types::{
+    block::L1BatchHeader, settlement::SettlementLayer, L1BatchNumber, L2ChainId, ProtocolVersion,
+    ProtocolVersionId, H256,
+};
 
 use crate::create_proof_processing_router;
 
@@ -48,6 +53,114 @@ async fn request_airbender_proof_inputs() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn request_airbender_proof_inputs_no_lock_returns_404_for_missing_batch() {
+    let db_conn_pool = ConnectionPool::test_pool().await;
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool,
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(Method::GET)
+                .uri("/airbender/proof_inputs_no_lock/1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn request_airbender_proof_inputs_no_lock_returns_404_for_missing_blob_data() {
+    let db_conn_pool = ConnectionPool::test_pool().await;
+    save_default_protocol_version(&db_conn_pool).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(1), true).await;
+
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool,
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(Method::GET)
+                .uri("/airbender/proof_inputs_no_lock/1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn present_batches_returns_null_fields_when_empty() {
+    let db_conn_pool = ConnectionPool::test_pool().await;
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool,
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(Method::GET)
+                .uri("/airbender/present_batches")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response_json(response).await;
+    assert_eq!(body, json!({ "oldest_batch": null, "latest_batch": null }));
+}
+
+#[tokio::test]
+async fn present_batches_returns_oldest_and_latest_batches() {
+    let db_conn_pool = ConnectionPool::test_pool().await;
+    save_default_protocol_version(&db_conn_pool).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(1), true).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(3), false).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(5), true).await;
+
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool,
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(Method::GET)
+                .uri("/airbender/present_batches")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response_json(response).await;
+    assert_eq!(body, json!({ "oldest_batch": 1, "latest_batch": 5 }));
 }
 
 // Test /airbender/submit_proofs endpoint
@@ -119,6 +232,65 @@ async fn mock_airbender_batch_status(
         .unwrap()
         .unwrap();
     assert_eq!(oldest_batch_number, batch_number);
+}
+
+fn create_l1_batch_header(number: u32) -> L1BatchHeader {
+    L1BatchHeader::new(
+        L1BatchNumber(number),
+        100,
+        BaseSystemContractsHashes {
+            bootloader: H256::repeat_byte(1),
+            default_aa: H256::repeat_byte(42),
+            evm_emulator: Some(H256::repeat_byte(43)),
+        },
+        ProtocolVersionId::latest(),
+        SettlementLayer::for_tests(),
+    )
+}
+
+async fn save_default_protocol_version(pool: &ConnectionPool<Core>) {
+    let mut connection = pool.connection().await.unwrap();
+    connection
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+}
+
+async fn insert_batch_for_airbender_inputs(
+    pool: ConnectionPool<Core>,
+    batch_number: L1BatchNumber,
+    mark_as_present: bool,
+) {
+    let mut connection = pool.connection().await.unwrap();
+    connection
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
+    connection
+        .proof_generation_dal()
+        .insert_proof_generation_details(batch_number)
+        .await
+        .unwrap();
+
+    if mark_as_present {
+        connection
+            .proof_generation_dal()
+            .save_vm_runner_artifacts_metadata(batch_number, "vm_run")
+            .await
+            .unwrap();
+        connection
+            .proof_generation_dal()
+            .save_merkle_paths_artifacts_metadata(batch_number, "merkle_paths")
+            .await
+            .unwrap();
+    }
+}
+
+async fn response_json(response: Response) -> serde_json::Value {
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    serde_json::from_slice(&body).unwrap()
 }
 
 async fn send_submit_airbender_proof_request(
