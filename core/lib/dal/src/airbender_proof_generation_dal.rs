@@ -291,4 +291,38 @@ impl AirbenderProofGenerationDal<'_, '_> {
 
         Ok(batch_number)
     }
+
+    pub async fn get_ready_for_proving_count(
+        &mut self,
+        min_batch_number: L1BatchNumber,
+    ) -> DalResult<i64> {
+        let min_batch_number = i64::from(min_batch_number.0);
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*) AS "count!"
+            FROM
+                proof_generation_details p
+            LEFT JOIN
+                airbender_proof_generation_details apgd
+                ON p.l1_batch_number = apgd.l1_batch_number
+            WHERE
+                p.l1_batch_number >= $1
+                AND p.vm_run_data_blob_url IS NOT NULL
+                AND p.proof_gen_data_blob_url IS NOT NULL
+                AND (
+                    apgd.l1_batch_number IS NULL
+                    OR apgd.status = $2
+                )
+            "#,
+            min_batch_number,
+            AirbenderProofGenerationJobStatus::Failed.to_string(),
+        )
+        .instrument("get_ready_for_proving_count")
+        .with_arg("min_batch_number", &min_batch_number)
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.count)
+    }
 }
