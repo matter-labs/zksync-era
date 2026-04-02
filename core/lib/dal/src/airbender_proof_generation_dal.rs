@@ -156,6 +156,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
         &mut self,
         batch_number: L1BatchNumber,
         proof_blob_url: &str,
+        prover_id: &str,
     ) -> DalResult<()> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
@@ -164,18 +165,21 @@ impl AirbenderProofGenerationDal<'_, '_> {
             SET
                 status = $1,
                 proof_blob_url = $2,
+                prover_id = $3,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $3
-                AND status = $4
+                l1_batch_number = $4
+                AND status = $5
             "#,
             AirbenderProofGenerationJobStatus::Generated.to_string(),
             proof_blob_url,
+            prover_id,
             batch_number,
             AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
         );
         let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
             .with_arg("proof_blob_url", &proof_blob_url)
+            .with_arg("prover_id", &prover_id)
             .with_arg("l1_batch_number", &batch_number);
         let result = instrumentation
             .clone()

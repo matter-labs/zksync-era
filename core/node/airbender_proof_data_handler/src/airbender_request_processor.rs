@@ -271,6 +271,7 @@ impl AirbenderRequestProcessor {
         Json(proof): Json<SubmitAirbenderProofRequest>,
     ) -> Result<Json<SubmitAirbenderProofResponse>, AirbenderProcessorError> {
         let l1_batch_number = L1BatchNumber(proof.l1_batch_number);
+        let prover_id = proof.prover_id;
 
         let proof_for_gcs = L1BatchAirbenderProofForL1 { proof: proof.proof };
         let proof_blob_url = self
@@ -287,7 +288,7 @@ impl AirbenderRequestProcessor {
             .connection_tagged("airbender_request_processor")
             .await?;
         let mut dal = connection.airbender_proof_generation_dal();
-        dal.save_proof_artifacts_metadata(l1_batch_number, &proof_blob_url)
+        dal.save_proof_artifacts_metadata(l1_batch_number, &proof_blob_url, &prover_id)
             .await?;
 
         let sealed_at = connection
@@ -306,6 +307,7 @@ impl AirbenderRequestProcessor {
 
         tracing::info!(
             l1_batch_number = %l1_batch_number,
+            prover_id = %prover_id,
             sealed_to_proven_in_secs = duration_secs_f64,
             "Received proof for batch {}",
             l1_batch_number

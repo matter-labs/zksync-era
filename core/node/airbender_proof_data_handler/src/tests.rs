@@ -173,6 +173,7 @@ async fn submit_airbender_proof() {
 
     let airbender_proof_request = SubmitAirbenderProofRequest {
         l1_batch_number: batch_number.0,
+        prover_id: "test-prover".to_string(),
         proof: vec![0x0A, 0x0B, 0x0C, 0x0D, 0x0E],
     };
     let uri = "/airbender/submit_proofs".to_string();
