@@ -45,7 +45,7 @@ use zksync_types::{
     commitment::PubdataParams,
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    settlement::SettlementLayer,
+    settlement::{SettlementLayer, WorkingSettlementLayer},
     Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
     Transaction, U256,
 };
@@ -551,6 +551,7 @@ impl StateKeeperRunner {
                 Arc::new(NoopSealer),
                 Arc::new(async_cache),
                 None,
+                SettlementLayer::for_tests(),
             )
             .build(&stop_recv)
             .await
@@ -595,7 +596,7 @@ impl StateKeeperRunner {
                     &contracts_config.l1_specific_contracts(),
                     &contracts_config.l2_contracts(),
                     &genesis_config,
-                    SettlementLayer::for_tests(),
+                    WorkingSettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)
@@ -648,6 +649,7 @@ impl StateKeeperRunner {
                 Arc::new(NoopSealer),
                 Arc::new(MockReadStorageFactory),
                 None,
+                SettlementLayer::for_tests(),
             )
             .build(&stop_recv)
             .await
@@ -691,7 +693,7 @@ impl StateKeeperRunner {
                     &contracts_config.l1_specific_contracts(),
                     &contracts_config.l2_contracts(),
                     &genesis_config,
-                    SettlementLayer::for_tests(),
+                    WorkingSettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)

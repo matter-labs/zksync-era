@@ -35,11 +35,11 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
     system_contracts::get_system_smart_contracts,
-    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, TransactionTimeRangeConstraint,
-    H256,
+    L1ChainId, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
+    TransactionTimeRangeConstraint, H256, U256,
 };
 
-use crate::{MempoolGuard, MempoolIO};
+use crate::{interop_fee::ConstantInteropFeeInputProvider, MempoolGuard, MempoolIO};
 
 #[derive(Debug)]
 pub struct Tester {
@@ -149,9 +149,12 @@ impl Tester {
             ..StateKeeperConfig::for_tests()
         };
         let wallets = Wallets::for_tests();
+        let interop_fee_input_provider =
+            Arc::new(ConstantInteropFeeInputProvider::new(U256::zero()));
         let io = MempoolIO::new(
             mempool.clone(),
             Arc::new(batch_fee_input_provider),
+            interop_fee_input_provider,
             pool,
             &config,
             wallets.fee_account.unwrap().address(),
@@ -183,6 +186,7 @@ impl Tester {
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
                 L1VerifierConfig::default(),
+                L1ChainId(9),
             )
             .await
             .unwrap();

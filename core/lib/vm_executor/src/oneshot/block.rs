@@ -25,11 +25,15 @@ use super::{env::OneshotEnvParameters, ContractsKind};
 pub struct BlockInfo {
     resolved_block_number: L2BlockNumber,
     l1_batch_timestamp_s: Option<u64>,
+    settlement_layer: SettlementLayer,
 }
 
 impl BlockInfo {
     /// Fetches information for a pending block.
-    pub async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+    pub async fn pending(
+        connection: &mut Connection<'_, Core>,
+        settlement_layer: SettlementLayer,
+    ) -> anyhow::Result<Self> {
         let resolved_block_number = connection
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
@@ -39,6 +43,7 @@ impl BlockInfo {
         Ok(Self {
             resolved_block_number,
             l1_batch_timestamp_s: None,
+            settlement_layer,
         })
     }
 
@@ -58,9 +63,14 @@ impl BlockInfo {
             .await
             .map_err(DalError::generalize)?
             .context("missing timestamp for non-pending block")?;
+        let settlement_layer = connection
+            .blocks_web3_dal()
+            .get_expected_settlement_layer(&l1_batch)
+            .await?;
         Ok(Self {
             resolved_block_number: number,
             l1_batch_timestamp_s: Some(l1_batch_timestamp),
+            settlement_layer,
         })
     }
 
@@ -151,6 +161,7 @@ impl BlockInfo {
             protocol_version,
             use_evm_emulator,
             is_pending: self.is_pending_l2_block(),
+            settlement_layer: self.settlement_layer,
         })
     }
 
@@ -191,6 +202,7 @@ pub struct ResolvedBlockInfo {
     protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
     is_pending: bool,
+    settlement_layer: SettlementLayer,
 }
 
 impl ResolvedBlockInfo {
@@ -224,12 +236,32 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         )
         .await?;
 
+        // Pending: prefer freshest source (open batch -> runtime fallback -> sealed batch).
+        // Non-pending: prefer historical sealed value, then runtime fallback.
+        let interop_fee = if resolved_block_info.is_pending {
+            if let Some(unsealed_batch) = connection.blocks_dal().get_unsealed_l1_batch().await? {
+                unsealed_batch.interop_fee
+            } else if let Some(fallback_fee) = self.interop_fee_fallback() {
+                fallback_fee
+            } else {
+                Self::sealed_batch_interop_fee(connection, resolved_block_info.vm_l1_batch_number)
+                    .await?
+                    .unwrap_or_default()
+            }
+        } else {
+            Self::sealed_batch_interop_fee(connection, resolved_block_info.vm_l1_batch_number)
+                .await?
+                .or_else(|| self.interop_fee_fallback())
+                .unwrap_or_default()
+        };
+
         let (system, l1_batch) = self
             .prepare_env(
                 execution_mode,
                 resolved_block_info,
                 next_block,
                 fee_input,
+                interop_fee,
                 enforced_base_fee,
             )
             .await?;
@@ -241,12 +273,24 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         })
     }
 
+    async fn sealed_batch_interop_fee(
+        connection: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<U256>> {
+        connection
+            .blocks_dal()
+            .get_l1_batch_interop_fee_if_sealed(l1_batch_number)
+            .await
+            .with_context(|| format!("failed loading interop fee for L1 batch #{l1_batch_number}"))
+    }
+
     async fn prepare_env(
         &self,
         execution_mode: TxExecutionMode,
         resolved_block_info: &ResolvedBlockInfo,
         next_block: L2BlockEnv,
         fee_input: BatchFeeInput,
+        interop_fee: U256,
         enforced_base_fee: Option<u64>,
     ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
         let &Self {
@@ -273,12 +317,12 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
             previous_batch_hash: None,
             number: resolved_block_info.vm_l1_batch_number,
             timestamp: resolved_block_info.l1_batch_timestamp,
-            interop_fee: U256::zero(),
             fee_input,
+            interop_fee,
             fee_account: *operator_account.address(),
             enforced_base_fee,
             first_l2_block: next_block,
-            settlement_layer: SettlementLayer::default(),
+            settlement_layer: resolved_block_info.settlement_layer,
         };
         Ok((system_env, l1_batch_env))
     }
