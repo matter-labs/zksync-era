@@ -51,9 +51,6 @@ impl AirbenderRequestProcessor {
         tracing::info!("Received request for proof generation data");
 
         let min_batch_number = self.config.first_processed_batch;
-
-        self.update_ready_batches_metric(min_batch_number).await;
-
         const MAX_ATTEMPTS: usize = 5;
 
         for attempt in 0..MAX_ATTEMPTS {
@@ -237,28 +234,6 @@ impl AirbenderRequestProcessor {
             .lock_batch_for_proving(self.config.proof_generation_timeout, min_batch_number)
             .await
             .map_err(Into::into)
-    }
-
-    async fn update_ready_batches_metric(&self, min_batch_number: L1BatchNumber) {
-        match self
-            .pool
-            .connection_tagged("airbender_request_processor")
-            .await
-        {
-            Ok(mut conn) => {
-                match conn
-                    .airbender_proof_generation_dal()
-                    .get_ready_for_proving_count(min_batch_number)
-                    .await
-                {
-                    Ok(count) => {
-                        METRICS.batches_ready_for_proving.set(count);
-                    }
-                    Err(err) => tracing::warn!("Failed to get ready batch count: {err}"),
-                }
-            }
-            Err(err) => tracing::warn!("Failed to get connection for metrics: {err}"),
-        }
     }
 
     async fn is_batch_present_for_airbender_proof_inputs(

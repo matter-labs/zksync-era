@@ -550,8 +550,9 @@ impl MainNodeBuilder {
 
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = self.configs.house_keeper_config.clone();
+        let airbender_config = self.configs.airbender_proof_data_handler_config.clone();
         self.node
-            .add_layer(HouseKeeperLayer::new(house_keeper_config));
+            .add_layer(HouseKeeperLayer::new(house_keeper_config, airbender_config));
         Ok(self)
     }
 
