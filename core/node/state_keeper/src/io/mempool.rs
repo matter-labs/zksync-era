@@ -30,6 +30,7 @@ use zksync_types::{
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
 use crate::{
+    interop_fee::InteropFeeInputProvider,
     io::{
         common::{load_pending_batch, poll_iters, IoCursor},
         seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
@@ -66,6 +67,7 @@ pub struct MempoolIO {
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
+    interop_fee_input_provider: Arc<dyn InteropFeeInputProvider>,
     chain_id: L2ChainId,
     l2_da_validator_address: Option<Address>,
     l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
@@ -500,6 +502,7 @@ impl MempoolIO {
     pub fn new(
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
+        interop_fee_input_provider: Arc<dyn InteropFeeInputProvider>,
         pool: ConnectionPool<Core>,
         config: &StateKeeperConfig,
         fee_account: Address,
@@ -524,6 +527,7 @@ impl MempoolIO {
             max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit.into(),
             delay_interval,
             batch_fee_input_provider,
+            interop_fee_input_provider,
             chain_id,
             l2_da_validator_address,
             l2_da_commitment_scheme,
@@ -582,7 +586,7 @@ impl MempoolIO {
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: unsealed_storage_batch.fee_address,
                 fee_input: unsealed_storage_batch.fee_input,
-                interop_fee: U256::zero(),
+                interop_fee: unsealed_storage_batch.interop_fee,
                 // We only persist timestamp in seconds.
                 // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
                 first_l2_block: L2BlockParams::new_raw(
@@ -592,7 +596,7 @@ impl MempoolIO {
                 ),
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit: unsealed_storage_batch.pubdata_limit,
-                settlement_layer: self.settlement_layer,
+                settlement_layer: unsealed_storage_batch.settlement_layer,
             }));
         }
 
@@ -640,6 +644,7 @@ impl MempoolIO {
                 return Ok(None);
             };
             let timestamp = timestamp_ms / 1000;
+            let interop_fee = self.interop_fee_input_provider.get_interop_fee().await?;
 
             tracing::trace!(
                 "Fee input for L1 batch #{} is {:#?}",
@@ -686,7 +691,7 @@ impl MempoolIO {
                     protocol_version: Some(protocol_version),
                     fee_address: self.fee_account,
                     fee_input: self.filter.fee_input,
-                    interop_fee: U256::zero(),
+                    interop_fee,
                     pubdata_limit,
                     settlement_layer: self.settlement_layer,
                 })
@@ -720,7 +725,7 @@ impl MempoolIO {
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
-                interop_fee: U256::zero(),
+                interop_fee,
                 first_l2_block,
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit,

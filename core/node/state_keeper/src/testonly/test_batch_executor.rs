@@ -246,6 +246,7 @@ impl TestScenario {
             sealer,
             Arc::new(MockReadStorageFactory),
             None,
+            SettlementLayer::L1(zksync_types::SLChainId(69)),
         );
         if !block_numbers_to_rollback.is_empty() {
             builder = builder.with_leader_rotation(true);
@@ -795,6 +796,7 @@ impl StateKeeperIO for TestIO {
             prev_l2_block_timestamp: self.timestamp.saturating_sub(1),
             l1_batch: self.batch_number,
             prev_l1_batch_timestamp: self.timestamp.saturating_sub(1),
+            settlement_layer: SettlementLayer::for_tests(),
         };
         let pending_batch = self.pending_batch.take();
         if pending_batch.is_some() {

@@ -128,6 +128,7 @@ pub struct CommonL1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
+    pub interop_fee: U256,
     pub pubdata_limit: Option<u64>,
     pub settlement_layer: SettlementLayer,
 }

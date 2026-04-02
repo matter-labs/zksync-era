@@ -311,6 +311,9 @@ pub struct Web3JsonRpcConfig {
     /// Interval between polling the node database for subscriptions.
     #[config(default_t = Duration::from_millis(200), with = Fallback(TimeUnit::Millis))]
     pub pubsub_polling_interval: Duration,
+    /// Polling interval for fetching interop fee from the main node.
+    #[config(default_t = Duration::from_secs(1), with = Fallback(TimeUnit::Millis))]
+    pub main_node_interop_fee_poll_interval: Duration,
     /// Tx nonce: how far ahead from the committed nonce can it be.
     #[config(default_t = 50)]
     pub max_nonce_ahead: u32,
@@ -517,6 +520,7 @@ mod tests {
                 filters_limit: 10000,
                 subscriptions_limit: 10000,
                 pubsub_polling_interval: Duration::from_millis(200),
+                main_node_interop_fee_poll_interval: Duration::from_millis(500),
                 max_nonce_ahead: 5,
                 estimate_gas_scale_factor: 1.0f64,
                 gas_price_scale_factor: 1.2,
@@ -577,6 +581,7 @@ mod tests {
             API_WEB3_JSON_RPC_FILTERS_LIMIT=10000
             API_WEB3_JSON_RPC_SUBSCRIPTIONS_LIMIT=10000
             API_WEB3_JSON_RPC_PUBSUB_POLLING_INTERVAL=200
+            API_WEB3_JSON_RPC_MAIN_NODE_INTEROP_FEE_POLL_INTERVAL=500
             API_WEB3_JSON_RPC_MAX_NONCE_AHEAD=5
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR_OPEN_BATCH=1.3
@@ -651,6 +656,7 @@ mod tests {
             mempool_cache_size: 10000
             mempool_cache_update_interval: 50
             pubsub_polling_interval: 200
+            main_node_interop_fee_poll_interval: 500
             max_nonce_ahead: 5
             gas_price_scale_factor: 1.2
             gas_price_scale_factor_open_batch: 1.3
@@ -716,6 +722,7 @@ mod tests {
             mempool_cache_size: 10000
             mempool_cache_update_interval: 50
             pubsub_polling_interval: 200ms
+            main_node_interop_fee_poll_interval: 500ms
             max_nonce_ahead: 5
             gas_price_scale_factor: 1.2
             gas_price_scale_factor_open_batch: 1.3
