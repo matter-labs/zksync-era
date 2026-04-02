@@ -63,56 +63,52 @@ fn create_proof_processing_router(
     let present_batches_processor = processor.clone();
     let submit_processor = processor.clone();
 
-    let router =
-        Router::new()
-            .route(
-                "/airbender/proof_inputs",
-                post(move || async move {
-                    let result = get_processor.get_proof_generation_data().await;
+    let router = Router::new()
+        .route(
+            "/airbender/proof_inputs",
+            post(move || async move {
+                let result = get_processor.get_proof_generation_data().await;
 
-                    match result {
-                        Ok(Some(data)) => (StatusCode::OK, data).into_response(),
-                        Ok(None) => StatusCode::NO_CONTENT.into_response(),
-                        Err(e) => e.into_response(),
-                    }
-                }),
-            )
-            .route(
-                "/airbender/proof_inputs_no_lock/{batch}",
-                get(move |batch: Path<u32>| async move {
-                    let result = get_no_lock_processor
-                        .get_proof_generation_data_no_lock(batch)
-                        .await;
+                match result {
+                    Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                    Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                    Err(e) => e.into_response(),
+                }
+            }),
+        )
+        .route(
+            "/airbender/proof_inputs_no_lock/{batch}",
+            get(move |batch: Path<u32>| async move {
+                let result = get_no_lock_processor
+                    .get_proof_generation_data_no_lock(batch)
+                    .await;
 
-                    match result {
-                        Ok(Some(data)) => (StatusCode::OK, data).into_response(),
-                        Ok(None) => StatusCode::NOT_FOUND.into_response(),
-                        Err(e) => e.into_response(),
-                    }
-                }),
-            )
-            .route(
-                "/airbender/present_batches",
-                get(move || async move {
-                    let result = present_batches_processor.get_present_batches().await;
+                match result {
+                    Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                    Ok(None) => StatusCode::NOT_FOUND.into_response(),
+                    Err(e) => e.into_response(),
+                }
+            }),
+        )
+        .route(
+            "/airbender/present_batches",
+            get(move || async move {
+                let result = present_batches_processor.get_present_batches().await;
 
-                    match result {
-                        Ok(data) => (StatusCode::OK, data).into_response(),
-                        Err(e) => e.into_response(),
-                    }
-                }),
-            )
-            .route(
-                "/airbender/submit_proofs/{l1_batch_number}",
-                post(
-                    move |l1_batch_number: Path<u32>,
-                          payload: Json<SubmitAirbenderProofRequest>| async move {
-                        submit_processor
-                            .submit_proof(l1_batch_number, payload)
-                            .await
-                    },
-                ),
-            );
+                match result {
+                    Ok(data) => (StatusCode::OK, data).into_response(),
+                    Err(e) => e.into_response(),
+                }
+            }),
+        )
+        .route(
+            "/airbender/submit_proofs",
+            post(
+                move |payload: Json<SubmitAirbenderProofRequest>| async move {
+                    submit_processor.submit_proof(payload).await
+                },
+            ),
+        );
 
     router
         .layer(tower_http::compression::CompressionLayer::new())

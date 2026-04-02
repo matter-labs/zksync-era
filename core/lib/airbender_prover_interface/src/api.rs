@@ -28,6 +28,7 @@ pub enum SubmitAirbenderProofResponse {
 #[serde_as]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitAirbenderProofRequest {
+    pub l1_batch_number: u32,
     #[serde_as(as = "Hex")]
     pub proof: Vec<u8>,
 }

@@ -268,10 +268,9 @@ impl AirbenderRequestProcessor {
 
     pub(crate) async fn submit_proof(
         &self,
-        Path(l1_batch_number): Path<u32>,
         Json(proof): Json<SubmitAirbenderProofRequest>,
     ) -> Result<Json<SubmitAirbenderProofResponse>, AirbenderProcessorError> {
-        let l1_batch_number = L1BatchNumber(l1_batch_number);
+        let l1_batch_number = L1BatchNumber(proof.l1_batch_number);
 
         let proof_for_gcs = L1BatchAirbenderProofForL1 { proof: proof.proof };
         let proof_blob_url = self

@@ -172,9 +172,10 @@ async fn submit_airbender_proof() {
     mock_airbender_batch_status(db_conn_pool.clone(), batch_number).await;
 
     let airbender_proof_request = SubmitAirbenderProofRequest {
+        l1_batch_number: batch_number.0,
         proof: vec![0x0A, 0x0B, 0x0C, 0x0D, 0x0E],
     };
-    let uri = format!("/airbender/submit_proofs/{}", batch_number.0);
+    let uri = "/airbender/submit_proofs".to_string();
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
         db_conn_pool.clone(),
