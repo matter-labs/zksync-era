@@ -57,91 +57,72 @@ impl AirbenderProofGenerationDal<'_, '_> {
     ) -> DalResult<Option<LockedBatch>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
-        let mut transaction = self.storage.start_transaction().await?;
 
-        sqlx::query("LOCK TABLE airbender_proof_generation_details IN EXCLUSIVE MODE")
-            .instrument("lock_batch_for_proving#lock")
-            .execute(&mut transaction)
-            .await?;
-
-        let batch_number = sqlx::query!(
-            r#"
-            SELECT
-                p.l1_batch_number
-            FROM
-                proof_generation_details p
-            LEFT JOIN
-                airbender_proof_generation_details apgd
-                ON
-                    p.l1_batch_number = apgd.l1_batch_number
-            WHERE
-                (
-                    p.l1_batch_number >= $4
-                    AND p.vm_run_data_blob_url IS NOT NULL
-                    AND p.proof_gen_data_blob_url IS NOT NULL
-                )
-                AND (
-                    apgd.l1_batch_number IS NULL
-                    OR (
-                        (apgd.status = $1 OR apgd.status = $2)
-                        AND apgd.prover_taken_at < NOW() - $3::INTERVAL
-                    )
-                )
-            LIMIT 1
-            "#,
-            AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
-            AirbenderProofGenerationJobStatus::Failed.to_string(),
-            processing_timeout,
-            min_batch_number
-        )
-        .instrument("lock_batch_for_proving#get_batch_no")
-        .with_arg("processing_timeout", &processing_timeout)
-        .with_arg("min_batch_number", &min_batch_number)
-        .fetch_optional(&mut transaction)
-        .await?;
-
-        let batch_number = match batch_number {
-            Some(batch) => batch.l1_batch_number,
-            None => {
-                return Ok(None);
-            }
-        };
-
+        // Use a CTE to atomically find and claim a batch. This avoids a table-level
+        // EXCLUSIVE lock, allowing multiple provers to acquire batches in parallel.
+        //
+        // The candidate subquery finds batches that are either:
+        // - New (no row in airbender_proof_generation_details yet)
+        // - Timed out (picked_by_prover or failed, with stale prover_taken_at)
+        //
+        // FOR UPDATE SKIP LOCKED on existing rows prevents two provers from picking
+        // the same timed-out batch. For new batches (no existing row), the INSERT's
+        // ON CONFLICT handles the race: one prover wins the insert, the other sees
+        // the conflict and the UPDATE only proceeds if the row is still claimable.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
             r#"
-            INSERT INTO
-            airbender_proof_generation_details (
+            WITH candidate AS (
+                SELECT p.l1_batch_number
+                FROM proof_generation_details p
+                LEFT JOIN airbender_proof_generation_details apgd
+                    ON p.l1_batch_number = apgd.l1_batch_number
+                WHERE
+                    p.l1_batch_number >= $3
+                    AND p.vm_run_data_blob_url IS NOT NULL
+                    AND p.proof_gen_data_blob_url IS NOT NULL
+                    AND (
+                        apgd.l1_batch_number IS NULL
+                        OR (
+                            (apgd.status = $1 OR apgd.status = $2)
+                            AND apgd.prover_taken_at < NOW() - $4::INTERVAL
+                        )
+                    )
+                ORDER BY p.l1_batch_number ASC
+                LIMIT 1
+                FOR UPDATE OF apgd SKIP LOCKED
+            )
+            
+            INSERT INTO airbender_proof_generation_details (
                 l1_batch_number, status, created_at, updated_at, prover_taken_at
             )
-            VALUES
-            (
-                $1,
-                $2,
-                NOW(),
-                NOW(),
-                NOW()
-            )
-            ON CONFLICT (l1_batch_number) DO
-            UPDATE
+            SELECT
+                c.l1_batch_number, $5, NOW(), NOW(), NOW()
+            FROM candidate c
+            ON CONFLICT (l1_batch_number) DO UPDATE
             SET
-            status = $2,
+            status = $5,
             updated_at = NOW(),
             prover_taken_at = NOW()
+            WHERE
+            airbender_proof_generation_details.status = $1
+            OR airbender_proof_generation_details.status = $2
             RETURNING
-            l1_batch_number,
-            created_at
+            l1_batch_number, created_at
             "#,
-            batch_number,
+            AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
+            AirbenderProofGenerationJobStatus::Failed.to_string(),
+            min_batch_number,
+            processing_timeout,
             AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
         )
-        .instrument("lock_batch_for_proving#insert")
-        .with_arg("batch_number", &batch_number)
-        .fetch_optional(&mut transaction)
+        .instrument("lock_batch_for_proving")
+        .with_arg("processing_timeout", &processing_timeout)
+        .with_arg("min_batch_number", &min_batch_number)
+        .fetch_optional(self.storage)
         .await?
         .map(Into::into);
 
-        transaction.commit().await?;
         Ok(locked_batch)
     }
 
@@ -186,10 +167,12 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $3
+                AND status = $4
             "#,
             AirbenderProofGenerationJobStatus::Generated.to_string(),
             proof_blob_url,
-            batch_number
+            batch_number,
+            AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
         );
         let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
             .with_arg("proof_blob_url", &proof_blob_url)
@@ -201,8 +184,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
             .await?;
         if result.rows_affected() == 0 {
             let err = instrumentation.constraint_error(anyhow::anyhow!(
-                "Updating Airbender proof for a non-existent batch number {} is not allowed",
-                batch_number
+                "Cannot save proof for batch {}: batch is not in '{}' status (it may have timed out and been reassigned)",
+                batch_number,
+                AirbenderProofGenerationJobStatus::PickedByProver,
             ));
             return Err(err);
         }
