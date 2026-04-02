@@ -5,25 +5,25 @@ use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 use super::*;
 
 #[derive(Debug)]
-struct GetAirbenderProofsTest {}
+struct GetAirbenderProofTest {}
 
-impl GetAirbenderProofsTest {
+impl GetAirbenderProofTest {
     fn new() -> Self {
         Self {}
     }
 }
 
 #[async_trait]
-impl HttpTest for GetAirbenderProofsTest {
+impl HttpTest for GetAirbenderProofTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
         pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         let batch_no = L1BatchNumber(1337);
-        let proof = client.airbender_proofs(batch_no).await?;
+        let proof = client.airbender_proof(batch_no).await?;
 
-        assert!(proof.is_empty());
+        assert!(proof.is_none());
 
         let mut storage = pool.connection().await.unwrap();
         let mut airbender_proof_generation_dal = storage.airbender_proof_generation_dal();
@@ -36,9 +36,8 @@ impl HttpTest for GetAirbenderProofsTest {
             .save_proof_artifacts_metadata(batch_no, proof_blob_url)
             .await?;
 
-        let proofs = client.airbender_proofs(batch_no).await?;
-        assert!(proofs.len() == 1);
-        let proof = &proofs[0];
+        let proof = client.airbender_proof(batch_no).await?;
+        let proof = proof.expect("proof should exist");
         assert!(proof.l1_batch_number == batch_no);
         // proof bytes are None because the test doesn't configure an object store
         assert!(proof.proof.is_none());
@@ -48,6 +47,6 @@ impl HttpTest for GetAirbenderProofsTest {
 }
 
 #[tokio::test]
-async fn get_airbender_proofs() {
-    test_http_server(GetAirbenderProofsTest::new()).await;
+async fn get_airbender_proof() {
+    test_http_server(GetAirbenderProofTest::new()).await;
 }

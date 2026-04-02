@@ -57,43 +57,43 @@ impl UnstableNamespace {
             .map(|execution_info| TransactionExecutionInfo { execution_info }))
     }
 
-    pub async fn get_airbender_proofs_impl(
+    pub async fn get_airbender_proof_impl(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Vec<AirbenderProof>, Web3Error> {
+    ) -> Result<Option<AirbenderProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        let stored_proofs = storage
+        let stored = storage
             .airbender_proof_generation_dal()
-            .get_airbender_proofs(l1_batch_number)
+            .get_airbender_proof(l1_batch_number)
             .await
             .map_err(DalError::generalize)?;
 
-        let mut proofs = Vec::with_capacity(stored_proofs.len());
-        for stored in stored_proofs {
-            let proof_data = if stored.proof_blob_url.is_some() {
-                if let Some(object_store) = &self.state.object_store {
-                    let proof_for_l1: L1BatchAirbenderProofForL1 =
-                        object_store.get(l1_batch_number).await.map_err(|e| {
-                            Web3Error::InternalError(anyhow::anyhow!(
-                                "Failed to load airbender proof from GCS: {e}"
-                            ))
-                        })?;
-                    Some(proof_for_l1.proof)
-                } else {
-                    None
-                }
+        let Some(stored) = stored else {
+            return Ok(None);
+        };
+
+        let proof_data = if stored.proof_blob_url.is_some() {
+            if let Some(object_store) = &self.state.object_store {
+                let proof_for_l1: L1BatchAirbenderProofForL1 =
+                    object_store.get(l1_batch_number).await.map_err(|e| {
+                        Web3Error::InternalError(anyhow::anyhow!(
+                            "Failed to load airbender proof from GCS: {e}"
+                        ))
+                    })?;
+                Some(proof_for_l1.proof)
             } else {
                 None
-            };
-            proofs.push(AirbenderProof {
-                l1_batch_number,
-                proof: proof_data,
-                proved_at: DateTime::<Utc>::from_naive_utc_and_offset(stored.updated_at, Utc),
-                status: stored.status,
-            });
-        }
+            }
+        } else {
+            None
+        };
 
-        Ok(proofs)
+        Ok(Some(AirbenderProof {
+            l1_batch_number,
+            proof: proof_data,
+            proved_at: DateTime::<Utc>::from_naive_utc_and_offset(stored.updated_at, Utc),
+            status: stored.status,
+        }))
     }
 
     pub async fn get_chain_log_proof_impl(

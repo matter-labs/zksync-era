@@ -23,11 +23,11 @@ impl UnstableNamespaceServer for UnstableNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn airbender_proofs(
+    async fn airbender_proof(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<Vec<AirbenderProof>> {
-        self.get_airbender_proofs_impl(l1_batch_number)
+    ) -> RpcResult<Option<AirbenderProof>> {
+        self.get_airbender_proof_impl(l1_batch_number)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

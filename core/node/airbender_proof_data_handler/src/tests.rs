@@ -198,15 +198,13 @@ async fn submit_airbender_proof() {
 
     // there should be one proof in the db now
 
-    let proofs = proof_db_conn
+    let proof = proof_db_conn
         .airbender_proof_generation_dal()
-        .get_airbender_proofs(batch_number)
+        .get_airbender_proof(batch_number)
         .await
-        .unwrap();
+        .unwrap()
+        .expect("proof should exist");
 
-    assert_eq!(proofs.len(), 1);
-
-    let proof = &proofs[0];
     assert!(proof.proof_blob_url.is_some());
 }
 

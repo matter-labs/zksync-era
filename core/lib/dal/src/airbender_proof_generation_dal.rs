@@ -210,11 +210,11 @@ impl AirbenderProofGenerationDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_airbender_proofs(
+    pub async fn get_airbender_proof(
         &mut self,
         batch_number: L1BatchNumber,
-    ) -> DalResult<Vec<StorageAirbenderProof>> {
-        let proofs = sqlx::query_as!(
+    ) -> DalResult<Option<StorageAirbenderProof>> {
+        let proof = sqlx::query_as!(
             StorageAirbenderProof,
             r#"
             SELECT
@@ -225,16 +225,15 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 airbender_proof_generation_details tp
             WHERE
                 tp.l1_batch_number = $1
-            ORDER BY tp.l1_batch_number ASC
             "#,
             i64::from(batch_number.0)
         )
-        .instrument("get_airbender_proofs")
+        .instrument("get_airbender_proof")
         .with_arg("l1_batch_number", &batch_number)
-        .fetch_all(self.storage)
+        .fetch_optional(self.storage)
         .await?;
 
-        Ok(proofs)
+        Ok(proof)
     }
 
     /// For testing purposes only.

@@ -30,11 +30,11 @@ pub trait UnstableNamespace {
         hash: H256,
     ) -> RpcResult<Option<TransactionExecutionInfo>>;
 
-    #[method(name = "getAirbenderProofs")]
-    async fn airbender_proofs(
+    #[method(name = "getAirbenderProof")]
+    async fn airbender_proof(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<Vec<AirbenderProof>>;
+    ) -> RpcResult<Option<AirbenderProof>>;
 
     #[method(name = "getChainLogProof")]
     async fn get_chain_log_proof(
