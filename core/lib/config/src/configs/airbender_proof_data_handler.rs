@@ -10,8 +10,9 @@ pub struct AirbenderProofDataHandlerConfig {
     #[config(default, with = Serde![int])]
     pub first_processed_batch: L1BatchNumber,
     /// Timeout for retrying proof generation if it previously failed or if it was picked by a
-    /// prover but the proof was not submitted within that time.
-    #[config(default_t = 1 * TimeUnit::Minutes)]
+    /// prover but the proof was not submitted within that time. Should be longer than the
+    /// expected proving time to avoid duplicate work.
+    #[config(default_t = 60 * TimeUnit::Minutes)]
     pub proof_generation_timeout: Duration,
 }
 

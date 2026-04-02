@@ -148,7 +148,7 @@ data_handler:
   gateway_api_url: http://127.0.0.1:3322
 airbender_proof_data_handler:
   http_port: 4320
-  proof_generation_timeout_in_secs: 60
+  proof_generation_timeout_in_secs: 3600
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 15
