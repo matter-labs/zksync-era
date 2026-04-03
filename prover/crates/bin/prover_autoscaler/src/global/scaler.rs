@@ -223,15 +223,13 @@ impl<K: Key> Scaler<K> {
 
         // Cap pool when it's stuck: NeedToMove (event-based), LongPending (per-pod),
         // or deployment_stuck (deployment-level, survives pod recycling).
-        // deployment_stuck only caps GPU-keyed pools (L4/H100) where overflow to a
-        // different GPU type is possible. For NoKey scalers (compressor,
-        // witness-generators), ALL pools share the same node type — capping them
-        // all leaves no fallback, and aggressive mode also can't help since
-        // calculate_aggressive respects max_pool_size.
+        // Capping sets max_pool_size = Running + Pending, blocking the regular
+        // allocation path. Aggressive mode bypasses the cap by using
+        // configured_max_pool_size instead.
         for pool in &mut pools {
             if pool.sum_by_pod_status(PodStatus::NeedToMove) > 0
                 || pool.sum_by_pod_status(PodStatus::LongPending) > 0
-                || (pool.deployment_stuck && pool.key.gpu().is_some())
+                || pool.deployment_stuck
             {
                 pool.max_pool_size = pool.sum_by_pod_status(PodStatus::Running)
                     + pool.sum_by_pod_status(PodStatus::Pending);
@@ -641,9 +639,11 @@ impl<K: Key> Scaler<K> {
                 missing_capacity
             );
 
-            // Add pods to ALL pools that have capacity
+            // Add pods to ALL pools that have capacity.
+            // Use configured_max_pool_size to bypass runtime capping — the whole
+            // point of aggressive mode is to allocate past stuck-pool caps.
             for cluster in &sorted_clusters {
-                if cluster.max_pool_size == 0 {
+                if cluster.configured_max_pool_size == 0 {
                     continue;
                 }
 
@@ -652,7 +652,7 @@ impl<K: Key> Scaler<K> {
                     self.normalize_queue(cluster.key, missing_capacity) / self.speed(cluster.key);
 
                 let current = pods.entry(cluster.to_key()).or_default();
-                let available_capacity = cluster.max_pool_size.saturating_sub(*current);
+                let available_capacity = cluster.configured_max_pool_size.saturating_sub(*current);
 
                 if available_capacity > 0 {
                     let to_add = needed_for_full_coverage.min(available_capacity);
@@ -671,18 +671,18 @@ impl<K: Key> Scaler<K> {
             }
         }
 
-        // Step 4: Apply max_pool_size limits
+        // Step 4: Apply configured max_pool_size limits (not runtime-capped).
         for cluster in &sorted_clusters {
             if let Some(replicas) = pods.get_mut(&cluster.to_key()) {
-                if *replicas > cluster.max_pool_size {
+                if *replicas > cluster.configured_max_pool_size {
                     tracing::debug!(
-                        "Capping pool {}:{:?} from {} to {} (max_pool_size)",
+                        "Capping pool {}:{:?} from {} to {} (configured_max_pool_size)",
                         cluster.name,
                         cluster.key,
                         *replicas,
-                        cluster.max_pool_size
+                        cluster.configured_max_pool_size
                     );
-                    *replicas = cluster.max_pool_size;
+                    *replicas = cluster.configured_max_pool_size;
                 }
             }
         }
@@ -3504,11 +3504,8 @@ mod tests {
                         namespaces: [(
                             "prover".into(),
                             Namespace {
-                                deployments: [(
-                                    "circuit-prover-gpu".into(),
-                                    Deployment::default(),
-                                )]
-                                .into(),
+                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                    .into(),
                                 pods: [(
                                     "circuit-prover-gpu-pod-1".into(),
                                     Pod {
