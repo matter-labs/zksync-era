@@ -1038,7 +1038,7 @@ pub struct Proof {
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TeeProof {
+pub struct AirbenderProof {
     pub l1_batch_number: L1BatchNumber,
     pub tee_type: Option<TeeType>,
     #[serde_as(as = "Option<Hex>")]

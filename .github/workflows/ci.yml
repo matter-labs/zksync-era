@@ -20,10 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          fetch-depth: 2
+          # `tj-actions/changed-files` compares submodule SHAs too. When a PR only updates
+          # `contracts`, it needs enough submodule history to find the merge base there;
+          # otherwise it can miss the change and warn about an invalid revision range.
+          fetch-depth: 0
           submodules: "recursive"
-          # FIXME: Temporarily needed for CI
-          fetch-additional-submodule-history: true
 
       - name: Get changed files
         id: changed-files

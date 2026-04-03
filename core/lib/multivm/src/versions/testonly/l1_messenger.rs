@@ -1,9 +1,10 @@
 use std::rc::Rc;
 
 use ethabi::Token;
-use zksync_contracts::l1_messenger_contract;
+use zksync_contracts::{l1_messenger_contract, l2_rollup_da_validator_bytecode};
 use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
+    address_to_h256,
     commitment::{L2DACommitmentScheme, L2PubdataValidator},
     u256_to_h256,
     web3::keccak256,
@@ -17,6 +18,7 @@ use crate::{
         InspectExecutionMode, TxExecutionMode, VmInterfaceExt,
     },
     pubdata_builders::FullPubdataBuilder,
+    versions::testonly::ContractToDeploy,
     vm_latest::constants::ZK_SYNC_BYTES_PER_BLOB,
 };
 
@@ -43,10 +45,15 @@ fn compose_header_for_l1_commit_rollup(input: PubdataInput) -> Vec<u8> {
     let uncompressed_state_diffs = encoded_uncompressed_state_diffs(&input);
     let uncompressed_state_diffs_hash = keccak256(&uncompressed_state_diffs);
     full_header.extend(uncompressed_state_diffs_hash);
-    let pubdata_builder = FullPubdataBuilder::new(L2PubdataValidator::Address(Address::zero()));
+    let protocol_version = ProtocolVersionId::latest();
+    let l2_pubdata_validator = if protocol_version.is_pre_medium_interop() {
+        L2PubdataValidator::Address(Address::repeat_byte(0x12))
+    } else {
+        L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::BlobsAndPubdataKeccak256)
+    };
+    let pubdata_builder = FullPubdataBuilder::new(l2_pubdata_validator);
 
-    let mut full_pubdata =
-        pubdata_builder.settlement_layer_pubdata(&input, ProtocolVersionId::latest());
+    let mut full_pubdata = pubdata_builder.settlement_layer_pubdata(&input, protocol_version);
     let full_pubdata_hash = keccak256(&full_pubdata);
     full_header.extend(full_pubdata_hash);
 
@@ -73,10 +80,23 @@ fn compose_header_for_l1_commit_rollup(input: PubdataInput) -> Vec<u8> {
 pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
     // In this test, we check whether the L2 DA output hash is as expected.
 
-    let mut vm = VmTesterBuilder::new()
+    let protocol_version = ProtocolVersionId::latest();
+    let l2_da_validator_address = Address::repeat_byte(0x12);
+    let vm_builder = VmTesterBuilder::new()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_rich_accounts(1)
-        .build::<VM>();
+        .with_rich_accounts(1);
+    let mut vm = if protocol_version.is_pre_medium_interop() {
+        vm_builder
+            .with_custom_contracts(vec![ContractToDeploy {
+                bytecode: l2_rollup_da_validator_bytecode(),
+                address: l2_da_validator_address,
+                is_account: false,
+                is_funded: false,
+            }])
+            .build::<VM>()
+    } else {
+        vm_builder.build::<VM>()
+    };
 
     let account = &mut vm.rich_accounts[0];
 
@@ -110,9 +130,12 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    let pubdata_builder = FullPubdataBuilder::new(L2PubdataValidator::CommitmentScheme(
-        L2DACommitmentScheme::BlobsAndPubdataKeccak256,
-    ));
+    let l2_pubdata_validator = if protocol_version.is_pre_medium_interop() {
+        L2PubdataValidator::Address(l2_da_validator_address)
+    } else {
+        L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::BlobsAndPubdataKeccak256)
+    };
+    let pubdata_builder = FullPubdataBuilder::new(l2_pubdata_validator);
     let batch_result = vm.vm.finish_batch(Rc::new(pubdata_builder));
     assert!(
         !batch_result.block_tip_execution_result.result.is_failed(),
@@ -144,7 +167,7 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
         keccak256(&expected_header).into()
     );
 
-    let da_commitment_scheme = batch_result
+    let used_l2_da_validator = batch_result
         .block_tip_execution_result
         .logs
         .system_l2_to_l1_logs
@@ -154,8 +177,11 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
         .0
         .value;
 
-    assert_eq!(
-        da_commitment_scheme,
+    let expected_l2_da_validator = if protocol_version.is_pre_medium_interop() {
+        address_to_h256(&l2_da_validator_address)
+    } else {
         H256::from_low_u64_be(L2DACommitmentScheme::BlobsAndPubdataKeccak256 as u64)
-    );
+    };
+
+    assert_eq!(used_l2_da_validator, expected_l2_da_validator);
 }

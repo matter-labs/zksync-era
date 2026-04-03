@@ -1,5 +1,31 @@
 # Changelog
 
+## [29.15.0](https://github.com/matter-labs/zksync-era/compare/core-v29.14.0...core-v29.15.0) (2026-03-25)
+
+
+### Features
+
+* Add gcp signer ([#4719](https://github.com/matter-labs/zksync-era/issues/4719)) ([7e54c22](https://github.com/matter-labs/zksync-era/commit/7e54c22b1a8d2c5e0b6ea4e9487f6c48c54cc444))
+* add HTTP compression to API servers and EN sync client ([#4729](https://github.com/matter-labs/zksync-era/issues/4729)) ([43ff240](https://github.com/matter-labs/zksync-era/commit/43ff2405664427fb162775a9bef387113d3762c2))
+* vm changes from draft v31 ([#4730](https://github.com/matter-labs/zksync-era/issues/4730)) ([020f6b4](https://github.com/matter-labs/zksync-era/commit/020f6b4b6581e733ae7b376ab82cdf2d7e1da506))
+
+
+### Bug Fixes
+
+* **api:** Don't break backward compatibility for en ([#4736](https://github.com/matter-labs/zksync-era/issues/4736)) ([fe8fee3](https://github.com/matter-labs/zksync-era/commit/fe8fee39c29567836125103e7c214c984daf7d58))
+
+## [29.14.0](https://github.com/matter-labs/zksync-era/compare/core-v29.13.1...core-v29.14.0) (2026-03-20)
+
+
+### Features
+
+* **prover:** delete archived jobs after a week ([#4718](https://github.com/matter-labs/zksync-era/issues/4718)) ([a5825da](https://github.com/matter-labs/zksync-era/commit/a5825dae390a3be240b222945f9bac5099ab3251))
+
+
+### Bug Fixes
+
+* **sl:** Don't ask gateway chain_id ([#4725](https://github.com/matter-labs/zksync-era/issues/4725)) ([c885e9d](https://github.com/matter-labs/zksync-era/commit/c885e9d6bb5c2ecdd6eb75f3dd21480ce6d6e865))
+
 ## [29.13.1](https://github.com/matter-labs/zksync-era/compare/core-v29.13.0...core-v29.13.1) (2026-03-13)
 
 

@@ -1,5 +1,32 @@
 # Changelog
 
+## [25.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.1.0...prover-v25.2.0) (2026-03-25)
+
+
+### Features
+
+* Add gcp signer ([#4719](https://github.com/matter-labs/zksync-era/issues/4719)) ([7e54c22](https://github.com/matter-labs/zksync-era/commit/7e54c22b1a8d2c5e0b6ea4e9487f6c48c54cc444))
+* add HTTP compression to API servers and EN sync client ([#4729](https://github.com/matter-labs/zksync-era/issues/4729)) ([43ff240](https://github.com/matter-labs/zksync-era/commit/43ff2405664427fb162775a9bef387113d3762c2))
+
+
+### Bug Fixes
+
+* **prover-autoscaler:** fix resource exhaustion detection and aggr mode ([#4733](https://github.com/matter-labs/zksync-era/issues/4733)) ([f3d81ce](https://github.com/matter-labs/zksync-era/commit/f3d81ced085270a086875ac6187dbee953635831))
+
+## [25.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.0.0...prover-v25.1.0) (2026-03-18)
+
+
+### Features
+
+* **prover:** delete archived jobs after a week ([#4718](https://github.com/matter-labs/zksync-era/issues/4718)) ([a5825da](https://github.com/matter-labs/zksync-era/commit/a5825dae390a3be240b222945f9bac5099ab3251))
+
+
+### Bug Fixes
+
+* automated protocol upgrade for zksync-era-allow-decommits ([#4712](https://github.com/matter-labs/zksync-era/issues/4712)) ([10cab72](https://github.com/matter-labs/zksync-era/commit/10cab726392defb296914a6839f26b48aa61d59f))
+* **db:** rollback stale transactions on pool release and drain pools on shutdown ([#4710](https://github.com/matter-labs/zksync-era/issues/4710)) ([f0114f8](https://github.com/matter-labs/zksync-era/commit/f0114f8a1544d93e9848bb9e62f911adfd759658))
+* **prover:** mark proofs sent_to_server to enable archival ([#4717](https://github.com/matter-labs/zksync-era/issues/4717)) ([0754e6d](https://github.com/matter-labs/zksync-era/commit/0754e6d986d2f275f8c02058a521a7b7bf1ff968))
+
 ## [25.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v24.1.0...prover-v25.0.0) (2026-02-12)
 
 

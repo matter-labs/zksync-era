@@ -72,10 +72,8 @@ if (shouldSkip) {
 
     beforeAll(async () => {
         // Initialize gateway chain
-        console.log('Initializing rich wallet for gateway chain...');
         await initTestWallet(GATEWAY_CHAIN_NAME);
         gwRichWallet = await generateChainRichWallet(GATEWAY_CHAIN_NAME);
-        console.log('Gateway rich wallet private key:', gwRichWallet.privateKey);
         gwBalanceHandler = new GatewayBalanceHandler();
         await gwBalanceHandler.initEcosystemContracts(gwRichWallet);
         await gwBalanceHandler.resetBaseTokenBalance();
@@ -85,7 +83,6 @@ if (shouldSkip) {
         chainHandler = await ChainHandler.createNewChain(TESTED_CHAIN_TYPE, gwBalanceHandler);
         await chainHandler.initEcosystemContracts(gwRichWallet);
         chainRichWallet = chainHandler.l2RichWallet;
-        console.log('Chain rich wallet private key:', chainRichWallet.privateKey);
         // Initialize auxiliary chain
         console.log('Creating a secondary chain...');
         secondChainHandler = await ChainHandler.createNewChain('era', gwBalanceHandler);

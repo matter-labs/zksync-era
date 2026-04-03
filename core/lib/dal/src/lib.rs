@@ -12,8 +12,9 @@ pub use zksync_db_connection::{
 };
 
 use crate::{
-    base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
-    consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
+    airbender_proof_generation_dal::AirbenderProofGenerationDal, base_token_dal::BaseTokenDal,
+    blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
+    contract_verification_dal::ContractVerificationDal,
     custom_genesis_export_dal::CustomGenesisExportDal, data_availability_dal::DataAvailabilityDal,
     eth_proof_manager_dal::EthProofManagerDal, eth_sender_dal::EthSenderDal,
     eth_watcher_dal::EthWatcherDal, etherscan_verification_dal::EtherscanVerificationDal,
@@ -26,11 +27,11 @@ use crate::{
     snapshots_creator_dal::SnapshotsCreatorDal, snapshots_dal::SnapshotsDal,
     storage_logs_dal::StorageLogsDal, storage_logs_dedup_dal::StorageLogsDedupDal,
     storage_web3_dal::StorageWeb3Dal, sync_dal::SyncDal, system_dal::SystemDal,
-    tee_proof_generation_dal::TeeProofGenerationDal, tokens_dal::TokensDal,
-    tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
+    tokens_dal::TokensDal, tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal, vm_runner_dal::VmRunnerDal,
 };
 
+pub mod airbender_proof_generation_dal;
 pub mod base_token_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
@@ -65,7 +66,6 @@ pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
-pub mod tee_proof_generation_dal;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
@@ -130,7 +130,7 @@ where
 
     fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a>;
 
-    fn tee_proof_generation_dal(&mut self) -> TeeProofGenerationDal<'_, 'a>;
+    fn airbender_proof_generation_dal(&mut self) -> AirbenderProofGenerationDal<'_, 'a>;
 
     fn system_dal(&mut self) -> SystemDal<'_, 'a>;
 
@@ -256,8 +256,8 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         ProofGenerationDal { storage: self }
     }
 
-    fn tee_proof_generation_dal(&mut self) -> TeeProofGenerationDal<'_, 'a> {
-        TeeProofGenerationDal { storage: self }
+    fn airbender_proof_generation_dal(&mut self) -> AirbenderProofGenerationDal<'_, 'a> {
+        AirbenderProofGenerationDal { storage: self }
     }
 
     fn system_dal(&mut self) -> SystemDal<'_, 'a> {

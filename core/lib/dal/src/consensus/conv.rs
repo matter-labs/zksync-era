@@ -122,9 +122,12 @@ impl ProtoRepr for proto::PubdataParams {
                     .context("l2_da_validator_address")?,
                 self.l2_da_commitment_scheme
                     .as_ref()
-                    .map(|a| L2DACommitmentScheme::try_from(*a as u8))
+                    .map(|a| -> anyhow::Result<_> {
+                        let value = u8::try_from(*a)?;
+                        L2DACommitmentScheme::try_from(value).map_err(|err| anyhow!(err))
+                    })
                     .transpose()
-                    .unwrap(),
+                    .context("l2_da_commitment_scheme")?,
             )
                 .try_into()?,
             required(&self.pubdata_info)
@@ -657,15 +660,15 @@ impl ProtoRepr for proto::SettlementLayer {
     type Type = SettlementLayer;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        match *required(&self.settlement_layer_type).context("settlement_layer_type")? {
-            0 => Ok(SettlementLayer::L1(SLChainId(
-                *required(&self.chain_id).context("chain_id")?,
-            ))),
-            1 => Ok(SettlementLayer::Gateway(SLChainId(
-                *required(&self.chain_id).context("chain_id")?,
-            ))),
-            _ => unreachable!(),
-        }
+        let settlement_layer_type = required(&self.settlement_layer_type)
+            .and_then(|x| Ok(proto::SettlementLayerType::try_from(*x)?))
+            .context("settlement_layer_type")?;
+        let chain_id = SLChainId(*required(&self.chain_id).context("chain_id")?);
+
+        Ok(match settlement_layer_type {
+            proto::SettlementLayerType::L1 => SettlementLayer::L1(chain_id),
+            proto::SettlementLayerType::Gateway => SettlementLayer::Gateway(chain_id),
+        })
     }
 
     fn build(this: &Self::Type) -> Self {

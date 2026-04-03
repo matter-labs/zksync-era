@@ -182,10 +182,64 @@ impl L2PubdataValidator {
     }
 }
 
-#[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Debug, Clone, PartialEq)]
 pub struct PubdataParams {
     pubdata_validator: L2PubdataValidator,
     pubdata_type: PubdataType,
+}
+
+// TODO Remove custom serialization once ENs v31 is done.
+impl Serialize for PubdataParams {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        // Emit both the new `pubdata_validator` field and the legacy
+        // `l2_da_validator_address` field (when the validator is an address) so
+        // that ENs that predate PR #4730 can still deserialize this struct.
+        // The `CommitmentScheme` variant is new in v31 and has no old equivalent;
+        // old ENs will fail on those batches regardless.
+        let has_legacy_addr = self.pubdata_validator.l2_da_validator().is_some();
+        let mut state =
+            serializer.serialize_struct("PubdataParams", if has_legacy_addr { 3 } else { 2 })?;
+        state.serialize_field("pubdata_validator", &self.pubdata_validator)?;
+        state.serialize_field("pubdata_type", &self.pubdata_type)?;
+        if let Some(addr) = self.pubdata_validator.l2_da_validator() {
+            state.serialize_field("l2_da_validator_address", &addr)?;
+        }
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for PubdataParams {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Accept both old and new field names so that either side of a
+        // mixed-version deployment (server newer than EN, or EN newer than server)
+        // can parse what the other side sends.
+        // Old format: { "l2_da_validator_address": "0x...", "pubdata_type": "Rollup" }
+        // New format: { "pubdata_validator": { "Address": "0x..." }, "pubdata_type": "Rollup" }
+        #[derive(Deserialize)]
+        struct Helper {
+            pubdata_validator: Option<L2PubdataValidator>,
+            /// Legacy field name used before PR #4730.
+            l2_da_validator_address: Option<Address>,
+            pubdata_type: PubdataType,
+        }
+
+        let h = Helper::deserialize(deserializer)?;
+        let pubdata_validator = match (h.pubdata_validator, h.l2_da_validator_address) {
+            (Some(v), _) => v,
+            (None, Some(addr)) => L2PubdataValidator::Address(addr),
+            (None, None) => {
+                return Err(serde::de::Error::missing_field("pubdata_validator"));
+            }
+        };
+        PubdataParams::new(pubdata_validator, h.pubdata_type).map_err(serde::de::Error::custom)
+    }
 }
 
 impl PubdataParams {

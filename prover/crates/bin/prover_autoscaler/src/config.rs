@@ -174,6 +174,14 @@ pub struct ScalerTarget {
     /// The queue will be divided by the speed and rounded up to get number of replicas.
     #[serde(default = "ScalerTarget::default_speed")]
     pub speed: ScalarOrMap,
+    /// Optional hard cap for the total running capacity across all watched namespaces.
+    /// The cap is expressed in the same units as `speed`.
+    #[serde(default, alias = "max_total_weight")]
+    pub max_running_weight: Option<usize>,
+    /// Optional extra desired capacity above `max_running_weight` to tolerate temporary sourcing
+    /// churn in aggressive mode.
+    #[serde(default)]
+    pub max_desired_burst_weight: usize,
     /// Optional priority list that overrides global cluster_priorities.
     /// For GPU targets, this is a list of (ClusterName, GpuKey) tuples.
     /// For Simple targets, this is a list of ClusterName.
@@ -253,6 +261,8 @@ mod tests {
                   max_replicas:
                     zksync-era-gateway-stage: 150
                   speed: 4
+                  max_running_weight: 100
+                  max_desired_burst_weight: 20
                 - queue_report_field: leaf_witness_jobs
                   deployment: witness-generator-leaf-fri
                   max_replicas:

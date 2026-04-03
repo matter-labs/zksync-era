@@ -148,7 +148,7 @@ impl StateKeeperIO for MempoolIO {
         else {
             return Ok((cursor, None));
         };
-        let mut pending_batch_data = load_pending_batch(&mut storage, restored_l1_batch_env)
+        let pending_batch_data = load_pending_batch(&mut storage, restored_l1_batch_env)
             .await
             .with_context(|| {
                 format!(
@@ -156,8 +156,6 @@ impl StateKeeperIO for MempoolIO {
                     cursor.l1_batch
                 )
             })?;
-        let interop_fee = self.interop_fee_input_provider.get_interop_fee().await?;
-        pending_batch_data.l1_batch_env.interop_fee = interop_fee;
 
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
@@ -579,7 +577,6 @@ impl MempoolIO {
                 .protocol_version
                 .context("unsealed batch is missing protocol version")?;
 
-            let interop_fee = self.interop_fee_input_provider.get_interop_fee().await?;
             let interop_roots = storage
                 .interop_root_dal()
                 .get_interop_roots_for_first_l2_block_in_pending_batch()
@@ -589,7 +586,7 @@ impl MempoolIO {
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: unsealed_storage_batch.fee_address,
                 fee_input: unsealed_storage_batch.fee_input,
-                interop_fee,
+                interop_fee: unsealed_storage_batch.interop_fee,
                 // We only persist timestamp in seconds.
                 // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
                 first_l2_block: L2BlockParams::new_raw(
@@ -599,7 +596,7 @@ impl MempoolIO {
                 ),
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit: unsealed_storage_batch.pubdata_limit,
-                settlement_layer: self.settlement_layer,
+                settlement_layer: unsealed_storage_batch.settlement_layer,
             }));
         }
 

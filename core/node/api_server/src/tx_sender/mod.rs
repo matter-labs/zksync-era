@@ -302,7 +302,7 @@ impl TxSenderConfig {
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
-            interop_fee: state_keeper_config.interop_fee,
+            interop_fee: state_keeper_config.interop_fee_fallback,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
             timestamp_asserter_params: None,
@@ -404,6 +404,10 @@ impl TxSender {
 
     pub(crate) async fn read_whitelisted_tokens_for_aa_cache(&self) -> Vec<Address> {
         self.0.whitelisted_tokens_for_aa_cache.read().await.clone()
+    }
+
+    pub(crate) fn configured_interop_fee(&self) -> u64 {
+        self.0.sender_config.interop_fee
     }
 
     async fn acquire_replica_connection(&self) -> anyhow::Result<Connection<'static, Core>> {

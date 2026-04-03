@@ -75,8 +75,6 @@ If you're using macOS with an ARM processor (e.g. M1/M2), make sure that you are
 (e.g., your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with ZKsync code via
 Rosetta may cause problems that are hard to spot and debug, so make sure to check everything before you start.
 
-If you are a NixOS user or would like to have a reproducible environment, skip to the section about `nix`.
-
 ## Docker
 
 Install `docker`. It is recommended to follow the instructions from the
@@ -224,18 +222,6 @@ features of the library.
 ```bash
 cargo install --locked sqlx-cli --version 0.8.1
 ```
-
-## Easier method using `nix`
-
-Nix is a tool that can fetch _exactly_ the right dependencies specified via hashes. The current config is Linux-only but
-it is likely that it can be adapted to Mac.
-
-Install `nix`. Enable the nix command and flakes.
-
-Install docker, rustup and use rust to install SQLx CLI like described above. If you are on NixOS, you also need to
-enable nix-ld.
-
-Go to the zksync folder and run `nix develop`. After it finishes, you are in a shell that has all the dependencies.
 
 ## Foundry ZKsync
 

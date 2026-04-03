@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                interop_fee\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n                AND is_sealed\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "interop_fee",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9f4aded7b1e9b06f4eafd504a1ea1bb6e87790d43d063ec702e0bdfb9baec6c3"
+}

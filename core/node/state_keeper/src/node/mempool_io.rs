@@ -136,7 +136,7 @@ impl WiringLayer for MempoolIOLayer {
         );
 
         let interop_fee_input_provider = Arc::new(ConstantInteropFeeInputProvider::new(
-            U256::from(self.state_keeper_config.interop_fee),
+            U256::from(self.state_keeper_config.interop_fee_fallback),
         ));
 
         // Create mempool IO resource.

@@ -14,7 +14,6 @@ use zksync_types::{
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
     l1::L1Tx,
-    l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
@@ -442,7 +441,7 @@ impl Aggregator {
             &mut self.execute_criteria,
             ready_for_execute_batches,
             last_sealed_l1_batch,
-            self.settlement_layer.is_gateway(),
+            is_gateway,
         )
         .await
         else {
@@ -534,26 +533,15 @@ impl Aggregator {
                 priority_ops_proofs.push(Default::default());
             }
             if is_gateway {
-                let logs = storage
-                    .blocks_web3_dal()
-                    .get_l2_to_l1_logs(batch.header.number)
-                    .await
-                    .map_err(EthSenderError::Dal)?;
-                let messages = storage
-                    .blocks_web3_dal()
-                    .get_l2_to_l1_messages(batch.header.number)
-                    .await
-                    .map_err(EthSenderError::Dal)?;
-                let message_root = storage
-                    .blocks_dal()
-                    .get_message_root(batch.header.number)
-                    .await
-                    .unwrap();
-                all_logs.push(logs.clone().into_iter().map(UserL2ToL1Log).collect());
-                all_messages.push(messages);
+                let message_root = batch
+                    .metadata
+                    .aggregation_root
+                    .ok_or(EthSenderError::MissingAggregationRoot(batch.header.number))?;
+                all_logs.push(batch.header.l2_to_l1_logs.clone());
+                all_messages.push(batch.header.l2_to_l1_messages.clone());
                 all_message_roots.push(message_root);
             }
-        } //
+        }
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,

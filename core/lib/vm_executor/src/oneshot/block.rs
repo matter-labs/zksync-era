@@ -236,39 +236,21 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         )
         .await?;
 
-        // For pending execution, prefer:
-        // 1. fee from currently open (unsealed) batch
-        // 2. fetched from main node
-        // 3. fee from latest sealed batch
+        // Pending: prefer freshest source (open batch -> runtime fallback -> sealed batch).
+        // Non-pending: prefer historical sealed value, then runtime fallback.
         let interop_fee = if resolved_block_info.is_pending {
             if let Some(unsealed_batch) = connection.blocks_dal().get_unsealed_l1_batch().await? {
                 unsealed_batch.interop_fee
             } else if let Some(fallback_fee) = self.interop_fee_fallback() {
                 fallback_fee
             } else {
-                connection
-                    .blocks_dal()
-                    .get_l1_batch_interop_fee_if_sealed(resolved_block_info.vm_l1_batch_number)
-                    .await
-                    .with_context(|| {
-                        format!(
-                            "failed loading interop fee for L1 batch #{}",
-                            resolved_block_info.vm_l1_batch_number
-                        )
-                    })?
+                Self::sealed_batch_interop_fee(connection, resolved_block_info.vm_l1_batch_number)
+                    .await?
                     .unwrap_or_default()
             }
         } else {
-            connection
-                .blocks_dal()
-                .get_l1_batch_interop_fee_if_sealed(resolved_block_info.vm_l1_batch_number)
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed loading interop fee for L1 batch #{}",
-                        resolved_block_info.vm_l1_batch_number
-                    )
-                })?
+            Self::sealed_batch_interop_fee(connection, resolved_block_info.vm_l1_batch_number)
+                .await?
                 .or_else(|| self.interop_fee_fallback())
                 .unwrap_or_default()
         };
@@ -289,6 +271,17 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
             l1_batch,
             current_block,
         })
+    }
+
+    async fn sealed_batch_interop_fee(
+        connection: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<U256>> {
+        connection
+            .blocks_dal()
+            .get_l1_batch_interop_fee_if_sealed(l1_batch_number)
+            .await
+            .with_context(|| format!("failed loading interop fee for L1 batch #{l1_batch_number}"))
     }
 
     async fn prepare_env(

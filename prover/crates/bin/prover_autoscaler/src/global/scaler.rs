@@ -79,6 +79,8 @@ pub struct Scaler<K> {
     max_replicas: HashMap<ClusterName, HashMap<K, usize>>,
     // TODO Add default speed for default K
     speed: HashMap<K, usize>,
+    max_running_weight: Option<usize>,
+    max_desired_burst_weight: usize,
     hysteresis: usize,
     config: Arc<ScalerConfig>,
     target_priority: Option<PriorityConfig>,
@@ -93,6 +95,8 @@ impl<K: Key> Scaler<K> {
         min_replicas: usize,
         max_replicas: HashMap<ClusterName, HashMap<K, usize>>,
         speed: HashMap<K, usize>,
+        max_running_weight: Option<usize>,
+        max_desired_burst_weight: usize,
         hysteresis: usize,
         config: Arc<ScalerConfig>,
         target_priority: Option<PriorityConfig>,
@@ -103,6 +107,8 @@ impl<K: Key> Scaler<K> {
             min_replicas,
             max_replicas,
             speed,
+            max_running_weight,
+            max_desired_burst_weight,
             hysteresis,
             config,
             target_priority,
@@ -295,6 +301,17 @@ impl<K: Key> Scaler<K> {
         queue.div_ceil(speed) * speed
     }
 
+    fn total_weight(&self, pods: &HashMap<PoolKey<K>, usize>) -> usize {
+        pods.iter()
+            .map(|(pool, replicas)| self.pods_to_speed(pool.key, *replicas))
+            .sum()
+    }
+
+    fn max_desired_weight(&self) -> Option<usize> {
+        self.max_running_weight
+            .map(|weight| weight + self.max_desired_burst_weight)
+    }
+
     /// Check if we should enter/stay in aggressive mode based on percentage of pools with errors
     /// Also handles state transitions between Regular, Aggressive, and AggressiveCooldown
     fn is_aggressive_mode(&self, pools: &[Pool<K>], total_running: usize, queue: usize) -> bool {
@@ -315,20 +332,30 @@ impl<K: Key> Scaler<K> {
                     return false;
                 }
 
-                // Count ALL pools with out_of_resources issues (NeedToMove or scale_errors)
-                let pools_with_errors = pools
+                // Only consider active pools (max_pool_size > 0) for threshold
+                // calculation. Disabled pools can never have errors, so including
+                // them would inflate the denominator and make the threshold harder
+                // to reach.
+                let active_pools: Vec<_> = pools.iter().filter(|p| p.max_pool_size > 0).collect();
+
+                if active_pools.is_empty() {
+                    return false;
+                }
+
+                // Count active pools with out_of_resources issues (NeedToMove or scale_errors).
+                let pools_with_errors = active_pools
                     .iter()
                     .filter(|p| {
                         p.sum_by_pod_status(PodStatus::NeedToMove) > 0 || p.scale_errors > 0
                     })
                     .count();
 
-                let total_pools = pools.len();
+                let total_pools = active_pools.len();
                 let error_percentage = (pools_with_errors * 100) / total_pools;
 
                 if error_percentage >= self.config.aggressive_mode_threshold {
                     tracing::warn!(
-                        "Resource shortage detected: {}/{} pools ({}%) have resource errors (threshold: {}%). Entering AGGRESSIVE MODE.",
+                        "Resource shortage detected: {}/{} active pools ({}%) have resource errors (threshold: {}%). Entering AGGRESSIVE MODE.",
                         pools_with_errors,
                         total_pools,
                         error_percentage,
@@ -338,7 +365,7 @@ impl<K: Key> Scaler<K> {
                     return true;
                 } else if pools_with_errors > 0 {
                     tracing::debug!(
-                        "Resource errors detected: {}/{} pools ({}%) have errors, but threshold {}% not reached",
+                        "Resource errors detected: {}/{} active pools ({}%) have errors, but threshold {}% not reached",
                         pools_with_errors,
                         total_pools,
                         error_percentage,
@@ -464,6 +491,58 @@ impl<K: Key> Scaler<K> {
                 if total_hysteresis <= 0 {
                     break;
                 }
+            }
+        }
+
+        total
+    }
+
+    /// Enforces a hard cap for the total weighted capacity across all pools.
+    fn enforce_total_weight_limit(
+        &self,
+        pods: &mut HashMap<PoolKey<K>, usize>,
+        sorted_clusters: &[Pool<K>],
+        mut total: i64,
+        max_total_weight: usize,
+    ) -> i64 {
+        while total > max_total_weight as i64 {
+            let mut changed = false;
+
+            for cluster in sorted_clusters.iter().rev() {
+                if total <= max_total_weight as i64 {
+                    break;
+                }
+
+                let replicas = pods.entry(cluster.to_key()).or_default();
+                if *replicas == 0 {
+                    continue;
+                }
+
+                let speed = self.speed(cluster.key) as i64;
+                let excess_weight = total - max_total_weight as i64;
+                let replicas_to_remove =
+                    usize::min(*replicas, ((excess_weight + speed - 1) / speed) as usize);
+
+                tracing::debug!(
+                    "Applying desired weight limit in pool {}:{:?}: {} → {} (-{})",
+                    cluster.name,
+                    cluster.key,
+                    *replicas,
+                    *replicas - replicas_to_remove,
+                    replicas_to_remove
+                );
+
+                *replicas -= replicas_to_remove;
+                total -= replicas_to_remove as i64 * speed;
+                changed = true;
+
+                if *replicas == 0 {
+                    pods.remove(&cluster.to_key());
+                }
+            }
+
+            if !changed {
+                break;
             }
         }
 
@@ -676,6 +755,16 @@ impl<K: Key> Scaler<K> {
         pods
     }
 
+    pub fn current_running_weight(&self, namespace: &NamespaceName, clusters: &Clusters) -> usize {
+        let sorted_clusters = self.sorted_clusters(namespace, clusters);
+        sorted_clusters
+            .iter()
+            .map(|cluster| {
+                self.pods_to_speed(cluster.key, cluster.sum_by_pod_status(PodStatus::Running))
+            })
+            .sum()
+    }
+
     pub fn diff(
         &self,
         namespace: &NamespaceName,
@@ -721,12 +810,16 @@ impl<K: Key> Scaler<K> {
 pub trait ScalerTrait {
     fn deployment(&self) -> DeploymentName;
     fn queue_report_field(&self) -> QueueReportFields;
+    fn max_desired_weight(&self) -> Option<usize>;
+    fn max_running(&self) -> Option<usize>;
+    fn current_running_weight(&self, namespace: &NamespaceName, clusters: &Clusters) -> usize;
     fn run(
         &self,
         namespace: &NamespaceName,
         queue: usize,
         clusters: &Clusters,
         requests: &mut HashMap<ClusterName, ScaleRequest>,
+        desired_cap: Option<&mut i64>,
     );
 }
 
@@ -737,6 +830,15 @@ impl<K: Key> ScalerTrait for Scaler<K> {
     fn queue_report_field(&self) -> QueueReportFields {
         self.queue_report_field
     }
+    fn max_desired_weight(&self) -> Option<usize> {
+        Scaler::max_desired_weight(self)
+    }
+    fn max_running(&self) -> Option<usize> {
+        self.max_running_weight
+    }
+    fn current_running_weight(&self, namespace: &NamespaceName, clusters: &Clusters) -> usize {
+        Scaler::current_running_weight(self, namespace, clusters)
+    }
 
     fn run(
         &self,
@@ -744,8 +846,38 @@ impl<K: Key> ScalerTrait for Scaler<K> {
         queue: usize,
         clusters: &Clusters,
         requests: &mut HashMap<ClusterName, ScaleRequest>,
+        mut desired_cap: Option<&mut i64>,
     ) {
-        let replicas = self.calculate(namespace, queue, clusters);
+        let mut replicas = self.calculate(namespace, queue, clusters);
+        let running_weight = self.current_running_weight(namespace, clusters);
+        let mut total_weight = self.total_weight(&replicas);
+
+        // Apply global desired cap if set by the manager.
+        // - running >= max: cap = max (stop scaling up, kill Pending only)
+        // - running >= max+burst: cap = max+burst (scale down Running)
+        // The cap is shared across namespaces (busiest first).
+        if let Some(cap) = desired_cap.as_mut() {
+            let limit = (**cap).max(0) as usize;
+            if total_weight > limit {
+                let sorted_clusters = self.sorted_clusters(namespace, clusters);
+                total_weight = self.enforce_total_weight_limit(
+                    &mut replicas,
+                    &sorted_clusters,
+                    total_weight as i64,
+                    limit,
+                ) as usize;
+            }
+            **cap -= total_weight as i64;
+        }
+
+        AUTOSCALER_METRICS.target_weight[&(namespace.clone(), self.deployment.clone())]
+            .set(total_weight);
+        AUTOSCALER_METRICS.target_max_weight[&self.deployment.clone()]
+            .set(self.max_desired_weight().unwrap_or(0));
+        AUTOSCALER_METRICS.target_running_weight[&(namespace.clone(), self.deployment.clone())]
+            .set(running_weight);
+        AUTOSCALER_METRICS.target_max_running_weight[&self.deployment.clone()]
+            .set(self.max_running_weight.unwrap_or(0));
         for (k, num) in &replicas {
             let labels = JobLabels {
                 job: self.deployment.clone(),
@@ -801,6 +933,8 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
+            None,
+            0,
             0,
             scaler_config("prover-other"),
             None,
@@ -954,6 +1088,8 @@ mod tests {
                 (GpuKey(Gpu::T4), 700),
             ]
             .into(),
+            None,
+            0,
             0,
             scaler_config("prover"),
             None,
@@ -1121,6 +1257,8 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
+            None,
+            0,
             0,
             scaler_config("prover"),
             None,
@@ -1309,6 +1447,187 @@ mod tests {
 
     #[tracing_test::traced_test]
     #[test]
+    fn test_run_no_cap_scales_freely() {
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
+            [(GpuKey(Gpu::L4), 500)].into(),
+            Some(1000),
+            0,
+            0,
+            scaler_config("prover"),
+            None,
+        );
+
+        let clusters = Clusters {
+            clusters: [(
+                "foo".into(),
+                Cluster {
+                    name: "foo".into(),
+                    namespaces: [(
+                        "prover".into(),
+                        Namespace {
+                            deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                .into(),
+                            ..Default::default()
+                        },
+                    )]
+                    .into(),
+                },
+            )]
+            .into(),
+            ..Default::default()
+        };
+
+        // running < max → manager passes None (no cap). Scale freely.
+        let mut requests = HashMap::new();
+        scaler.run(&"prover".into(), 5000, &clusters, &mut requests, None);
+        assert!(!requests.is_empty(), "Should scale freely with no cap");
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_run_no_cap_when_under_max() {
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
+            [(GpuKey(Gpu::L4), 500)].into(),
+            Some(1000),
+            0,
+            0,
+            scaler_config("prover"),
+            None,
+        );
+
+        let clusters = Clusters {
+            clusters: [(
+                "foo".into(),
+                Cluster {
+                    name: "foo".into(),
+                    namespaces: [(
+                        "prover".into(),
+                        Namespace {
+                            deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                .into(),
+                            ..Default::default()
+                        },
+                    )]
+                    .into(),
+                },
+            )]
+            .into(),
+            ..Default::default()
+        };
+
+        // running < max → manager passes None. Desired is uncapped.
+        let mut requests = HashMap::new();
+        scaler.run(&"prover".into(), 5000, &clusters, &mut requests, None);
+        assert!(!requests.is_empty(), "Should scale freely when under max");
+
+        // running >= max (1000) → manager passes cap = max (1000).
+        // Desired trimmed to 1000 (only Pending killed, Running stays).
+        let mut cap = 1000_i64;
+        let mut requests = HashMap::new();
+        scaler.run(
+            &"prover".into(),
+            5000,
+            &clusters,
+            &mut requests,
+            Some(&mut cap),
+        );
+        assert!(cap <= 0, "Cap should be consumed");
+
+        // running >= max+burst (1000, burst=0) → same as above with burst=0.
+        // Desired trimmed to 1000, Running scaled down to 1000.
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_run_cap_shared_across_namespaces() {
+        // Simulate manager calling run() for two namespaces with a shared cap.
+        // running >= max+burst(1000) → cap desired to 1000, shared across namespaces.
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
+            [(GpuKey(Gpu::L4), 500)].into(),
+            Some(1000),
+            0,
+            0,
+            scaler_config("prover"),
+            None,
+        );
+
+        let clusters = Clusters {
+            clusters: [(
+                "foo".into(),
+                Cluster {
+                    name: "foo".into(),
+                    namespaces: [
+                        (
+                            "ns1".into(),
+                            Namespace {
+                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                    .into(),
+                                ..Default::default()
+                            },
+                        ),
+                        (
+                            "ns2".into(),
+                            Namespace {
+                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                    .into(),
+                                ..Default::default()
+                            },
+                        ),
+                    ]
+                    .into(),
+                },
+            )]
+            .into(),
+            ..Default::default()
+        };
+
+        let mut cap = 1000_i64; // running >= max+burst → cap = max+burst = 1000
+        let mut requests = HashMap::new();
+
+        // ns1 wants 5000 queue → needs 10 pods × 500 = 5000 weight.
+        // Cap is 1000, so trimmed to 2 pods × 500 = 1000.
+        scaler.run(
+            &"ns1".into(),
+            5000,
+            &clusters,
+            &mut requests,
+            Some(&mut cap),
+        );
+        assert!(cap <= 0, "ns1 should consume entire cap, got {}", cap);
+
+        // ns2 also wants pods but cap is exhausted → nothing.
+        let mut requests2 = HashMap::new();
+        scaler.run(
+            &"ns2".into(),
+            5000,
+            &clusters,
+            &mut requests2,
+            Some(&mut cap),
+        );
+        // ns2 should get 0 desired since cap is exhausted.
+        let ns2_desired: usize = requests2
+            .values()
+            .flat_map(|r| &r.deployments)
+            .filter(|d| d.namespace == "ns2".into())
+            .map(|d| d.size)
+            .sum();
+        assert_eq!(ns2_desired, 0, "ns2 should get nothing with exhausted cap");
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
     fn test_calculate_need_move() {
         let scaler = Scaler::new(
             QueueReportFields::prover_jobs,
@@ -1320,6 +1639,8 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 500), (GpuKey(Gpu::T4), 100)].into(),
+            None,
+            0,
             0,
             scaler_config("prover"),
             None,
@@ -1441,6 +1762,8 @@ mod tests {
             ]
             .into(),
             [(NoKey(), 10)].into(),
+            None,
+            0,
             0,
             scaler_config(""),
             None,
@@ -1619,6 +1942,8 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            None,
+            0,
             0,
             scaler_config("prover"),
             target_priority,
@@ -1722,6 +2047,8 @@ mod tests {
             )]
             .into(),
             [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            None,
+            0,
             0,
             scaler_config("prover"),
             target_priority,
@@ -1822,6 +2149,8 @@ mod tests {
             )]
             .into(),
             [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            None,
+            0,
             50,
             scaler_config("prover"),
             target_priority.clone(),
@@ -1837,6 +2166,8 @@ mod tests {
             )]
             .into(),
             [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            None,
+            0,
             0,
             scaler_config("prover"),
             target_priority,
@@ -2020,6 +2351,8 @@ mod tests {
             2,
             [("foo".into(), [(GpuKey(Gpu::L4), 100)].into())].into(),
             [(GpuKey(Gpu::L4), 500)].into(),
+            None,
+            0,
             0,
             scaler_config("prover"),
             None,
@@ -2122,6 +2455,8 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            None,
+            0,
             0,
             scaler_config,
             None,
@@ -2270,6 +2605,8 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 1500), (GpuKey(Gpu::H100), 3000)].into(),
+            None,
+            0,
             0,
             scaler_config,
             None,
@@ -2403,6 +2740,8 @@ mod tests {
             ]
             .into(),
             [(GpuKey(Gpu::L4), 1500)].into(),
+            None,
+            0,
             0,
             scaler_config,
             None,
@@ -2518,6 +2857,8 @@ mod tests {
                 (GpuKey(Gpu::T4), 700),
             ]
             .into(),
+            None,
+            0,
             0,
             scaler_config,
             target_priority,
@@ -2600,6 +2941,127 @@ mod tests {
         assert!(
             h100_requested > 0,
             "Should request H100s as fallback when L4s exhausted"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_aggressive_mode_excludes_disabled_pools() {
+        // Disabled pools (max_replicas=0) should not count toward the threshold
+        // denominator. Without this fix, disabled pools dilute the error percentage
+        // and make aggressive mode harder to trigger.
+        let scaler_config = Arc::new(ScalerConfig {
+            cluster_priorities: [
+                ("active1".into(), 0),
+                ("active2".into(), 10),
+                ("disabled".into(), 20),
+            ]
+            .into(),
+            apply_min_to_namespace: Some("prover".into()),
+            long_pending_duration: chrono::Duration::seconds(600),
+            scale_errors_duration: chrono::Duration::seconds(3600),
+            aggressive_mode_threshold: 50,
+            aggressive_mode_cooldown: chrono::Duration::seconds(600),
+        });
+
+        let scaler = Scaler::new(
+            QueueReportFields::prover_jobs,
+            "circuit-prover-gpu".into(),
+            0,
+            [
+                ("active1".into(), [(GpuKey(Gpu::L4), 100)].into()),
+                ("active2".into(), [(GpuKey(Gpu::L4), 100)].into()),
+                // Disabled cluster: max_replicas = 0
+                ("disabled".into(), [(GpuKey(Gpu::L4), 0)].into()),
+            ]
+            .into(),
+            [(GpuKey(Gpu::L4), 1500)].into(),
+            None,
+            0,
+            0,
+            scaler_config,
+            None,
+        );
+
+        // active1 has an error, active2 is healthy, disabled has no pods.
+        // With the fix: 1/2 active pools = 50% → triggers aggressive mode.
+        // Without the fix: 1/3 total pools = 33% → would NOT trigger.
+        let clusters = Clusters {
+            clusters: [
+                (
+                    "active1".into(),
+                    Cluster {
+                        name: "active1".into(),
+                        namespaces: [(
+                            "prover".into(),
+                            Namespace {
+                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                    .into(),
+                                pods: [(
+                                    "circuit-prover-gpu-1".into(),
+                                    Pod {
+                                        status: "Pending".into(),
+                                        changed: Utc::now(),
+                                        out_of_resources: true,
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                                ..Default::default()
+                            },
+                        )]
+                        .into(),
+                    },
+                ),
+                (
+                    "active2".into(),
+                    Cluster {
+                        name: "active2".into(),
+                        namespaces: [(
+                            "prover".into(),
+                            Namespace {
+                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                    .into(),
+                                ..Default::default()
+                            },
+                        )]
+                        .into(),
+                    },
+                ),
+                (
+                    "disabled".into(),
+                    Cluster {
+                        name: "disabled".into(),
+                        namespaces: [(
+                            "prover".into(),
+                            Namespace {
+                                deployments: [("circuit-prover-gpu".into(), Deployment::default())]
+                                    .into(),
+                                ..Default::default()
+                            },
+                        )]
+                        .into(),
+                    },
+                ),
+            ]
+            .into(),
+            ..Default::default()
+        };
+
+        let result = scaler.calculate(&"prover".into(), 3000, &clusters);
+
+        // Should have requested pods from active2 (aggressive mode fans out to all pools)
+        let active2_pods = result
+            .get(&PoolKey {
+                cluster: "active2".into(),
+                key: GpuKey(Gpu::L4),
+            })
+            .copied()
+            .unwrap_or(0);
+        assert!(
+            active2_pods > 0,
+            "Aggressive mode should trigger and allocate to active2, got: {:?}",
+            result
         );
     }
 }

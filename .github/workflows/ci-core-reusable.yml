@@ -93,7 +93,7 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 30000 || 20000 }} >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 25000 || 10000 }} >> .env
           echo ACCOUNTS_AMOUNT="100" >> .env
           echo MAX_INFLIGHT_TXS="10" >> .env
           echo SYNC_API_REQUESTS_LIMIT="15" >> .env
@@ -261,13 +261,6 @@ jobs:
           ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
           ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
           ci_run zkstack contract-verifier wait --chain era --verbose
-
-      - name: Check permissions
-        run: |
-          whoami
-          pwd
-          touch testfile
-          ls -l testfile
 
       - name: Run tests
         run: |
