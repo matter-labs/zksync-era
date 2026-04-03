@@ -586,8 +586,10 @@ impl<K: Key> Scaler<K> {
             let pending = cluster.sum_by_pod_status(PodStatus::Pending);
 
             // In aggressive mode, ignore Pending pods from pools with errors (they're likely stuck)
-            let has_errors =
-                cluster.sum_by_pod_status(PodStatus::NeedToMove) > 0 || cluster.scale_errors > 0;
+            let has_errors = cluster.sum_by_pod_status(PodStatus::NeedToMove) > 0
+                || cluster.scale_errors > 0
+                || cluster.sum_by_pod_status(PodStatus::LongPending) > 0
+                || cluster.deployment_stuck;
             let total_in_pool = if has_errors {
                 running // Only count Running pods from pools with errors
             } else {

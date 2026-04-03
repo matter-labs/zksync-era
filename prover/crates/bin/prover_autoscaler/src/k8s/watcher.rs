@@ -335,10 +335,8 @@ impl Watcher {
                                         continue;
                                     };
 
-                                    // Both event types mark the pod as out_of_resources
-                                    // (sticky until pod becomes Running or is deleted).
-                                    // This matches Yurii's original behavior where any
-                                    // "GCE out of resources" event set the flag.
+                                    // Mark the pod as out_of_resources (sticky until
+                                    // pod becomes Running or is deleted).
                                     if let Some(pod_data) = ns_data.pods.get_mut(&pod_name) {
                                         pod_data.out_of_resources = true;
                                     } else {

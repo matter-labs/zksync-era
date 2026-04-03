@@ -33,8 +33,9 @@ pub struct Pod {
 pub struct Deployment {
     pub running: usize,
     pub desired: usize,
-    /// Set when desired > 0 && running < desired. Cleared when running >= desired.
-    /// Used to detect pools stuck unable to provision for long_pending_duration.
+    /// Set when desired > 0 && running < desired. Cleared only when the pool
+    /// recovers (running >= desired with desired > 0). Preserved when desired == 0
+    /// (scaler capped the pool). Used to detect pools stuck for long_pending_duration.
     #[serde(default)]
     pub stuck_since: Option<DateTime<Utc>>,
 }
