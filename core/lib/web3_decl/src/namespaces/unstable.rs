@@ -3,8 +3,8 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
-        TransactionDetailedResult, TransactionExecutionInfo,
+        AirbenderProof, ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus,
+        L1ToL2TxsStatus, TransactionDetailedResult, TransactionExecutionInfo,
     },
     tee_types::TeeType,
     L1BatchNumber, L2BlockNumber, L2ChainId, H256,
@@ -31,12 +31,12 @@ pub trait UnstableNamespace {
         hash: H256,
     ) -> RpcResult<Option<TransactionExecutionInfo>>;
 
-    #[method(name = "getTeeProofs")]
-    async fn tee_proofs(
+    #[method(name = "getAirbenderProofs")]
+    async fn airbender_proofs(
         &self,
         l1_batch_number: L1BatchNumber,
         tee_type: Option<TeeType>,
-    ) -> RpcResult<Vec<TeeProof>>;
+    ) -> RpcResult<Vec<AirbenderProof>>;
 
     #[method(name = "getChainLogProof")]
     async fn get_chain_log_proof(
