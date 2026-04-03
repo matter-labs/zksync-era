@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE airbender_proof_generation_details\n            SET\n                status = $1,\n                updated_at = NOW()\n            WHERE\n                l1_batch_number = $2\n                AND tee_type = $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e7d8919dc08769ef766feac97f38a255bb74c01773683283d87fe68393c16bc8"
+}

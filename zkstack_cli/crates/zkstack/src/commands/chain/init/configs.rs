@@ -80,7 +80,7 @@ pub async fn init_configs(
     };
 
     let prover_data_handler_url = general_config.proof_data_handler_url()?;
-    let tee_prover_data_handler_url = general_config.tee_proof_data_handler_url()?;
+    let airbender_prover_data_handler_url = general_config.airbender_proof_data_handler_url()?;
     let prover_gateway_url = general_config.prover_gateway_url()?;
 
     let consensus_keys = RawConsensusKeys::generate();
@@ -89,8 +89,8 @@ pub async fn init_configs(
     if let Some(url) = prover_data_handler_url {
         general_config.set_prover_gateway_url(url)?;
     }
-    if let Some(url) = tee_prover_data_handler_url {
-        general_config.set_tee_prover_gateway_url(url)?;
+    if let Some(url) = airbender_prover_data_handler_url {
+        general_config.set_airbender_prover_gateway_url(url)?;
     }
     if let Some(url) = prover_gateway_url {
         general_config.set_proof_data_handler_url(url)?;
