@@ -268,7 +268,10 @@ impl InitialGasEstimate {
         // We use the lesser of these two estimates as the lower bound.
         let mut total_gas_bound = self.computational_gas_used? + self.gas_charged_for_pubdata;
         if let Some(gas_charged) = self.total_gas_charged {
-            total_gas_bound = total_gas_bound.min(gas_charged);
+            // `gas_charged` can be very close to the true minimum passing gas limit.
+            // Keep a margin (roughly 1/64 plus a small floor) so this value remains a strict lower bound.
+            let safety_margin = (gas_charged / 64).max(1_000);
+            total_gas_bound = total_gas_bound.min(gas_charged.saturating_sub(safety_margin));
         }
         total_gas_bound.checked_sub(self.operator_overhead)
     }

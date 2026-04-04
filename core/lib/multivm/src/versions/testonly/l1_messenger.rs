@@ -11,13 +11,14 @@ use zksync_types::{
     Address, Execute, ProtocolVersionId, H256, L1_MESSENGER_ADDRESS, U256,
 };
 
-use super::{ContractToDeploy, TestedVm, VmTesterBuilder};
+use super::{TestedVm, VmTesterBuilder};
 use crate::{
     interface::{
         pubdata::{PubdataBuilder, PubdataInput},
         InspectExecutionMode, TxExecutionMode, VmInterfaceExt,
     },
     pubdata_builders::FullPubdataBuilder,
+    versions::testonly::ContractToDeploy,
     vm_latest::constants::ZK_SYNC_BYTES_PER_BLOB,
 };
 

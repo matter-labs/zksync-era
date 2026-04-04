@@ -23,10 +23,10 @@ export async function waitForAllBatchesToBeExecuted(chainName: string, timeoutMs
                 return l1BatchDetails;
             }
 
-            await new Promise((resolve) => setTimeout(resolve, 5000));
+            await new Promise((resolve) => setTimeout(resolve, 2000));
         } catch (error) {
             console.log(`⚠️ Error checking L1 batch execution status, retrying... Error: ${error}`);
-            await new Promise((resolve) => setTimeout(resolve, 5000));
+            await new Promise((resolve) => setTimeout(resolve, 2000));
         }
     }
 

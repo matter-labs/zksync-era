@@ -62,8 +62,11 @@ pub(crate) struct StorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub interop_fee: i64,
 
     pub pubdata_limit: Option<i64>,
+    pub settlement_layer_chain_id: i64,
+    pub settlement_layer_type: String,
 }
 
 impl StorageL1BatchHeader {
@@ -87,6 +90,8 @@ impl StorageL1BatchHeader {
             self.fair_pubdata_price.map(|p| p as u64),
         );
 
+        let settlement_layer =
+            to_settlement_layer(self.settlement_layer_type, self.settlement_layer_chain_id);
         L1BatchHeader {
             number: L1BatchNumber(self.number as u32),
             timestamp: self.timestamp as u64,
@@ -111,9 +116,9 @@ impl StorageL1BatchHeader {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
-            interop_fee: U256::zero(),
+            interop_fee: U256::from(self.interop_fee as u64),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
-            settlement_layer: SettlementLayer::default(),
+            settlement_layer,
         }
     }
 }
@@ -185,8 +190,11 @@ pub(crate) struct StorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub interop_fee: i64,
 
     pub pubdata_limit: Option<i64>,
+    pub settlement_layer_chain_id: i64,
+    pub settlement_layer_type: String,
 }
 
 impl StorageL1Batch {
@@ -209,6 +217,8 @@ impl StorageL1Batch {
             self.l2_fair_gas_price as u64,
             self.fair_pubdata_price.map(|p| p as u64),
         );
+        let settlement_layer =
+            to_settlement_layer(self.settlement_layer_type, self.settlement_layer_chain_id);
 
         L1BatchHeader {
             number: L1BatchNumber(self.number as u32),
@@ -234,9 +244,9 @@ impl StorageL1Batch {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
-            interop_fee: U256::zero(),
+            interop_fee: U256::from(self.interop_fee as u64),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
-            settlement_layer: SettlementLayer::default(),
+            settlement_layer,
         }
     }
 }
@@ -325,7 +335,10 @@ pub(crate) struct UnsealedStorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub interop_fee: i64,
     pub pubdata_limit: Option<i64>,
+    pub settlement_layer_chain_id: i64,
+    pub settlement_layer_type: String,
 }
 
 impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
@@ -333,6 +346,9 @@ impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
         let protocol_version: Option<ProtocolVersionId> = batch
             .protocol_version
             .map(|v| (v as u16).try_into().unwrap());
+        let settlement_layer =
+            to_settlement_layer(batch.settlement_layer_type, batch.settlement_layer_chain_id);
+
         Self {
             number: L1BatchNumber(batch.number as u32),
             timestamp: batch.timestamp as u64,
@@ -344,9 +360,9 @@ impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
-            interop_fee: U256::zero(),
+            interop_fee: U256::from(batch.interop_fee as u64),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
-            settlement_layer: SettlementLayer::default(),
+            settlement_layer,
         }
     }
 }
@@ -361,7 +377,10 @@ pub(crate) struct CommonStorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
+    pub interop_fee: i64,
     pub pubdata_limit: Option<i64>,
+    pub settlement_layer_chain_id: i64,
+    pub settlement_layer_type: String,
 }
 
 impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
@@ -369,6 +388,9 @@ impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
         let protocol_version: Option<ProtocolVersionId> = batch
             .protocol_version
             .map(|v| (v as u16).try_into().unwrap());
+        let settlement_layer =
+            to_settlement_layer(batch.settlement_layer_type, batch.settlement_layer_chain_id);
+
         Self {
             number: L1BatchNumber(batch.number as u32),
             is_sealed: batch.is_sealed,
@@ -381,8 +403,9 @@ impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
+            interop_fee: U256::from(batch.interop_fee as u64),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
-            settlement_layer: SettlementLayer::default(),
+            settlement_layer,
         }
     }
 }
@@ -740,5 +763,28 @@ impl From<StoragePubdataParams> for PubdataParams {
             PubdataType::from_str(&row.pubdata_type).unwrap(),
         )
         .unwrap()
+    }
+}
+
+pub(crate) fn to_settlement_layer(
+    settlement_layer_type: String,
+    settlement_layer_chain_id: i64,
+) -> SettlementLayer {
+    let settlement_layer_chain_id = u64::try_from(settlement_layer_chain_id)
+        .expect("invalid settlement_layer_chain_id in l1_batches; value must be non-negative");
+
+    match settlement_layer_type.as_str() {
+        "L1" => SettlementLayer::L1(SLChainId(settlement_layer_chain_id)),
+        "Gateway" => SettlementLayer::Gateway(SLChainId(settlement_layer_chain_id)),
+        other => panic!(
+            "invalid settlement_layer_type `{other}` in l1_batches; expected `L1` or `Gateway`",
+        ),
+    }
+}
+
+pub(crate) fn from_settlement_layer(settlement_layer: &SettlementLayer) -> (String, i64) {
+    match settlement_layer {
+        SettlementLayer::L1(SLChainId(id)) => ("L1".to_string(), *id as i64),
+        SettlementLayer::Gateway(SLChainId(id)) => ("Gateway".to_string(), *id as i64),
     }
 }

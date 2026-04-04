@@ -78,7 +78,10 @@ async fn initial_estimate_for_load_test_transaction(tx_params: LoadnextContractE
 #[tokio::test]
 async fn initial_gas_estimate_for_l1_transaction() {
     let alice = Account::random();
-    let state_override = StateBuilder::default().with_counter_contract(None).build();
+    let state_override = StateBuilder::default()
+        .with_counter_contract(None)
+        .with_l1_base_token_minting(H256::repeat_byte(0x11))
+        .build();
     let tx = alice.create_l1_counter_tx(1.into(), false);
 
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -415,7 +418,10 @@ async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
 #[tokio::test]
 async fn estimating_gas_for_l1_transaction() {
     let alice = Account::random();
-    let state_override = StateBuilder::default().with_counter_contract(None).build();
+    let state_override = StateBuilder::default()
+        .with_counter_contract(None)
+        .with_l1_base_token_minting(H256::repeat_byte(0x11))
+        .build();
     let tx = alice.create_l1_counter_tx(1.into(), false);
 
     test_estimating_gas(state_override, tx, 0).await;

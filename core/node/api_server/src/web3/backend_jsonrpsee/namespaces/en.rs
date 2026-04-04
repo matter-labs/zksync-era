@@ -70,4 +70,10 @@ impl EnNamespaceServer for EnNamespace {
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
+
+    async fn get_interop_fee(&self) -> RpcResult<u64> {
+        self.get_interop_fee_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
 }

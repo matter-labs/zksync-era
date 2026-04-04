@@ -208,7 +208,7 @@ async fn storage_writer_works(insert_protective_reads: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut conn, &genesis_params)
+    insert_genesis_batch(&mut conn, &genesis_params.clone().into())
         .await
         .unwrap();
 

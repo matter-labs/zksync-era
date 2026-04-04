@@ -19,6 +19,7 @@ use zksync_node_test_utils::{create_l2_transaction, default_l1_batch_env, defaul
 use zksync_types::{
     block::{L2BlockExecutionData, L2BlockHasher},
     commitment::PubdataParams,
+    settlement::SettlementLayer,
     u256_to_h256, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
     ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
     Transaction, H256, U256,
@@ -421,6 +422,7 @@ async fn load_upgrade_tx() {
         Arc::new(sealer),
         Arc::new(MockReadStorageFactory),
         None,
+        SettlementLayer::for_tests(),
     ));
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any
