@@ -36,7 +36,6 @@ mod set_da_validator_pair_calldata;
 mod set_pubdata_pricing_mode;
 mod set_token_multiplier_setter;
 pub(crate) mod set_transaction_filterer;
-mod setup_legacy_bridge;
 pub mod utils;
 
 #[derive(Subcommand, Debug)]
