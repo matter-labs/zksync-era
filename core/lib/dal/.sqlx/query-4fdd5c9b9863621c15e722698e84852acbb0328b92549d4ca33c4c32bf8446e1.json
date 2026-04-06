@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                proofs.l1_batch_number\n            FROM\n                airbender_proof_generation_details AS proofs\n            WHERE\n                proofs.status = $1\n            ORDER BY\n                proofs.l1_batch_number ASC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4fdd5c9b9863621c15e722698e84852acbb0328b92549d4ca33c4c32bf8446e1"
+}
