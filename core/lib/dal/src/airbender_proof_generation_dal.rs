@@ -57,75 +57,91 @@ impl AirbenderProofGenerationDal<'_, '_> {
     ) -> DalResult<Option<LockedBatch>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
+        let picked = AirbenderProofGenerationJobStatus::PickedByProver.to_string();
+        let failed = AirbenderProofGenerationJobStatus::Failed.to_string();
 
-        // Find and claim a batch atomically without a table-level lock.
-        // LATERAL subquery locks existing rows via FOR UPDATE SKIP LOCKED.
-        // ON CONFLICT WHERE repeats the full reclaimability predicate (including timeout)
-        // so a racing INSERT loser cannot steal a freshly-claimed batch.
+        let mut transaction = self.storage.start_transaction().await?;
+
+        // Step 1: Try to reclaim a timed-out or failed batch (row already exists).
+        // FOR UPDATE SKIP LOCKED ensures parallel provers don't pick the same row.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
             r#"
-            WITH candidate AS (
-                SELECT p.l1_batch_number
-                FROM proof_generation_details p
-                LEFT JOIN LATERAL (
-                    SELECT apgd.l1_batch_number, apgd.status, apgd.prover_taken_at
+            UPDATE airbender_proof_generation_details
+            SET status = $1, updated_at = NOW(), prover_taken_at = NOW()
+            WHERE
+                l1_batch_number = (
+                    SELECT apgd.l1_batch_number
                     FROM airbender_proof_generation_details apgd
-                    WHERE apgd.l1_batch_number = p.l1_batch_number
-                    FOR UPDATE SKIP LOCKED
-                ) apgd ON TRUE
-                WHERE
-                    p.l1_batch_number >= $3
-                    AND p.vm_run_data_blob_url IS NOT NULL
-                    AND p.proof_gen_data_blob_url IS NOT NULL
-                    AND (
-                        apgd.l1_batch_number IS NULL
-                        OR (
+                    JOIN proof_generation_details p
+                        ON p.l1_batch_number = apgd.l1_batch_number
+                    WHERE
+                        p.l1_batch_number >= $3
+                        AND p.vm_run_data_blob_url IS NOT NULL
+                        AND p.proof_gen_data_blob_url IS NOT NULL
+                        AND (
                             apgd.status = $2
                             OR (
                                 apgd.status = $1
                                 AND apgd.prover_taken_at < NOW() - $4::INTERVAL
                             )
                         )
-                    )
-                ORDER BY p.l1_batch_number ASC
-                LIMIT 1
-            )
-            
-            INSERT INTO airbender_proof_generation_details (
-                l1_batch_number, status, created_at, updated_at, prover_taken_at
-            )
-            SELECT
-                c.l1_batch_number, $5, NOW(), NOW(), NOW()
-            FROM candidate c
-            ON CONFLICT (l1_batch_number) DO UPDATE
-            SET
-            status = $5,
-            updated_at = NOW(),
-            prover_taken_at = NOW()
-            WHERE
-            airbender_proof_generation_details.status = $2
-            OR (
-                airbender_proof_generation_details.status = $1
-                AND airbender_proof_generation_details.prover_taken_at
-                < NOW() - $4::INTERVAL
-            )
-            RETURNING
-            l1_batch_number, created_at
+                    ORDER BY apgd.l1_batch_number ASC
+                    LIMIT 1
+                    FOR UPDATE OF apgd SKIP LOCKED
+                )
+            RETURNING l1_batch_number, created_at
             "#,
-            AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
-            AirbenderProofGenerationJobStatus::Failed.to_string(),
+            picked,
+            failed,
             min_batch_number,
             processing_timeout,
-            AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
         )
-        .instrument("lock_batch_for_proving")
+        .instrument("lock_batch_for_proving#reclaim")
         .with_arg("processing_timeout", &processing_timeout)
         .with_arg("min_batch_number", &min_batch_number)
-        .fetch_optional(self.storage)
+        .fetch_optional(&mut transaction)
         .await?
         .map(Into::into);
 
+        if locked_batch.is_some() {
+            transaction.commit().await?;
+            return Ok(locked_batch);
+        }
+
+        // Step 2: No reclaimable row — try to claim a new batch.
+        // ON CONFLICT DO NOTHING: if two provers race, one wins and the other gets nothing.
+        let locked_batch = sqlx::query_as!(
+            StorageLockedBatch,
+            r#"
+            INSERT INTO airbender_proof_generation_details (
+                l1_batch_number, status, created_at, updated_at, prover_taken_at
+            )
+            SELECT p.l1_batch_number, $1, NOW(), NOW(), NOW()
+            FROM proof_generation_details p
+            WHERE
+                p.l1_batch_number >= $2
+                AND p.vm_run_data_blob_url IS NOT NULL
+                AND p.proof_gen_data_blob_url IS NOT NULL
+                AND NOT EXISTS (
+                    SELECT 1 FROM airbender_proof_generation_details a
+                    WHERE a.l1_batch_number = p.l1_batch_number
+                )
+            ORDER BY p.l1_batch_number ASC
+            LIMIT 1
+            ON CONFLICT (l1_batch_number) DO NOTHING
+            RETURNING l1_batch_number, created_at
+            "#,
+            picked,
+            min_batch_number,
+        )
+        .instrument("lock_batch_for_proving#new")
+        .with_arg("min_batch_number", &min_batch_number)
+        .fetch_optional(&mut transaction)
+        .await?
+        .map(Into::into);
+
+        transaction.commit().await?;
         Ok(locked_batch)
     }
 
