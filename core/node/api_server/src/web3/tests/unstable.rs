@@ -33,7 +33,7 @@ impl HttpTest for GetAirbenderProofTest {
 
         let proof_blob_url = "l1_batch_airbender_proof_1337.bin";
         airbender_proof_generation_dal
-            .save_proof_artifacts_metadata(batch_no, proof_blob_url)
+            .save_proof_artifacts_metadata(batch_no, proof_blob_url, "test-prover")
             .await?;
 
         let proof = client.airbender_proof(batch_no).await?;
