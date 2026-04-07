@@ -1,6 +1,6 @@
 //! Tests for the VM execution sandbox.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
@@ -292,7 +292,7 @@ async fn validating_transaction(set_balance: bool) {
             balance: Some(U256::from(1) << 128),
             ..OverrideAccount::default()
         };
-        StateOverride::new(HashMap::from([(tx.initiator_account(), account_override)]))
+        StateOverride::new(BTreeMap::from([(tx.initiator_account(), account_override)]))
     } else {
         StateOverride::default()
     };

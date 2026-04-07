@@ -78,7 +78,7 @@ pub(super) fn apply_state_override<S: ReadStorage>(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     use zksync_multivm::interface::storage::InMemoryStorage;
     use zksync_types::{api::state_override::OverrideAccount, web3, Address};
@@ -87,7 +87,7 @@ mod tests {
 
     #[test]
     fn override_basics() {
-        let overrides = StateOverride::new(HashMap::from([
+        let overrides = StateOverride::new(BTreeMap::from([
             (
                 Address::repeat_byte(1),
                 OverrideAccount {
