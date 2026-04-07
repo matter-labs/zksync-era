@@ -4,6 +4,10 @@ use tokio::sync::watch;
 use zksync_config::configs::{
     eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
 };
+
+/// Timeout for the entire submit_request operation (blob upload + on-chain submission).
+/// Prevents the loop from hanging indefinitely if blob store or client is unresponsive.
+const SUBMIT_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{Bucket, ObjectStore};
 use zksync_proof_data_handler::{Locking, Processor};
@@ -71,15 +75,31 @@ impl ProofRequestSubmitter {
     pub async fn loop_iteration(&self) -> anyhow::Result<()> {
         let batch_id = self.processor.lock_batch_for_proving_network().await?;
         if let Some(batch_id) = batch_id {
-            match self.submit_request(batch_id).await {
-                Ok(_) => {
+            let result =
+                tokio::time::timeout(SUBMIT_REQUEST_TIMEOUT, self.submit_request(batch_id)).await;
+            match result {
+                Ok(Ok(_)) => {
                     tracing::info!("Submitted proof request for batch {}", batch_id);
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     tracing::error!(
                         "Failed to submit proof request for batch {}, moving to prover cluster, error: {}",
                         batch_id,
                         e
+                    );
+                    METRICS.fallbacked_batches.inc();
+                    self.connection_pool
+                        .connection()
+                        .await?
+                        .eth_proof_manager_dal()
+                        .fallback_batch(batch_id)
+                        .await?;
+                }
+                Err(_) => {
+                    tracing::error!(
+                        "Timed out submitting proof request for batch {} after {:?}, moving to prover cluster",
+                        batch_id,
+                        SUBMIT_REQUEST_TIMEOUT,
                     );
                     METRICS.fallbacked_batches.inc();
                     self.connection_pool
