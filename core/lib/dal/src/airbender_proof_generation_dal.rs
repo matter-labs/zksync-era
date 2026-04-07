@@ -58,25 +58,22 @@ impl AirbenderProofGenerationDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
 
-        // Use a CTE to atomically find and claim a batch. This avoids a table-level
-        // EXCLUSIVE lock, allowing multiple provers to acquire batches in parallel.
-        //
-        // The candidate subquery finds batches that are either:
-        // - New (no row in airbender_proof_generation_details yet)
-        // - Timed out (picked_by_prover or failed, with stale prover_taken_at)
-        //
-        // FOR UPDATE SKIP LOCKED on existing rows prevents two provers from picking
-        // the same timed-out batch. For new batches (no existing row), the INSERT's
-        // ON CONFLICT handles the race: one prover wins the insert, the other sees
-        // the conflict and the UPDATE only proceeds if the row is still claimable.
+        // Find and claim a batch atomically without a table-level lock.
+        // LATERAL subquery locks existing rows via FOR UPDATE SKIP LOCKED.
+        // ON CONFLICT WHERE repeats the full reclaimability predicate (including timeout)
+        // so a racing INSERT loser cannot steal a freshly-claimed batch.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
             r#"
             WITH candidate AS (
                 SELECT p.l1_batch_number
                 FROM proof_generation_details p
-                LEFT JOIN airbender_proof_generation_details apgd
-                    ON p.l1_batch_number = apgd.l1_batch_number
+                LEFT JOIN LATERAL (
+                    SELECT apgd.l1_batch_number, apgd.status, apgd.prover_taken_at
+                    FROM airbender_proof_generation_details apgd
+                    WHERE apgd.l1_batch_number = p.l1_batch_number
+                    FOR UPDATE SKIP LOCKED
+                ) apgd ON TRUE
                 WHERE
                     p.l1_batch_number >= $3
                     AND p.vm_run_data_blob_url IS NOT NULL
@@ -84,13 +81,15 @@ impl AirbenderProofGenerationDal<'_, '_> {
                     AND (
                         apgd.l1_batch_number IS NULL
                         OR (
-                            (apgd.status = $1 OR apgd.status = $2)
-                            AND apgd.prover_taken_at < NOW() - $4::INTERVAL
+                            apgd.status = $2
+                            OR (
+                                apgd.status = $1
+                                AND apgd.prover_taken_at < NOW() - $4::INTERVAL
+                            )
                         )
                     )
                 ORDER BY p.l1_batch_number ASC
                 LIMIT 1
-                FOR UPDATE OF apgd SKIP LOCKED
             )
             
             INSERT INTO airbender_proof_generation_details (
@@ -105,8 +104,12 @@ impl AirbenderProofGenerationDal<'_, '_> {
             updated_at = NOW(),
             prover_taken_at = NOW()
             WHERE
-            airbender_proof_generation_details.status = $1
-            OR airbender_proof_generation_details.status = $2
+            airbender_proof_generation_details.status = $2
+            OR (
+                airbender_proof_generation_details.status = $1
+                AND airbender_proof_generation_details.prover_taken_at
+                < NOW() - $4::INTERVAL
+            )
             RETURNING
             l1_batch_number, created_at
             "#,

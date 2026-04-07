@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH candidate AS (\n                SELECT p.l1_batch_number\n                FROM proof_generation_details p\n                LEFT JOIN LATERAL (\n                    SELECT apgd.l1_batch_number, apgd.status, apgd.prover_taken_at\n                    FROM airbender_proof_generation_details apgd\n                    WHERE apgd.l1_batch_number = p.l1_batch_number\n                    FOR UPDATE SKIP LOCKED\n                ) apgd ON TRUE\n                WHERE\n                    p.l1_batch_number >= $3\n                    AND p.vm_run_data_blob_url IS NOT NULL\n                    AND p.proof_gen_data_blob_url IS NOT NULL\n                    AND (\n                        apgd.l1_batch_number IS NULL\n                        OR (\n                            apgd.status = $2\n                            OR (\n                                apgd.status = $1\n                                AND apgd.prover_taken_at < NOW() - $4::INTERVAL\n                            )\n                        )\n                    )\n                ORDER BY p.l1_batch_number ASC\n                LIMIT 1\n            )\n            \n            INSERT INTO airbender_proof_generation_details (\n                l1_batch_number, status, created_at, updated_at, prover_taken_at\n            )\n            SELECT\n                c.l1_batch_number, $5, NOW(), NOW(), NOW()\n            FROM candidate c\n            ON CONFLICT (l1_batch_number) DO UPDATE\n            SET\n            status = $5,\n            updated_at = NOW(),\n            prover_taken_at = NOW()\n            WHERE\n            airbender_proof_generation_details.status = $2\n            OR (\n                airbender_proof_generation_details.status = $1\n                AND airbender_proof_generation_details.prover_taken_at\n                < NOW() - $4::INTERVAL\n            )\n            RETURNING\n            l1_batch_number, created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Interval",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "44441a33e213f1a3bb5d66b6d53ef8b7cafb744e3dc992cce5bc87b5ff34f164"
+}
