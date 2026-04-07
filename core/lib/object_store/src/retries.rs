@@ -45,9 +45,7 @@ impl Request<'_> {
             let attempt_result = match tokio::time::timeout(REQUEST_TIMEOUT, f()).await {
                 Ok(result) => result,
                 Err(_elapsed) => {
-                    tracing::warn!(
-                        "Object store request timed out after {REQUEST_TIMEOUT:?}"
-                    );
+                    tracing::warn!("Object store request timed out after {REQUEST_TIMEOUT:?}");
                     Err(ObjectStoreError::Other {
                         source: "operation timed out".into(),
                         is_retriable: true,
