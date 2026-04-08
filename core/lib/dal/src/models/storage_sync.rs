@@ -134,7 +134,8 @@ impl SyncBlock {
             settlement_layer: to_settlement_layer(
                 block.settlement_layer_type,
                 block.settlement_layer_chain_id,
-            ),
+            )
+            .decode_column("settlement_layer_type")?,
             interop_fee: u64::try_from(block.interop_fee)
                 .expect("interop_fee should be less than 2^64"),
         })

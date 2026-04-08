@@ -1,5 +1,6 @@
 use std::{convert::TryInto, str::FromStr};
 
+use anyhow::{anyhow, bail};
 use bigdecimal::{BigDecimal, ToPrimitive};
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use thiserror::Error;
@@ -73,7 +74,7 @@ impl StorageL1BatchHeader {
     pub fn into_l1_batch_header_with_logs(
         self,
         l2_to_l1_logs: Vec<UserL2ToL1Log>,
-    ) -> L1BatchHeader {
+    ) -> anyhow::Result<L1BatchHeader> {
         let priority_ops_onchain_data: Vec<_> = self
             .priority_ops_onchain_data
             .into_iter()
@@ -91,8 +92,8 @@ impl StorageL1BatchHeader {
         );
 
         let settlement_layer =
-            to_settlement_layer(self.settlement_layer_type, self.settlement_layer_chain_id);
-        L1BatchHeader {
+            to_settlement_layer(self.settlement_layer_type, self.settlement_layer_chain_id)?;
+        Ok(L1BatchHeader {
             number: L1BatchNumber(self.number as u32),
             timestamp: self.timestamp as u64,
             priority_ops_onchain_data,
@@ -120,7 +121,7 @@ impl StorageL1BatchHeader {
                 .expect("interop_fee should be less than 2^64"),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
             settlement_layer,
-        }
+        })
     }
 }
 
@@ -202,7 +203,7 @@ impl StorageL1Batch {
     pub fn into_l1_batch_header_with_logs(
         self,
         l2_to_l1_logs: Vec<UserL2ToL1Log>,
-    ) -> L1BatchHeader {
+    ) -> anyhow::Result<L1BatchHeader> {
         let priority_ops_onchain_data: Vec<_> = self
             .priority_ops_onchain_data
             .into_iter()
@@ -219,9 +220,9 @@ impl StorageL1Batch {
             self.fair_pubdata_price.map(|p| p as u64),
         );
         let settlement_layer =
-            to_settlement_layer(self.settlement_layer_type, self.settlement_layer_chain_id);
+            to_settlement_layer(self.settlement_layer_type, self.settlement_layer_chain_id)?;
 
-        L1BatchHeader {
+        Ok(L1BatchHeader {
             number: L1BatchNumber(self.number as u32),
             timestamp: self.timestamp as u64,
             priority_ops_onchain_data,
@@ -249,7 +250,7 @@ impl StorageL1Batch {
                 .expect("interop_fee should be less than 2^64"),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
             settlement_layer,
-        }
+        })
     }
 }
 
@@ -343,15 +344,17 @@ pub(crate) struct UnsealedStorageL1Batch {
     pub settlement_layer_type: String,
 }
 
-impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
-    fn from(batch: UnsealedStorageL1Batch) -> Self {
+impl TryFrom<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
+    type Error = anyhow::Error;
+
+    fn try_from(batch: UnsealedStorageL1Batch) -> Result<Self, Self::Error> {
         let protocol_version: Option<ProtocolVersionId> = batch
             .protocol_version
             .map(|v| (v as u16).try_into().unwrap());
         let settlement_layer =
-            to_settlement_layer(batch.settlement_layer_type, batch.settlement_layer_chain_id);
+            to_settlement_layer(batch.settlement_layer_type, batch.settlement_layer_chain_id)?;
 
-        Self {
+        Ok(Self {
             number: L1BatchNumber(batch.number as u32),
             timestamp: batch.timestamp as u64,
             protocol_version,
@@ -366,7 +369,7 @@ impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
                 .expect("interop_fee should be less than 2^64"),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
             settlement_layer,
-        }
+        })
     }
 }
 
@@ -386,15 +389,17 @@ pub(crate) struct CommonStorageL1BatchHeader {
     pub settlement_layer_type: String,
 }
 
-impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
-    fn from(batch: CommonStorageL1BatchHeader) -> Self {
+impl TryFrom<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
+    type Error = anyhow::Error;
+
+    fn try_from(batch: CommonStorageL1BatchHeader) -> Result<Self, Self::Error> {
         let protocol_version: Option<ProtocolVersionId> = batch
             .protocol_version
             .map(|v| (v as u16).try_into().unwrap());
         let settlement_layer =
-            to_settlement_layer(batch.settlement_layer_type, batch.settlement_layer_chain_id);
+            to_settlement_layer(batch.settlement_layer_type, batch.settlement_layer_chain_id)?;
 
-        Self {
+        Ok(Self {
             number: L1BatchNumber(batch.number as u32),
             is_sealed: batch.is_sealed,
             timestamp: batch.timestamp as u64,
@@ -410,7 +415,7 @@ impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
                 .expect("interop_fee should be less than 2^64"),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
             settlement_layer,
-        }
+        })
     }
 }
 
@@ -773,16 +778,20 @@ impl From<StoragePubdataParams> for PubdataParams {
 pub(crate) fn to_settlement_layer(
     settlement_layer_type: String,
     settlement_layer_chain_id: i64,
-) -> SettlementLayer {
+) -> anyhow::Result<SettlementLayer> {
     let settlement_layer_chain_id = u64::try_from(settlement_layer_chain_id)
-        .expect("invalid settlement_layer_chain_id in l1_batches; value must be non-negative");
+        .map_err(|_| {
+            anyhow!(
+                "invalid settlement_layer_chain_id `{settlement_layer_chain_id}` in l1_batches; value must be non-negative"
+            )
+        })?;
 
     match settlement_layer_type.as_str() {
-        "L1" => SettlementLayer::L1(SLChainId(settlement_layer_chain_id)),
-        "Gateway" => SettlementLayer::Gateway(SLChainId(settlement_layer_chain_id)),
-        other => panic!(
-            "invalid settlement_layer_type `{other}` in l1_batches; expected `L1` or `Gateway`",
-        ),
+        "L1" => Ok(SettlementLayer::L1(SLChainId(settlement_layer_chain_id))),
+        "Gateway" => Ok(SettlementLayer::Gateway(SLChainId(
+            settlement_layer_chain_id,
+        ))),
+        _ => bail!("invalid settlement_layer_type `{settlement_layer_type}` in l1_batches; expected `L1` or `Gateway`"),
     }
 }
 

@@ -1,6 +1,8 @@
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
-    match_query_as,
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
+    interpolate_query, match_query_as,
 };
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
@@ -472,6 +474,8 @@ impl BlocksWeb3Dal<'_, '_> {
         let l1_batch = resolved_l1batch_for_l2block
             .block_l1_batch
             .unwrap_or_default();
+        let instrumentation =
+            Instrumented::new("get_expected_settlement_layer").with_arg("block_number", &l1_batch);
         let row = sqlx::query!(
             r#"
             SELECT
@@ -492,10 +496,8 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        Ok(to_settlement_layer(
-            row.settlement_layer_type,
-            row.settlement_layer_chain_id,
-        ))
+        to_settlement_layer(row.settlement_layer_type, row.settlement_layer_chain_id)
+            .map_err(|err| instrumentation.constraint_error(err))
     }
 
     pub async fn get_l2_block_hash(
