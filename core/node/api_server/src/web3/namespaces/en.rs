@@ -232,11 +232,7 @@ impl EnNamespace {
             .await
             .map_err(DalError::generalize)?
         {
-            return u64::try_from(unsealed_batch.interop_fee).map_err(|err| {
-                Web3Error::InternalError(anyhow::anyhow!(
-                    "unsealed interop fee does not fit in u64: {err}"
-                ))
-            });
+            return Ok(unsealed_batch.interop_fee);
         }
 
         Ok(self.state.tx_sender.configured_interop_fee())

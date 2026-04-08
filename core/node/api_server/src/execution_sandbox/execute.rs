@@ -348,7 +348,13 @@ impl SandboxExecutor {
             SandboxAction::Execution { fee_input, tx } => {
                 self.options
                     .eth_call
-                    .to_execute_env(&mut connection, resolved_block_info, *fee_input, tx)
+                    .to_execute_env(
+                        &mut connection,
+                        resolved_block_info,
+                        *fee_input,
+                        tx,
+                        self.options.interop_fee_fallback,
+                    )
                     .await?
             }
             &SandboxAction::Call {
@@ -363,6 +369,7 @@ impl SandboxExecutor {
                         resolved_block_info,
                         fee_input,
                         enforced_base_fee,
+                        self.options.interop_fee_fallback,
                     )
                     .await?
             }
@@ -373,7 +380,13 @@ impl SandboxExecutor {
             } => {
                 self.options
                     .estimate_gas
-                    .to_env(&mut connection, resolved_block_info, fee_input, base_fee)
+                    .to_env(
+                        &mut connection,
+                        resolved_block_info,
+                        fee_input,
+                        base_fee,
+                        self.options.interop_fee_fallback,
+                    )
                     .await?
             }
         };

@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    convert::{Into, TryInto},
+    convert::{Into, TryFrom, TryInto},
     ops,
     sync::atomic::{AtomicBool, Ordering},
 };
@@ -201,7 +201,10 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        Ok(Some(header.into()))
+        let header: CommonL1BatchHeader = header.try_into().map_err(|err: anyhow::Error| {
+            Instrumented::new("get_latest_l1_batch_header").constraint_error(err)
+        })?;
+        Ok(Some(header))
     }
 
     /// Returns common L1 batch's header (could be unsealed) by L1 batch number. The header contains fields that are
@@ -210,6 +213,8 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<CommonL1BatchHeader>> {
+        let instrumentation =
+            Instrumented::new("get_common_l1_batch_header").with_arg("number", &number);
         let Some(header) = sqlx::query_as!(
             CommonStorageL1BatchHeader,
             r#"
@@ -240,13 +245,16 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        Ok(Some(header.into()))
+        let header: CommonL1BatchHeader = header
+            .try_into()
+            .map_err(|err: anyhow::Error| instrumentation.constraint_error(err))?;
+        Ok(Some(header))
     }
 
     pub async fn get_l1_batch_interop_fee_if_sealed(
         &mut self,
         number: L1BatchNumber,
-    ) -> DalResult<Option<U256>> {
+    ) -> DalResult<Option<u64>> {
         let instrumentation =
             Instrumented::new("get_l1_batch_interop_fee_if_sealed").with_arg("number", &number);
         let row = sqlx::query!(
@@ -269,7 +277,6 @@ impl BlocksDal<'_, '_> {
         let interop_fee = row
             .map(|row| {
                 u64::try_from(row.interop_fee)
-                    .map(U256::from)
                     .map_err(|err| instrumentation.arg_error("interop_fee", err))
             })
             .transpose()?;
@@ -684,6 +691,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<L1BatchHeader>> {
+        let instrumentation = Instrumented::new("get_l1_batch_header").with_arg("number", &number);
         let storage_l1_batch_header = sqlx::query_as!(
             StorageL1BatchHeader,
             r#"
@@ -728,7 +736,9 @@ impl BlocksDal<'_, '_> {
                 .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(number)
                 .await?;
             return Ok(Some(
-                storage_l1_batch_header.into_l1_batch_header_with_logs(l2_to_l1_logs),
+                storage_l1_batch_header
+                    .into_l1_batch_header_with_logs(l2_to_l1_logs)
+                    .map_err(|err| instrumentation.constraint_error(err))?,
             ));
         }
 
@@ -1059,15 +1069,8 @@ impl BlocksDal<'_, '_> {
             Instrumented::new("insert_l1_batch").with_arg("number", &unsealed_batch_header.number);
         let (settlement_layer_type, settlement_layer_chain_id) =
             from_settlement_layer(&unsealed_batch_header.settlement_layer);
-        let interop_fee = if unsealed_batch_header.interop_fee > U256::from(i64::MAX as u64) {
-            Err(instrumentation.arg_error(
-                "unsealed_batch_header.interop_fee",
-                anyhow::anyhow!("doesn't fit in i64"),
-            ))
-        } else {
-            i64::try_from(unsealed_batch_header.interop_fee.as_u64())
-                .map_err(|err| instrumentation.arg_error("unsealed_batch_header.interop_fee", err))
-        }?;
+        let interop_fee = i64::try_from(unsealed_batch_header.interop_fee)
+            .map_err(|err| instrumentation.arg_error("unsealed_batch_header.interop_fee", err))?;
 
         let query = sqlx::query!(
             r#"
@@ -1251,7 +1254,7 @@ impl BlocksDal<'_, '_> {
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
         bytes_per_blob: u64,
-        interop_fee: U256,
+        interop_fee: u64,
     ) -> anyhow::Result<()> {
         let initial_bootloader_contents_len = initial_bootloader_contents.len();
         let instrumentation = Instrumented::new("mark_l1_batch_as_sealed")
@@ -1284,12 +1287,8 @@ impl BlocksDal<'_, '_> {
             .map(|input| input.len() as u64)
             .unwrap_or(0)
             .div_ceil(bytes_per_blob);
-        let interop_fee = if interop_fee > U256::from(i64::MAX as u64) {
-            Err(instrumentation.arg_error("interop_fee", anyhow::anyhow!("doesn't fit in i64")))
-        } else {
-            i64::try_from(interop_fee.as_u64())
-                .map_err(|err| instrumentation.arg_error("interop_fee", err))
-        }?;
+        let interop_fee = i64::try_from(interop_fee)
+            .map_err(|err| instrumentation.arg_error("interop_fee", err))?;
 
         let query = sqlx::query!(
             r#"
@@ -1385,6 +1384,7 @@ impl BlocksDal<'_, '_> {
     async fn get_unsealed_l1_batch_inner(
         conn: &mut Connection<'_, Core>,
     ) -> DalResult<Option<UnsealedL1BatchHeader>> {
+        let instrumentation = Instrumented::new("get_unsealed_l1_batch");
         let batch = sqlx::query_as!(
             UnsealedStorageL1Batch,
             r#"
@@ -1425,7 +1425,10 @@ impl BlocksDal<'_, '_> {
         .fetch_optional(conn)
         .await?;
 
-        Ok(batch.map(|b| b.into()))
+        batch
+            .map(UnsealedL1BatchHeader::try_from)
+            .transpose()
+            .map_err(|err| instrumentation.constraint_error(err))
     }
 
     pub async fn insert_l2_block(&mut self, l2_block_header: &L2BlockHeader) -> DalResult<()> {
@@ -3038,6 +3041,8 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<L1BatchWithOptionalMetadata>> {
+        let instrumentation =
+            Instrumented::new("get_optional_l1_batch_metadata").with_arg("number", &number);
         let Some(l1_batch) = self.get_storage_l1_batch(number).await? else {
             return Ok(None);
         };
@@ -3048,7 +3053,8 @@ impl BlocksDal<'_, '_> {
         Ok(Some(L1BatchWithOptionalMetadata {
             header: l1_batch
                 .clone()
-                .into_l1_batch_header_with_logs(l2_to_l1_logs),
+                .into_l1_batch_header_with_logs(l2_to_l1_logs)
+                .map_err(|err| instrumentation.constraint_error(err))?,
             metadata: l1_batch.try_into(),
         }))
     }
@@ -3086,21 +3092,22 @@ impl BlocksDal<'_, '_> {
         &mut self,
         storage_batch: StorageL1Batch,
     ) -> DalResult<Option<L1BatchWithMetadata>> {
-        let unsorted_factory_deps = self
-            .get_l1_batch_factory_deps(L1BatchNumber(storage_batch.number as u32))
-            .await?;
+        let l1_batch_number = L1BatchNumber(storage_batch.number as u32);
+        let instrumentation =
+            Instrumented::new("map_storage_l1_batch").with_arg("number", &l1_batch_number);
+        let unsorted_factory_deps = self.get_l1_batch_factory_deps(l1_batch_number).await?;
 
         let l2_to_l1_logs = self
-            .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(L1BatchNumber(
-                storage_batch.number as u32,
-            ))
+            .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(l1_batch_number)
             .await?;
 
         let Ok(metadata) = storage_batch.clone().try_into() else {
             return Ok(None);
         };
 
-        let header: L1BatchHeader = storage_batch.into_l1_batch_header_with_logs(l2_to_l1_logs);
+        let header: L1BatchHeader = storage_batch
+            .into_l1_batch_header_with_logs(l2_to_l1_logs)
+            .map_err(|err| instrumentation.constraint_error(err))?;
 
         let raw_published_bytecode_hashes = self
             .storage
@@ -3923,7 +3930,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
         self.insert_l1_batch(header.to_unsealed_header()).await?;
-        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1, U256::zero())
+        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1, 0)
             .await
     }
 

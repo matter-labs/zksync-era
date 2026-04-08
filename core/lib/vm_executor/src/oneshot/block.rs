@@ -14,7 +14,7 @@ use zksync_types::{
     settlement::SettlementLayer,
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-    SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, U256, ZKPORTER_IS_AVAILABLE,
+    SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 
 use super::{env::OneshotEnvParameters, ContractsKind};
@@ -228,6 +228,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
+        interop_fee_fallback: Option<u64>,
     ) -> anyhow::Result<OneshotEnv> {
         let (next_block, current_block) = load_l2_block_info(
             connection,
@@ -241,7 +242,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         let interop_fee = if resolved_block_info.is_pending {
             if let Some(unsealed_batch) = connection.blocks_dal().get_unsealed_l1_batch().await? {
                 unsealed_batch.interop_fee
-            } else if let Some(fallback_fee) = self.interop_fee_fallback() {
+            } else if let Some(fallback_fee) = interop_fee_fallback {
                 fallback_fee
             } else {
                 Self::sealed_batch_interop_fee(connection, resolved_block_info.vm_l1_batch_number)
@@ -251,7 +252,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         } else {
             Self::sealed_batch_interop_fee(connection, resolved_block_info.vm_l1_batch_number)
                 .await?
-                .or_else(|| self.interop_fee_fallback())
+                .or(interop_fee_fallback)
                 .unwrap_or_default()
         };
 
@@ -276,7 +277,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
     async fn sealed_batch_interop_fee(
         connection: &mut Connection<'_, Core>,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<U256>> {
+    ) -> anyhow::Result<Option<u64>> {
         connection
             .blocks_dal()
             .get_l1_batch_interop_fee_if_sealed(l1_batch_number)
@@ -290,7 +291,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         resolved_block_info: &ResolvedBlockInfo,
         next_block: L2BlockEnv,
         fee_input: BatchFeeInput,
-        interop_fee: U256,
+        interop_fee: u64,
         enforced_base_fee: Option<u64>,
     ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
         let &Self {

@@ -183,7 +183,7 @@ fn default_l1_batch() -> L1BatchEnv {
             50_000_000_000, // 50 gwei
             250_000_000,    // 0.25 gwei
         ),
-        interop_fee: U256::zero(),
+        interop_fee: 0,
         fee_account: Address::random(),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {

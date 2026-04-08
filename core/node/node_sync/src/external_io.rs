@@ -502,7 +502,7 @@ mod tests {
     use zksync_state_keeper::{io::L1BatchParams, L2BlockParams, StateKeeperIO};
     use zksync_types::{
         api, commitment::PubdataParams, fee_model::BatchFeeInput, settlement::SettlementLayer,
-        L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, U256,
+        L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
     };
 
     use crate::{sync_action::SyncAction, testonly::MockMainNodeClient, ActionQueue, ExternalIO};
@@ -541,7 +541,7 @@ mod tests {
             validation_computational_gas_limit: u32::MAX,
             operator_address: Default::default(),
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
-            interop_fee: U256::zero(),
+            interop_fee: 0,
             first_l2_block: L2BlockParams::new(1000),
             pubdata_params: PubdataParams::genesis(),
             pubdata_limit: Some(100_000),
