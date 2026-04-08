@@ -139,7 +139,7 @@ impl WiringLayer for TxSenderLayer {
         let transaction_filter = input.transaction_filter.map(|filter| filter.0);
         let fee_input = input.fee_input.0;
 
-        let config = match input.l2_contracts.0.timestamp_asserter_addr {
+        let mut config = match input.l2_contracts.0.timestamp_asserter_addr {
             Some(address) => {
                 let timestamp_asserter_config = self.timestamp_asserter_config;
                 self.tx_sender_config
@@ -150,6 +150,29 @@ impl WiringLayer for TxSenderLayer {
             }
             None => self.tx_sender_config,
         };
+
+        let main_node_client = input.main_node_client;
+        let interop_fee = if let Some(main_node_client) = main_node_client.as_ref() {
+            match main_node_client.get_interop_fee().await {
+                Ok(interop_fee) => interop_fee,
+                Err(jsonrpsee::core::client::Error::Call(error))
+                    if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
+                {
+                    // Method is not supported by the main node, keep local fallback.
+                    config.interop_fee
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        "Failed to query `interopProtocolFee` on startup, using local fallback {}: {err:?}",
+                        config.interop_fee
+                    );
+                    config.interop_fee
+                }
+            }
+        } else {
+            config.interop_fee
+        };
+        config.interop_fee = interop_fee;
 
         // Initialize Postgres caches.
         let factory_deps_capacity = self.postgres_storage_caches_config.factory_deps_cache_size;
@@ -184,7 +207,6 @@ impl WiringLayer for TxSenderLayer {
             config.validation_computational_gas_limit,
         )
         .await?;
-        let interop_fee = config.interop_fee;
         executor_options.set_interop_fee_fallback(interop_fee);
         executor_options.set_fast_vm_mode(self.vm_mode);
 
@@ -197,8 +219,6 @@ impl WiringLayer for TxSenderLayer {
         if let Some(transaction_filter) = transaction_filter {
             tx_sender = tx_sender.with_transaction_filter(transaction_filter);
         }
-
-        let main_node_client = input.main_node_client;
 
         // Add the task for updating the whitelisted tokens for the AA cache.
         let whitelisted_tokens_for_aa_update_task = if self.whitelisted_tokens_for_aa_cache {
