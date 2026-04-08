@@ -6,7 +6,6 @@ use zksync_airbender_prover_interface::{
     api::{
         AirbenderPresentBatchesResponse, SubmitAirbenderProofRequest, SubmitAirbenderProofResponse,
     },
-    encoding::encode_input_to_hex,
     inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
     outputs::L1BatchAirbenderProofForL1,
 };
@@ -47,7 +46,7 @@ impl AirbenderRequestProcessor {
 
     pub(crate) async fn get_proof_generation_data(
         &self,
-    ) -> Result<Option<String>, AirbenderProcessorError> {
+    ) -> Result<Option<AirbenderVerifierInput>, AirbenderProcessorError> {
         tracing::debug!("Received request for proof generation data");
 
         let min_batch_number = self.config.first_processed_batch;
@@ -64,9 +63,7 @@ impl AirbenderRequestProcessor {
                 .await
             {
                 Ok(input) => {
-                    let hex = encode_input_to_hex(&input)
-                        .map_err(AirbenderProcessorError::GeneralError)?;
-                    return Ok(Some(hex));
+                    return Ok(Some(input));
                 }
                 Err(AirbenderProcessorError::ObjectStore {
                     source: ObjectStoreError::KeyNotFound(_),
@@ -98,7 +95,7 @@ impl AirbenderRequestProcessor {
     pub(crate) async fn get_proof_generation_data_no_lock(
         &self,
         Path(l1_batch_number): Path<u32>,
-    ) -> Result<Option<String>, AirbenderProcessorError> {
+    ) -> Result<Option<AirbenderVerifierInput>, AirbenderProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
 
         if !self
@@ -112,11 +109,7 @@ impl AirbenderRequestProcessor {
             .airbender_verifier_input_for_existing_batch(l1_batch_number)
             .await
         {
-            Ok(input) => {
-                let hex =
-                    encode_input_to_hex(&input).map_err(AirbenderProcessorError::GeneralError)?;
-                Ok(Some(hex))
-            }
+            Ok(input) => Ok(Some(input)),
             Err(AirbenderProcessorError::ObjectStore {
                 source: ObjectStoreError::KeyNotFound(_),
                 ..

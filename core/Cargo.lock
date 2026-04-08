@@ -13540,7 +13540,6 @@ dependencies = [
 name = "zksync_airbender_prover_interface"
 version = "29.15.0-non-semver-compat"
 dependencies = [
- "anyhow",
  "bincode",
  "serde",
  "serde_json",
@@ -15103,9 +15102,6 @@ dependencies = [
 name = "zksync_prover_input_encoder"
 version = "29.15.0-non-semver-compat"
 dependencies = [
- "anyhow",
- "bincode",
- "clap 4.5.40",
  "serde_json",
  "zksync_airbender_prover_interface",
 ]

@@ -10,7 +10,9 @@ use axum::{
     Json, Router,
 };
 use tokio::sync::watch;
-use zksync_airbender_prover_interface::api::SubmitAirbenderProofRequest;
+use zksync_airbender_prover_interface::api::{
+    AirbenderProofGenerationDataResponse, SubmitAirbenderProofRequest,
+};
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
@@ -64,7 +66,10 @@ fn create_proof_processing_router(
             "/airbender/proof_inputs",
             post(|State(proc): State<AirbenderRequestProcessor>| async move {
                 match proc.get_proof_generation_data().await {
-                    Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                    Ok(Some(data)) => {
+                        Json(AirbenderProofGenerationDataResponse(Box::new(data)))
+                            .into_response()
+                    }
                     Ok(None) => StatusCode::NO_CONTENT.into_response(),
                     Err(e) => e.into_response(),
                 }
@@ -75,7 +80,10 @@ fn create_proof_processing_router(
             get(
                 |State(proc): State<AirbenderRequestProcessor>, batch: Path<u32>| async move {
                     match proc.get_proof_generation_data_no_lock(batch).await {
-                        Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                        Ok(Some(data)) => {
+                            Json(AirbenderProofGenerationDataResponse(Box::new(data)))
+                                .into_response()
+                        }
                         Ok(None) => StatusCode::NOT_FOUND.into_response(),
                         Err(e) => e.into_response(),
                     }
