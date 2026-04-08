@@ -12,6 +12,7 @@ members = [
   "bin/verified_sources_fetcher",
   "bin/zksync_server",
   "bin/genesis_generator",
+  "bin/prover_input_encoder",
   # Node services
   "node/jemalloc",
   "node/proof_data_handler",
