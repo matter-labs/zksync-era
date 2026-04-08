@@ -20,7 +20,6 @@ pub struct OneshotEnvParameters<C: ContractsKind> {
     pub(super) base_system_contracts: Arc<dyn BaseSystemContractsProvider<C>>,
     pub(super) operator_account: AccountTreeId,
     pub(super) validation_computational_gas_limit: u32,
-    pub(super) interop_fee_fallback: Option<u64>,
 }
 
 impl<C: ContractsKind> OneshotEnvParameters<C> {
@@ -36,16 +35,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
             base_system_contracts,
             operator_account,
             validation_computational_gas_limit,
-            interop_fee_fallback: None,
         }
-    }
-
-    pub fn set_interop_fee_fallback(&mut self, interop_fee: u64) {
-        self.interop_fee_fallback = Some(interop_fee);
-    }
-
-    pub(super) fn interop_fee_fallback(&self) -> Option<u64> {
-        self.interop_fee_fallback
     }
 
     /// Returns gas limit for account validation of transactions.
@@ -62,6 +52,7 @@ impl OneshotEnvParameters<EstimateGas> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         base_fee: u64,
+        interop_fee_fallback: Option<u64>,
     ) -> anyhow::Result<OneshotEnv> {
         self.to_env_inner(
             connection,
@@ -69,6 +60,7 @@ impl OneshotEnvParameters<EstimateGas> {
             resolved_block_info,
             fee_input,
             Some(base_fee),
+            interop_fee_fallback,
         )
         .await
     }
@@ -82,6 +74,7 @@ impl OneshotEnvParameters<CallOrExecute> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
+        interop_fee_fallback: Option<u64>,
     ) -> anyhow::Result<OneshotEnv> {
         self.to_env_inner(
             connection,
@@ -89,6 +82,7 @@ impl OneshotEnvParameters<CallOrExecute> {
             resolved_block_info,
             fee_input,
             enforced_base_fee,
+            interop_fee_fallback,
         )
         .await
     }
@@ -100,6 +94,7 @@ impl OneshotEnvParameters<CallOrExecute> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         tx: &L2Tx,
+        interop_fee_fallback: Option<u64>,
     ) -> anyhow::Result<OneshotEnv> {
         self.to_env_inner(
             connection,
@@ -107,6 +102,7 @@ impl OneshotEnvParameters<CallOrExecute> {
             resolved_block_info,
             fee_input,
             Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
+            interop_fee_fallback,
         )
         .await
     }

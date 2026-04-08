@@ -228,6 +228,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
+        interop_fee_fallback: Option<u64>,
     ) -> anyhow::Result<OneshotEnv> {
         let (next_block, current_block) = load_l2_block_info(
             connection,
@@ -241,7 +242,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         let interop_fee = if resolved_block_info.is_pending {
             if let Some(unsealed_batch) = connection.blocks_dal().get_unsealed_l1_batch().await? {
                 unsealed_batch.interop_fee
-            } else if let Some(fallback_fee) = self.interop_fee_fallback() {
+            } else if let Some(fallback_fee) = interop_fee_fallback {
                 fallback_fee
             } else {
                 Self::sealed_batch_interop_fee(connection, resolved_block_info.vm_l1_batch_number)
@@ -251,7 +252,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         } else {
             Self::sealed_batch_interop_fee(connection, resolved_block_info.vm_l1_batch_number)
                 .await?
-                .or_else(|| self.interop_fee_fallback())
+                .or(interop_fee_fallback)
                 .unwrap_or_default()
         };
 
