@@ -246,7 +246,6 @@ impl TestScenario {
             sealer,
             Arc::new(MockReadStorageFactory),
             None,
-            SettlementLayer::L1(zksync_types::SLChainId(69)),
         );
         if !block_numbers_to_rollback.is_empty() {
             builder = builder.with_leader_rotation(true);

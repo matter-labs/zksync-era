@@ -2,7 +2,6 @@ use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use zksync_dal::node::{MasterPool, PoolResource, ReplicaPool};
-use zksync_eth_client::web3_decl::node::SettlementModeResource;
 use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
     service::ShutdownHook, task::TaskKind, FromContext, IntoContext, StopReceiver, Task, TaskId,
@@ -34,7 +33,6 @@ pub struct Input {
     shared_allow_list: Option<SharedAllowList>,
     #[context(default)]
     app_health: Arc<AppHealthCheck>,
-    settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -105,7 +103,6 @@ impl WiringLayer for StateKeeperLayer {
             sealer,
             Arc::new(storage_factory),
             input.shared_allow_list.map(DeploymentTxFilter::new),
-            input.settlement_mode.settlement_layer(),
         );
 
         input

@@ -145,7 +145,6 @@ impl StateKeeperHandles {
             Arc::new(NoopSealer),
             Arc::new(MockReadStorageFactory),
             None,
-            SettlementLayer::for_tests(),
         );
         let state_keeper = builder.build(&stop_receiver).await.unwrap();
 

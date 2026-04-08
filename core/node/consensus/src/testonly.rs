@@ -551,7 +551,6 @@ impl StateKeeperRunner {
                 Arc::new(NoopSealer),
                 Arc::new(async_cache),
                 None,
-                SettlementLayer::for_tests(),
             )
             .build(&stop_recv)
             .await
@@ -649,7 +648,6 @@ impl StateKeeperRunner {
                 Arc::new(NoopSealer),
                 Arc::new(MockReadStorageFactory),
                 None,
-                SettlementLayer::for_tests(),
             )
             .build(&stop_recv)
             .await
