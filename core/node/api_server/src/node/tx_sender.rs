@@ -1,7 +1,4 @@
-use std::{
-    sync::{atomic::AtomicU64, Arc},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use tokio::sync::RwLock;
 use zksync_config::configs::chain::TimestampAsserterConfig;
@@ -195,8 +192,8 @@ impl WiringLayer for TxSenderLayer {
             config.validation_computational_gas_limit,
         )
         .await?;
-        let interop_fee = Arc::new(AtomicU64::new(config.interop_fee));
-        executor_options.set_interop_fee_fallback_provider(interop_fee.clone());
+        let interop_fee = config.interop_fee;
+        executor_options.set_interop_fee_fallback(interop_fee);
         executor_options.set_fast_vm_mode(self.vm_mode);
 
         if let Some(store) = input.core_object_store {

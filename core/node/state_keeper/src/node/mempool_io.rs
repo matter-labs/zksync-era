@@ -15,7 +15,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_shared_resources::contracts::{L2ContractsResource, ZkChainOnChainConfigResource};
-use zksync_types::{commitment::PubdataType, L2ChainId, U256};
+use zksync_types::{commitment::PubdataType, L2ChainId};
 use zksync_vm_executor::node::ApiTransactionFilter;
 
 use super::resources::StateKeeperIOResource;
@@ -136,7 +136,7 @@ impl WiringLayer for MempoolIOLayer {
         );
 
         let interop_fee_input_provider = Arc::new(ConstantInteropFeeInputProvider::new(
-            U256::from(self.state_keeper_config.interop_fee_fallback),
+            self.state_keeper_config.interop_fee_fallback,
         ));
 
         // Create mempool IO resource.

@@ -14,7 +14,7 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     settlement::SettlementLayer,
-    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256,
 };
 
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
@@ -116,7 +116,8 @@ impl StorageL1BatchHeader {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
-            interop_fee: U256::from(self.interop_fee as u64),
+            interop_fee: u64::try_from(self.interop_fee)
+                .expect("interop_fee should be less than 2^64"),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         }
@@ -244,7 +245,8 @@ impl StorageL1Batch {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
-            interop_fee: U256::from(self.interop_fee as u64),
+            interop_fee: u64::try_from(self.interop_fee)
+                .expect("interop_fee should be less than 2^64"),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         }
@@ -360,7 +362,8 @@ impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
-            interop_fee: U256::from(batch.interop_fee as u64),
+            interop_fee: u64::try_from(batch.interop_fee)
+                .expect("interop_fee should be less than 2^64"),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         }
@@ -403,7 +406,8 @@ impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
-            interop_fee: U256::from(batch.interop_fee as u64),
+            interop_fee: u64::try_from(batch.interop_fee)
+                .expect("interop_fee should be less than 2^64"),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         }

@@ -246,7 +246,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batch_interop_fee_if_sealed(
         &mut self,
         number: L1BatchNumber,
-    ) -> DalResult<Option<U256>> {
+    ) -> DalResult<Option<u64>> {
         let instrumentation =
             Instrumented::new("get_l1_batch_interop_fee_if_sealed").with_arg("number", &number);
         let row = sqlx::query!(
@@ -269,7 +269,6 @@ impl BlocksDal<'_, '_> {
         let interop_fee = row
             .map(|row| {
                 u64::try_from(row.interop_fee)
-                    .map(U256::from)
                     .map_err(|err| instrumentation.arg_error("interop_fee", err))
             })
             .transpose()?;
@@ -1059,15 +1058,8 @@ impl BlocksDal<'_, '_> {
             Instrumented::new("insert_l1_batch").with_arg("number", &unsealed_batch_header.number);
         let (settlement_layer_type, settlement_layer_chain_id) =
             from_settlement_layer(&unsealed_batch_header.settlement_layer);
-        let interop_fee = if unsealed_batch_header.interop_fee > U256::from(i64::MAX as u64) {
-            Err(instrumentation.arg_error(
-                "unsealed_batch_header.interop_fee",
-                anyhow::anyhow!("doesn't fit in i64"),
-            ))
-        } else {
-            i64::try_from(unsealed_batch_header.interop_fee.as_u64())
-                .map_err(|err| instrumentation.arg_error("unsealed_batch_header.interop_fee", err))
-        }?;
+        let interop_fee = i64::try_from(unsealed_batch_header.interop_fee)
+            .map_err(|err| instrumentation.arg_error("unsealed_batch_header.interop_fee", err))?;
 
         let query = sqlx::query!(
             r#"
@@ -1251,7 +1243,7 @@ impl BlocksDal<'_, '_> {
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
         bytes_per_blob: u64,
-        interop_fee: U256,
+        interop_fee: u64,
     ) -> anyhow::Result<()> {
         let initial_bootloader_contents_len = initial_bootloader_contents.len();
         let instrumentation = Instrumented::new("mark_l1_batch_as_sealed")
@@ -1284,12 +1276,8 @@ impl BlocksDal<'_, '_> {
             .map(|input| input.len() as u64)
             .unwrap_or(0)
             .div_ceil(bytes_per_blob);
-        let interop_fee = if interop_fee > U256::from(i64::MAX as u64) {
-            Err(instrumentation.arg_error("interop_fee", anyhow::anyhow!("doesn't fit in i64")))
-        } else {
-            i64::try_from(interop_fee.as_u64())
-                .map_err(|err| instrumentation.arg_error("interop_fee", err))
-        }?;
+        let interop_fee = i64::try_from(interop_fee)
+            .map_err(|err| instrumentation.arg_error("interop_fee", err))?;
 
         let query = sqlx::query!(
             r#"
@@ -3923,7 +3911,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
         self.insert_l1_batch(header.to_unsealed_header()).await?;
-        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1, U256::zero())
+        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1, 0)
             .await
     }
 

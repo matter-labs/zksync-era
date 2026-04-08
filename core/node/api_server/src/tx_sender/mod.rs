@@ -2,7 +2,7 @@
 
 use std::{
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -89,7 +89,7 @@ pub async fn build_tx_sender(
         tx_sender_config.validation_computational_gas_limit,
     )
     .await?;
-    executor_options.set_interop_fee_fallback(U256::from(tx_sender_config.interop_fee));
+    executor_options.set_interop_fee_fallback(tx_sender_config.interop_fee);
     let tx_sender = tx_sender_builder.build(
         Arc::new(batch_fee_input_provider),
         Arc::new(vm_concurrency_limiter),

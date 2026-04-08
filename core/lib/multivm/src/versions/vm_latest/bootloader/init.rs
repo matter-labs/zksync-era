@@ -58,7 +58,10 @@ impl BootloaderState {
                 get_settlement_layer_offset(vm_version),
                 U256::from(l1_batch.settlement_layer.chain_id().0),
             ));
-            memory.push((get_interop_fee_offset(vm_version), l1_batch.interop_fee));
+            memory.push((
+                get_interop_fee_offset(vm_version),
+                l1_batch.interop_fee.into(),
+            ));
         }
 
         memory

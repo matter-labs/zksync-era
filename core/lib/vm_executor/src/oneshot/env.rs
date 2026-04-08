@@ -1,11 +1,8 @@
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{OneshotEnv, TxExecutionMode};
-use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId, U256};
+use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId};
 
 use super::{
     BaseSystemContractsProvider, CallOrExecute, ContractsKind, EstimateGas, ResolvedBlockInfo,
@@ -23,7 +20,7 @@ pub struct OneshotEnvParameters<C: ContractsKind> {
     pub(super) base_system_contracts: Arc<dyn BaseSystemContractsProvider<C>>,
     pub(super) operator_account: AccountTreeId,
     pub(super) validation_computational_gas_limit: u32,
-    pub(super) interop_fee_fallback: Option<Arc<AtomicU64>>,
+    pub(super) interop_fee_fallback: Option<u64>,
 }
 
 impl<C: ContractsKind> OneshotEnvParameters<C> {
