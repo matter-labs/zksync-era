@@ -11,8 +11,7 @@ fn main() {
     let verifier_input: AirbenderVerifierInput =
         serde_json::from_str(&buf).expect("Failed to parse JSON input");
 
-    let json =
-        serde_json::to_string_pretty(&verifier_input).expect("Failed to serialize to JSON");
+    let json = serde_json::to_string_pretty(&verifier_input).expect("Failed to serialize to JSON");
     io::stdout()
         .write_all(json.as_bytes())
         .expect("Failed to write to stdout");

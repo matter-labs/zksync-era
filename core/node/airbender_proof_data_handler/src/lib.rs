@@ -67,8 +67,7 @@ fn create_proof_processing_router(
             post(|State(proc): State<AirbenderRequestProcessor>| async move {
                 match proc.get_proof_generation_data().await {
                     Ok(Some(data)) => {
-                        Json(AirbenderProofGenerationDataResponse(Box::new(data)))
-                            .into_response()
+                        Json(AirbenderProofGenerationDataResponse(Box::new(data))).into_response()
                     }
                     Ok(None) => StatusCode::NO_CONTENT.into_response(),
                     Err(e) => e.into_response(),
