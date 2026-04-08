@@ -12,8 +12,9 @@ use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     api,
     api::{
-        AirbenderProof, ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus,
-        L1ToL2TxsStatus, TransactionDetailedResult, TransactionExecutionInfo,
+        AirbenderProof, AirbenderProofStatus, ChainAggProof, DataAvailabilityDetails,
+        GatewayMigrationStatus, L1ToL2TxsStatus, TransactionDetailedResult,
+        TransactionExecutionInfo,
     },
     eth_sender::EthTxFinalityStatus,
     server_notification::GatewayMigrationState,
@@ -88,11 +89,22 @@ impl UnstableNamespace {
             None
         };
 
+        let status = match stored.status.as_str() {
+            "picked_by_prover" => AirbenderProofStatus::PickedByProver,
+            "generated" => AirbenderProofStatus::Generated,
+            "failed" => AirbenderProofStatus::Failed,
+            other => {
+                return Err(Web3Error::InternalError(anyhow::anyhow!(
+                    "Unknown airbender proof status: {other}"
+                )));
+            }
+        };
+
         Ok(Some(AirbenderProof {
             l1_batch_number,
             proof: proof_data,
             proved_at: DateTime::<Utc>::from_naive_utc_and_offset(stored.updated_at, Utc),
-            status: stored.status,
+            status,
         }))
     }
 

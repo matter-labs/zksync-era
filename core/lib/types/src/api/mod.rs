@@ -1033,13 +1033,21 @@ pub struct Proof {
     pub storage_proof: Vec<StorageProof>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AirbenderProofStatus {
+    PickedByProver,
+    Generated,
+    Failed,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AirbenderProof {
     pub l1_batch_number: L1BatchNumber,
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
-    pub status: String,
+    pub status: AirbenderProofStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

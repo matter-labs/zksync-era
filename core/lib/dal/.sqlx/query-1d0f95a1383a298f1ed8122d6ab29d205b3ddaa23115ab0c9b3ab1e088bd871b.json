@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                tp.proof_blob_url,\n                tp.updated_at,\n                tp.status\n            FROM\n                airbender_proof_generation_details tp\n            WHERE\n                tp.l1_batch_number = $1\n            ",
+  "query": "\n            SELECT\n                apgd.proof_blob_url,\n                apgd.updated_at,\n                apgd.status\n            FROM\n                airbender_proof_generation_details apgd\n            WHERE\n                apgd.l1_batch_number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -30,5 +30,5 @@
       false
     ]
   },
-  "hash": "a1abb0bddaaa71628228ea1e41bbaa67fdae88191c54658ba189414de9be14f7"
+  "hash": "1d0f95a1383a298f1ed8122d6ab29d205b3ddaa23115ab0c9b3ab1e088bd871b"
 }

@@ -1,21 +1,12 @@
-CREATE TABLE IF NOT EXISTS airbender_attestations
-(
-    pubkey                  BYTEA PRIMARY KEY,
-    attestation             BYTEA
-);
-
 CREATE TABLE IF NOT EXISTS airbender_proof_generation_details
 (
-    l1_batch_number         BIGINT NOT NULL,
+    l1_batch_number         BIGINT NOT NULL PRIMARY KEY,
     status                  TEXT NOT NULL,
-    signature               BYTEA,
-    pubkey                  BYTEA REFERENCES airbender_attestations (pubkey) ON DELETE SET NULL,
-    proof                   BYTEA,
-    tee_type                TEXT NOT NULL,
+    proof_blob_url          TEXT,
+    prover_id               TEXT,
     created_at              TIMESTAMP NOT NULL,
     updated_at              TIMESTAMP NOT NULL,
-    prover_taken_at         TIMESTAMP,
-    PRIMARY KEY (l1_batch_number, tee_type)
+    prover_taken_at         TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_airbender_proof_generation_details_status_prover_taken_at

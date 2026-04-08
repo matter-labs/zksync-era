@@ -48,12 +48,12 @@ impl AirbenderRequestProcessor {
     pub(crate) async fn get_proof_generation_data(
         &self,
     ) -> Result<Option<String>, AirbenderProcessorError> {
-        tracing::info!("Received request for proof generation data");
+        tracing::debug!("Received request for proof generation data");
 
         let min_batch_number = self.config.first_processed_batch;
-        const MAX_ATTEMPTS: usize = 5;
+        let max_attempts = self.config.max_attempts;
 
-        for attempt in 0..MAX_ATTEMPTS {
+        for attempt in 0..max_attempts {
             let Some(locked_batch) = self.lock_batch_for_proving(min_batch_number).await? else {
                 return Ok(None); // no job available
             };
@@ -64,11 +64,8 @@ impl AirbenderRequestProcessor {
                 .await
             {
                 Ok(input) => {
-                    let hex = encode_input_to_hex(&input).map_err(|err| {
-                        AirbenderProcessorError::GeneralError(format!(
-                            "Failed to encode verifier input for batch {batch_number}: {err}"
-                        ))
-                    })?;
+                    let hex = encode_input_to_hex(&input)
+                        .map_err(AirbenderProcessorError::GeneralError)?;
                     return Ok(Some(hex));
                 }
                 Err(AirbenderProcessorError::ObjectStore {
@@ -82,7 +79,7 @@ impl AirbenderRequestProcessor {
                         batch_number,
                         locked_batch.created_at,
                         attempt + 1,
-                        MAX_ATTEMPTS,
+                        max_attempts,
                     );
                     continue; // try the next batch
                 }
@@ -94,7 +91,7 @@ impl AirbenderRequestProcessor {
             }
         }
 
-        tracing::warn!("Exhausted {MAX_ATTEMPTS} attempts to find a batch with available GCS data");
+        tracing::warn!("Exhausted {max_attempts} attempts to find a batch with available GCS data");
         Ok(None)
     }
 
@@ -116,11 +113,8 @@ impl AirbenderRequestProcessor {
             .await
         {
             Ok(input) => {
-                let hex = encode_input_to_hex(&input).map_err(|err| {
-                    AirbenderProcessorError::GeneralError(format!(
-                        "Failed to encode verifier input for batch {l1_batch_number}: {err}"
-                    ))
-                })?;
+                let hex = encode_input_to_hex(&input)
+                    .map_err(AirbenderProcessorError::GeneralError)?;
                 Ok(Some(hex))
             }
             Err(AirbenderProcessorError::ObjectStore {
@@ -188,7 +182,7 @@ impl AirbenderRequestProcessor {
 
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
             .await
-            .map_err(|err| AirbenderProcessorError::GeneralError(err.to_string()))?;
+            .map_err(|err| AirbenderProcessorError::GeneralError(err.into()))?;
 
         // In the state keeper, this value is used to reject execution.
         // All batches have already been executed by State Keeper.
@@ -208,12 +202,14 @@ impl AirbenderRequestProcessor {
                 self.l2_chain_id,
             )
             .await
-            .map_err(|err| AirbenderProcessorError::GeneralError(err.to_string()))?
-            .ok_or(AirbenderProcessorError::GeneralError(
-                "system_env, l1_batch_env missing".into(),
-            ))?;
+            .map_err(|err| AirbenderProcessorError::GeneralError(err.into()))?
+            .ok_or_else(|| {
+                AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                    "system_env, l1_batch_env missing for batch {l1_batch_number}"
+                ))
+            })?;
 
-        Ok(AirbenderVerifierInput::new(V1AirbenderVerifierInput {
+        Ok(AirbenderVerifierInput::V1(V1AirbenderVerifierInput {
             vm_run_data,
             merkle_paths,
             l2_blocks_execution_data,

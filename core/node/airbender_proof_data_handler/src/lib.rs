@@ -3,7 +3,7 @@ use std::{net::SocketAddr, sync::Arc};
 use airbender_request_processor::AirbenderRequestProcessor;
 use anyhow::Context as _;
 use axum::{
-    extract::Path,
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -58,59 +58,54 @@ fn create_proof_processing_router(
 ) -> Router {
     let processor =
         AirbenderRequestProcessor::new(blob_store, connection_pool, config.clone(), l2_chain_id);
-    let get_processor = processor.clone();
-    let get_no_lock_processor = processor.clone();
-    let present_batches_processor = processor.clone();
-    let submit_processor = processor.clone();
 
-    let router = Router::new()
+    Router::new()
         .route(
             "/airbender/proof_inputs",
-            post(move || async move {
-                let result = get_processor.get_proof_generation_data().await;
-
-                match result {
-                    Ok(Some(data)) => (StatusCode::OK, data).into_response(),
-                    Ok(None) => StatusCode::NO_CONTENT.into_response(),
-                    Err(e) => e.into_response(),
-                }
-            }),
+            post(
+                |State(proc): State<AirbenderRequestProcessor>| async move {
+                    match proc.get_proof_generation_data().await {
+                        Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                        Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                        Err(e) => e.into_response(),
+                    }
+                },
+            ),
         )
         .route(
             "/airbender/proof_inputs_no_lock/{batch}",
-            get(move |batch: Path<u32>| async move {
-                let result = get_no_lock_processor
-                    .get_proof_generation_data_no_lock(batch)
-                    .await;
-
-                match result {
-                    Ok(Some(data)) => (StatusCode::OK, data).into_response(),
-                    Ok(None) => StatusCode::NOT_FOUND.into_response(),
-                    Err(e) => e.into_response(),
-                }
-            }),
+            get(
+                |State(proc): State<AirbenderRequestProcessor>,
+                 batch: Path<u32>| async move {
+                    match proc.get_proof_generation_data_no_lock(batch).await {
+                        Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+                        Err(e) => e.into_response(),
+                    }
+                },
+            ),
         )
         .route(
             "/airbender/present_batches",
-            get(move || async move {
-                let result = present_batches_processor.get_present_batches().await;
-
-                match result {
-                    Ok(data) => (StatusCode::OK, data).into_response(),
-                    Err(e) => e.into_response(),
-                }
-            }),
+            get(
+                |State(proc): State<AirbenderRequestProcessor>| async move {
+                    match proc.get_present_batches().await {
+                        Ok(data) => (StatusCode::OK, data).into_response(),
+                        Err(e) => e.into_response(),
+                    }
+                },
+            ),
         )
         .route(
             "/airbender/submit_proofs",
             post(
-                move |payload: Json<SubmitAirbenderProofRequest>| async move {
-                    submit_processor.submit_proof(payload).await
+                |State(proc): State<AirbenderRequestProcessor>,
+                 payload: Json<SubmitAirbenderProofRequest>| async move {
+                    proc.submit_proof(payload).await
                 },
             ),
-        );
-
-    router
+        )
+        .with_state(processor)
         .layer(tower_http::compression::CompressionLayer::new())
         .layer(tower_http::decompression::RequestDecompressionLayer::new().zstd(true))
 }

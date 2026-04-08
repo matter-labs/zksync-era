@@ -17,35 +17,27 @@ struct Cli {
     decode: bool,
 }
 
-fn encode() -> Result<(), String> {
+fn encode() -> anyhow::Result<()> {
     let mut buf = String::new();
-    io::stdin()
-        .read_to_string(&mut buf)
-        .map_err(|err| format!("Failed to read stdin: {err}"))?;
+    io::stdin().read_to_string(&mut buf)?;
 
-    let verifier_input: AirbenderVerifierInput =
-        serde_json::from_str(&buf).map_err(|err| format!("Failed to parse JSON input: {err}"))?;
-
+    let verifier_input: AirbenderVerifierInput = serde_json::from_str(&buf)?;
     let hex = encode_input_to_hex(&verifier_input)?;
 
-    io::stdout()
-        .write_all(hex.as_bytes())
-        .map_err(|err| format!("Failed to write to stdout: {err}"))
+    io::stdout().write_all(hex.as_bytes())?;
+    Ok(())
 }
 
-fn decode() -> Result<(), String> {
+fn decode() -> anyhow::Result<()> {
     let mut buf = String::new();
-    io::stdin()
-        .read_to_string(&mut buf)
-        .map_err(|err| format!("Failed to read stdin: {err}"))?;
+    io::stdin().read_to_string(&mut buf)?;
     let hex_input = buf.trim();
 
-    if hex_input.len() % 8 != 0 {
-        return Err(format!(
-            "Hex input length {} is not a multiple of 8",
-            hex_input.len()
-        ));
-    }
+    anyhow::ensure!(
+        hex_input.len() % 8 == 0,
+        "Hex input length {} is not a multiple of 8",
+        hex_input.len()
+    );
 
     let words: Vec<u32> = hex_input
         .as_bytes()
@@ -53,22 +45,18 @@ fn decode() -> Result<(), String> {
         .enumerate()
         .map(|(i, chunk)| {
             let s = std::str::from_utf8(chunk)
-                .map_err(|err| format!("Invalid UTF-8 at word {i}: {err}"))?;
+                .map_err(|err| anyhow::anyhow!("Invalid UTF-8 at word {i}: {err}"))?;
             u32::from_str_radix(s, 16)
-                .map_err(|err| format!("Invalid hex at word {i} ({s}): {err}"))
+                .map_err(|err| anyhow::anyhow!("Invalid hex at word {i} ({s}): {err}"))
         })
         .collect::<Result<_, _>>()?;
 
     let bytes = decode_from_words(&words)?;
-    let verifier_input: AirbenderVerifierInput = bincode::deserialize(&bytes)
-        .map_err(|err| format!("Failed to deserialize verifier input: {err}"))?;
+    let verifier_input: AirbenderVerifierInput = bincode::deserialize(&bytes)?;
 
-    let json = serde_json::to_string_pretty(&verifier_input)
-        .map_err(|err| format!("Failed to serialize to JSON: {err}"))?;
-
-    io::stdout()
-        .write_all(json.as_bytes())
-        .map_err(|err| format!("Failed to write to stdout: {err}"))
+    let json = serde_json::to_string_pretty(&verifier_input)?;
+    io::stdout().write_all(json.as_bytes())?;
+    Ok(())
 }
 
 fn main() {
@@ -76,7 +64,7 @@ fn main() {
     let result = if cli.decode { decode() } else { encode() };
 
     if let Err(err) = result {
-        eprintln!("Error: {err}");
+        eprintln!("Error: {err:#}");
         std::process::exit(1);
     }
 }

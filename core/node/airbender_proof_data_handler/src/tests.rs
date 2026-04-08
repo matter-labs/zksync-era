@@ -25,6 +25,7 @@ fn test_config() -> AirbenderProofDataHandlerConfig {
         http_port: 1337,
         first_processed_batch: L1BatchNumber(0),
         proof_generation_timeout: Duration::from_secs(600),
+        max_attempts: 5,
     }
 }
 
@@ -210,6 +211,29 @@ async fn submit_airbender_proof() {
     assert!(proof.proof_blob_url.is_some());
 }
 
+#[tokio::test]
+async fn submit_airbender_proof_rejects_when_not_picked() {
+    let batch_number = L1BatchNumber::from(1);
+    let db_conn_pool = ConnectionPool::test_pool().await;
+
+    // Do NOT insert an airbender_proof_generation_job — the batch has no row at all
+    let airbender_proof_request = SubmitAirbenderProofRequest {
+        l1_batch_number: batch_number.0,
+        prover_id: "test-prover".to_string(),
+        proof: vec![0x0A, 0x0B, 0x0C],
+    };
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool.clone(),
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response =
+        send_submit_airbender_proof_request(&app, "/airbender/submit_proofs", &airbender_proof_request).await;
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
+
 // Mock SQL db with information about the status of the Airbender proof generation
 async fn mock_airbender_batch_status(
     db_conn_pool: ConnectionPool<zksync_dal::Core>,
@@ -289,8 +313,15 @@ async fn insert_batch_for_airbender_inputs(
 }
 
 async fn response_json(response: Response) -> serde_json::Value {
-    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    serde_json::from_slice(&body).unwrap()
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("failed to read response body");
+    serde_json::from_slice(&body).unwrap_or_else(|err| {
+        panic!(
+            "failed to parse response as JSON: {err}\nbody: {}",
+            String::from_utf8_lossy(&body)
+        )
+    })
 }
 
 async fn send_submit_airbender_proof_request(

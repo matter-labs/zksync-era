@@ -60,8 +60,6 @@ impl AirbenderProofGenerationDal<'_, '_> {
         let picked = AirbenderProofGenerationJobStatus::PickedByProver.to_string();
         let failed = AirbenderProofGenerationJobStatus::Failed.to_string();
 
-        let mut transaction = self.storage.start_transaction().await?;
-
         // Step 1: Try to reclaim a timed-out or failed batch (row already exists).
         // FOR UPDATE SKIP LOCKED ensures parallel provers don't pick the same row.
         let locked_batch = sqlx::query_as!(
@@ -100,12 +98,11 @@ impl AirbenderProofGenerationDal<'_, '_> {
         .instrument("lock_batch_for_proving#reclaim")
         .with_arg("processing_timeout", &processing_timeout)
         .with_arg("min_batch_number", &min_batch_number)
-        .fetch_optional(&mut transaction)
+        .fetch_optional(self.storage)
         .await?
         .map(Into::into);
 
         if locked_batch.is_some() {
-            transaction.commit().await?;
             return Ok(locked_batch);
         }
 
@@ -137,11 +134,10 @@ impl AirbenderProofGenerationDal<'_, '_> {
         )
         .instrument("lock_batch_for_proving#new")
         .with_arg("min_batch_number", &min_batch_number)
-        .fetch_optional(&mut transaction)
+        .fetch_optional(self.storage)
         .await?
         .map(Into::into);
 
-        transaction.commit().await?;
         Ok(locked_batch)
     }
 
@@ -225,13 +221,13 @@ impl AirbenderProofGenerationDal<'_, '_> {
             StorageAirbenderProof,
             r#"
             SELECT
-                tp.proof_blob_url,
-                tp.updated_at,
-                tp.status
+                apgd.proof_blob_url,
+                apgd.updated_at,
+                apgd.status
             FROM
-                airbender_proof_generation_details tp
+                airbender_proof_generation_details apgd
             WHERE
-                tp.l1_batch_number = $1
+                apgd.l1_batch_number = $1
             "#,
             i64::from(batch_number.0)
         )
@@ -290,11 +286,11 @@ impl AirbenderProofGenerationDal<'_, '_> {
             "#,
             AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
         );
-        let batch_number = Instrumented::new("get_oldest_unpicked_batch")
+        let batch_number = Instrumented::new("get_oldest_picked_by_prover_batch")
             .with(query)
             .fetch_optional(self.storage)
             .await?
-            .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+            .map(|row| L1BatchNumber(u32::try_from(row.l1_batch_number).expect("l1_batch_number overflow")));
 
         Ok(batch_number)
     }

@@ -1,3 +1,2 @@
 DROP INDEX IF EXISTS idx_airbender_proof_generation_details_status_prover_taken_at;
 DROP TABLE IF EXISTS airbender_proof_generation_details;
-DROP TABLE IF EXISTS airbender_attestations;
