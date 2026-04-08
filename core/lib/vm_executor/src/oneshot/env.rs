@@ -40,18 +40,12 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         }
     }
 
-    pub fn set_interop_fee_fallback(&mut self, interop_fee: U256) {
-        self.interop_fee_fallback = Some(Arc::new(AtomicU64::new(interop_fee.as_u64())));
-    }
-
-    pub fn set_interop_fee_fallback_provider(&mut self, interop_fee: Arc<AtomicU64>) {
+    pub fn set_interop_fee_fallback(&mut self, interop_fee: u64) {
         self.interop_fee_fallback = Some(interop_fee);
     }
 
-    pub(super) fn interop_fee_fallback(&self) -> Option<U256> {
+    pub(super) fn interop_fee_fallback(&self) -> Option<u64> {
         self.interop_fee_fallback
-            .as_ref()
-            .map(|fee| U256::from(fee.load(Ordering::Relaxed)))
     }
 
     /// Returns gas limit for account validation of transactions.

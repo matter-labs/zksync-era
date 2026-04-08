@@ -22,7 +22,6 @@ use zksync_web3_decl::{
     namespaces::EnNamespaceClient as _,
 };
 
-use self::main_node_interop_fee_update_task::MainNodeInteropFeeUpdateTask;
 use crate::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
     tx_sender::{
@@ -30,8 +29,6 @@ use crate::{
         TxSenderBuilder, TxSenderConfig,
     },
 };
-
-mod main_node_interop_fee_update_task;
 
 #[derive(Debug)]
 pub struct PostgresStorageCachesConfig {
@@ -68,7 +65,6 @@ pub struct TxSenderLayer {
     vm_mode: FastVmMode,
     timestamp_asserter_config: TimestampAsserterConfig,
     tx_sender_config: TxSenderConfig,
-    main_node_interop_fee_poll_interval: Duration,
 }
 
 #[derive(Debug, FromContext)]
@@ -92,8 +88,6 @@ pub struct Output {
     postgres_storage_caches_task: Option<PostgresStorageCachesTaskWrapper>,
     #[context(task)]
     whitelisted_tokens_for_aa_update_task: Option<WhitelistedTokensForAaUpdateTask>,
-    #[context(task)]
-    interop_fee_update_task: Option<MainNodeInteropFeeUpdateTask>,
 }
 
 impl TxSenderLayer {
@@ -102,7 +96,6 @@ impl TxSenderLayer {
         max_vm_concurrency: usize,
         tx_sender_config: TxSenderConfig,
         timestamp_asserter_config: TimestampAsserterConfig,
-        main_node_interop_fee_poll_interval: Duration,
     ) -> Self {
         Self {
             postgres_storage_caches_config,
@@ -111,7 +104,6 @@ impl TxSenderLayer {
             vm_mode: FastVmMode::Old,
             timestamp_asserter_config,
             tx_sender_config,
-            main_node_interop_fee_poll_interval,
         }
     }
 
@@ -208,16 +200,6 @@ impl WiringLayer for TxSenderLayer {
 
         let main_node_client = input.main_node_client;
 
-        let interop_fee_update_task = main_node_client.as_ref().map(|main_node_client| {
-            MainNodeInteropFeeUpdateTask::new(
-                interop_fee.clone(),
-                main_node_client
-                    .clone()
-                    .for_component("interop_fee_fetcher"),
-                self.main_node_interop_fee_poll_interval,
-            )
-        });
-
         // Add the task for updating the whitelisted tokens for the AA cache.
         let whitelisted_tokens_for_aa_update_task = if self.whitelisted_tokens_for_aa_cache {
             let main_node_client = main_node_client.clone().ok_or_else(|| {
@@ -251,7 +233,6 @@ impl WiringLayer for TxSenderLayer {
             postgres_storage_caches_task,
             vm_concurrency_barrier,
             whitelisted_tokens_for_aa_update_task,
-            interop_fee_update_task,
         })
     }
 }

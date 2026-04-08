@@ -563,7 +563,6 @@ impl ExternalNodeBuilder {
             max_vm_concurrency,
             (&self.config.local).into(),
             self.config.local.timestamp_asserter.clone(),
-            config.main_node_interop_fee_poll_interval,
         )
         .with_whitelisted_tokens_for_aa_cache(true);
 
