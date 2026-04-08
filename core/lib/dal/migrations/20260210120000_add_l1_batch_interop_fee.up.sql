@@ -1,1 +1,0 @@
-ALTER TABLE l1_batches ADD COLUMN interop_fee BIGINT NOT NULL DEFAULT 0;

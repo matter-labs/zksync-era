@@ -87,7 +87,7 @@ pub struct L1BatchHeader {
     pub pubdata_input: Option<Vec<u8>>,
     pub fee_address: Address,
     pub batch_fee_input: BatchFeeInput,
-    pub interop_fee: U256,
+    pub interop_fee: u64,
     pub pubdata_limit: Option<u64>,
     pub settlement_layer: SettlementLayer,
 }
@@ -115,7 +115,7 @@ pub struct UnsealedL1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
-    pub interop_fee: U256,
+    pub interop_fee: u64,
     pub pubdata_limit: Option<u64>,
     pub settlement_layer: SettlementLayer,
 }
@@ -128,7 +128,7 @@ pub struct CommonL1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub fee_address: Address,
     pub fee_input: BatchFeeInput,
-    pub interop_fee: U256,
+    pub interop_fee: u64,
     pub pubdata_limit: Option<u64>,
     pub settlement_layer: SettlementLayer,
 }
@@ -205,7 +205,7 @@ impl L1BatchHeader {
             pubdata_input: Some(vec![]),
             fee_address: Default::default(),
             batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
-            interop_fee: U256::zero(),
+            interop_fee: 0,
             pubdata_limit: (protocol_version >= ProtocolVersionId::Version29).then_some(0),
         }
     }

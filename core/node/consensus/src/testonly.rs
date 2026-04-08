@@ -47,7 +47,7 @@ use zksync_types::{
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
     settlement::{SettlementLayer, WorkingSettlementLayer},
     Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
-    Transaction, U256,
+    Transaction,
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
@@ -264,7 +264,7 @@ impl StateKeeper {
                         fair_l2_gas_price: 10,
                         l1_gas_price: 100,
                     }),
-                    interop_fee: U256::zero(),
+                    interop_fee: 0,
                     first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
                     pubdata_params: PubdataParams::genesis(),
                     pubdata_limit: (self.protocol_version >= ProtocolVersionId::Version29)
@@ -551,7 +551,6 @@ impl StateKeeperRunner {
                 Arc::new(NoopSealer),
                 Arc::new(async_cache),
                 None,
-                SettlementLayer::for_tests(),
             )
             .build(&stop_recv)
             .await
@@ -649,7 +648,6 @@ impl StateKeeperRunner {
                 Arc::new(NoopSealer),
                 Arc::new(MockReadStorageFactory),
                 None,
-                SettlementLayer::for_tests(),
             )
             .build(&stop_recv)
             .await

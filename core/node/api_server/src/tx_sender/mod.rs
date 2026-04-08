@@ -2,7 +2,7 @@
 
 use std::{
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -89,7 +89,7 @@ pub async fn build_tx_sender(
         tx_sender_config.validation_computational_gas_limit,
     )
     .await?;
-    executor_options.set_interop_fee_fallback(U256::from(tx_sender_config.interop_fee));
+    executor_options.set_interop_fee_fallback(tx_sender_config.interop_fee);
     let tx_sender = tx_sender_builder.build(
         Arc::new(batch_fee_input_provider),
         Arc::new(vm_concurrency_limiter),
@@ -104,6 +104,7 @@ pub async fn build_tx_sender(
 pub struct SandboxExecutorOptions {
     pub(crate) fast_vm_mode: FastVmMode,
     pub(crate) vm_dump_store: Option<Arc<dyn ObjectStore>>,
+    pub(crate) interop_fee_fallback: Option<u64>,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -134,6 +135,7 @@ impl SandboxExecutorOptions {
         Ok(Self {
             fast_vm_mode: FastVmMode::Old,
             vm_dump_store: None,
+            interop_fee_fallback: None,
             estimate_gas: OneshotEnvParameters::new(
                 Arc::new(estimate_gas_contracts),
                 chain_id,
@@ -158,15 +160,8 @@ impl SandboxExecutorOptions {
         self.fast_vm_mode = fast_vm_mode;
     }
 
-    pub fn set_interop_fee_fallback(&mut self, interop_fee: U256) {
-        self.estimate_gas.set_interop_fee_fallback(interop_fee);
-        self.eth_call.set_interop_fee_fallback(interop_fee);
-    }
-
-    pub fn set_interop_fee_fallback_provider(&mut self, interop_fee: Arc<AtomicU64>) {
-        self.estimate_gas
-            .set_interop_fee_fallback_provider(interop_fee.clone());
-        self.eth_call.set_interop_fee_fallback_provider(interop_fee);
+    pub fn set_interop_fee_fallback(&mut self, interop_fee: u64) {
+        self.interop_fee_fallback = Some(interop_fee);
     }
 
     pub fn set_vm_dump_object_store(&mut self, store: Arc<dyn ObjectStore>) {

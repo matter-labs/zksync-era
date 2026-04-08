@@ -46,7 +46,7 @@ pub(crate) fn default_l1_batch_env(number: u32) -> L1BatchEnv {
             interop_roots: vec![],
         },
         fee_input: BatchFeeInput::sensible_l1_pegged_default(),
-        interop_fee: U256::zero(),
+        interop_fee: 0,
         settlement_layer: SettlementLayer::for_tests(),
     }
 }

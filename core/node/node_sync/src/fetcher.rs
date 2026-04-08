@@ -5,7 +5,7 @@ use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 use zksync_types::{
     api::en::SyncBlock, block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms, settlement::SettlementLayer, Address, InteropRoot, L1BatchNumber,
-    L2BlockNumber, ProtocolVersionId, H256, U256,
+    L2BlockNumber, ProtocolVersionId, H256,
 };
 
 use super::{
@@ -186,7 +186,7 @@ impl IoCursorExt for IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
-                    interop_fee: U256::from(block.interop_fee),
+                    interop_fee: block.interop_fee,
                     // It's ok that we lose info about millis since it's only used for sealing criteria.
                     first_l2_block: L2BlockParams::new_raw(
                         block.timestamp * 1000,
