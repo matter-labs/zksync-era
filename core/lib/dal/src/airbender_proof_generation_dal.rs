@@ -290,7 +290,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
             .with(query)
             .fetch_optional(self.storage)
             .await?
-            .map(|row| L1BatchNumber(u32::try_from(row.l1_batch_number).expect("l1_batch_number overflow")));
+            .map(|row| {
+                L1BatchNumber(u32::try_from(row.l1_batch_number).expect("l1_batch_number overflow"))
+            });
 
         Ok(batch_number)
     }

@@ -113,8 +113,8 @@ impl AirbenderRequestProcessor {
             .await
         {
             Ok(input) => {
-                let hex = encode_input_to_hex(&input)
-                    .map_err(AirbenderProcessorError::GeneralError)?;
+                let hex =
+                    encode_input_to_hex(&input).map_err(AirbenderProcessorError::GeneralError)?;
                 Ok(Some(hex))
             }
             Err(AirbenderProcessorError::ObjectStore {

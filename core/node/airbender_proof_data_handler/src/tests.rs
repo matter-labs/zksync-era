@@ -229,8 +229,12 @@ async fn submit_airbender_proof_rejects_when_not_picked() {
         L2ChainId::default(),
     );
 
-    let response =
-        send_submit_airbender_proof_request(&app, "/airbender/submit_proofs", &airbender_proof_request).await;
+    let response = send_submit_airbender_proof_request(
+        &app,
+        "/airbender/submit_proofs",
+        &airbender_proof_request,
+    )
+    .await;
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }
 

@@ -19,7 +19,9 @@ pub struct StorageLockedBatch {
 impl From<StorageLockedBatch> for LockedBatch {
     fn from(tx: StorageLockedBatch) -> LockedBatch {
         LockedBatch {
-            l1_batch_number: L1BatchNumber(u32::try_from(tx.l1_batch_number).expect("l1_batch_number overflow")),
+            l1_batch_number: L1BatchNumber(
+                u32::try_from(tx.l1_batch_number).expect("l1_batch_number overflow"),
+            ),
             created_at: DateTime::<Utc>::from_naive_utc_and_offset(tx.created_at, Utc),
         }
     }

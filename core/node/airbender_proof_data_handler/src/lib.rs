@@ -62,21 +62,18 @@ fn create_proof_processing_router(
     Router::new()
         .route(
             "/airbender/proof_inputs",
-            post(
-                |State(proc): State<AirbenderRequestProcessor>| async move {
-                    match proc.get_proof_generation_data().await {
-                        Ok(Some(data)) => (StatusCode::OK, data).into_response(),
-                        Ok(None) => StatusCode::NO_CONTENT.into_response(),
-                        Err(e) => e.into_response(),
-                    }
-                },
-            ),
+            post(|State(proc): State<AirbenderRequestProcessor>| async move {
+                match proc.get_proof_generation_data().await {
+                    Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                    Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                    Err(e) => e.into_response(),
+                }
+            }),
         )
         .route(
             "/airbender/proof_inputs_no_lock/{batch}",
             get(
-                |State(proc): State<AirbenderRequestProcessor>,
-                 batch: Path<u32>| async move {
+                |State(proc): State<AirbenderRequestProcessor>, batch: Path<u32>| async move {
                     match proc.get_proof_generation_data_no_lock(batch).await {
                         Ok(Some(data)) => (StatusCode::OK, data).into_response(),
                         Ok(None) => StatusCode::NOT_FOUND.into_response(),
@@ -87,14 +84,12 @@ fn create_proof_processing_router(
         )
         .route(
             "/airbender/present_batches",
-            get(
-                |State(proc): State<AirbenderRequestProcessor>| async move {
-                    match proc.get_present_batches().await {
-                        Ok(data) => (StatusCode::OK, data).into_response(),
-                        Err(e) => e.into_response(),
-                    }
-                },
-            ),
+            get(|State(proc): State<AirbenderRequestProcessor>| async move {
+                match proc.get_present_batches().await {
+                    Ok(data) => (StatusCode::OK, data).into_response(),
+                    Err(e) => e.into_response(),
+                }
+            }),
         )
         .route(
             "/airbender/submit_proofs",

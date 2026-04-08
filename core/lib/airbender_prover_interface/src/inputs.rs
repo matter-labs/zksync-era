@@ -23,4 +23,3 @@ pub struct V1AirbenderVerifierInput {
 pub enum AirbenderVerifierInput {
     V1(V1AirbenderVerifierInput),
 }
-
