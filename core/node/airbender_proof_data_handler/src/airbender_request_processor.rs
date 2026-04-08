@@ -182,7 +182,7 @@ impl AirbenderRequestProcessor {
 
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
             .await
-            .map_err(|err| AirbenderProcessorError::GeneralError(err.into()))?;
+            .map_err(AirbenderProcessorError::GeneralError)?;
 
         // In the state keeper, this value is used to reject execution.
         // All batches have already been executed by State Keeper.
@@ -202,7 +202,7 @@ impl AirbenderRequestProcessor {
                 self.l2_chain_id,
             )
             .await
-            .map_err(|err| AirbenderProcessorError::GeneralError(err.into()))?
+            .map_err(AirbenderProcessorError::GeneralError)?
             .ok_or_else(|| {
                 AirbenderProcessorError::GeneralError(anyhow::anyhow!(
                     "system_env, l1_batch_env missing for batch {l1_batch_number}"
