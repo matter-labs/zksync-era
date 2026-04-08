@@ -89,9 +89,8 @@ impl UnstableNamespace {
             None
         };
 
-        let status = AirbenderProofStatus::try_from(stored.status).map_err(|e| {
-            Web3Error::InternalError(anyhow::anyhow!(e))
-        })?;
+        let status = AirbenderProofStatus::try_from(stored.status)
+            .map_err(|e| Web3Error::InternalError(anyhow::anyhow!(e)))?;
 
         Ok(Some(AirbenderProof {
             l1_batch_number,
