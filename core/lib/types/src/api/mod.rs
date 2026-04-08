@@ -1041,6 +1041,19 @@ pub enum AirbenderProofStatus {
     Failed,
 }
 
+impl TryFrom<String> for AirbenderProofStatus {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        match s.as_str() {
+            "picked_by_prover" => Ok(Self::PickedByProver),
+            "generated" => Ok(Self::Generated),
+            "failed" => Ok(Self::Failed),
+            other => Err(format!("Unknown airbender proof status: {other}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AirbenderProof {

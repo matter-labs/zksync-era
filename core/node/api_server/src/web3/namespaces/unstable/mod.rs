@@ -89,16 +89,9 @@ impl UnstableNamespace {
             None
         };
 
-        let status = match stored.status.as_str() {
-            "picked_by_prover" => AirbenderProofStatus::PickedByProver,
-            "generated" => AirbenderProofStatus::Generated,
-            "failed" => AirbenderProofStatus::Failed,
-            other => {
-                return Err(Web3Error::InternalError(anyhow::anyhow!(
-                    "Unknown airbender proof status: {other}"
-                )));
-            }
-        };
+        let status = AirbenderProofStatus::try_from(stored.status).map_err(|e| {
+            Web3Error::InternalError(anyhow::anyhow!(e))
+        })?;
 
         Ok(Some(AirbenderProof {
             l1_batch_number,
