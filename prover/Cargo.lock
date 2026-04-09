@@ -305,7 +305,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
@@ -4318,15 +4318,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6009,7 +6000,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
  "syn 2.0.100",
@@ -6022,7 +6013,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
  "syn 2.0.100",
@@ -10028,6 +10019,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_airbender_prover_interface"
+version = "29.15.0-non-semver-compat"
+dependencies = [
+ "bincode",
+ "serde",
+ "serde_with 1.14.0",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_types",
+ "zksync_vm_interface",
+]
+
+[[package]]
 name = "zksync_basic_types"
 version = "29.15.0-non-semver-compat"
 dependencies = [
@@ -10690,6 +10694,16 @@ dependencies = [
  "vise",
  "zksync_prover_fri_types",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_prover_input_encoder"
+version = "25.2.0"
+dependencies = [
+ "bincode",
+ "clap 4.5.37",
+ "serde_json",
+ "zksync_airbender_prover_interface",
 ]
 
 [[package]]

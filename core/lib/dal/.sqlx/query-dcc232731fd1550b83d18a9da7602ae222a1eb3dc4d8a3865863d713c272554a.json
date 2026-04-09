@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO airbender_proof_generation_details (\n                l1_batch_number, status, created_at, updated_at, prover_taken_at\n            )\n            SELECT p.l1_batch_number, $1, NOW(), NOW(), NOW()\n            FROM proof_generation_details p\n            WHERE\n                p.l1_batch_number >= $2\n                AND p.vm_run_data_blob_url IS NOT NULL\n                AND p.proof_gen_data_blob_url IS NOT NULL\n                AND NOT EXISTS (\n                    SELECT 1 FROM airbender_proof_generation_details a\n                    WHERE a.l1_batch_number = p.l1_batch_number\n                )\n            ORDER BY p.l1_batch_number ASC\n            LIMIT 1\n            ON CONFLICT (l1_batch_number) DO NOTHING\n            RETURNING l1_batch_number, created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "dcc232731fd1550b83d18a9da7602ae222a1eb3dc4d8a3865863d713c272554a"
+}
