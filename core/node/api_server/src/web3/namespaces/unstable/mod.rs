@@ -16,6 +16,7 @@ use zksync_types::{
         TransactionExecutionInfo,
     },
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
+    web3,
     web3::Bytes,
     L1BatchNumber, L2BlockNumber, L2ChainId,
 };
