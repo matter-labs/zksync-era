@@ -96,7 +96,7 @@
       {
         "ordinal": 18,
         "name": "interop_fee",
-        "type_info": "Int8"
+        "type_info": "Numeric"
       },
       {
         "ordinal": 19,

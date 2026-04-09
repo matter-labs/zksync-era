@@ -104,7 +104,7 @@ pub async fn build_tx_sender(
 pub struct SandboxExecutorOptions {
     pub(crate) fast_vm_mode: FastVmMode,
     pub(crate) vm_dump_store: Option<Arc<dyn ObjectStore>>,
-    pub(crate) interop_fee_fallback: Option<u64>,
+    pub(crate) interop_fee_fallback: Option<U256>,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -160,7 +160,7 @@ impl SandboxExecutorOptions {
         self.fast_vm_mode = fast_vm_mode;
     }
 
-    pub fn set_interop_fee_fallback(&mut self, interop_fee: u64) {
+    pub fn set_interop_fee_fallback(&mut self, interop_fee: U256) {
         self.interop_fee_fallback = Some(interop_fee);
     }
 
@@ -270,7 +270,7 @@ pub struct TxSenderConfig {
     pub max_allowed_l2_tx_gas_limit: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
-    pub interop_fee: u64,
+    pub interop_fee: U256,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
     pub timestamp_asserter_params: Option<TimestampAsserterParams>,
@@ -401,7 +401,7 @@ impl TxSender {
         self.0.whitelisted_tokens_for_aa_cache.read().await.clone()
     }
 
-    pub(crate) fn configured_interop_fee(&self) -> u64 {
+    pub(crate) fn configured_interop_fee(&self) -> U256 {
         self.0.sender_config.interop_fee
     }
 

@@ -3,6 +3,7 @@ use itertools::Itertools;
 use utils::{
     chain_id_leaf_preimage, get_chain_count, get_chain_id_from_index, get_chain_root_from_id,
 };
+use zksync_airbender_prover_interface::outputs::L1BatchAirbenderProofForL1;
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -10,12 +11,11 @@ use zksync_multivm::{interface::VmEvent, zk_evm_latest::ethereum_types::U64};
 use zksync_types::{
     api,
     api::{
-        AirbenderProof, ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus,
-        L1ToL2TxsStatus, TransactionDetailedResult, TransactionExecutionInfo,
+        AirbenderProof, AirbenderProofStatus, ChainAggProof, DataAvailabilityDetails,
+        GatewayMigrationStatus, L1ToL2TxsStatus, TransactionDetailedResult,
+        TransactionExecutionInfo,
     },
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
-    tee_types::TeeType,
-    web3,
     web3::Bytes,
     L1BatchNumber, L2BlockNumber, L2ChainId,
 };
@@ -55,31 +55,46 @@ impl UnstableNamespace {
             .map(|execution_info| TransactionExecutionInfo { execution_info }))
     }
 
-    pub async fn get_airbender_proofs_impl(
+    pub async fn get_airbender_proof_impl(
         &self,
         l1_batch_number: L1BatchNumber,
-        tee_type: Option<TeeType>,
-    ) -> Result<Vec<AirbenderProof>, Web3Error> {
+    ) -> Result<Option<AirbenderProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        let proofs = storage
+        let stored = storage
             .airbender_proof_generation_dal()
-            .get_airbender_proofs(l1_batch_number, tee_type)
+            .get_airbender_proof(l1_batch_number)
             .await
-            .map_err(DalError::generalize)?
-            .into_iter()
-            .map(|proof| AirbenderProof {
-                l1_batch_number,
-                tee_type,
-                pubkey: proof.pubkey,
-                signature: proof.signature,
-                proof: proof.proof,
-                proved_at: DateTime::<Utc>::from_naive_utc_and_offset(proof.updated_at, Utc),
-                status: proof.status,
-                attestation: proof.attestation,
-            })
-            .collect::<Vec<_>>();
+            .map_err(DalError::generalize)?;
 
-        Ok(proofs)
+        let Some(stored) = stored else {
+            return Ok(None);
+        };
+
+        let proof_data = if stored.proof_blob_url.is_some() {
+            if let Some(object_store) = &self.state.object_store {
+                let proof_for_l1: L1BatchAirbenderProofForL1 =
+                    object_store.get(l1_batch_number).await.map_err(|e| {
+                        Web3Error::InternalError(anyhow::anyhow!(
+                            "Failed to load airbender proof from GCS: {e}"
+                        ))
+                    })?;
+                Some(proof_for_l1.proof)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let status = AirbenderProofStatus::try_from(stored.status)
+            .map_err(|e| Web3Error::InternalError(anyhow::anyhow!(e)))?;
+
+        Ok(Some(AirbenderProof {
+            l1_batch_number,
+            proof: proof_data,
+            proved_at: DateTime::<Utc>::from_naive_utc_and_offset(stored.updated_at, Utc),
+            status,
+        }))
     }
 
     pub async fn get_chain_log_proof_impl(

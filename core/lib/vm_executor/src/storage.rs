@@ -12,7 +12,7 @@ use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMo
 use zksync_types::{
     block::L2BlockHeader, bytecode::BytecodeHash, commitment::PubdataParams,
     fee_model::BatchFeeInput, settlement::SettlementLayer, snapshots::SnapshotRecoveryStatus,
-    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
+    Address, InteropRoot, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, U256,
     ZKPORTER_IS_AVAILABLE,
 };
 
@@ -71,7 +71,7 @@ pub fn l1_batch_params(
     chain_id: L2ChainId,
     settlement_layer: SettlementLayer,
     interop_roots: Vec<InteropRoot>,
-    interop_fee: u64,
+    interop_fee: U256,
 ) -> (SystemEnv, L1BatchEnv) {
     (
         SystemEnv {
