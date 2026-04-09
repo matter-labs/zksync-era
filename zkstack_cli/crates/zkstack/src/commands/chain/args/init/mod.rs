@@ -123,7 +123,6 @@ impl InitArgs {
         };
 
         InitArgsFinal {
-            forge_args: self.forge_args,
             genesis_args: genesis.map(|genesis| genesis.fill_values_with_prompt(config)),
             deploy_paymaster,
             l1_rpc_url,
@@ -138,7 +137,6 @@ impl InitArgs {
 
 #[derive(Debug, Clone)]
 pub struct InitArgsFinal {
-    pub forge_args: ForgeScriptArgs,
     pub genesis_args: Option<GenesisArgsFinal>,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,

@@ -25,6 +25,7 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_object_store::ObjectStore;
 use zksync_shared_resources::{
     api::{BridgeAddressesHandle, SyncState},
     tree::TreeApiClient,
@@ -327,6 +328,7 @@ pub(crate) struct RpcState {
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
     pub(super) bridge_addresses_handle: BridgeAddressesHandle,
     pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
+    pub(super) object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 impl RpcState {

@@ -5,6 +5,8 @@ use vise::{Gauge, Metrics};
 pub(crate) struct FriProverMetrics {
     pub oldest_unpicked_batch: Gauge<u64>,
     pub oldest_not_generated_batch: Gauge<u64>,
+    /// Number of batches that are ready to be proven by airbender provers.
+    pub airbender_batches_ready_for_proving: Gauge<u64>,
 }
 
 #[vise::register]

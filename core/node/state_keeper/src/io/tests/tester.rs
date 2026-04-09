@@ -36,7 +36,7 @@ use zksync_types::{
     settlement::SettlementLayer,
     system_contracts::get_system_smart_contracts,
     L1ChainId, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
-    TransactionTimeRangeConstraint, H256,
+    TransactionTimeRangeConstraint, H256, U256,
 };
 
 use crate::{interop_fee::ConstantInteropFeeInputProvider, MempoolGuard, MempoolIO};
@@ -149,7 +149,8 @@ impl Tester {
             ..StateKeeperConfig::for_tests()
         };
         let wallets = Wallets::for_tests();
-        let interop_fee_input_provider = Arc::new(ConstantInteropFeeInputProvider::new(0));
+        let interop_fee_input_provider =
+            Arc::new(ConstantInteropFeeInputProvider::new(U256::zero()));
         let io = MempoolIO::new(
             mempool.clone(),
             Arc::new(batch_fee_input_provider),
