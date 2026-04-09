@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use bigdecimal::BigDecimal;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
@@ -7,12 +8,12 @@ use zksync_types::{
     commitment::{L2DACommitmentScheme, PubdataParams, PubdataType},
     parse_h160, parse_h256, parse_h256_opt,
     settlement::SettlementLayer,
-    Address, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
+    Address, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 
 use crate::{
     consensus_dal::Payload,
-    models::{parse_protocol_version, storage_block::to_settlement_layer},
+    models::{bigdecimal_to_u256, parse_protocol_version, storage_block::to_settlement_layer},
 };
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -39,7 +40,7 @@ pub(crate) struct StorageSyncBlock {
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_type: String,
     pub settlement_layer_chain_id: i64,
-    pub interop_fee: i64,
+    pub interop_fee: BigDecimal,
 }
 
 pub(crate) struct SyncBlock {
@@ -59,7 +60,7 @@ pub(crate) struct SyncBlock {
     pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
     pub settlement_layer: SettlementLayer,
-    pub interop_fee: u64,
+    pub interop_fee: U256,
 }
 
 impl SyncBlock {
@@ -136,8 +137,7 @@ impl SyncBlock {
                 block.settlement_layer_chain_id,
             )
             .decode_column("settlement_layer_type")?,
-            interop_fee: u64::try_from(block.interop_fee)
-                .expect("interop_fee should be less than 2^64"),
+            interop_fee: bigdecimal_to_u256(block.interop_fee),
         })
     }
 }

@@ -181,7 +181,7 @@
       {
         "ordinal": 35,
         "name": "interop_fee",
-        "type_info": "Int8"
+        "type_info": "Numeric"
       },
       {
         "ordinal": 36,

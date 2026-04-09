@@ -6,7 +6,7 @@ use smart_config::{
     metadata::{SizeUnit, TimeUnit},
     ByteSize, DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::Address;
+use zksync_basic_types::{Address, U256};
 
 use crate::utils::{Fallback, ZERO_TO_ONE};
 
@@ -145,8 +145,8 @@ pub struct StateKeeperConfig {
     pub max_allowed_l2_tx_gas_limit: u64,
 
     /// Fallback interop fee per L1 batch in base token wei.
-    #[config(default_t = 0)]
-    pub interop_fee_fallback: u64,
+    #[config(default_t = U256([0; 4]))]
+    pub interop_fee_fallback: U256,
 
     // Parameters without defaults.
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
@@ -190,7 +190,7 @@ impl StateKeeperConfig {
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 6000000,
             max_allowed_l2_tx_gas_limit: 4000000000,
-            interop_fee_fallback: 0,
+            interop_fee_fallback: U256::zero(),
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800_000,
@@ -307,7 +307,7 @@ mod tests {
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 1_000_000,
             max_allowed_l2_tx_gas_limit: 2_000_000_000,
-            interop_fee_fallback: 0,
+            interop_fee_fallback: U256::zero(),
             minimal_l2_gas_price: 100000000,
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,

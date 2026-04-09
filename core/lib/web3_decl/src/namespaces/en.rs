@@ -4,7 +4,7 @@ use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{en, ProtocolVersionInfo},
     tokens::TokenInfo,
-    Address, L2BlockNumber,
+    Address, L2BlockNumber, U256,
 };
 
 use crate::{
@@ -61,5 +61,5 @@ pub trait EnNamespace {
     ) -> RpcResult<Option<ProtocolVersionInfo>>;
 
     #[method(name = "getInteropFee")]
-    async fn get_interop_fee(&self) -> RpcResult<u64>;
+    async fn get_interop_fee(&self) -> RpcResult<U256>;
 }

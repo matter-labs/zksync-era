@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     commitment::PubdataParams, settlement::SettlementLayer, Address, L1BatchNumber, L2BlockNumber,
-    H256,
+    H256, U256,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 
@@ -54,7 +54,7 @@ pub struct SyncBlock {
     pub interop_roots: Option<Vec<InteropRoot>>,
     pub settlement_layer: Option<SettlementLayer>,
     /// Interop fee used for the L1 batch corresponding to this L2 block.
-    pub interop_fee: Option<u64>,
+    pub interop_fee: Option<U256>,
 }
 
 /// Global configuration of the consensus served by the main node to the external nodes.
