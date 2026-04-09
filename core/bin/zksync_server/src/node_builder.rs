@@ -443,6 +443,7 @@ impl MainNodeBuilder {
                 self.genesis_config.l2_chain_id,
             ),
             self.configs.timestamp_asserter_config.clone(),
+            rpc_config.main_node_interop_fee_poll_interval,
         );
         let layer = layer.with_vm_mode(vm_config.api_fast_vm_mode);
         self.node.add_layer(layer);

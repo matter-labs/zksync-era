@@ -60,6 +60,29 @@ pub(crate) mod tests;
 pub mod tx_sink;
 pub mod whitelist;
 
+#[async_trait]
+pub(crate) trait InteropFeeProvider: std::fmt::Debug + Send + Sync + 'static {
+    async fn get_interop_fee(&self) -> U256;
+}
+
+#[derive(Debug)]
+pub(crate) struct ConstantInteropFeeProvider {
+    interop_fee: U256,
+}
+
+impl ConstantInteropFeeProvider {
+    pub(crate) fn new(interop_fee: U256) -> Self {
+        Self { interop_fee }
+    }
+}
+
+#[async_trait]
+impl InteropFeeProvider for ConstantInteropFeeProvider {
+    async fn get_interop_fee(&self) -> U256 {
+        self.interop_fee
+    }
+}
+
 pub async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,
     web3_json_config: &Web3JsonRpcConfig,
@@ -89,7 +112,9 @@ pub async fn build_tx_sender(
         tx_sender_config.validation_computational_gas_limit,
     )
     .await?;
-    executor_options.set_interop_fee_fallback(tx_sender_config.interop_fee);
+    executor_options.set_interop_fee_provider(Arc::new(ConstantInteropFeeProvider::new(
+        tx_sender_config.interop_fee,
+    )));
     let tx_sender = tx_sender_builder.build(
         Arc::new(batch_fee_input_provider),
         Arc::new(vm_concurrency_limiter),
@@ -104,7 +129,7 @@ pub async fn build_tx_sender(
 pub struct SandboxExecutorOptions {
     pub(crate) fast_vm_mode: FastVmMode,
     pub(crate) vm_dump_store: Option<Arc<dyn ObjectStore>>,
-    pub(crate) interop_fee_fallback: Option<U256>,
+    pub(crate) interop_fee_provider: Option<Arc<dyn InteropFeeProvider>>,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -135,7 +160,7 @@ impl SandboxExecutorOptions {
         Ok(Self {
             fast_vm_mode: FastVmMode::Old,
             vm_dump_store: None,
-            interop_fee_fallback: None,
+            interop_fee_provider: None,
             estimate_gas: OneshotEnvParameters::new(
                 Arc::new(estimate_gas_contracts),
                 chain_id,
@@ -160,8 +185,16 @@ impl SandboxExecutorOptions {
         self.fast_vm_mode = fast_vm_mode;
     }
 
-    pub fn set_interop_fee_fallback(&mut self, interop_fee: U256) {
-        self.interop_fee_fallback = Some(interop_fee);
+    pub(crate) fn set_interop_fee_provider(
+        &mut self,
+        interop_fee_provider: Arc<dyn InteropFeeProvider>,
+    ) {
+        self.interop_fee_provider = Some(interop_fee_provider);
+    }
+
+    pub(crate) async fn interop_fee_fallback(&self) -> Option<U256> {
+        let interop_fee_provider = self.interop_fee_provider.as_ref()?;
+        Some(interop_fee_provider.get_interop_fee().await)
     }
 
     pub fn set_vm_dump_object_store(&mut self, store: Arc<dyn ObjectStore>) {
