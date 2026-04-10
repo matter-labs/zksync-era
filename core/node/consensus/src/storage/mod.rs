@@ -19,7 +19,6 @@ use zksync_shared_resources::api::SyncState;
 #[cfg(test)]
 pub(crate) mod testonly;
 
-#[allow(clippy::large_enum_variant)]
 #[derive(thiserror::Error, Debug)]
 pub enum InsertCertificateError {
     #[error(transparent)]
