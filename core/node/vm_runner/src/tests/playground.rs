@@ -29,7 +29,7 @@ async fn setup_storage(
         return genesis_params;
     }
 
-    insert_genesis_batch(&mut conn, &genesis_params)
+    insert_genesis_batch(&mut conn, &genesis_params.clone().into())
         .await
         .unwrap();
 
