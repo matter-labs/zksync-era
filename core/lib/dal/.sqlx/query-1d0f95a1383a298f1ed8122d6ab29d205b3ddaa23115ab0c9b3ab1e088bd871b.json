@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                apgd.proof_blob_url,\n                apgd.updated_at,\n                apgd.status\n            FROM\n                airbender_proof_generation_details apgd\n            WHERE\n                apgd.l1_batch_number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "proof_blob_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "1d0f95a1383a298f1ed8122d6ab29d205b3ddaa23115ab0c9b3ab1e088bd871b"
+}
