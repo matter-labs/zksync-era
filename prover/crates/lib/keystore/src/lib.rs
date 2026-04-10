@@ -5,8 +5,13 @@ use serde::{Deserialize, Serialize};
 
 pub mod commitment_utils;
 pub mod keystore;
+/// Setup data generation for CPU and GPU proving. Requires `circuit-prover` feature.
+#[cfg(feature = "circuit-prover")]
 pub mod setup_data_generator;
 pub mod utils;
+/// [`keystore::Keystore`] implementation of the `VerificationKeyManager` trait.
+/// Requires `witness-gen-service` feature.
+#[cfg(feature = "witness-gen-service")]
 pub mod witness_generator;
 
 #[cfg(feature = "gpu")]
