@@ -344,6 +344,7 @@ impl SandboxExecutor {
             tracing::debug!("Resolved block numbers (took {resolve_time:?})");
         }
 
+        let interop_fee_fallback = self.options.interop_fee_fallback().await;
         let env = match action {
             SandboxAction::Execution { fee_input, tx } => {
                 self.options
@@ -353,7 +354,7 @@ impl SandboxExecutor {
                         resolved_block_info,
                         *fee_input,
                         tx,
-                        self.options.interop_fee_fallback,
+                        interop_fee_fallback,
                     )
                     .await?
             }
@@ -369,7 +370,7 @@ impl SandboxExecutor {
                         resolved_block_info,
                         fee_input,
                         enforced_base_fee,
-                        self.options.interop_fee_fallback,
+                        interop_fee_fallback,
                     )
                     .await?
             }
@@ -385,7 +386,7 @@ impl SandboxExecutor {
                         resolved_block_info,
                         fee_input,
                         base_fee,
-                        self.options.interop_fee_fallback,
+                        interop_fee_fallback,
                     )
                     .await?
             }
