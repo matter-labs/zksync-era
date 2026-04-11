@@ -272,7 +272,11 @@ pub struct TreeApiHttpClient {
 impl TreeApiHttpClient {
     /// Creates a new HTTP client with default settings.
     pub fn new(url_base: &str) -> Self {
-        Self::from_client(reqwest::Client::new(), url_base)
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .build()
+            .expect("Failed to build reqwest client");
+        Self::from_client(client, url_base)
     }
 
     /// Wraps a provided HTTP client.

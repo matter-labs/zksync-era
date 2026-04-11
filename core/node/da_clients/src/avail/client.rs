@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::{anyhow, Context};
 use async_trait::async_trait;
@@ -129,7 +129,12 @@ impl AvailClient {
         secrets: AvailSecrets,
         sl_chain_id: SLChainId,
     ) -> anyhow::Result<Self> {
-        let api_client = Arc::new(reqwest::Client::new());
+        let api_client = Arc::new(
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(60))
+                .build()
+                .expect("Failed to build reqwest client"),
+        );
         let sdk_client = match config.config.clone() {
             AvailClientConfig::GasRelay(conf) => {
                 let gas_relay_api_key = secrets

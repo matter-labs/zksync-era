@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde::{de::DeserializeOwned, Serialize};
 use zksync_prover_interface::api::{
     PollGeneratedProofsRequest, PollGeneratedProofsResponse, ProofGenerationData,
@@ -12,13 +14,15 @@ pub(crate) struct HttpClient {
 
 const SUBMIT_REQUEST_FOR_PROOFS_ENDPOINT: &str = "/submit_request_for_proofs";
 const POLL_GENERATED_PROOFS_ENDPOINT: &str = "/poll_generated_proofs";
+const HTTP_TIMEOUT: Duration = Duration::from_secs(60);
 
 impl HttpClient {
     pub(crate) fn new(api_url: String) -> Self {
-        Self {
-            api_url,
-            client: reqwest::Client::new(),
-        }
+        let client = reqwest::Client::builder()
+            .timeout(HTTP_TIMEOUT)
+            .build()
+            .expect("Failed to build reqwest client");
+        Self { api_url, client }
     }
 
     pub(crate) async fn send_proof_generation_data(

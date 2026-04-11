@@ -12,7 +12,10 @@ pub struct HttpClient {
 impl Default for HttpClient {
     fn default() -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(60))
+                .build()
+                .expect("Failed to build reqwest client"),
             max_retries: 5,
         }
     }

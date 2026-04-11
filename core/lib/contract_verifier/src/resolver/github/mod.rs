@@ -125,7 +125,10 @@ impl GitHubCompilerResolver {
         Ok(Self {
             artifacts_dir,
             gh_client,
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .timeout(Duration::from_secs(300))
+                .build()
+                .expect("Failed to build reqwest client"),
             supported_versions: RwLock::new(supported_versions),
             active_downloads: RwLock::default(),
         })
