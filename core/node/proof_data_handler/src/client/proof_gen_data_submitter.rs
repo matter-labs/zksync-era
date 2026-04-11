@@ -59,6 +59,10 @@ impl ProofGenDataSubmitter {
                 .await
                 .map_err(|e| anyhow::anyhow!(e))?
             {
+                tracing::info!(
+                    "Sending proof generation data to gateway for batch {}",
+                    data.l1_batch_number
+                );
                 match self.client.send_proof_generation_data(data.clone()).await {
                     Ok(_) => {
                         tracing::info!(

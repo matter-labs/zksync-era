@@ -59,6 +59,7 @@ impl ProofFetcher {
                 continue;
             };
 
+            tracing::info!("Fetching proof from gateway for batch {batch_to_fetch}");
             if let Err(e) = self
                 .fetch_proof(L1BatchId::new(self.processor.chain_id(), batch_to_fetch))
                 .await
