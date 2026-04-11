@@ -69,8 +69,10 @@ impl ProofRequestSubmitter {
     }
 
     pub async fn loop_iteration(&self) -> anyhow::Result<()> {
+        tracing::info!("Looking for a batch to submit proof request for");
         let batch_id = self.processor.lock_batch_for_proving_network().await?;
         if let Some(batch_id) = batch_id {
+            tracing::info!("Locked batch {} for proving network", batch_id);
             match self.submit_request(batch_id).await {
                 Ok(_) => {
                     tracing::info!("Submitted proof request for batch {}", batch_id);
@@ -88,6 +90,7 @@ impl ProofRequestSubmitter {
                         .eth_proof_manager_dal()
                         .fallback_batch(batch_id)
                         .await?;
+                    tracing::info!("Batch {} fallbacked to prover cluster", batch_id);
                 }
             }
         } else {
@@ -98,12 +101,19 @@ impl ProofRequestSubmitter {
     }
 
     pub async fn submit_request(&self, batch_id: L1BatchNumber) -> anyhow::Result<()> {
+        tracing::info!(
+            "Fetching proof generation data from blob store for batch {}",
+            batch_id
+        );
         let proof_generation_data = self
             .processor
             .proof_generation_data_for_existing_batch(batch_id)
             .await?;
 
-        tracing::info!("Need to send proof request for batch {}", batch_id);
+        tracing::info!(
+            "Uploading public witness inputs to blob store for batch {}",
+            batch_id
+        );
 
         let witness_input_data =
             PublicWitnessInputData::new(proof_generation_data.witness_input_data.clone());
@@ -127,6 +137,10 @@ impl ProofRequestSubmitter {
             key
         );
 
+        tracing::info!(
+            "Inserting batch {} into eth_proof_manager with witness URL",
+            batch_id
+        );
         self.connection_pool
             .connection()
             .await?

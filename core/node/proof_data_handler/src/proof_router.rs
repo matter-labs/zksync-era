@@ -48,7 +48,15 @@ impl ProofRouter {
                 )
                 .await?;
 
-            tracing::info!("Fallbacked {} batches with timeouts: acknowledgment timeout: {:?} and proving timeout: {:?}", amount, self.acknowledgment_timeout, self.proving_timeout);
+            if amount > 0 {
+                tracing::info!(
+                    "Fallbacked {} batches with timeouts: acknowledgment: {:?}, proving: {:?}, picking: {:?}",
+                    amount,
+                    self.acknowledgment_timeout,
+                    self.proving_timeout,
+                    self.picking_timeout
+                );
+            }
 
             METRICS.fallbacked_batches.inc_by(amount as u64);
 

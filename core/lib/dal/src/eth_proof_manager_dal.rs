@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sqlx::QueryBuilder;
+use sqlx::{QueryBuilder, Row};
 use zksync_db_connection::{
     connection::Connection, error::DalResult, instrument::InstrumentExt,
     utils::pg_interval_from_duration,
@@ -337,15 +337,43 @@ impl EthProofManagerDal<'_, '_> {
         .into_iter()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
         .collect();
-        let mut query_builder = QueryBuilder::new(
-            "UPDATE proof_generation_details SET status='unpicked', proving_mode = 'prover_cluster', updated_at = NOW() WHERE (status='unpicked' AND updated_at < NOW() - "
-        );
-
-        query_builder.push_bind(picking_timeout);
-        query_builder.push("::INTERVAL)");
 
         if !batches.is_empty() {
-            query_builder.push(" OR l1_batch_number IN (");
+            tracing::info!(
+                "Fallbacking batches in eth_proof_manager: {:?}",
+                batches
+            );
+        }
+
+        // Move batches that exceeded picking_timeout to prover_cluster
+        let timed_out_batches: Vec<L1BatchNumber> = sqlx::query(
+            "UPDATE proof_generation_details \
+             SET status = 'unpicked', proving_mode = 'prover_cluster', updated_at = NOW() \
+             WHERE status = 'unpicked' \
+                 AND proving_mode = 'proving_network' \
+                 AND updated_at < NOW() - $1::INTERVAL \
+             RETURNING l1_batch_number",
+        )
+        .bind(&picking_timeout)
+        .map(|row: sqlx::postgres::PgRow| {
+            L1BatchNumber(row.get::<i64, _>("l1_batch_number") as u32)
+        })
+        .instrument("move_unpicked_batches_to_prover_cluster")
+        .fetch_all(&mut transaction)
+        .await?;
+
+        if !timed_out_batches.is_empty() {
+            tracing::info!(
+                "Moved batches to prover_cluster due to picking_timeout: {:?}",
+                timed_out_batches
+            );
+        }
+
+        // Move batches that were fallbacked in eth_proof_manager to prover_cluster
+        if !batches.is_empty() {
+            let mut query_builder: QueryBuilder<'_, sqlx::Postgres> = QueryBuilder::new(
+                "UPDATE proof_generation_details SET status='unpicked', proving_mode = 'prover_cluster', updated_at = NOW() WHERE l1_batch_number IN ("
+            );
 
             for (index, batch) in batches.iter().enumerate() {
                 query_builder.push_bind(i64::from(batch.0));
@@ -355,15 +383,18 @@ impl EthProofManagerDal<'_, '_> {
             }
 
             query_builder.push(")");
+
+            query_builder
+                .build()
+                .instrument("move_fallbacked_batches_to_prover_cluster")
+                .execute(&mut transaction)
+                .await?;
+
+            tracing::info!(
+                "Moved eth_proof_manager fallbacked batches to prover_cluster in proof_generation_details: {:?}",
+                batches
+            );
         }
-
-        let result = query_builder
-            .build()
-            .instrument("move_batches_to_fallback")
-            .execute(&mut transaction)
-            .await?;
-
-        tracing::info!("Moved {} batches to fallback", result.rows_affected());
 
         transaction.commit().await?;
 
@@ -371,8 +402,12 @@ impl EthProofManagerDal<'_, '_> {
     }
 
     pub async fn fallback_batch(&mut self, batch_number: L1BatchNumber) -> DalResult<()> {
+        tracing::info!(
+            "Fallbacking single batch {} to prover cluster",
+            batch_number
+        );
         let mut transaction = self.storage.start_transaction().await?;
-        sqlx::query!(
+        let eth_rows = sqlx::query!(
             r#"
             UPDATE eth_proof_manager SET status = $1, updated_at = NOW()
             WHERE l1_batch_number = $2
@@ -384,6 +419,13 @@ impl EthProofManagerDal<'_, '_> {
         .with_arg("batch_number", &batch_number)
         .execute(&mut transaction)
         .await?;
+
+        if eth_rows.rows_affected() == 0 {
+            tracing::warn!(
+                "Batch {} had no eth_proof_manager entry to fallback",
+                batch_number
+            );
+        }
 
         sqlx::query!(
             r#"
@@ -398,6 +440,12 @@ impl EthProofManagerDal<'_, '_> {
         .await?;
 
         transaction.commit().await?;
+
+        tracing::info!(
+            "Batch {} fallbacked to prover cluster (eth_proof_manager rows: {})",
+            batch_number,
+            eth_rows.rows_affected()
+        );
 
         Ok(())
     }
