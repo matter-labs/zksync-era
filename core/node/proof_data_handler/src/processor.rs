@@ -95,7 +95,9 @@ impl<PM: ProcessorMode> Processor<PM> {
         let vm_run_data: VMRunWitnessInputData = self.blob_store.get(l1_batch_number).await?;
         tracing::info!("Fetching merkle paths from blob store for batch {l1_batch_number}");
         let merkle_paths: WitnessInputMerklePaths = self.blob_store.get(l1_batch_number).await?;
-        tracing::info!("Blob store reads complete for batch {l1_batch_number}, acquiring DB connection");
+        tracing::info!(
+            "Blob store reads complete for batch {l1_batch_number}, acquiring DB connection"
+        );
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
         let mut conn = self.pool.connection().await?;
