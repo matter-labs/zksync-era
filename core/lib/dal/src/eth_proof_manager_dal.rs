@@ -339,10 +339,7 @@ impl EthProofManagerDal<'_, '_> {
         .collect();
 
         if !batches.is_empty() {
-            tracing::info!(
-                "Fallbacking batches in eth_proof_manager: {:?}",
-                batches
-            );
+            tracing::info!("Fallbacking batches in eth_proof_manager: {:?}", batches);
         }
 
         // Move batches that exceeded picking_timeout to prover_cluster
@@ -355,9 +352,9 @@ impl EthProofManagerDal<'_, '_> {
              RETURNING l1_batch_number",
         )
         .bind(&picking_timeout)
-        .map(|row: sqlx::postgres::PgRow| {
-            L1BatchNumber(row.get::<i64, _>("l1_batch_number") as u32)
-        })
+        .map(
+            |row: sqlx::postgres::PgRow| L1BatchNumber(row.get::<i64, _>("l1_batch_number") as u32),
+        )
         .instrument("move_unpicked_batches_to_prover_cluster")
         .fetch_all(&mut transaction)
         .await?;
