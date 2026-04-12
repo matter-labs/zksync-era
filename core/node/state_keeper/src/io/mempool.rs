@@ -586,7 +586,11 @@ impl MempoolIO {
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: unsealed_storage_batch.fee_address,
                 fee_input: unsealed_storage_batch.fee_input,
-                interop_fee: unsealed_storage_batch.interop_fee,
+                interop_fee: if protocol_version.is_pre_medium_interop() {
+                    U256::zero()
+                } else {
+                    unsealed_storage_batch.interop_fee
+                },
                 // We only persist timestamp in seconds.
                 // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
                 first_l2_block: L2BlockParams::new_raw(
@@ -644,7 +648,11 @@ impl MempoolIO {
                 return Ok(None);
             };
             let timestamp = timestamp_ms / 1000;
-            let interop_fee = self.interop_fee_input_provider.get_interop_fee().await?;
+            let interop_fee = if protocol_version.is_pre_medium_interop() {
+                U256::zero()
+            } else {
+                self.interop_fee_input_provider.get_interop_fee().await?
+            };
 
             tracing::trace!(
                 "Fee input for L1 batch #{} is {:#?}",
