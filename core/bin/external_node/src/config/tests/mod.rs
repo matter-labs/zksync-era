@@ -304,6 +304,7 @@ fn parsing_from_full_env() {
 
         # API component config
         EN_API_TREE_API_REMOTE_URL=http://tree/
+        EN_API_WEB3_JSON_RPC_TREE_API_REQUEST_TIMEOUT_SEC=45
         # Tree component config
         EN_TREE_API_PORT=2955
 
