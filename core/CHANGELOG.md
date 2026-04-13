@@ -1,5 +1,12 @@
 # Changelog
 
+## [29.15.1](https://github.com/matter-labs/zksync-era/compare/core-v29.15.0...core-v29.15.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **eth-proof-manage:** add explicit timeout to object_store ([#4762](https://github.com/matter-labs/zksync-era/issues/4762)) ([5c9d334](https://github.com/matter-labs/zksync-era/commit/5c9d3347afc23fcbb0bd4669cbc0bbb7eca3592f))
+
 ## [29.15.0](https://github.com/matter-labs/zksync-era/compare/core-v29.14.0...core-v29.15.0) (2026-03-25)
 
 

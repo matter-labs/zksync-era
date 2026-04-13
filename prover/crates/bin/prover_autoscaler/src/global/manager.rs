@@ -11,7 +11,7 @@ use zksync_prover_task::Task;
 
 use super::{
     queuer,
-    scaler::{Scaler, ScalerConfig, ScalerTrait},
+    scaler::{CapMode, Scaler, ScalerConfig, ScalerTrait},
     watcher,
 };
 use crate::{
@@ -152,41 +152,53 @@ impl Task for Manager {
                     q_b.cmp(q_a).then_with(|| ns_a.cmp(ns_b))
                 });
 
-                // Compute total running weight across all namespaces.
-                let total_running_weight: usize = namespace_queues
+                // Compute per-namespace running weights and aggregate.
+                let ns_running_weights: Vec<usize> = namespace_queues
                     .iter()
                     .map(|(ns, _, _)| scaler.current_running_weight(ns, &guard.clusters))
-                    .sum();
+                    .collect();
+                let total_running_weight: usize = ns_running_weights.iter().sum();
+                let total_queue: usize = namespace_queues.iter().map(|(_, _, q)| *q).sum();
+                let all_namespaces: Vec<_> = namespace_queues
+                    .iter()
+                    .map(|(ns, _, _)| ns.clone())
+                    .collect();
 
-                // Cap desired based on total running weight:
-                // - running < max: no cap, scale freely
-                // - running >= max: cap desired to max (stop scaling up,
-                //   only Pending pods get removed, Running stay)
-                // - running >= max+burst: cap desired to max+burst
-                //   (scale down Running to max+burst)
-                let mut desired_cap: Option<i64> = scaler.max_running().and_then(|max_running| {
+                // Evaluate aggressive mode once with the worst-case view.
+                scaler.evaluate_aggressive_mode(
+                    &all_namespaces,
+                    &guard.clusters,
+                    total_running_weight,
+                    total_queue,
+                );
+
+                // Determine cap mode based on total running weight.
+                let cap_mode = scaler.max_running().and_then(|max_running| {
                     let max_with_burst = scaler.max_desired_weight().unwrap_or(max_running);
                     if total_running_weight >= max_with_burst {
-                        Some(max_with_burst as i64)
+                        Some(CapMode::ScaleDown {
+                            target_weight: max_with_burst,
+                        })
                     } else if total_running_weight >= max_running {
-                        Some(max_running as i64)
+                        Some(CapMode::FreezeAtRunning)
                     } else {
                         None
                     }
                 });
 
-                for (ns, _ppv, q) in &namespace_queues {
+                for (i, (ns, _ppv, q)) in namespace_queues.iter().enumerate() {
                     tracing::debug!(
-                        "Running eval for namespace {ns}, scaler {} found queue {q}, total_running_weight {total_running_weight}, desired_cap {:?}",
+                        "Running eval for namespace {ns}, scaler {} found queue {q}, total_running_weight {total_running_weight}, cap_mode {:?}",
                         scaler.deployment(),
-                        desired_cap
+                        cap_mode
                     );
                     scaler.run(
                         ns,
                         *q,
                         &guard.clusters,
                         &mut scale_requests,
-                        desired_cap.as_mut(),
+                        cap_mode,
+                        ns_running_weights[i],
                     );
                 }
             }
