@@ -72,15 +72,18 @@ pub(crate) fn validate_source_paths(
 }
 
 /// Returns `true` if `source` contains an `import` directive whose path is absolute (`/…`)
-/// or starts with a parent-directory traversal (`../…`).  Both forms let the compiler
-/// resolve imports against the host filesystem and leak file contents in error messages.
+/// or uses a `file://` URL. These forms let the compiler resolve imports against the host
+/// filesystem and potentially leak file contents in error messages.
+///
+/// Relative imports containing `../` are allowed: they are standard Solidity practice and
+/// remain sandboxed by `validate_source_paths()` plus the empty compiler search directory.
 pub(crate) fn has_dangerous_imports(source: &str) -> bool {
     // Covers all Solidity import forms:
     //   import "/path";
-    //   import "../path";
     //   import {X} from "/path";
     //   import * as X from "/path";
-    let re = Regex::new(r#"\bimport\b[^;]*?["'](/|\.\.)"#).unwrap();
+    //   import "file:///path";
+    let re = Regex::new(r#"\bimport\b[^;]*?["'](?:/|file://)"#).unwrap();
     re.is_match(source)
 }
 
@@ -112,6 +115,30 @@ pub(crate) fn sanitize_compiler_stderr(stderr: &str) -> String {
         .filter(|line| !line.contains(" --> ") && !line.trim_start().starts_with('|'))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::has_dangerous_imports;
+
+    #[test]
+    fn allows_relative_parent_imports() {
+        let source = r#"
+            import {ContextUpgradeable} from "../utils/ContextUpgradeable.sol";
+            import {Hashes} from "./Hashes.sol";
+        "#;
+
+        assert!(
+            !has_dangerous_imports(source),
+            "relative imports within the submitted source tree must be allowed"
+        );
+    }
+
+    #[test]
+    fn rejects_absolute_imports() {
+        assert!(has_dangerous_imports(r#"import "/etc/shadow";"#));
+        assert!(has_dangerous_imports(r#"import "file:///etc/shadow";"#));
+    }
 }
 
 /// Users may provide either just contract name or source file name and contract name joined with ":".
