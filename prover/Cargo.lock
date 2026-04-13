@@ -6091,7 +6091,7 @@ dependencies = [
 
 [[package]]
 name = "prover_cli"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -6123,7 +6123,7 @@ dependencies = [
 
 [[package]]
 name = "prover_version"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "zksync_prover_fri_types",
 ]
@@ -10019,19 +10019,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_airbender_prover_interface"
-version = "29.15.0-non-semver-compat"
-dependencies = [
- "bincode",
- "serde",
- "serde_with 1.14.0",
- "zksync_object_store",
- "zksync_prover_interface",
- "zksync_types",
- "zksync_vm_interface",
-]
-
-[[package]]
 name = "zksync_basic_types"
 version = "29.15.1-non-semver-compat"
 dependencies = [
@@ -10078,7 +10065,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -10100,7 +10087,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover_service"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10379,7 +10366,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_gpu_checker"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -10527,7 +10514,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_fri_compressor"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -10550,7 +10537,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_fri_compressor_service"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10609,7 +10596,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_autoscaler"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10643,7 +10630,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_dal"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "sqlx",
  "strum",
@@ -10654,7 +10641,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_gateway"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10679,7 +10666,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_types"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "circuit_definitions",
  "serde",
@@ -10689,21 +10676,11 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_utils"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "vise",
  "zksync_prover_fri_types",
  "zksync_types",
-]
-
-[[package]]
-name = "zksync_prover_input_encoder"
-version = "25.2.0"
-dependencies = [
- "bincode",
- "clap 4.5.37",
- "serde_json",
- "zksync_airbender_prover_interface",
 ]
 
 [[package]]
@@ -10724,7 +10701,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_monitor"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10746,7 +10723,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_processor"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10759,7 +10736,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_keystore"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -10788,7 +10765,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_task"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10886,7 +10863,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vk_setup_data_generator_server_fri"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -10997,7 +10974,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_witness_generator"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11035,7 +11012,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_witness_generator_service"
-version = "25.2.0"
+version = "25.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
