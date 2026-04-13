@@ -239,6 +239,7 @@ impl Compiler<SolcInput> for Solc {
         let mut child = command
             .arg("--standard-json")
             .arg("--allow-paths")
+            .arg(compile_dir.path())
             .current_dir(compile_dir.path())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
