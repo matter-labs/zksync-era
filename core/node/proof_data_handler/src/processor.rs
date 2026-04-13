@@ -91,8 +91,13 @@ impl<PM: ProcessorMode> Processor<PM> {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<ProofGenerationData, ProcessorError> {
+        tracing::info!("Fetching VM run data from blob store for batch {l1_batch_number}");
         let vm_run_data: VMRunWitnessInputData = self.blob_store.get(l1_batch_number).await?;
+        tracing::info!("Fetching merkle paths from blob store for batch {l1_batch_number}");
         let merkle_paths: WitnessInputMerklePaths = self.blob_store.get(l1_batch_number).await?;
+        tracing::info!(
+            "Blob store reads complete for batch {l1_batch_number}, acquiring DB connection"
+        );
 
         // Acquire connection after interacting with GCP, to avoid holding the connection for too long.
         let mut conn = self.pool.connection().await?;
@@ -154,6 +159,7 @@ impl<PM: ProcessorMode> Processor<PM> {
         };
 
         METRICS.observe_blob_sizes(&blob);
+        tracing::info!("Proof generation data assembled for batch {l1_batch_number}");
 
         let batch_sealed_at = conn
             .blocks_dal()
@@ -183,7 +189,10 @@ impl Processor<Locking> {
             .lock_batch_for_proving(self.proof_generation_timeout)
             .await?
         {
-            Some(number) => number,
+            Some(number) => {
+                tracing::info!("Locked batch {number} for proving by prover cluster");
+                number
+            }
             None => return Ok(None), // no batches pending to be proven
         };
 
@@ -195,6 +204,9 @@ impl Processor<Locking> {
         match proof_generation_data {
             Ok(data) => Ok(Some(data)),
             Err(err) => {
+                tracing::error!(
+                    "Failed to get proof generation data for batch {l1_batch_number}, unlocking: {err}"
+                );
                 self.unlock_batch(l1_batch_number).await?;
                 Err(err)
             }

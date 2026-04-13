@@ -385,6 +385,9 @@ pub struct Web3JsonRpcConfig {
     /// since the server can communicate with the tree in-process.
     #[config(alias = "tree_api_remote_url")]
     pub tree_api_url: Option<String>,
+    /// Total request timeout for the Tree API HTTP client. Only used when [`Self::tree_api_url`] is set.
+    #[config(default_t = Duration::from_secs(60))]
+    pub tree_api_request_timeout: Duration,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
     #[config(default_t = Duration::from_millis(50), with = Fallback(TimeUnit::Millis))]
     pub mempool_cache_update_interval: Duration,
@@ -542,6 +545,7 @@ mod tests {
                 websocket_requests_per_minute_limit: NonZeroU32::new(10).unwrap(),
                 request_timeout: Some(Duration::from_secs(20)),
                 tree_api_url: Some("http://tree/".into()),
+                tree_api_request_timeout: Duration::from_secs(45),
                 mempool_cache_update_interval: Duration::from_millis(50),
                 mempool_cache_size: 10000,
                 whitelisted_tokens_for_aa: vec![
@@ -605,6 +609,7 @@ mod tests {
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_TREE_API_URL="http://tree/"
+            API_WEB3_JSON_RPC_TREE_API_REQUEST_TIMEOUT_SEC=45
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=15
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="eth_call=1, eth_getTransactionReceipt=None, zks_getProof=32"
             API_PROMETHEUS_LISTENER_PORT="3312"
@@ -668,6 +673,7 @@ mod tests {
             eth_call_gas_cap: null
             request_timeout_sec: 20
             tree_api_url: "http://tree/"
+            tree_api_request_timeout_sec: 45
             send_raw_tx_sync_max_timeout_ms: 10000
             send_raw_tx_sync_default_timeout_ms: 2000
           prometheus:
@@ -733,6 +739,7 @@ mod tests {
             eth_call_gas_cap: null
             request_timeout: 20s
             tree_api_url: "http://tree/"
+            tree_api_request_timeout: 45s
             send_raw_tx_sync_max_timeout_ms: 10000
             send_raw_tx_sync_default_timeout_ms: 2000
           prometheus:

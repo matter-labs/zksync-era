@@ -80,7 +80,7 @@ async fn api_client_basics() {
     let api_base_url = format!("http://{}", server.local_addr());
     let server_task = tokio::spawn(server.run());
 
-    let api_client = TreeApiHttpClient::new(&api_base_url);
+    let api_client = TreeApiHttpClient::new(&api_base_url, std::time::Duration::from_secs(60));
     let info = api_client.get_info().await.unwrap();
     assert_eq!(info.min_version, Some(0));
     assert_eq!(info.next_version, 1);
