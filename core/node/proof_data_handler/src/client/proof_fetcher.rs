@@ -34,7 +34,7 @@ impl ProofFetcher {
             panic!("Gateway API URL should be set if running in prover cluster mode");
         };
 
-        let client = HttpClient::new(api_url);
+        let client = HttpClient::new(api_url, config.gateway_api_request_timeout);
         Self {
             processor,
             config,

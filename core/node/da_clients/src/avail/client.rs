@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use anyhow::{anyhow, Context};
 use async_trait::async_trait;
@@ -131,7 +131,7 @@ impl AvailClient {
     ) -> anyhow::Result<Self> {
         let api_client = Arc::new(
             reqwest::Client::builder()
-                .timeout(Duration::from_secs(60))
+                .timeout(config.api_client_timeout)
                 .build()
                 .expect("Failed to build reqwest client"),
         );

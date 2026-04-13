@@ -9,11 +9,11 @@ pub struct HttpClient {
     max_retries: usize,
 }
 
-impl Default for HttpClient {
-    fn default() -> Self {
+impl HttpClient {
+    pub fn new(timeout: Duration) -> Self {
         Self {
             client: Client::builder()
-                .timeout(Duration::from_secs(60))
+                .timeout(timeout)
                 .build()
                 .expect("Failed to build reqwest client"),
             max_retries: 5,

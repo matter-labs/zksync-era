@@ -460,8 +460,10 @@ impl MainNodeBuilder {
 
     fn add_tree_api_client_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
-        self.node
-            .add_layer(TreeApiClientLayer::http(rpc_config.tree_api_url));
+        self.node.add_layer(TreeApiClientLayer::http(
+            rpc_config.tree_api_url,
+            rpc_config.tree_api_request_timeout,
+        ));
         Ok(self)
     }
 

@@ -14,12 +14,11 @@ pub(crate) struct HttpClient {
 
 const SUBMIT_REQUEST_FOR_PROOFS_ENDPOINT: &str = "/submit_request_for_proofs";
 const POLL_GENERATED_PROOFS_ENDPOINT: &str = "/poll_generated_proofs";
-const HTTP_TIMEOUT: Duration = Duration::from_secs(60);
 
 impl HttpClient {
-    pub(crate) fn new(api_url: String) -> Self {
+    pub(crate) fn new(api_url: String, request_timeout: Duration) -> Self {
         let client = reqwest::Client::builder()
-            .timeout(HTTP_TIMEOUT)
+            .timeout(request_timeout)
             .build()
             .expect("Failed to build reqwest client");
         Self { api_url, client }
