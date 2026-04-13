@@ -235,6 +235,6 @@ impl EnNamespace {
             return Ok(unsealed_batch.interop_fee);
         }
 
-        Ok(self.state.tx_sender.configured_interop_fee())
+        Ok(self.state.tx_sender.current_interop_fee().await)
     }
 }
