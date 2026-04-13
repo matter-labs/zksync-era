@@ -3,6 +3,8 @@ use std::{
     time::Duration,
 };
 
+use async_trait::async_trait;
+use tokio::sync::watch::Receiver;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -35,9 +37,39 @@ impl MainNodeInteropFeeProvider {
             poll_interval,
         }
     }
+
+    pub(super) async fn run(
+        self: Arc<Self>,
+        mut stop_receiver: Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        while !*stop_receiver.borrow_and_update() {
+            match self.main_node_client.get_interop_fee().await {
+                Ok(interop_fee) => {
+                    *self
+                        .interop_fee
+                        .write()
+                        .expect("main node interop fee provider lock is poisoned") = interop_fee;
+                }
+                Err(jsonrpsee::core::client::Error::Call(error))
+                    if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
+                {
+                    // Method is not supported by the main node, do nothing.
+                }
+                Err(err) => {
+                    tracing::error!("Failed to query `interopProtocolFee`, error: {err:?}");
+                }
+            }
+
+            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
+            tokio::time::timeout(self.poll_interval, stop_receiver.changed())
+                .await
+                .ok();
+        }
+        Ok(())
+    }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl InteropFeeProvider for MainNodeInteropFeeProvider {
     async fn get_interop_fee(&self) -> U256 {
         *self
@@ -58,37 +90,13 @@ impl MainNodeInteropFeeUpdateTask {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl Task for MainNodeInteropFeeUpdateTask {
     fn id(&self) -> TaskId {
         "main_node_interop_fee_update_task".into()
     }
 
-    async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        while !*stop_receiver.0.borrow_and_update() {
-            match self.provider.main_node_client.get_interop_fee().await {
-                Ok(interop_fee) => {
-                    *self
-                        .provider
-                        .interop_fee
-                        .write()
-                        .expect("main node interop fee provider lock is poisoned") = interop_fee;
-                }
-                Err(jsonrpsee::core::client::Error::Call(error))
-                    if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
-                {
-                    // Method is not supported by the main node, do nothing.
-                }
-                Err(err) => {
-                    tracing::error!("Failed to query `interopProtocolFee`, error: {err:?}");
-                }
-            }
-
-            // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
-            tokio::time::timeout(self.provider.poll_interval, stop_receiver.0.changed())
-                .await
-                .ok();
-        }
-        Ok(())
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.provider.run(stop_receiver.0).await
     }
 }
