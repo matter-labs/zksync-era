@@ -125,11 +125,12 @@ impl ContractVerifier {
     /// Creates a new verifier instance.
     pub async fn new(
         compilation_timeout: Duration,
+        compiler_download_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
         etherscan_verifier_enabled: bool,
     ) -> anyhow::Result<Self> {
         let env_resolver = Arc::<EnvCompilerResolver>::default();
-        let gh_resolver = Arc::new(GitHubCompilerResolver::new().await?);
+        let gh_resolver = Arc::new(GitHubCompilerResolver::new(compiler_download_timeout).await?);
         let mut resolver = ResolverMultiplexer::new(env_resolver);
 
         // Killer switch: if anything goes wrong with GH resolver, we can disable it without having to rollback.
