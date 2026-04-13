@@ -69,7 +69,7 @@ impl MainNodeInteropFeeProvider {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait]
 impl InteropFeeProvider for MainNodeInteropFeeProvider {
     async fn get_interop_fee(&self) -> U256 {
         *self
