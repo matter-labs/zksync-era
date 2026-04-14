@@ -10,6 +10,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::{DynClient, MockSettlementLayer, L1},
+    web3_decl::node::SettlementModeResource,
     BaseFees,
 };
 use zksync_multivm::{
@@ -33,7 +34,7 @@ use zksync_types::{
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
-    settlement::SettlementLayer,
+    settlement::WorkingSettlementLayer,
     system_contracts::get_system_smart_contracts,
     L1ChainId, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
     TransactionTimeRangeConstraint, H256, U256,
@@ -162,7 +163,7 @@ impl Tester {
             Some(Default::default()),
             Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
             Default::default(),
-            SettlementLayer::for_tests(),
+            SettlementModeResource::new(WorkingSettlementLayer::for_tests()),
         )
         .unwrap();
 

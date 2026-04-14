@@ -208,7 +208,7 @@ pub async fn current_settlement_layer(
         }
     };
 
-    let mut layer = WorkingSettlementLayer::new(final_settlement_mode);
+    let mut layer = WorkingSettlementLayer::new(final_settlement_mode, settlement_mode_from_l1);
     layer.set_migration_in_progress(!use_settlement_mode_from_l1);
     Ok(layer)
 }

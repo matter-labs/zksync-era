@@ -358,7 +358,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             },
         };
 
-        let sl = WorkingSettlementLayer::new(initial_sl_mode);
+        let sl = WorkingSettlementLayer::new(initial_sl_mode, initial_sl_mode);
         let sl_client = match sl.settlement_layer() {
             SettlementLayer::L1(_) => SettlementLayerClient::L1(input.eth_client),
             SettlementLayer::Gateway(_) => {
