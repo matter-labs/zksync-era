@@ -1,6 +1,6 @@
 //! Tests for gas estimation (mostly with the real oneshot VM executor).
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
@@ -34,7 +34,7 @@ async fn initial_gas_estimation_is_somewhat_accurate() {
         balance: Some(transfer_value * 2),
         ..OverrideAccount::default()
     };
-    let state_override = StateOverride::new(HashMap::from([(alice.address(), account_overrides)]));
+    let state_override = StateOverride::new(BTreeMap::from([(alice.address(), account_overrides)]));
     let tx = alice.create_transfer(transfer_value);
 
     let mut estimator = GasEstimator::new(&tx_sender, tx.into(), block_args, Some(state_override))
@@ -406,7 +406,7 @@ async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
         balance: Some(transfer_value * 2),
         ..OverrideAccount::default()
     };
-    let state_override = StateOverride::new(HashMap::from([(alice.address(), account_overrides)]));
+    let state_override = StateOverride::new(BTreeMap::from([(alice.address(), account_overrides)]));
     let tx = alice.create_transfer(transfer_value);
 
     test_estimating_gas(state_override, tx, acceptable_overestimation).await;

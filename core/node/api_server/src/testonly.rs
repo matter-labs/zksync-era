@@ -1,6 +1,6 @@
 //! Test utils shared among multiple modules.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use assert_matches::assert_matches;
 use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
@@ -81,7 +81,7 @@ pub(crate) fn default_fee() -> Fee {
 
 #[derive(Debug, Default)]
 pub(crate) struct StateBuilder {
-    inner: HashMap<Address, OverrideAccount>,
+    inner: BTreeMap<Address, OverrideAccount>,
 }
 
 impl StateBuilder {
