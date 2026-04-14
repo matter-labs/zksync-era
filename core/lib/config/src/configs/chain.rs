@@ -146,7 +146,7 @@ pub struct StateKeeperConfig {
 
     /// Fallback interop fee per L1 batch in base token wei.
     #[config(default_t = U256([0; 4]))]
-    pub interop_fee_fallback: U256,
+    pub configured_interop_fee: U256,
 
     // Parameters without defaults.
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
@@ -190,7 +190,7 @@ impl StateKeeperConfig {
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 6000000,
             max_allowed_l2_tx_gas_limit: 4000000000,
-            interop_fee_fallback: U256::zero(),
+            configured_interop_fee: U256::zero(),
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800_000,
@@ -307,7 +307,7 @@ mod tests {
             l2_block_max_payload_size: ByteSize(1_000_000),
             max_single_tx_gas: 1_000_000,
             max_allowed_l2_tx_gas_limit: 2_000_000_000,
-            interop_fee_fallback: U256::zero(),
+            configured_interop_fee: U256::zero(),
             minimal_l2_gas_price: 100000000,
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
@@ -328,7 +328,7 @@ mod tests {
             CHAIN_STATE_KEEPER_TRANSACTION_SLOTS="50"
             CHAIN_STATE_KEEPER_MAX_SINGLE_TX_GAS="1000000"
             CHAIN_STATE_KEEPER_MAX_ALLOWED_L2_TX_GAS_LIMIT="2000000000"
-            CHAIN_STATE_KEEPER_INTEROP_FEE_FALLBACK="0x0"
+            CHAIN_STATE_KEEPER_CONFIGURED_INTEROP_FEE="0x0"
             CHAIN_STATE_KEEPER_CLOSE_BLOCK_AT_GEOMETRY_PERCENTAGE="0.5"
             CHAIN_STATE_KEEPER_CLOSE_BLOCK_AT_GAS_PERCENTAGE="0.8"
             CHAIN_STATE_KEEPER_CLOSE_BLOCK_AT_ETH_PARAMS_PERCENTAGE="0.2"
@@ -370,7 +370,7 @@ mod tests {
           l2_block_seal_queue_capacity: 10
           max_single_tx_gas: 1000000
           max_allowed_l2_tx_gas_limit: 2000000000
-          interop_fee_fallback: 0
+          configured_interop_fee: 0
           reject_tx_at_geometry_percentage: 0.3
           reject_tx_at_eth_params_percentage: 0.8
           reject_tx_at_gas_percentage: 0.5
@@ -409,7 +409,7 @@ mod tests {
           l2_block_seal_queue_capacity: 10
           max_single_tx_gas: 1000000
           max_allowed_l2_tx_gas_limit: 2000000000
-          interop_fee_fallback: 0
+          configured_interop_fee: 0
           reject_tx_at_geometry_percentage: 0.3
           reject_tx_at_eth_params_percentage: 0.8
           reject_tx_at_gas_percentage: 0.5

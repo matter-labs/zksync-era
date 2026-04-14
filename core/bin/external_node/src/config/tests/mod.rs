@@ -205,7 +205,6 @@ fn parsing_from_full_env() {
         EN_MAX_RESPONSE_BODY_SIZE_MB=5
         EN_MAX_RESPONSE_BODY_SIZE_OVERRIDES_MB="zks_getProof=100,eth_call=2"
         EN_PUBSUB_POLLING_INTERVAL_MS=200
-        EN_MAIN_NODE_INTEROP_FEE_POLL_INTERVAL_MS=500
         EN_MAX_NONCE_AHEAD=33
         EN_VM_CONCURRENCY_LIMIT=100
         EN_FACTORY_DEPS_CACHE_SIZE_MB=100
@@ -356,10 +355,6 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
         ])
     );
     assert_eq!(config.pubsub_polling_interval, Duration::from_millis(200));
-    assert_eq!(
-        config.main_node_interop_fee_poll_interval,
-        Duration::from_millis(500)
-    );
     assert_eq!(config.max_nonce_ahead, 33);
     assert_eq!(config.vm_concurrency_limit, 100);
     assert_eq!(config.factory_deps_cache_size, ByteSize(100 << 20));

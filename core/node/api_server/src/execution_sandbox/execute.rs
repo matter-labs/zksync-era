@@ -28,7 +28,7 @@ use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
     api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode,
-    StorageLog, Transaction, U256,
+    StorageLog, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
@@ -244,10 +244,6 @@ impl SandboxExecutor {
 
     pub(crate) fn vm_divergence_counter(&self) -> Arc<AtomicUsize> {
         self.vm_divergence_counter.clone()
-    }
-
-    pub(crate) async fn interop_fee_fallback(&self) -> Option<U256> {
-        self.options.interop_fee_fallback().await
     }
 
     async fn dump_vm_state(

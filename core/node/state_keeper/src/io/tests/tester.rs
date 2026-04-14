@@ -39,7 +39,7 @@ use zksync_types::{
     TransactionTimeRangeConstraint, H256, U256,
 };
 
-use crate::{interop_fee::ConstantInteropFeeInputProvider, MempoolGuard, MempoolIO};
+use crate::{MempoolGuard, MempoolIO};
 
 #[derive(Debug)]
 pub struct Tester {
@@ -116,6 +116,7 @@ impl Tester {
                 max_gas_per_batch: 500_000_000_000,
                 max_pubdata_per_batch: 100_000_000_000,
             }),
+            U256::zero(),
         )
     }
 
@@ -140,6 +141,7 @@ impl Tester {
                 max_gas_per_batch: 500_000_000_000,
                 max_pubdata_per_batch: 100_000_000_000,
             }),
+            U256::zero(),
         );
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100, None, None);
@@ -149,12 +151,9 @@ impl Tester {
             ..StateKeeperConfig::for_tests()
         };
         let wallets = Wallets::for_tests();
-        let interop_fee_input_provider =
-            Arc::new(ConstantInteropFeeInputProvider::new(U256::zero()));
         let io = MempoolIO::new(
             mempool.clone(),
             Arc::new(batch_fee_input_provider),
-            interop_fee_input_provider,
             pool,
             &config,
             wallets.fee_account.unwrap().address(),

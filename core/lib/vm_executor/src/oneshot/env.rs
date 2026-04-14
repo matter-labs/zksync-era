@@ -52,7 +52,7 @@ impl OneshotEnvParameters<EstimateGas> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         base_fee: u64,
-        interop_fee_fallback: Option<U256>,
+        interop_fee_fallback: U256,
     ) -> anyhow::Result<OneshotEnv> {
         self.to_env_inner(
             connection,
@@ -74,7 +74,7 @@ impl OneshotEnvParameters<CallOrExecute> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
-        interop_fee_fallback: Option<U256>,
+        interop_fee_fallback: U256,
     ) -> anyhow::Result<OneshotEnv> {
         self.to_env_inner(
             connection,
@@ -94,7 +94,7 @@ impl OneshotEnvParameters<CallOrExecute> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         tx: &L2Tx,
-        interop_fee_fallback: Option<U256>,
+        interop_fee_fallback: U256,
     ) -> anyhow::Result<OneshotEnv> {
         self.to_env_inner(
             connection,

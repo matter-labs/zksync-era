@@ -18,7 +18,6 @@ use zksync_consensus_roles as roles;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_api_server::{tx_sender::TxSenderConfig, web3::state::InternalApiConfigBase};
-use zksync_types::U256;
 
 #[cfg(test)]
 mod tests;
@@ -243,7 +242,6 @@ impl From<&LocalConfig> for TxSenderConfig {
             // and they will be enforced by the main node anyway.
             max_allowed_l2_tx_gas_limit: u64::MAX,
             validation_computational_gas_limit: u32::MAX,
-            interop_fee: U256::zero(),
             chain_id: config.networks.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
