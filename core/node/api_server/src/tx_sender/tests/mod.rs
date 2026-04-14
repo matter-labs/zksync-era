@@ -219,6 +219,7 @@ async fn create_real_tx_sender_with_options(
     )
     .await
     .unwrap();
+    executor_options.set_batch_fee_input_provider(Arc::new(MockBatchFeeParamsProvider::default()));
     options_fn(&mut executor_options);
 
     let pg_caches = PostgresStorageCaches::new(1, 1);

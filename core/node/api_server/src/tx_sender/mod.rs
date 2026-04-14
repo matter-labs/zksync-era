@@ -26,7 +26,9 @@ use zksync_multivm::{
         derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit, get_max_new_factory_deps,
     },
 };
-use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
+use zksync_node_fee_model::{
+    ApiFeeInputProvider, BatchFeeModelInputProvider, MockBatchFeeParamsProvider,
+};
 use zksync_object_store::ObjectStore;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
@@ -180,9 +182,11 @@ impl SandboxExecutorOptions {
     }
 
     pub(crate) async fn mock() -> Self {
-        Self::new(L2ChainId::default(), AccountTreeId::default(), u32::MAX)
+        let mut options = Self::new(L2ChainId::default(), AccountTreeId::default(), u32::MAX)
             .await
-            .unwrap()
+            .unwrap();
+        options.set_batch_fee_input_provider(Arc::new(MockBatchFeeParamsProvider::default()));
+        options
     }
 }
 
