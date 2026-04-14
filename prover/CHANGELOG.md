@@ -1,5 +1,12 @@
 # Changelog
 
+## [25.3.1](https://github.com/matter-labs/zksync-era/compare/prover-v25.3.0...prover-v25.3.1) (2026-04-14)
+
+
+### Bug Fixes
+
+* add explicit timeouts to all reqwest HTTP clients + add lots of prover logs ([#4772](https://github.com/matter-labs/zksync-era/issues/4772)) ([ad7a55d](https://github.com/matter-labs/zksync-era/commit/ad7a55d8a4f4609a42ef1598a22aa6c1e4a72132))
+
 ## [25.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.2.0...prover-v25.3.0) (2026-04-10)
 
 
