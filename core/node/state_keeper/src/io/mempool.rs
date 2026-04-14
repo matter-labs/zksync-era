@@ -777,9 +777,20 @@ impl MempoolIO {
 #[cfg(test)]
 mod tests {
     use tokio::time::timeout_at;
+    use zksync_eth_client::web3_decl::node::SettlementModeResource;
+    use zksync_types::{
+        settlement::{SettlementLayer, WorkingSettlementLayer},
+        SLChainId,
+    };
 
     use super::*;
     use crate::tests::seconds_since_epoch;
+
+    fn selected_settlement_layer(settlement_mode: &SettlementModeResource) -> SettlementLayer {
+        settlement_mode
+            .settlement_layer_for_sending_txs()
+            .unwrap_or(settlement_mode.target_settlement_layer())
+    }
 
     // This test defensively uses large deadlines in order to account for tests running in parallel etc.
     #[tokio::test]
@@ -821,5 +832,33 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn uses_current_settlement_layer_when_migration_is_not_in_progress() {
+        let mode = SettlementModeResource::new(WorkingSettlementLayer::new(
+            SettlementLayer::L1(SLChainId(1)),
+            SettlementLayer::Gateway(SLChainId(270)),
+        ));
+
+        assert_eq!(
+            selected_settlement_layer(&mode),
+            SettlementLayer::L1(SLChainId(1))
+        );
+    }
+
+    #[test]
+    fn uses_target_settlement_layer_when_migration_is_in_progress() {
+        let mut layer = WorkingSettlementLayer::new(
+            SettlementLayer::L1(SLChainId(1)),
+            SettlementLayer::Gateway(SLChainId(270)),
+        );
+        layer.set_migration_in_progress(true);
+        let mode = SettlementModeResource::new(layer);
+
+        assert_eq!(
+            selected_settlement_layer(&mode),
+            SettlementLayer::Gateway(SLChainId(270))
+        );
     }
 }
