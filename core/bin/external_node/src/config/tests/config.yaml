@@ -79,6 +79,7 @@ api:
     latest_values_cache_size_mb: 200
     request_timeout_sec: 20
     tree_api_url: http://tree/
+    tree_api_request_timeout_sec: 45
     max_batch_request_size: 50
     websocket_requests_per_minute_limit: 1000
     mempool_cache_size: 1000
