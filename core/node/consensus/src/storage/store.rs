@@ -11,7 +11,7 @@ use zksync_dal::{
 };
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
 use zksync_shared_resources::api::SyncState;
-use zksync_types::{L2BlockNumber, U256};
+use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::EnNamespaceClient as _,
@@ -55,7 +55,7 @@ fn to_fetched_block(
         pubdata_limit: payload.pubdata_limit,
         interop_roots: payload.interop_roots.clone(),
         settlement_layer: payload.settlement_layer,
-        interop_fee: payload.interop_fee.unwrap_or(U256::zero()),
+        interop_fee: payload.interop_fee,
     })
 }
 
