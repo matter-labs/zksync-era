@@ -33,6 +33,55 @@ const ERA_VM_SOLC_VERSION: &str = "0.8.26-1.0.2";
 const SOLC_VERSION: &str = "0.8.26";
 const VYPER_VERSION: &str = "v0.3.10";
 const ZKVYPER_VERSION: &str = "v1.5.4";
+const UPGRADEABLE_COUNTER_CONTRACT: &str = r#"
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+contract Counter is OwnableUpgradeable {
+    function initialize(address owner) external initializer {
+        __Ownable_init(owner);
+    }
+}
+"#;
+const OWNABLE_UPGRADEABLE_SOURCE: &str = r#"
+pragma solidity ^0.8.20;
+
+import "../utils/ContextUpgradeable.sol";
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+abstract contract OwnableUpgradeable is Initializable, ContextUpgradeable {
+    address private _owner;
+
+    function __Ownable_init(address initialOwner) internal onlyInitializing {
+        _owner = initialOwner;
+    }
+}
+"#;
+const CONTEXT_UPGRADEABLE_SOURCE: &str = r#"
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+abstract contract ContextUpgradeable is Initializable {
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
+}
+"#;
+const INITIALIZABLE_SOURCE: &str = r#"
+pragma solidity ^0.8.20;
+
+abstract contract Initializable {
+    modifier initializer() {
+        _;
+    }
+
+    modifier onlyInitializing() {
+        _;
+    }
+}
+"#;
 
 #[derive(Debug, Clone)]
 struct TestCompilerVersions {
@@ -199,6 +248,94 @@ fn set_multi_file_solc_input(req: &mut VerificationIncomingRequest) {
     req.contract_name = "contracts/test.sol:Counter".to_owned();
 }
 
+fn relative_import_standard_json_input() -> serde_json::Map<String, serde_json::Value> {
+    serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "src/Counter.sol": {
+                "content": UPGRADEABLE_COUNTER_CONTRACT,
+            },
+            "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol": {
+                "content": OWNABLE_UPGRADEABLE_SOURCE,
+            },
+            "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol": {
+                "content": CONTEXT_UPGRADEABLE_SOURCE,
+            },
+            "@openzeppelin/contracts/proxy/utils/Initializable.sol": {
+                "content": INITIALIZABLE_SOURCE,
+            },
+        },
+        "settings": {
+            "optimizer": { "enabled": true },
+        },
+    })
+    .as_object()
+    .unwrap()
+    .clone()
+}
+
+fn relative_escape_attempt_input() -> serde_json::Map<String, serde_json::Value> {
+    serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "src/Counter.sol": {
+                "content": r#"
+                    pragma solidity ^0.8.20;
+                    import "../etc/shadow";
+
+                    contract Counter {}
+                "#,
+            },
+        },
+        "settings": {
+            "optimizer": { "enabled": true },
+        },
+    })
+    .as_object()
+    .unwrap()
+    .clone()
+}
+
+async fn compile_standard_json_request(
+    compiler_resolver: &EnvCompilerResolver,
+    supported_compilers: TestCompilerVersions,
+    bytecode_kind: BytecodeMarker,
+    input: serde_json::Map<String, serde_json::Value>,
+    contract_name: &str,
+) -> Result<CompilationArtifacts, ContractVerifierError> {
+    let req = VerificationIncomingRequest {
+        contract_address: Default::default(),
+        source_code_data: SourceCodeData::StandardJsonInput(input),
+        contract_name: contract_name.to_owned(),
+        compiler_versions: supported_compilers.clone().solc_for_api(bytecode_kind),
+        optimization_used: true,
+        optimizer_mode: None,
+        constructor_arguments: Default::default(),
+        is_system: false,
+        force_evmla: false,
+        evm_specific: Default::default(),
+    };
+
+    match bytecode_kind {
+        BytecodeMarker::EraVm => {
+            let compiler = compiler_resolver
+                .resolve_zksolc(&supported_compilers.zksolc())
+                .await
+                .unwrap();
+            let input = ZkSolc::build_input(req).unwrap();
+            compiler.compile(input).await
+        }
+        BytecodeMarker::Evm => {
+            let compiler = compiler_resolver
+                .resolve_solc(&supported_compilers.solc)
+                .await
+                .unwrap();
+            let input = Solc::build_input(req).unwrap();
+            compiler.compile(input).await
+        }
+    }
+}
+
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn using_standalone_solc(specify_contract_file: bool) {
@@ -222,6 +359,70 @@ async fn using_standalone_solc(specify_contract_file: bool) {
 
     assert!(output.deployed_bytecode.is_some());
     assert_eq!(output.abi, counter_contract_abi());
+}
+
+#[test_casing(2, BYTECODE_KINDS)]
+#[tokio::test]
+async fn allows_relative_parent_imports_in_standard_json(bytecode_kind: BytecodeMarker) {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let output = compile_standard_json_request(
+        &compiler_resolver,
+        supported_compilers,
+        bytecode_kind,
+        relative_import_standard_json_input(),
+        "src/Counter.sol:Counter",
+    )
+    .await
+    .unwrap();
+
+    assert!(!output.bytecode.is_empty());
+    assert!(
+        output
+            .abi
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| { item["type"] == "function" && item["name"] == "initialize" }),
+        "{:?}",
+        output.abi
+    );
+}
+
+#[test_casing(2, BYTECODE_KINDS)]
+#[tokio::test]
+async fn relative_import_escape_is_still_blocked(bytecode_kind: BytecodeMarker) {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let err = compile_standard_json_request(
+        &compiler_resolver,
+        supported_compilers,
+        bytecode_kind,
+        relative_escape_attempt_input(),
+        "src/Counter.sol:Counter",
+    )
+    .await
+    .unwrap_err();
+
+    let ContractVerifierError::CompilationError(serde_json::Value::Array(errors)) = err else {
+        panic!("unexpected error: {err:?}");
+    };
+    let errors: Vec<&str> = errors
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .collect();
+    assert!(
+        errors
+            .iter()
+            .any(|err| err.contains("not found") || err.contains("Source")),
+        "{errors:?}"
+    );
+    assert!(
+        errors
+            .iter()
+            .all(|err| !err.contains("root:") && !err.contains("/etc/shadow:")),
+        "{errors:?}"
+    );
 }
 
 #[test_casing(3, [(Some(100), None), (None, Some("shanghai")), (Some(200), Some("paris"))])]

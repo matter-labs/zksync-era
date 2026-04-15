@@ -129,7 +129,12 @@ impl AvailClient {
         secrets: AvailSecrets,
         sl_chain_id: SLChainId,
     ) -> anyhow::Result<Self> {
-        let api_client = Arc::new(reqwest::Client::new());
+        let api_client = Arc::new(
+            reqwest::Client::builder()
+                .timeout(config.api_client_timeout)
+                .build()
+                .expect("Failed to build reqwest client"),
+        );
         let sdk_client = match config.config.clone() {
             AvailClientConfig::GasRelay(conf) => {
                 let gas_relay_api_key = secrets
