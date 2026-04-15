@@ -705,7 +705,7 @@ impl MempoolIO {
                     fee_input: self.filter.fee_input,
                     interop_fee,
                     pubdata_limit,
-                    settlement_layer: settlement_layer,
+                    settlement_layer,
                 })
                 .await?;
 
@@ -741,7 +741,7 @@ impl MempoolIO {
                 first_l2_block,
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit,
-                settlement_layer: settlement_layer,
+                settlement_layer,
             }));
         }
         Ok(None)
