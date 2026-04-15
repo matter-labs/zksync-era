@@ -432,6 +432,7 @@ impl ExternalNodeBuilder {
     fn add_tree_api_client_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(TreeApiClientLayer::http(
             self.config.local.api.web3_json_rpc.tree_api_url.clone(),
+            self.config.local.api.web3_json_rpc.tree_api_request_timeout,
         ));
         Ok(self)
     }

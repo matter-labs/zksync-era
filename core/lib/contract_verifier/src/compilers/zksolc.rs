@@ -101,7 +101,7 @@ impl ZkSolc {
             SourceCodeData::SolSingleFile(source_code) => {
                 if has_dangerous_imports(&source_code) {
                     return Err(ContractVerifierError::InvalidSourcePath(
-                        "import with absolute or traversal path".to_owned(),
+                        "import with absolute path".to_owned(),
                     ));
                 }
                 let source = Source {
@@ -138,7 +138,7 @@ impl ZkSolc {
                 for source in compiler_input.sources.values() {
                     if has_dangerous_imports(&source.content) {
                         return Err(ContractVerifierError::InvalidSourcePath(
-                            "import with absolute or traversal path".to_owned(),
+                            "import with absolute path".to_owned(),
                         ));
                     }
                 }
