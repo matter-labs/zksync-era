@@ -197,11 +197,9 @@ impl WiringLayer for TxSenderLayer {
             tx_sender = tx_sender.with_transaction_filter(transaction_filter);
         }
 
-        let main_node_client = input.main_node_client;
-
         // Add the task for updating the whitelisted tokens for the AA cache.
         let whitelisted_tokens_for_aa_update_task = if self.whitelisted_tokens_for_aa_cache {
-            let main_node_client = main_node_client.clone().ok_or_else(|| {
+            let main_node_client = input.main_node_client.ok_or_else(|| {
                 WiringError::Configuration(
                     "Main node client is required for the whitelisted tokens for AA cache".into(),
                 )
