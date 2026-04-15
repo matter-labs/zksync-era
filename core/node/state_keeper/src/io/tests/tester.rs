@@ -130,6 +130,15 @@ impl Tester {
         &self,
         pool: ConnectionPool<Core>,
     ) -> (MempoolIO, MempoolGuard) {
+        self.create_test_mempool_io_with_settlement_mode(pool, WorkingSettlementLayer::for_tests())
+            .await
+    }
+
+    pub(super) async fn create_test_mempool_io_with_settlement_mode(
+        &self,
+        pool: ConnectionPool<Core>,
+        settlement_mode: WorkingSettlementLayer,
+    ) -> (MempoolIO, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
@@ -163,7 +172,7 @@ impl Tester {
             Some(Default::default()),
             Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
             Default::default(),
-            SettlementModeResource::new(WorkingSettlementLayer::for_tests()),
+            SettlementModeResource::new(settlement_mode),
         )
         .unwrap();
 
