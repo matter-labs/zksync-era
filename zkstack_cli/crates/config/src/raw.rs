@@ -6,12 +6,19 @@ use tokio::fs;
 use xshell::Shell;
 
 #[derive(Debug)]
-pub(crate) struct RawConfig {
+pub struct RawConfig {
     path: PathBuf,
     inner: serde_yaml::Value,
 }
 
 impl RawConfig {
+    pub fn from_value(inner: serde_yaml::Value) -> Self {
+        Self {
+            inner,
+            path: PathBuf::new(),
+        }
+    }
+
     pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
         let path = shell.current_dir().join(path);
         let raw = fs::read_to_string(&path)
@@ -24,6 +31,8 @@ impl RawConfig {
         let inner = match extension {
             "yaml" | "yml" => serde_yaml::from_str(&raw)
                 .with_context(|| format!("failed deserializing config at `{path:?}` as YAML"))?,
+            "toml" => toml::from_str(&raw)
+                .with_context(|| format!("failed deserializing config at `{path:?}` as YAML"))?,
             "json" => serde_json::from_str(&raw)
                 .with_context(|| format!("failed deserializing config at `{path:?}` as YAML"))?,
             _ => anyhow::bail!("unsupported config file extension `{extension}`"),
@@ -33,6 +42,18 @@ impl RawConfig {
             "configuration is not a map"
         );
         Ok(Self { inner, path })
+    }
+
+    /// Return a sub-config rooted at `path` (dot-separated).
+    pub fn sub(&self, path: &str) -> anyhow::Result<Self> {
+        let inner = self
+            .get_raw(path)
+            .cloned()
+            .with_context(|| format!("config section `{path}` is missing in {:?}", self.path))?;
+        Ok(Self {
+            inner,
+            path: self.path.clone(),
+        })
     }
 
     pub fn get_raw(&self, path: &str) -> Option<&serde_yaml::Value> {
@@ -68,7 +89,7 @@ impl RawConfig {
 /// Mutable YAML configuration file.
 #[derive(Debug)]
 #[must_use = "Must be persisted"]
-pub(crate) struct PatchedConfig {
+pub struct PatchedConfig {
     base: RawConfig,
 }
 
@@ -165,6 +186,8 @@ impl PatchedConfig {
             "yaml" | "yml" => serde_yaml::to_string(&self.base.inner)
                 .with_context(|| format!("failed serializing config at `{path:?}` as YAML"))?,
             "json" => serde_json::to_string_pretty(&self.base.inner)
+                .with_context(|| format!("failed serializing config at `{path:?}` as YAML"))?,
+            "toml" => toml::to_string_pretty(&self.base.inner)
                 .with_context(|| format!("failed serializing config at `{path:?}` as YAML"))?,
             _ => {
                 anyhow::bail!("unsupported config file extension `{extension}`");

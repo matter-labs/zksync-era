@@ -10,7 +10,9 @@ use zksync_config::GenesisConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
-use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_genesis::{
+    insert_genesis_batch, mock_genesis_config, GenesisParams, GenesisParamsInitials,
+};
 use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, create_l2_transaction, execute_l2_transaction,
     prepare_recovery_snapshot,
@@ -37,7 +39,7 @@ fn test_poll_iters() {
 async fn creating_io_cursor_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -104,7 +106,7 @@ async fn creating_io_cursor_with_snapshot_recovery() {
 async fn waiting_for_l1_batch_params_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -191,7 +193,7 @@ async fn waiting_for_l1_batch_params_after_snapshot_recovery() {
 async fn getting_first_l2_block_in_batch_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -311,14 +313,14 @@ async fn getting_first_l2_block_in_batch_after_snapshot_recovery() {
 async fn loading_pending_batch_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis_params = GenesisParams::mock();
+    let genesis_params = GenesisParamsInitials::mock();
     insert_genesis_batch(&mut storage, &genesis_params)
         .await
         .unwrap();
     store_pending_l2_blocks(
         &mut storage,
         1..=2,
-        genesis_params.base_system_contracts().hashes(),
+        genesis_params.base_system_contracts.hashes(),
         L1BatchNumber(1),
     )
     .await;
@@ -463,7 +465,7 @@ async fn getting_batch_version_with_genesis() {
     })
     .unwrap();
 
-    insert_genesis_batch(&mut storage, &genesis_params)
+    insert_genesis_batch(&mut storage, &genesis_params.clone().into())
         .await
         .unwrap();
 

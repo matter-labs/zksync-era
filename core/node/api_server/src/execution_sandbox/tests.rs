@@ -6,7 +6,7 @@ use assert_matches::assert_matches;
 use test_casing::test_casing;
 use zksync_dal::ConnectionPool;
 use zksync_multivm::{interface::ExecutionResult, utils::derive_base_fee_and_gas_per_pubdata};
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_state::PostgresStorageCaches;
 use zksync_test_contracts::Account;
@@ -28,7 +28,7 @@ use crate::{
 async fn creating_block_args() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     let l2_block = create_l2_block(1);
@@ -246,7 +246,7 @@ async fn creating_block_args_after_snapshot_recovery() {
 async fn estimating_gas() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut connection = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut connection, &GenesisParams::mock())
+    insert_genesis_batch(&mut connection, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -315,7 +315,7 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
 async fn validating_transaction(set_balance: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut connection = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut connection, &GenesisParams::mock())
+    insert_genesis_batch(&mut connection, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
