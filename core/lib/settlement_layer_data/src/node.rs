@@ -144,6 +144,19 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
         )
         .await?;
 
+        let mut connection = input
+            .pool
+            .get()
+            .await?
+            .connection()
+            .await
+            .context("failed getting pool connection")?;
+        let latest_gateway_migration_notification = connection
+            .server_notifications_dal()
+            .get_latest_gateway_migration_notification()
+            .await
+            .context("failed getting latest gateway migration notification")?;
+
         let final_settlement_mode = current_settlement_layer(
             &input.eth_client,
             l2_eth_client
@@ -151,6 +164,7 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
                 .map(|client| client as &dyn EthInterface),
             &sl_l1_contracts,
             self.config.l2_chain_id,
+            latest_gateway_migration_notification,
             &getters_facet_contract(),
         )
         .await

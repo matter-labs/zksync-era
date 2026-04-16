@@ -65,6 +65,7 @@ impl GatewayMigrator {
                 gateway_client,
                 &self.l1_settlement_layer_specific_contracts,
                 self.l2_chain_id,
+                None,
                 &self.getters_facet_abi,
             )
             .await;

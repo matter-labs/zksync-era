@@ -24,6 +24,7 @@ use zksync_eth_client::{
     ContractCallError, EthInterface,
 };
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
+use zksync_types::server_notification::GatewayMigrationNotification;
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
 #[derive(Debug, thiserror::Error)]
@@ -138,6 +139,7 @@ pub async fn current_settlement_layer(
     gateway_client: Option<&dyn EthInterface>,
     sl_l1_contracts: &SettlementLayerSpecificContracts,
     l2_chain_id: L2ChainId,
+    latest_gateway_migration_notification: Option<GatewayMigrationNotification>,
     abi: &Contract,
 ) -> Result<WorkingSettlementLayer, SettlementLayerError> {
     let settlement_mode_from_l1 = get_settlement_layer_from_l1(
@@ -208,7 +210,26 @@ pub async fn current_settlement_layer(
         }
     };
 
-    let mut layer = WorkingSettlementLayer::new(final_settlement_mode, settlement_mode_from_l1);
+    let target_settlement_mode = match latest_gateway_migration_notification {
+        Some(GatewayMigrationNotification::ToGateway) => {
+            let chain_id = gateway_client
+                .expect("No gateway url was provided")
+                .fetch_chain_id()
+                .await
+                .map_err(ContractCallError::from)?;
+            SettlementLayer::Gateway(chain_id)
+        }
+        Some(GatewayMigrationNotification::FromGateway) => {
+            let chain_id = l1_client
+                .fetch_chain_id()
+                .await
+                .map_err(ContractCallError::from)?;
+            SettlementLayer::L1(chain_id)
+        }
+        None => final_settlement_mode,
+    };
+
+    let mut layer = WorkingSettlementLayer::new(final_settlement_mode, target_settlement_mode);
     layer.set_migration_in_progress(!use_settlement_mode_from_l1);
     Ok(layer)
 }
