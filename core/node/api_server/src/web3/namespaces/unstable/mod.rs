@@ -10,16 +10,14 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_multivm::{interface::VmEvent, zk_evm_latest::ethereum_types::U64};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
-    api,
     api::{
-        AirbenderProof, AirbenderProofStatus, ChainAggProof, DataAvailabilityDetails,
+        self, AirbenderProof, AirbenderProofStatus, ChainAggProof, DataAvailabilityDetails,
         GatewayMigrationStatus, L1ToL2TxsStatus, TransactionDetailedResult,
         TransactionExecutionInfo,
     },
     eth_sender::EthTxFinalityStatus,
-    server_notification::GatewayMigrationState,
-    web3,
-    web3::Bytes,
+    server_notification::{GatewayMigrationNotification, GatewayMigrationState},
+    web3::{self, Bytes},
     L1BatchNumber, L2BlockNumber, L2ChainId,
 };
 use zksync_web3_decl::{error::Web3Error, types::H256};
@@ -295,6 +293,35 @@ impl UnstableNamespace {
             latest_notification,
         );
 
+        let settlement_layer = self.state.api_config.settlement_layer.settlement_layer();
+        let has_uncommitted_batches = connection
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .map_err(DalError::generalize)?;
+        let latest_sealed_matches_expected = match (
+            latest_notification,
+            connection
+                .blocks_dal()
+                .get_latest_sealed_l1_batch_header()
+                .await
+                .map_err(DalError::generalize)?,
+        ) {
+            (Some(GatewayMigrationNotification::ToGateway), Some(header)) => {
+                header.settlement_layer.is_gateway()
+            }
+            (Some(GatewayMigrationNotification::FromGateway), Some(header)) => {
+                !header.settlement_layer.is_gateway()
+            }
+            (Some(_), None) => false,
+            (None, _) => true,
+        };
+        let all_batches_committed = if state == GatewayMigrationState::InProgress {
+            !has_uncommitted_batches
+        } else {
+            !has_uncommitted_batches && latest_sealed_matches_expected
+        };
+
         Ok(GatewayMigrationStatus {
             latest_notification,
             state,
@@ -303,7 +330,8 @@ impl UnstableNamespace {
                 .api_config
                 .settlement_layer
                 .settlement_layer_for_sending_txs(),
-            wait_for_batches_to_be_committed: !all_batches_with_interop_roots_committed,
+            wait_for_batches_to_be_committed: !all_batches_committed
+                || !all_batches_with_interop_roots_committed,
         })
     }
 
