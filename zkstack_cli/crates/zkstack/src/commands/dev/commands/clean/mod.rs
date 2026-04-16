@@ -23,14 +23,14 @@ pub enum CleanCommands {
 pub fn run(shell: &Shell, args: CleanCommands) -> anyhow::Result<()> {
     let config = ZkStackConfig::from_file(shell)?;
     let path_to_foundry = config.path_to_foundry_scripts();
-    let contracts_path = config.contracts_path();
+    let link_to_code = config.link_to_code();
     match args {
         CleanCommands::All => {
             containers(shell)?;
-            contracts(shell, path_to_foundry, contracts_path)?;
+            contracts(shell, path_to_foundry, link_to_code)?;
         }
         CleanCommands::Containers => containers(shell)?,
-        CleanCommands::ContractsCache => contracts(shell, path_to_foundry, contracts_path)?,
+        CleanCommands::ContractsCache => contracts(shell, path_to_foundry, link_to_code)?,
     }
     Ok(())
 }
