@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_job_processor::JobPicker;
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 
@@ -56,22 +56,52 @@ where
             .await
             .context("get_metadata()")?
         {
+            let job_id = job_metadata.job_id();
             let prepare_job_start_time = Instant::now();
-            tracing::info!("Processing {:?} job {:?}", R::ROUND, job_metadata.job_id());
-            let job = R::prepare_job(
+            tracing::info!("Processing {:?} job {:?}", R::ROUND, job_id);
+            let prepare_job_result = R::prepare_job(
                 job_metadata.clone(),
                 &*self.object_store,
                 self.keystore.clone(),
             )
-            .await
-            .context("prepare_job()")?;
+            .await;
+
+            let job = match prepare_job_result {
+                Ok(job) => job,
+                Err(err) => {
+                    // Mark the job as failed in the DB so the picker task stays alive and
+                    // the job's `attempts` counter is honored by `requeue_stuck_*` reapers.
+                    // Without this, a persistent failure here (e.g. missing blob) would kill
+                    // the actor and leave the job stuck in `in_progress` until the processing
+                    // timeout re-queues it, producing an infinite crash-loop.
+                    let error_message = format!("prepare_job() failed: {err:#}");
+                    tracing::error!(
+                        "Failed to prepare witness generator {:?} job {:?}: {error_message}",
+                        R::ROUND,
+                        job_id,
+                    );
+                    self.pool
+                        .connection()
+                        .await
+                        .context("failed to acquire DB connection to mark job failed")?
+                        .fri_witness_generator_dal()
+                        .mark_witness_job_failed(
+                            &error_message,
+                            job_id.id(),
+                            job_id.chain_id(),
+                            R::ROUND,
+                        )
+                        .await;
+                    return Ok(None);
+                }
+            };
             WITNESS_GENERATOR_METRICS.prepare_job_time[&R::ROUND.into()]
                 .observe(prepare_job_start_time.elapsed());
 
             tracing::info!(
                 "Finished picking witness generator {:?} job on batch {} in {:?}",
                 R::ROUND,
-                job_metadata.job_id(),
+                job_id,
                 start_time.elapsed()
             );
             Ok(Some((job, job_metadata)))

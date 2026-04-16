@@ -67,7 +67,9 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             )
             VALUES
             ($1, $2, $3, $4, 'queued', NOW(), NOW(), $5, $6)
-            ON CONFLICT (l1_batch_number, chain_id) DO NOTHING
+            ON CONFLICT (l1_batch_number, chain_id) DO UPDATE SET
+                witness_inputs_blob_url = EXCLUDED.witness_inputs_blob_url,
+                updated_at = NOW()
             "#,
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
