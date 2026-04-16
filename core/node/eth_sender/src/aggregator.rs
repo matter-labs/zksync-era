@@ -234,6 +234,7 @@ impl Aggregator {
         priority_tree_start_index: Option<usize>,
         precommit_params: Option<&PrecommitParams>,
         execution_delay: Duration,
+        is_gateway: bool,
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
@@ -250,6 +251,7 @@ impl Aggregator {
                 self.config.max_aggregated_blocks_to_execute as usize,
                 last_sealed_l1_batch_number,
                 priority_tree_start_index,
+                is_gateway,
                 execution_delay,
             )
             .await?,
@@ -413,6 +415,7 @@ impl Aggregator {
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
         priority_tree_start_index: Option<usize>,
+        is_gateway: bool,
         execution_delay: Duration,
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
         let mut max_l1_batch_timestamp_millis =
@@ -438,7 +441,7 @@ impl Aggregator {
             &mut self.execute_criteria,
             ready_for_execute_batches,
             last_sealed_l1_batch,
-            self.settlement_layer.is_gateway(),
+            is_gateway,
         )
         .await
         else {
@@ -464,6 +467,9 @@ impl Aggregator {
                 l1_batches,
                 priority_ops_proofs: vec![Default::default(); length],
                 dependency_roots,
+                logs: vec![],
+                messages: vec![],
+                message_roots: vec![],
             }));
         };
 
@@ -481,6 +487,9 @@ impl Aggregator {
             .await;
 
         let mut priority_ops_proofs = vec![];
+        let mut all_logs = vec![];
+        let mut all_messages = vec![];
+        let mut all_message_roots = vec![];
         for batch in &l1_batches {
             let priority_ops_in_batch = storage
                 .blocks_dal()
@@ -523,12 +532,23 @@ impl Aggregator {
             } else {
                 priority_ops_proofs.push(Default::default());
             }
+            if is_gateway {
+                let message_root = batch
+                    .metadata
+                    .aggregation_root
+                    .ok_or(EthSenderError::MissingAggregationRoot(batch.header.number))?;
+                all_logs.push(batch.header.l2_to_l1_logs.clone());
+                all_messages.push(batch.header.l2_to_l1_messages.clone());
+                all_message_roots.push(message_root);
+            }
         }
-
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,
             dependency_roots,
+            logs: all_logs,
+            messages: all_messages,
+            message_roots: all_message_roots,
         }))
     }
 

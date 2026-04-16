@@ -4,7 +4,9 @@ use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::CoreDal as _;
-use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_genesis::{
+    insert_genesis_batch, mock_genesis_config, GenesisParams, GenesisParamsInitials,
+};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
 use zksync_types::{
     protocol_version::ProtocolSemanticVersion, system_contracts::get_system_smart_contracts,
@@ -13,18 +15,20 @@ use zksync_types::{
 
 use super::{Connection, ConnectionPool};
 
-pub(crate) fn mock_genesis_params(protocol_version: ProtocolVersionId) -> GenesisParams {
+pub(crate) fn mock_genesis_params(protocol_version: ProtocolVersionId) -> GenesisParamsInitials {
     let mut cfg = mock_genesis_config();
     cfg.protocol_version = Some(ProtocolSemanticVersion {
         minor: protocol_version,
         patch: 0.into(),
     });
+
     GenesisParams::from_genesis_config(
         cfg,
         BaseSystemContracts::load_from_disk(),
         get_system_smart_contracts(),
     )
     .unwrap()
+    .into()
 }
 
 impl ConnectionPool {
