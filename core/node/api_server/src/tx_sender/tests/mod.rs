@@ -216,10 +216,10 @@ async fn create_real_tx_sender_with_options(
         genesis_config.l2_chain_id,
         AccountTreeId::new(genesis_config.fee_account),
         u32::MAX,
+        Arc::new(MockBatchFeeParamsProvider::default()),
     )
     .await
     .unwrap();
-    executor_options.set_batch_fee_input_provider(Arc::new(MockBatchFeeParamsProvider::default()));
     options_fn(&mut executor_options);
 
     let pg_caches = PostgresStorageCaches::new(1, 1);
