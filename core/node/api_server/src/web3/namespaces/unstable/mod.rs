@@ -288,14 +288,21 @@ impl UnstableNamespace {
             }
         };
         let state = GatewayMigrationState::from_sl_and_notification(
-            self.state.api_config.settlement_layer,
+            self.state
+                .api_config
+                .settlement_layer
+                .settlement_layer_for_sending_txs(),
             latest_notification,
         );
 
         Ok(GatewayMigrationStatus {
             latest_notification,
             state,
-            settlement_layer: self.state.api_config.settlement_layer,
+            settlement_layer: self
+                .state
+                .api_config
+                .settlement_layer
+                .settlement_layer_for_sending_txs(),
             wait_for_batches_to_be_committed: !all_batches_with_interop_roots_committed,
         })
     }
@@ -306,7 +313,11 @@ impl UnstableNamespace {
         tx_bytes: Bytes,
     ) -> Result<TransactionDetailedResult, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.settlement_layer(),
+        )
+        .await?;
         drop(connection);
         let (mut tx, tx_hash) = self
             .state

@@ -5,7 +5,7 @@ use zksync_consensus_engine::Last;
 use zksync_consensus_roles::{node, validator};
 use zksync_types::{
     commitment::PubdataParams, ethabi, settlement::SettlementLayer, Address, InteropRoot,
-    L1BatchNumber, ProtocolVersionId, Transaction, H256,
+    L1BatchNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 
 mod conv;
@@ -81,7 +81,7 @@ pub struct Payload {
     pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
     pub settlement_layer: Option<SettlementLayer>,
-    pub interop_fee: Option<u64>,
+    pub interop_fee: Option<U256>,
 }
 
 impl Payload {

@@ -795,6 +795,7 @@ impl StateKeeperIO for TestIO {
             prev_l2_block_timestamp: self.timestamp.saturating_sub(1),
             l1_batch: self.batch_number,
             prev_l1_batch_timestamp: self.timestamp.saturating_sub(1),
+            settlement_layer: SettlementLayer::for_tests(),
         };
         let pending_batch = self.pending_batch.take();
         if pending_batch.is_some() {
