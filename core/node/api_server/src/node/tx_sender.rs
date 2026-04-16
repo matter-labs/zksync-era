@@ -182,9 +182,9 @@ impl WiringLayer for TxSenderLayer {
             config.chain_id,
             AccountTreeId::new(config.fee_account_addr),
             config.validation_computational_gas_limit,
+            fee_input.clone(),
         )
         .await?;
-        executor_options.set_batch_fee_input_provider(fee_input.clone());
         executor_options.set_fast_vm_mode(self.vm_mode);
 
         if let Some(store) = input.core_object_store {

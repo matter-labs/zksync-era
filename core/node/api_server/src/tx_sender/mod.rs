@@ -85,13 +85,13 @@ pub async fn build_tx_sender(
         replica_pool,
         web3_json_config.gas_price_scale_factor_open_batch,
     ));
-    let mut executor_options = SandboxExecutorOptions::new(
+    let executor_options = SandboxExecutorOptions::new(
         tx_sender_config.chain_id,
         AccountTreeId::new(tx_sender_config.fee_account_addr),
         tx_sender_config.validation_computational_gas_limit,
+        batch_fee_input_provider.clone(),
     )
     .await?;
-    executor_options.set_batch_fee_input_provider(batch_fee_input_provider.clone());
     let tx_sender = tx_sender_builder.build(
         batch_fee_input_provider,
         Arc::new(vm_concurrency_limiter),
@@ -106,7 +106,7 @@ pub async fn build_tx_sender(
 pub struct SandboxExecutorOptions {
     pub(crate) fast_vm_mode: FastVmMode,
     pub(crate) vm_dump_store: Option<Arc<dyn ObjectStore>>,
-    pub(crate) batch_fee_input_provider: Option<Arc<dyn BatchFeeModelInputProvider>>,
+    pub(crate) batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -124,6 +124,7 @@ impl SandboxExecutorOptions {
         chain_id: L2ChainId,
         operator_account: AccountTreeId,
         validation_computational_gas_limit: u32,
+        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     ) -> anyhow::Result<Self> {
         let estimate_gas_contracts =
             tokio::task::spawn_blocking(MultiVmBaseSystemContracts::load_estimate_gas_blocking)
@@ -137,7 +138,7 @@ impl SandboxExecutorOptions {
         Ok(Self {
             fast_vm_mode: FastVmMode::Old,
             vm_dump_store: None,
-            batch_fee_input_provider: None,
+            batch_fee_input_provider,
             estimate_gas: OneshotEnvParameters::new(
                 Arc::new(estimate_gas_contracts),
                 chain_id,
@@ -162,19 +163,8 @@ impl SandboxExecutorOptions {
         self.fast_vm_mode = fast_vm_mode;
     }
 
-    pub(crate) fn set_batch_fee_input_provider(
-        &mut self,
-        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    ) {
-        self.batch_fee_input_provider = Some(batch_fee_input_provider);
-    }
-
     pub(crate) async fn interop_fee_fallback(&self) -> U256 {
-        let provider = self
-            .batch_fee_input_provider
-            .as_ref()
-            .expect("batch_fee_input_provider must be set before execution");
-        provider.get_interop_fee().await
+        self.batch_fee_input_provider.get_interop_fee().await
     }
 
     pub fn set_vm_dump_object_store(&mut self, store: Arc<dyn ObjectStore>) {
@@ -182,11 +172,14 @@ impl SandboxExecutorOptions {
     }
 
     pub(crate) async fn mock() -> Self {
-        let mut options = Self::new(L2ChainId::default(), AccountTreeId::default(), u32::MAX)
-            .await
-            .unwrap();
-        options.set_batch_fee_input_provider(Arc::new(MockBatchFeeParamsProvider::default()));
-        options
+        Self::new(
+            L2ChainId::default(),
+            AccountTreeId::default(),
+            u32::MAX,
+            Arc::new(MockBatchFeeParamsProvider::default()),
+        )
+        .await
+        .unwrap()
     }
 }
 
