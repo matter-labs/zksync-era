@@ -22,18 +22,13 @@ use zksync_web3_decl::{
     namespaces::EnNamespaceClient as _,
 };
 
-use self::main_node_interop_fee_update_task::{
-    MainNodeInteropFeeProvider, MainNodeInteropFeeUpdateTask,
-};
 use crate::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
     tx_sender::{
-        tx_sink::TxSink, ConstantInteropFeeProvider, SandboxExecutorOptions,
-        TimestampAsserterParams, TxSender, TxSenderBuilder, TxSenderConfig,
+        tx_sink::TxSink, SandboxExecutorOptions, TimestampAsserterParams, TxSender,
+        TxSenderBuilder, TxSenderConfig,
     },
 };
-
-mod main_node_interop_fee_update_task;
 
 #[derive(Debug)]
 pub struct PostgresStorageCachesConfig {
@@ -61,7 +56,6 @@ pub struct PostgresStorageCachesConfig {
 ///
 /// - `PostgresStorageCachesTask`
 /// - `VmConcurrencyBarrierTask`
-/// - `MainNodeInteropFeeUpdateTask` (optional)
 /// - `WhitelistedTokensForAaUpdateTask` (optional)
 #[derive(Debug)]
 pub struct TxSenderLayer {
@@ -71,7 +65,6 @@ pub struct TxSenderLayer {
     vm_mode: FastVmMode,
     timestamp_asserter_config: TimestampAsserterConfig,
     tx_sender_config: TxSenderConfig,
-    main_node_interop_fee_poll_interval: Duration,
 }
 
 #[derive(Debug, FromContext)]
@@ -95,8 +88,6 @@ pub struct Output {
     postgres_storage_caches_task: Option<PostgresStorageCachesTaskWrapper>,
     #[context(task)]
     whitelisted_tokens_for_aa_update_task: Option<WhitelistedTokensForAaUpdateTask>,
-    #[context(task)]
-    interop_fee_update_task: Option<MainNodeInteropFeeUpdateTask>,
 }
 
 impl TxSenderLayer {
@@ -105,7 +96,6 @@ impl TxSenderLayer {
         max_vm_concurrency: usize,
         tx_sender_config: TxSenderConfig,
         timestamp_asserter_config: TimestampAsserterConfig,
-        main_node_interop_fee_poll_interval: Duration,
     ) -> Self {
         Self {
             postgres_storage_caches_config,
@@ -114,7 +104,6 @@ impl TxSenderLayer {
             vm_mode: FastVmMode::Old,
             timestamp_asserter_config,
             tx_sender_config,
-            main_node_interop_fee_poll_interval,
         }
     }
 
@@ -150,7 +139,7 @@ impl WiringLayer for TxSenderLayer {
         let transaction_filter = input.transaction_filter.map(|filter| filter.0);
         let fee_input = input.fee_input.0;
 
-        let mut config = match input.l2_contracts.0.timestamp_asserter_addr {
+        let config = match input.l2_contracts.0.timestamp_asserter_addr {
             Some(address) => {
                 let timestamp_asserter_config = self.timestamp_asserter_config;
                 self.tx_sender_config
@@ -161,29 +150,6 @@ impl WiringLayer for TxSenderLayer {
             }
             None => self.tx_sender_config,
         };
-
-        let main_node_client = input.main_node_client;
-        let initial_interop_fee = if let Some(main_node_client) = main_node_client.as_ref() {
-            match main_node_client.get_interop_fee().await {
-                Ok(interop_fee) => interop_fee,
-                Err(jsonrpsee::core::client::Error::Call(error))
-                    if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
-                {
-                    // Method is not supported by the main node, keep local fallback.
-                    config.interop_fee
-                }
-                Err(err) => {
-                    tracing::warn!(
-                        "Failed to query `interopProtocolFee` on startup, using local fallback {}: {err:?}",
-                        config.interop_fee
-                    );
-                    config.interop_fee
-                }
-            }
-        } else {
-            config.interop_fee
-        };
-        config.interop_fee = initial_interop_fee;
 
         // Initialize Postgres caches.
         let factory_deps_capacity = self.postgres_storage_caches_config.factory_deps_cache_size;
@@ -216,24 +182,9 @@ impl WiringLayer for TxSenderLayer {
             config.chain_id,
             AccountTreeId::new(config.fee_account_addr),
             config.validation_computational_gas_limit,
+            fee_input.clone(),
         )
         .await?;
-        let interop_fee_update_task = if let Some(main_node_client) = main_node_client.as_ref() {
-            let interop_fee_provider = Arc::new(MainNodeInteropFeeProvider::new(
-                initial_interop_fee,
-                main_node_client
-                    .clone()
-                    .for_component("interop_fee_fetcher"),
-                self.main_node_interop_fee_poll_interval,
-            ));
-            executor_options.set_interop_fee_provider(interop_fee_provider.clone());
-            Some(MainNodeInteropFeeUpdateTask::new(interop_fee_provider))
-        } else {
-            executor_options.set_interop_fee_provider(Arc::new(ConstantInteropFeeProvider::new(
-                initial_interop_fee,
-            )));
-            None
-        };
         executor_options.set_fast_vm_mode(self.vm_mode);
 
         if let Some(store) = input.core_object_store {
@@ -248,7 +199,7 @@ impl WiringLayer for TxSenderLayer {
 
         // Add the task for updating the whitelisted tokens for the AA cache.
         let whitelisted_tokens_for_aa_update_task = if self.whitelisted_tokens_for_aa_cache {
-            let main_node_client = main_node_client.clone().ok_or_else(|| {
+            let main_node_client = input.main_node_client.ok_or_else(|| {
                 WiringError::Configuration(
                     "Main node client is required for the whitelisted tokens for AA cache".into(),
                 )
@@ -279,7 +230,6 @@ impl WiringLayer for TxSenderLayer {
             postgres_storage_caches_task,
             vm_concurrency_barrier,
             whitelisted_tokens_for_aa_update_task,
-            interop_fee_update_task,
         })
     }
 }

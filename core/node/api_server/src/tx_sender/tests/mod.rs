@@ -216,6 +216,7 @@ async fn create_real_tx_sender_with_options(
         genesis_config.l2_chain_id,
         AccountTreeId::new(genesis_config.fee_account),
         u32::MAX,
+        Arc::new(MockBatchFeeParamsProvider::default()),
     )
     .await
     .unwrap();

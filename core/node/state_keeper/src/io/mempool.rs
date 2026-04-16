@@ -30,7 +30,6 @@ use zksync_types::{
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
 use crate::{
-    interop_fee::InteropFeeInputProvider,
     io::{
         common::{load_pending_batch, poll_iters, IoCursor},
         seal_logic::l2_block_seal_subtasks::L2BlockSealProcess,
@@ -67,7 +66,6 @@ pub struct MempoolIO {
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    interop_fee_input_provider: Arc<dyn InteropFeeInputProvider>,
     chain_id: L2ChainId,
     l2_da_validator_address: Option<Address>,
     l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
@@ -502,7 +500,6 @@ impl MempoolIO {
     pub fn new(
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-        interop_fee_input_provider: Arc<dyn InteropFeeInputProvider>,
         pool: ConnectionPool<Core>,
         config: &StateKeeperConfig,
         fee_account: Address,
@@ -527,7 +524,6 @@ impl MempoolIO {
             max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit.into(),
             delay_interval,
             batch_fee_input_provider,
-            interop_fee_input_provider,
             chain_id,
             l2_da_validator_address,
             l2_da_commitment_scheme,
@@ -651,7 +647,7 @@ impl MempoolIO {
             let interop_fee = if protocol_version.is_pre_medium_interop() {
                 U256::zero()
             } else {
-                self.interop_fee_input_provider.get_interop_fee().await?
+                self.batch_fee_input_provider.get_interop_fee().await
             };
 
             tracing::trace!(
