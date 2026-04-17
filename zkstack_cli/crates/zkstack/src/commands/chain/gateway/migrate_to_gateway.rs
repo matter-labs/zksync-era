@@ -1,5 +1,3 @@
-use std::time::{Duration, Instant};
-
 use anyhow::Context;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -14,18 +12,17 @@ use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
     constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-    gateway_common::{
-        extract_and_wait_for_priority_ops, get_gateway_migration_state,
-        GatewayMigrationProgressState, MigrationDirection,
-    },
-    messages::message_for_gateway_migration_progress_state,
     migrate_to_gateway_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayConfig},
 };
 use crate::{
     abi::BridgehubAbi,
     commands::chain::{
         admin_call_builder::AdminCallBuilder,
-        gateway::migrate_to_gateway_calldata::MigrateToGatewayContext, utils::send_tx,
+        gateway::{
+            gateway_common::extract_and_wait_for_priority_ops,
+            migrate_to_gateway_calldata::MigrateToGatewayContext,
+        },
+        utils::send_tx,
     },
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
@@ -48,9 +45,6 @@ pub struct MigrateToGatewayArgs {
     #[clap(long)]
     pub gateway_rpc_url: Option<String>,
 }
-
-const LOOK_WAITING_TIME_MS: u64 = 2000;
-const MIGRATION_READY_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
@@ -81,23 +75,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             general_config.l2_http_url()?
         }
     };
-    let l2_rpc_url = chain_config
-        .get_general_config()
-        .await?
-        .l2_http_url()
-        .context("L2 RPC URL must be provided for cross checking")?;
-    let chain_contracts_config = chain_config.get_contracts_config()?;
-
-    wait_for_migration_to_gateway_ready(
-        l1_rpc_url.clone(),
-        chain_contracts_config
-            .ecosystem_contracts
-            .bridgehub_proxy_addr,
-        chain_config.chain_id.as_u64(),
-        l2_rpc_url,
-        gateway_rpc_url.clone(),
-    )
-    .await?;
 
     let context = get_migrate_to_gateway_context(
         &chain_config,
@@ -165,88 +142,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     gateway_chain_config.save().await?;
 
     Ok(())
-}
-
-async fn wait_for_migration_to_gateway_ready(
-    l1_rpc_url: String,
-    l1_bridgehub_addr: Address,
-    l2_chain_id: u64,
-    l2_rpc_url: String,
-    gw_rpc_url: String,
-) -> anyhow::Result<()> {
-    let started_at = Instant::now();
-
-    loop {
-        let state = match get_gateway_migration_state(
-            l1_rpc_url.clone(),
-            l1_bridgehub_addr,
-            l2_chain_id,
-            l2_rpc_url.clone(),
-            gw_rpc_url.clone(),
-            MigrationDirection::ToGateway,
-        )
-        .await
-        {
-            Ok(state) => state,
-            Err(err) if is_server_cross_check_unavailable(&err) => {
-                logger::warn(format!(
-                    "Could not query migration readiness from chain server ({err:#}); proceeding without server-side readiness wait"
-                ));
-                return Ok(());
-            }
-            Err(err) => return Err(err),
-        };
-
-        match state {
-            GatewayMigrationProgressState::ServerReady => {
-                logger::info("The server is ready for migration to Gateway");
-                return Ok(());
-            }
-            GatewayMigrationProgressState::Finished => {
-                logger::info(message_for_gateway_migration_progress_state(
-                    state,
-                    MigrationDirection::ToGateway,
-                ));
-                return Ok(());
-            }
-            GatewayMigrationProgressState::NotificationSent
-            | GatewayMigrationProgressState::NotificationReceived(_) => {
-                if started_at.elapsed() > MIGRATION_READY_TIMEOUT {
-                    anyhow::bail!(
-                        "Timed out waiting for migration readiness: {}",
-                        message_for_gateway_migration_progress_state(
-                            state,
-                            MigrationDirection::ToGateway,
-                        )
-                    );
-                }
-
-                logger::info(message_for_gateway_migration_progress_state(
-                    state,
-                    MigrationDirection::ToGateway,
-                ));
-                tokio::time::sleep(Duration::from_millis(LOOK_WAITING_TIME_MS)).await;
-            }
-            GatewayMigrationProgressState::NotStarted
-            | GatewayMigrationProgressState::AwaitingFinalization
-            | GatewayMigrationProgressState::PendingManualFinalization => {
-                anyhow::bail!(message_for_gateway_migration_progress_state(
-                    state,
-                    MigrationDirection::ToGateway,
-                ));
-            }
-        }
-    }
-}
-
-fn is_server_cross_check_unavailable(err: &anyhow::Error) -> bool {
-    let error_text = format!("{err:#}").to_lowercase();
-    error_text.contains("failed to retrieve gateway migration status from the server")
-        && (error_text.contains("connection refused")
-            || error_text.contains("tcp connect error")
-            || error_text.contains("connecterror")
-            || error_text.contains("transport(")
-            || error_text.contains("timed out"))
 }
 
 pub(crate) async fn get_migrate_to_gateway_context(

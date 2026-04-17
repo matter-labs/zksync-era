@@ -3,7 +3,7 @@ import { FileMutex } from './file-mutex';
 import { findHome } from './zksync-home';
 import { withDeadline } from './deadline';
 import { GW_ASSET_TRACKER_ADDRESS, ArtifactWrappedBaseToken, ArtifactGWAssetTracker } from 'utils/src/constants';
-import { loadConfig } from 'utils/build/file-configs';
+import { ConfigName, loadConfig } from 'utils/build/file-configs';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 
@@ -17,6 +17,42 @@ const gatewayMutex = new FileMutex();
 const MIGRATION_STARTED_TOPIC = ethers.id('MigrationStarted(uint256,uint256,bytes32,uint256)');
 const BLOCK_SEARCH_RANGE = 5000;
 const MAX_BLOCK_LOOKBACK = 200000;
+const GATEWAY_CHAIN_NAME = 'gateway';
+const GATEWAY_MIGRATION_CONTEXT = 'gateway_migration';
+
+function shouldUseGatewayChain(chainName: string, action: string): boolean {
+    const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
+    if (useGatewayChain !== 'WITH_GATEWAY') {
+        console.log(`⏭️ Skipping ${action} for ${chainName} (USE_GATEWAY_CHAIN=${useGatewayChain})`);
+        return false;
+    }
+
+    return true;
+}
+
+function loadChainConfig(pathToHome: string, chain: string, config: ConfigName) {
+    return loadConfig({
+        pathToHome,
+        chain,
+        config
+    });
+}
+
+async function runGatewayCommand(chainName: string, args: string[]): Promise<void> {
+    await executeCommand('zkstack', ['chain', 'gateway', ...args], chainName, GATEWAY_MIGRATION_CONTEXT);
+}
+
+async function withGatewayMutex(chainName: string, stage: string, action: () => Promise<void>): Promise<void> {
+    console.log(`🔒 Acquiring mutex for ${stage} of ${chainName}...`);
+    await gatewayMutex.acquire();
+    console.log(`✅ Mutex acquired for ${stage} of ${chainName}`);
+
+    try {
+        await action();
+    } finally {
+        gatewayMutex.release();
+    }
+}
 
 /**
  * Migrates a chain to gateway if the USE_GATEWAY_CHAIN environment variable is set to 'WITH_GATEWAY'
@@ -25,41 +61,23 @@ const MAX_BLOCK_LOOKBACK = 200000;
  * @returns Promise that resolves when migration is complete
  */
 export async function migrateToGatewayIfNeeded(chainName: string): Promise<void> {
-    const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
-
-    if (useGatewayChain !== 'WITH_GATEWAY') {
-        console.log(`⏭️ Skipping gateway migration for ${chainName} (USE_GATEWAY_CHAIN=${useGatewayChain})`);
+    if (!shouldUseGatewayChain(chainName, 'gateway migration')) {
         return;
     }
 
     console.log(`🔄 Migrating chain ${chainName} to gateway...`);
 
     try {
-        // Acquire mutex for gateway migration
-        console.log(`🔒 Acquiring mutex for gateway migration of ${chainName}...`);
-        await gatewayMutex.acquire();
-        console.log(`✅ Mutex acquired for gateway migration of ${chainName}`);
-
-        try {
-            await executeCommand(
-                'zkstack',
-                ['chain', 'gateway', 'notify-about-to-gateway-update', '--chain', chainName],
+        await withGatewayMutex(chainName, 'gateway migration', async () => {
+            await runGatewayCommand(chainName, [
+                'migrate-to-gateway',
+                '--chain',
                 chainName,
-                'gateway_migration'
-            );
-
-            await executeCommand(
-                'zkstack',
-                ['chain', 'gateway', 'migrate-to-gateway', '--chain', chainName, '--gateway-chain-name', 'gateway'],
-                chainName,
-                'gateway_migration'
-            );
-
+                '--gateway-chain-name',
+                GATEWAY_CHAIN_NAME
+            ]);
             console.log(`✅ Successfully migrated chain ${chainName} to gateway`);
-        } finally {
-            // Always release the mutex
-            gatewayMutex.release();
-        }
+        });
     } catch (error) {
         console.error(`❌ Failed to migrate chain ${chainName} to gateway:`, error);
         throw error;
@@ -69,33 +87,17 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
     await waitForMigrationReadyForFinalize(chainName);
 
     try {
-        // Acquire mutex for finalizing gateway migration
-        console.log(`🔒 Acquiring mutex for finalizing gateway migration of ${chainName}...`);
-        await gatewayMutex.acquire();
-        console.log(`✅ Mutex acquired for finalizing gateway migration of ${chainName}`);
-
-        try {
-            await executeCommand(
-                'zkstack',
-                [
-                    'chain',
-                    'gateway',
-                    'finalize-chain-migration-to-gateway',
-                    '--chain',
-                    chainName,
-                    '--gateway-chain-name',
-                    'gateway',
-                    '--deploy-paymaster'
-                ],
+        await withGatewayMutex(chainName, 'finalizing gateway migration', async () => {
+            await runGatewayCommand(chainName, [
+                'finalize-chain-migration-to-gateway',
+                '--chain',
                 chainName,
-                'gateway_migration'
-            );
-
+                '--gateway-chain-name',
+                GATEWAY_CHAIN_NAME,
+                '--deploy-paymaster'
+            ]);
             console.log(`✅ Successfully finalized migration of chain ${chainName} to gateway`);
-        } finally {
-            // Always release the mutex
-            gatewayMutex.release();
-        }
+        });
     } catch (error) {
         console.error(`❌ Failed to finalize migration of chain ${chainName} to gateway:`, error);
         throw error;
@@ -109,36 +111,17 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
  * @returns Promise that resolves when set up of settlement fees is complete
  */
 export async function agreeToPaySettlementFees(chainName: string): Promise<void> {
-    const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
-
-    if (useGatewayChain !== 'WITH_GATEWAY') {
-        console.log(`⏭️ Skipping payment of settlement fees for ${chainName} (USE_GATEWAY_CHAIN=${useGatewayChain})`);
+    if (!shouldUseGatewayChain(chainName, 'payment of settlement fees')) {
         return;
     }
 
     console.log(`🔄 Setting up payment of settlement fees for ${chainName}...`);
 
     const pathToHome = findHome();
-    const gatewayGeneralConfig = loadConfig({
-        pathToHome,
-        chain: 'gateway',
-        config: 'general.yaml'
-    });
-    const genesisConfig = loadConfig({
-        pathToHome,
-        chain: chainName,
-        config: 'genesis.yaml'
-    });
-    const secretsConfig = loadConfig({
-        pathToHome,
-        chain: chainName,
-        config: 'secrets.yaml'
-    });
-    const walletsConfig = loadConfig({
-        pathToHome,
-        chain: chainName,
-        config: 'wallets.yaml'
-    });
+    const gatewayGeneralConfig = loadChainConfig(pathToHome, GATEWAY_CHAIN_NAME, 'general.yaml');
+    const genesisConfig = loadChainConfig(pathToHome, chainName, 'genesis.yaml');
+    const secretsConfig = loadChainConfig(pathToHome, chainName, 'secrets.yaml');
+    const walletsConfig = loadChainConfig(pathToHome, chainName, 'wallets.yaml');
 
     const l2ChainId = Number(genesisConfig?.l2_chain_id);
     const l1RpcUrl = secretsConfig.l1.l1_rpc_url;
@@ -163,26 +146,10 @@ export async function agreeToPaySettlementFees(chainName: string): Promise<void>
 
 function loadMigrationFinalizeCheckConfig(chainName: string) {
     const pathToHome = findHome();
-    const contractsConfig = loadConfig({
-        pathToHome,
-        chain: chainName,
-        config: 'contracts.yaml'
-    });
-    const secretsConfig = loadConfig({
-        pathToHome,
-        chain: chainName,
-        config: 'secrets.yaml'
-    });
-    const genesisConfig = loadConfig({
-        pathToHome,
-        chain: chainName,
-        config: 'genesis.yaml'
-    });
-    const gatewayContractsConfig = loadConfig({
-        pathToHome,
-        chain: 'gateway',
-        config: 'contracts.yaml'
-    });
+    const contractsConfig = loadChainConfig(pathToHome, chainName, 'contracts.yaml');
+    const secretsConfig = loadChainConfig(pathToHome, chainName, 'secrets.yaml');
+    const genesisConfig = loadChainConfig(pathToHome, chainName, 'genesis.yaml');
+    const gatewayContractsConfig = loadChainConfig(pathToHome, GATEWAY_CHAIN_NAME, 'contracts.yaml');
 
     const l1RpcUrl = secretsConfig?.l1?.l1_rpc_url;
     const gatewayRpcUrl = secretsConfig?.l1?.gateway_rpc_url;

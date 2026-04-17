@@ -1,8 +1,6 @@
-import * as path from 'path';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
-import { L1Token, getToken } from 'utils/src/tokens';
 
 export class Tester {
     public runningFee: Map<zksync.types.Address, bigint>;
@@ -10,17 +8,13 @@ export class Tester {
         public ethProvider: ethers.Provider,
         public ethWallet: ethers.Wallet,
         public syncWallet: zksync.Wallet,
-        public web3Provider: zksync.Provider,
-        public gwProvider: zksync.Provider,
-        public token: L1Token
+        public web3Provider: zksync.Provider
     ) {
         this.runningFee = new Map();
     }
 
     // prettier-ignore
-    static async init(ethProviderAddress: string, web3JsonRpc: string, gatewayRpcUrl: string) {
-        const pathToHome = path.join(__dirname, '../../../..');
-
+    static async init(ethProviderAddress: string, web3JsonRpc: string) {
         const ethProvider = new ethers.JsonRpcProvider(ethProviderAddress);
 
         const chainName = process.env.CHAIN_NAME!!;
@@ -29,8 +23,6 @@ export class Tester {
         ethWallet = ethWallet.connect(ethProvider);
         const web3Provider = new zksync.Provider(web3JsonRpc);
         web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
-        const gwProvider = new zksync.Provider(gatewayRpcUrl);
-        gwProvider.pollingInterval = 100;
         const syncWallet = new zksync.Wallet(ethWallet.privateKey, web3Provider, ethProvider);
 
 
@@ -53,11 +45,7 @@ export class Tester {
             console.log(`Canceled ${cancellationTxs.length} pending transactions`);
         }
 
-        const baseTokenAddress = await web3Provider.getBaseTokenContractAddress();
-
-        const { token, } = getToken(pathToHome, baseTokenAddress);
-
-        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, gwProvider, token);
+        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider);
     }
 
     emptyWallet() {
