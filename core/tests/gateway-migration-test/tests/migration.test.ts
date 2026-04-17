@@ -186,11 +186,6 @@ describe('Migration From/To gateway test', function () {
             'pausing deposits before initiating migration'
         );
 
-        let gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
-        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
-        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
-
-        // Wait until the priority queue is empty
         await waitForPriorityQueueToBeEmpty(direction);
     });
 
@@ -303,6 +298,9 @@ describe('Migration From/To gateway test', function () {
             gatewayInfo?.gatewayProvider
         );
 
+        let gwMainContractsAddress = await gatewayInfo?.gatewayProvider.getMainContractAddress()!;
+        gwMainContract = new ethers.Contract(gwMainContractsAddress, ZK_CHAIN_INTERFACE, tester.syncWallet.providerL1);
+
         let slAddressl1 = await l1MainContract.getSettlementLayer();
         let slAddressGW = await slMainContract.getSettlementLayer();
         if (direction == 'TO') {
@@ -385,7 +383,6 @@ describe('Migration From/To gateway test', function () {
             'pausing deposits before migrating back to gateway'
         );
 
-        // Wait until the priority queue is empty
         await waitForPriorityQueueToBeEmpty('TO');
 
         await zkstackExecWithMutex(
