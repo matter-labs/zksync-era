@@ -29,6 +29,13 @@ pub struct FinalizeChainMigrationToGatewayArgs {
     pub gateway_chain_name: String,
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub deploy_paymaster: Option<bool>,
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// Gateway RPC URL. If not provided, will be read from gateway chain's general config.
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
 }
 
 impl FinalizeChainMigrationToGatewayArgs {
@@ -43,6 +50,8 @@ impl FinalizeChainMigrationToGatewayArgs {
             forge_args: self.forge_args,
             gateway_chain_name: self.gateway_chain_name,
             deploy_paymaster,
+            l1_rpc_url: self.l1_rpc_url,
+            gateway_rpc_url: self.gateway_rpc_url,
         }
     }
 }
@@ -52,6 +61,8 @@ pub struct FinalizeChainMigrationToGatewayArgsFinal {
     pub forge_args: ForgeScriptArgs,
     pub gateway_chain_name: String,
     pub deploy_paymaster: bool,
+    pub l1_rpc_url: Option<String>,
+    pub gateway_rpc_url: Option<String>,
 }
 
 pub async fn run(args: FinalizeChainMigrationToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -90,7 +101,19 @@ pub async fn run_inner(
     chain_config: &ChainConfig,
     gateway_chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
-    let l1_rpc_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_rpc_url = match &args.l1_rpc_url {
+        Some(url) => url.clone(),
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
+
+    let gateway_rpc_url = match &args.gateway_rpc_url {
+        Some(url) => url.clone(),
+        None => {
+            let general_config = gateway_chain_config.get_general_config().await?;
+            general_config.l2_http_url()?
+        }
+    };
+
     let mut contracts_config = chain_config.get_contracts_config()?;
 
     // Sends the priority txs that were skipped when the chain was initialized
@@ -100,13 +123,20 @@ pub async fn run_inner(
         ecosystem_config,
         &mut contracts_config,
         &args.forge_args,
-        l1_rpc_url,
+        l1_rpc_url.clone(),
         args.deploy_paymaster,
     )
     .await?;
 
     // Set the DA validator pair on the Gateway
-    let context = get_migrate_to_gateway_context(chain_config, gateway_chain_config, true).await?;
+    let context = get_migrate_to_gateway_context(
+        chain_config,
+        gateway_chain_config,
+        true,
+        l1_rpc_url,
+        gateway_rpc_url,
+    )
+    .await?;
 
     let (_, l2_da_validator) = context.l1_zk_chain.get_da_validator_pair().await?;
     check_permanent_rollup_and_set_da_validator_via_gateway(
