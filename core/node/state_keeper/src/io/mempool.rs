@@ -649,6 +649,12 @@ impl MempoolIO {
             } else {
                 self.batch_fee_input_provider.get_interop_fee().await
             };
+            anyhow::ensure!(
+                interop_fee <= u64::MAX.into(),
+                "interop_fee for L1 batch #{} doesn't fit consensus u64 wire format: {}",
+                cursor.l1_batch,
+                interop_fee
+            );
 
             tracing::trace!(
                 "Fee input for L1 batch #{} is {:#?}",
