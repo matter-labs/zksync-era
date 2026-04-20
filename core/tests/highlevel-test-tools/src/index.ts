@@ -19,3 +19,4 @@ export { waitForAllBatchesToBeExecuted, generateRealisticLoad } from './wait-for
 export { TESTED_CHAIN_TYPE } from './chain-types';
 export { migrateToGatewayIfNeeded } from './gateway';
 export { getMainWalletPk } from './wallets';
+export { checkRpcHealth, isConnectionError, RpcHealthGuard, type HealthStatus } from './deadline';
