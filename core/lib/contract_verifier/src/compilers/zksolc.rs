@@ -12,7 +12,7 @@ use zksync_types::contract_verification::api::{
 
 use crate::{
     compilers::{
-        has_dangerous_imports, parse_standard_json_output, process_contract_name,
+        default_json_object, has_dangerous_imports, parse_standard_json_output, process_contract_name,
         sanitize_compiler_stderr, validate_source_paths, Source,
     },
     error::ContractVerifierError,
@@ -39,6 +39,9 @@ pub(crate) struct StandardJson {
     pub language: String,
     /// The input source code files hashmap.
     pub sources: HashMap<String, Source>,
+    /// Other root-level keys preserved from the original request.
+    #[serde(flatten, default = "default_json_object")]
+    pub other: serde_json::Value,
     /// The compiler settings.
     pub settings: Settings,
 }
@@ -52,10 +55,10 @@ pub(crate) struct Settings {
     /// The output selection filters.
     pub output_selection: Option<serde_json::Value>,
     /// Flag for system compilation mode.
-    #[serde(default)]
+    #[serde(rename = "enableEraVMExtensions", default)]
     pub is_system: bool,
     /// Flag to force `evmla` IR.
-    #[serde(default)]
+    #[serde(rename = "forceEVMLA", default)]
     pub force_evmla: bool,
     /// Other settings (only filled when parsing `StandardJson` input from the request).
     #[serde(flatten)]
@@ -132,13 +135,13 @@ impl ZkSolc {
     ) -> serde_json::Value {
         let mut output_selection = existing.unwrap_or_else(|| serde_json::json!({}));
 
-        Self::ensure_selector_outputs(&mut output_selection, "*", "*", &["abi", "evm.bytecode"]);
+        Self::ensure_selector_outputs(&mut output_selection, "*", "*", &["abi", "evm"]);
         Self::ensure_selector_outputs(&mut output_selection, "*", "", &["abi"]);
         Self::ensure_selector_outputs(
             &mut output_selection,
             file_name,
             contract_name,
-            &["abi", "evm.bytecode"],
+            &["abi", "evm"],
         );
 
         output_selection
@@ -180,6 +183,7 @@ impl ZkSolc {
                     input: StandardJson {
                         language: "Solidity".to_string(),
                         sources,
+                        other: default_json_object(),
                         settings,
                     },
                     contract_name,
@@ -470,13 +474,61 @@ mod tests {
             input.settings.output_selection,
             Some(serde_json::json!({
                 "*": {
-                    "*": ["storageLayout", "abi", "evm.bytecode"],
+                    "*": ["storageLayout", "abi", "evm"],
                     "": ["ast", "abi"]
                 },
                 "Counter.sol": {
-                    "Counter": ["abi", "evm.bytecode"]
+                    "Counter": ["abi", "evm"]
                 }
             }))
         );
+    }
+
+    #[test]
+    fn build_input_preserves_root_level_standard_json_fields() {
+        let req = VerificationIncomingRequest {
+            contract_address: Default::default(),
+            source_code_data: SourceCodeData::StandardJsonInput(
+                serde_json::json!({
+                    "language": "Solidity",
+                    "sources": {
+                        "Counter.sol": {
+                            "content": "contract Counter { function value() external pure returns (uint256) { return 1; } }",
+                        }
+                    },
+                    "suppressedErrors": ["sendtransfer"],
+                    "suppressedWarnings": ["txorigin"],
+                    "settings": {
+                        "outputSelection": {
+                            "*": {
+                                "*": ["abi"]
+                            }
+                        }
+                    }
+                })
+                .as_object()
+                .unwrap()
+                .clone(),
+            ),
+            contract_name: "Counter".to_owned(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_solc_version: "0.8.27".to_owned(),
+                compiler_zksolc_version: Some("1.5.4".to_owned()),
+            },
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: Default::default(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: Default::default(),
+        };
+
+        let ZkSolcInput::StandardJson { input, .. } = ZkSolc::build_input(req).unwrap() else {
+            panic!("expected standard-json input");
+        };
+        let serialized = serde_json::to_value(&input).unwrap();
+
+        assert_eq!(serialized["suppressedErrors"], serde_json::json!(["sendtransfer"]));
+        assert_eq!(serialized["suppressedWarnings"], serde_json::json!(["txorigin"]));
     }
 }

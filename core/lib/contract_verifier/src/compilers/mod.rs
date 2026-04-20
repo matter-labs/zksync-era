@@ -19,11 +19,17 @@ mod vyper;
 mod zksolc;
 mod zkvyper;
 
+fn default_json_object() -> Value {
+    serde_json::json!({})
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct StandardJson {
     pub language: String,
     pub sources: HashMap<String, Source>,
+    #[serde(flatten, default = "default_json_object")]
+    other: Value,
     #[serde(default)]
     settings: Settings,
 }
@@ -42,7 +48,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             output_selection: None,
-            other: serde_json::json!({}),
+            other: default_json_object(),
         }
     }
 }
