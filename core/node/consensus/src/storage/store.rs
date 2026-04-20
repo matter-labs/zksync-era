@@ -55,7 +55,7 @@ fn to_fetched_block(
         pubdata_limit: payload.pubdata_limit,
         interop_roots: payload.interop_roots.clone(),
         settlement_layer: payload.settlement_layer,
-        interop_fee: payload.interop_fee,
+        interop_fee: payload.interop_fee.map(Into::into),
     })
 }
 
