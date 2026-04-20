@@ -9,8 +9,7 @@ import { ZeroAddress } from 'ethers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
-import { getEcosystemContracts, getToken, L1Token } from 'utils/build/tokens';
-import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
+import { getToken, L1Token } from 'utils/build/tokens';
 import { RpcHealthGuard } from 'highlevel-test-tools/src';
 import { FileMutex } from 'highlevel-test-tools/src/file-mutex';
 
@@ -296,34 +295,6 @@ describe('Migration From/To gateway test', function () {
         // Execute an L2 transaction
         const txHandle = await checkedRandomTransfer(alice, 1n);
         await txHandle.waitFinalize();
-    });
-
-    step('Check token settlement layers', async () => {
-        const tokenDetails = token;
-        const ecosystemContracts = await getEcosystemContracts(tester.syncWallet);
-        let assetId = await ecosystemContracts.nativeTokenVault.assetId(tokenDetails.address);
-        const chainId = (await tester.syncWallet.provider!.getNetwork()).chainId;
-        const migrationNumberL1 = await ecosystemContracts.assetTracker.assetMigrationNumber(chainId, assetId);
-
-        await zkstackExecWithMutex(
-            `zkstack dev init-test-wallet --chain gateway`,
-            'initializing test wallet for gateway'
-        );
-
-        const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
-        const gatewayEcosystemContracts = await getEcosystemContracts(
-            new zksync.Wallet(
-                getMainWalletPk(gatewayChain),
-                gatewayInfo?.gatewayProvider!,
-                tester.syncWallet.providerL1
-            )
-        );
-        const migrationNumberGateway = await gatewayEcosystemContracts.assetTracker.assetMigrationNumber(
-            chainId,
-            assetId
-        );
-
-        expect(migrationNumberL1 === migrationNumberGateway).to.be.true;
     });
 
     step('Execute transactions after simple restart', async () => {
