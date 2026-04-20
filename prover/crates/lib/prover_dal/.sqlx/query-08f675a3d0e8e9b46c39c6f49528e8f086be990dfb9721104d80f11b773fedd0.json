@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            witness_inputs_fri (\n                l1_batch_number,\n                chain_id,\n                priority,\n                witness_inputs_blob_url,\n                protocol_version,\n                status,\n                created_at,\n                updated_at,\n                protocol_version_patch,\n                batch_sealed_at\n            )\n            VALUES\n            ($1, $2, $3, $4, $5, 'queued', NOW(), NOW(), $6, $7)\n            ON CONFLICT (l1_batch_number, chain_id) DO UPDATE\n            SET\n                updated_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Int4",
+        "Text",
+        "Int4",
+        "Int4",
+        "Timestamp"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "08f675a3d0e8e9b46c39c6f49528e8f086be990dfb9721104d80f11b773fedd0"
+}

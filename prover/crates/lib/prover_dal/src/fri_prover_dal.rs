@@ -24,7 +24,7 @@ use zksync_db_connection::{
     connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
 };
 
-use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
+use crate::{duration_to_naive_time, pg_interval_from_duration, priority_for_chain, Prover};
 
 /// Among the zoo of circuits each circuit type has its own peak RAM utilization,
 /// average execution time and proportional share. Here we pay attention to
@@ -63,9 +63,9 @@ pub struct FriProverDal<'a, 'c> {
 impl FriProverDal<'_, '_> {
     // Postgres has a limit of 65535 push_bind parameters per query.
     // We need to split the insert into chunks to avoid hitting this limit.
-    // A single row in insert_prover_jobs push_binds 10 parameters, therefore
-    // the limit is 65k / 10 ~ 6500 jobs chunk.
-    const INSERT_JOBS_CHUNK_SIZE: usize = 5400;
+    // A single row in insert_prover_jobs push_binds 13 parameters, therefore
+    // the limit is 65k / 13 ~ 5000 jobs per chunk.
+    const INSERT_JOBS_CHUNK_SIZE: usize = 5000;
 
     pub async fn insert_prover_jobs(
         &mut self,
@@ -80,7 +80,6 @@ impl FriProverDal<'_, '_> {
         if circuit_ids_sequence_numbers_and_urls.is_empty() {
             return;
         }
-
         for chunk in circuit_ids_sequence_numbers_and_urls.chunks(Self::INSERT_JOBS_CHUNK_SIZE) {
             // Build multi-row INSERT for the current chunk
             let mut query_builder = QueryBuilder::new(
@@ -88,6 +87,7 @@ impl FriProverDal<'_, '_> {
                 INSERT INTO prover_jobs_fri (
                     l1_batch_number,
                     chain_id,
+                    priority,
                     circuit_id,
                     circuit_blob_url,
                     aggregation_round,
@@ -109,6 +109,7 @@ impl FriProverDal<'_, '_> {
                 |mut row, (circuit_id, sequence_number, circuit_blob_url)| {
                     row.push_bind(batch_id.batch_number().0 as i64)
                         .push_bind(batch_id.chain_id().inner() as i64)
+                        .push_bind(priority_for_chain(batch_id.chain_id()))
                         .push_bind(*circuit_id as i16)
                         .push_bind(circuit_blob_url)
                         .push_bind(aggregation_round as i64)
@@ -129,7 +130,8 @@ impl FriProverDal<'_, '_> {
                 r#"
                 ON CONFLICT (l1_batch_number, chain_id, aggregation_round, circuit_id, depth, sequence_number)
                 DO UPDATE
-                SET updated_at = NOW()
+                SET
+                    updated_at = NOW()
                 "#,
             );
 
@@ -543,6 +545,7 @@ impl FriProverDal<'_, '_> {
             prover_jobs_fri (
                 l1_batch_number,
                 chain_id,
+                priority,
                 circuit_id,
                 circuit_blob_url,
                 aggregation_round,
@@ -557,7 +560,7 @@ impl FriProverDal<'_, '_> {
                 batch_sealed_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued', NOW(), NOW(), $10, $11)
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW(), $11, $12)
             ON CONFLICT (
                 l1_batch_number,
                 chain_id,
@@ -568,10 +571,11 @@ impl FriProverDal<'_, '_> {
             ) DO
             UPDATE
             SET
-            updated_at = NOW()
+                updated_at = NOW()
             "#,
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
+            priority_for_chain(batch_id.chain_id()),
             i16::from(circuit_id),
             circuit_blob_url,
             aggregation_round as i64,
@@ -1091,7 +1095,7 @@ mod tests {
         transaction
             .fri_basic_witness_generator_dal()
             .save_witness_inputs(
-                L1BatchId::from_raw(1, 1),
+                L1BatchId::from_raw(324, 1),
                 "",
                 ProtocolSemanticVersion::default(),
                 DateTime::<Utc>::default(),
@@ -1101,7 +1105,7 @@ mod tests {
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
-                L1BatchId::from_raw(1, 1),
+                L1BatchId::from_raw(324, 1),
                 mock_circuit_ids_and_urls(10000),
                 AggregationRound::Scheduler,
                 1,

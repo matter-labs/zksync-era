@@ -14,7 +14,7 @@ use zksync_db_connection::{
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
-use crate::{Prover, ProverDal};
+use crate::{priority_for_chain, Prover, ProverDal};
 
 #[derive(Debug)]
 pub struct FriLeafWitnessGeneratorDal<'a, 'c> {
@@ -269,6 +269,7 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
             leaf_aggregation_witness_jobs_fri (
                 l1_batch_number,
                 chain_id,
+                priority,
                 circuit_id,
                 closed_form_inputs_blob_url,
                 number_of_basic_circuits,
@@ -287,25 +288,27 @@ impl FriLeafWitnessGeneratorDal<'_, '_> {
                 $4,
                 $5,
                 $6,
+                $7,
                 'waiting_for_proofs',
                 NOW(),
                 NOW(),
-                $7,
-                $8
+                $8,
+                $9
             )
             ON CONFLICT (l1_batch_number, chain_id, circuit_id) DO
             UPDATE
             SET
-            updated_at = NOW()
+                updated_at = NOW()
             "#,
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
+            priority_for_chain(batch_id.chain_id()),
             i16::from(circuit_id),
             closed_form_inputs_url,
             number_of_basic_circuits as i32,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
-            batch_sealed_at.naive_utc()
+            batch_sealed_at.naive_utc(),
         )
         .execute(self.storage.conn())
         .await

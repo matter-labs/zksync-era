@@ -1,3 +1,4 @@
+use zksync_basic_types::L2ChainId;
 use zksync_db_connection::connection::DbMarker;
 pub use zksync_db_connection::{
     connection::Connection,
@@ -23,6 +24,20 @@ pub mod fri_proof_compressor_dal;
 pub mod fri_protocol_versions_dal;
 pub mod fri_prover_dal;
 pub mod fri_witness_generator_dal;
+
+const ERA_CHAIN_ID: u64 = 324;
+
+/// Returns the default prover job priority for a chain.
+///
+/// Era (chain `324`) is assigned priority `1`; all other chains keep the
+/// default priority `0`.
+pub(crate) fn priority_for_chain(chain_id: L2ChainId) -> i32 {
+    if chain_id.as_u64() == ERA_CHAIN_ID {
+        1
+    } else {
+        0
+    }
+}
 
 // This module is private and serves as a way to seal the trait.
 mod private {
