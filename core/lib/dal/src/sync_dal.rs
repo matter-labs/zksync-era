@@ -68,7 +68,10 @@ impl SyncDal<'_, '_> {
                 miniblocks.l2_da_validator_address,
                 miniblocks.l2_da_commitment_scheme,
                 miniblocks.pubdata_type AS "pubdata_type!",
-                l1_batches.pubdata_limit
+                l1_batches.pubdata_limit,
+                l1_batches.settlement_layer_type,
+                l1_batches.settlement_layer_chain_id,
+                l1_batches.interop_fee
             FROM
                 miniblocks
             INNER JOIN l1_batch ON true
@@ -140,7 +143,7 @@ mod tests {
     use zksync_types::{
         block::{L1BatchHeader, L2BlockHeader},
         settlement::SettlementLayer,
-        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
+        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction, U256,
     };
     use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
@@ -274,7 +277,15 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_l1_batch_as_sealed(&l1_batch_header, &[], &[], &[], Default::default(), 1)
+            .mark_l1_batch_as_sealed(
+                &l1_batch_header,
+                &[],
+                &[],
+                &[],
+                Default::default(),
+                1,
+                U256::zero(),
+            )
             .await
             .unwrap();
         conn.blocks_dal()
