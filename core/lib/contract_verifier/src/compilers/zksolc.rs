@@ -86,16 +86,68 @@ impl ZkSolc {
         }
     }
 
+    fn ensure_selector_outputs(
+        output_selection: &mut serde_json::Value,
+        file_selector: &str,
+        contract_selector: &str,
+        outputs: &[&str],
+    ) {
+        if !output_selection.is_object() {
+            *output_selection = serde_json::json!({});
+        }
+
+        let file_entry = output_selection
+            .as_object_mut()
+            .unwrap()
+            .entry(file_selector.to_owned())
+            .or_insert_with(|| serde_json::json!({}));
+        if !file_entry.is_object() {
+            *file_entry = serde_json::json!({});
+        }
+
+        let contract_entry = file_entry
+            .as_object_mut()
+            .unwrap()
+            .entry(contract_selector.to_owned())
+            .or_insert_with(|| serde_json::json!([]));
+        if !contract_entry.is_array() {
+            *contract_entry = serde_json::json!([]);
+        }
+
+        let selected_outputs = contract_entry.as_array_mut().unwrap();
+        for output in outputs {
+            if !selected_outputs
+                .iter()
+                .any(|value| value.as_str() == Some(output))
+            {
+                selected_outputs.push(serde_json::Value::String((*output).to_owned()));
+            }
+        }
+    }
+
+    fn required_output_selection(
+        existing: Option<serde_json::Value>,
+        file_name: &str,
+        contract_name: &str,
+    ) -> serde_json::Value {
+        let mut output_selection = existing.unwrap_or_else(|| serde_json::json!({}));
+
+        Self::ensure_selector_outputs(&mut output_selection, "*", "*", &["abi", "evm.bytecode"]);
+        Self::ensure_selector_outputs(&mut output_selection, "*", "", &["abi"]);
+        Self::ensure_selector_outputs(
+            &mut output_selection,
+            file_name,
+            contract_name,
+            &["abi", "evm.bytecode"],
+        );
+
+        output_selection
+    }
+
     pub fn build_input(
         req: VerificationIncomingRequest,
     ) -> Result<ZkSolcInput, ContractVerifierError> {
         let (file_name, contract_name) = process_contract_name(&req.contract_name, "sol");
-        let default_output_selection = serde_json::json!({
-            "*": {
-                "*": [ "abi" ],
-                 "": [ "abi" ]
-            }
-        });
 
         match req.source_code_data {
             SourceCodeData::SolSingleFile(source_code) => {
@@ -109,7 +161,11 @@ impl ZkSolc {
                 };
                 let sources = HashMap::from([(file_name.clone(), source)]);
                 let settings = Settings {
-                    output_selection: Some(default_output_selection),
+                    output_selection: Some(Self::required_output_selection(
+                        None,
+                        &file_name,
+                        &contract_name,
+                    )),
                     is_system: req.is_system,
                     force_evmla: req.force_evmla,
                     other: serde_json::json!({
@@ -142,8 +198,11 @@ impl ZkSolc {
                         ));
                     }
                 }
-                // Set default output selection even if it is different in request.
-                compiler_input.settings.output_selection = Some(default_output_selection);
+                compiler_input.settings.output_selection = Some(Self::required_output_selection(
+                    compiler_input.settings.output_selection.take(),
+                    &file_name,
+                    &contract_name,
+                ));
                 Ok(ZkSolcInput::StandardJson {
                     input: compiler_input,
                     contract_name,
@@ -324,6 +383,10 @@ impl Compiler<ZkSolcInput> for ZkSolc {
 mod tests {
     use std::path::PathBuf;
 
+    use zksync_types::contract_verification::api::{
+        CompilerVersions, SourceCodeData, VerificationIncomingRequest,
+    };
+
     use super::*;
 
     #[test]
@@ -356,5 +419,64 @@ mod tests {
 
         zksolc.zksolc_version = "v0.5.1".to_string();
         assert!(!zksolc.is_post_1_5_0(), "v0.5.1");
+    }
+
+    #[test]
+    fn build_input_preserves_existing_standard_json_output_selection() {
+        let req = VerificationIncomingRequest {
+            contract_address: Default::default(),
+            source_code_data: SourceCodeData::StandardJsonInput(
+                serde_json::json!({
+                    "language": "Solidity",
+                    "sources": {
+                        "Counter.sol": {
+                            "content": "contract Counter { function value() external pure returns (uint256) { return 1; } }",
+                        }
+                    },
+                    "settings": {
+                        "outputSelection": {
+                            "*": {
+                                "*": ["storageLayout"],
+                                "": ["ast"]
+                            },
+                            "Counter.sol": {
+                                "Counter": ["abi"]
+                            }
+                        }
+                    }
+                })
+                .as_object()
+                .unwrap()
+                .clone(),
+            ),
+            contract_name: "Counter".to_owned(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_solc_version: "0.8.27".to_owned(),
+                compiler_zksolc_version: Some("1.5.4".to_owned()),
+            },
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: Default::default(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: Default::default(),
+        };
+
+        let ZkSolcInput::StandardJson { input, .. } = ZkSolc::build_input(req).unwrap() else {
+            panic!("expected standard-json input");
+        };
+
+        assert_eq!(
+            input.settings.output_selection,
+            Some(serde_json::json!({
+                "*": {
+                    "*": ["storageLayout", "abi", "evm.bytecode"],
+                    "": ["ast", "abi"]
+                },
+                "Counter.sol": {
+                    "Counter": ["abi", "evm.bytecode"]
+                }
+            }))
+        );
     }
 }

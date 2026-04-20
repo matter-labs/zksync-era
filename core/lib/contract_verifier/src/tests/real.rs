@@ -525,7 +525,10 @@ async fn using_zksolc_with_abstract_contract(specify_contract_file: bool) {
     let err = compiler.compile(input).await.unwrap_err();
     assert_matches!(
         err,
-        ContractVerifierError::AbstractContract(name) if name == "ICounter"
+        ContractVerifierError::MissingCompilerOutput {
+            contract_name,
+            field_path: "/evm/bytecode/object",
+        } if contract_name == "ICounter"
     );
 }
 
