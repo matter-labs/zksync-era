@@ -12,12 +12,12 @@ use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     api::{
         self, AirbenderProof, AirbenderProofStatus, ChainAggProof, DataAvailabilityDetails,
-        GatewayMigrationStatus, L1ToL2TxsStatus, Log, TransactionDetailedResult,
+        GatewayMigrationStatus, L1ToL2TxsStatus, TransactionDetailedResult,
         TransactionExecutionInfo,
     },
     eth_sender::EthTxFinalityStatus,
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
-    web3::{Bytes, Index},
+    web3::{self, Bytes},
     L1BatchNumber, L2BlockNumber, L2ChainId,
 };
 use zksync_web3_decl::{error::Web3Error, types::H256};
@@ -322,35 +322,6 @@ impl UnstableNamespace {
             !has_uncommitted_batches && latest_sealed_matches_expected
         };
 
-        let settlement_layer = self.state.api_config.settlement_layer.settlement_layer();
-        let has_uncommitted_batches = connection
-            .blocks_dal()
-            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
-            .await
-            .map_err(DalError::generalize)?;
-        let latest_sealed_matches_expected = match (
-            latest_notification,
-            connection
-                .blocks_dal()
-                .get_latest_sealed_l1_batch_header()
-                .await
-                .map_err(DalError::generalize)?,
-        ) {
-            (Some(GatewayMigrationNotification::ToGateway), Some(header)) => {
-                header.settlement_layer.is_gateway()
-            }
-            (Some(GatewayMigrationNotification::FromGateway), Some(header)) => {
-                !header.settlement_layer.is_gateway()
-            }
-            (Some(_), None) => false,
-            (None, _) => true,
-        };
-        let all_batches_committed = if state == GatewayMigrationState::InProgress {
-            !has_uncommitted_batches
-        } else {
-            !has_uncommitted_batches && latest_sealed_matches_expected
-        };
-
         Ok(GatewayMigrationStatus {
             latest_notification,
             state,
@@ -403,16 +374,16 @@ impl UnstableNamespace {
     }
 }
 
-fn map_event(vm_event: VmEvent, tx_hash: H256) -> Log {
-    Log {
+fn map_event(vm_event: VmEvent, tx_hash: H256) -> api::Log {
+    api::Log {
         address: vm_event.address,
         topics: vm_event.indexed_topics,
-        data: Bytes::from(vm_event.value),
+        data: web3::Bytes::from(vm_event.value),
         block_hash: None,
         block_number: None,
         l1_batch_number: Some(U64::from(vm_event.location.0 .0)),
         transaction_hash: Some(tx_hash),
-        transaction_index: Some(Index::from(vm_event.location.1)),
+        transaction_index: Some(web3::Index::from(vm_event.location.1)),
         log_index: None,
         transaction_log_index: None,
         log_type: None,
