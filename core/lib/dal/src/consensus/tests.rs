@@ -12,7 +12,7 @@ use zksync_types::{
     commitment::{L2DACommitmentScheme, L2PubdataValidator, PubdataParams, PubdataType},
     web3::Bytes,
     Execute, ExecuteTransactionCommon, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId,
-    Transaction,
+    Transaction, U256,
 };
 
 use super::*;
@@ -89,7 +89,7 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
         interop_fee: if protocol_version < ProtocolVersionId::Version29 {
             None
         } else {
-            Some(rng.gen())
+            Some(U256::from_big_endian(&rng.gen::<[u8; 32]>()))
         },
     }
 }

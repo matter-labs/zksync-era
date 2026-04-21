@@ -183,11 +183,7 @@ impl SyncBlock {
             pubdata_limit: self.pubdata_limit,
             interop_roots: self.interop_roots,
             settlement_layer: Some(self.settlement_layer),
-            interop_fee: Some(
-                self.interop_fee
-                    .try_into()
-                    .expect("interop_fee doesn't fit consensus u64 wire format"),
-            ),
+            interop_fee: Some(self.interop_fee),
         }
     }
 }

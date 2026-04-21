@@ -84,12 +84,6 @@ impl WiringLayer for L1GasLayer {
             .base_token_ratio_provider
             .unwrap_or_else(|| Arc::<BaseTokenConversionRatio>::default());
 
-        if self.configured_interop_fee > u64::MAX.into() {
-            return Err(WiringError::Configuration(format!(
-                "configured_interop_fee={} doesn't fit consensus u64 wire format",
-                self.configured_interop_fee
-            )));
-        }
         let main_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             input.gas_adjuster.clone(),
             ratio_provider,
