@@ -57,3 +57,59 @@ export class RpcHealthGuard {
         return this.consecutiveFailures >= this.maxFailures ? 'dead' : 'failing';
     }
 }
+
+/**
+ * Polls `fn` until it returns a non-null/non-undefined value, or the deadline expires.
+ *
+ * @param fn - Async function that returns `T` when the condition is met, or `null`/`undefined` to keep waiting.
+ *             If `fn` throws, the error is logged and treated as "not ready yet" (retried).
+ *             However, connection errors (ECONNREFUSED etc.) are treated as fatal after 3 consecutive occurrences.
+ * @param opts.timeoutMs - Maximum wall-clock time to wait before throwing.
+ * @param opts.intervalMs - Sleep between polls (default 2000).
+ * @param opts.label - Human-readable context included in the timeout error.
+ * @param opts.failOnConnectionError - If true (default), connection errors abort after 3 consecutive occurrences.
+ * @returns The first non-null/non-undefined value returned by `fn`.
+ */
+export async function withDeadline<T>(
+    fn: () => Promise<T | null | undefined>,
+    opts: { timeoutMs: number; intervalMs?: number; label: string; failOnConnectionError?: boolean }
+): Promise<T> {
+    const { timeoutMs, intervalMs = 2000, label, failOnConnectionError = true } = opts;
+    const start = Date.now();
+    let consecutiveConnectionErrors = 0;
+
+    while (true) {
+        const elapsed = Date.now() - start;
+        if (elapsed >= timeoutMs) {
+            throw new Error(
+                `[withDeadline] ${label}: timed out after ${(elapsed / 1000).toFixed(1)}s (limit: ${(timeoutMs / 1000).toFixed(0)}s)`
+            );
+        }
+
+        try {
+            const result = await fn();
+            if (result !== null && result !== undefined) {
+                return result;
+            }
+            consecutiveConnectionErrors = 0;
+        } catch (error) {
+            if (failOnConnectionError && isConnectionError(error)) {
+                consecutiveConnectionErrors++;
+                if (consecutiveConnectionErrors >= 3) {
+                    throw new Error(
+                        `[withDeadline] ${label}: server unreachable (${consecutiveConnectionErrors} consecutive connection errors). Last error: ${error}`
+                    );
+                }
+                console.warn(
+                    `[withDeadline] ${label}: connection error (${consecutiveConnectionErrors}/3 before abort): ${error}`
+                );
+            } else {
+                consecutiveConnectionErrors = 0;
+                const remaining = ((timeoutMs - elapsed) / 1000).toFixed(0);
+                console.warn(`[withDeadline] ${label}: poll error (${remaining}s remaining): ${error}`);
+            }
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+}

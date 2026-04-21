@@ -10,7 +10,7 @@ import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
 import { getToken, L1Token } from 'utils/build/tokens';
-import { RpcHealthGuard } from 'highlevel-test-tools/src';
+import { waitForMigrationReadyForFinalize, RpcHealthGuard } from 'highlevel-test-tools/src';
 import { FileMutex } from 'highlevel-test-tools/src/file-mutex';
 
 async function logsPath(name: string): Promise<string> {
@@ -201,6 +201,14 @@ describe('Migration From/To gateway test', function () {
             await zkstackExecWithMutex(
                 `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`,
                 'gateway migration'
+            );
+
+            // Wait until the migration is ready to finalize without holding the mutex.
+            await waitForMigrationReadyForFinalize(fileConfig.chain!);
+
+            await zkstackExecWithMutex(
+                `zkstack chain gateway finalize-chain-migration-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain} --deploy-paymaster`,
+                'finalizing gateway migration'
             );
         } else {
             let migrationSucceeded = false;
