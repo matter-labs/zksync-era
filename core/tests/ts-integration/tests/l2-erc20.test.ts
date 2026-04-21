@@ -123,12 +123,10 @@ describe('L2 native ERC20 contract checks', () => {
             return;
         }
 
-        if (process.env.USE_GATEWAY_CHAIN !== 'WITH_GATEWAY') {
-            const tokenAddressOnL1 = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
-            if (tokenAddressOnL1 === ethers.ZeroAddress) {
-                const registerTx = await l2NativeTokenVault.registerToken(await aliceErc20.getAddress());
-                await registerTx.wait();
-            }
+        const tokenAddressOnL1 = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
+        if (tokenAddressOnL1 === ethers.ZeroAddress) {
+            const registerTx = await l2NativeTokenVault.registerToken(await aliceErc20.getAddress());
+            await registerTx.wait();
         }
         const amount = 10n;
 
