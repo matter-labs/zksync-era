@@ -12,8 +12,8 @@ use zksync_types::contract_verification::api::{
 
 use crate::{
     compilers::{
-        default_json_object, has_dangerous_imports, parse_standard_json_output, process_contract_name,
-        sanitize_compiler_stderr, validate_source_paths, Source,
+        default_json_object, has_dangerous_imports, parse_standard_json_output,
+        process_contract_name, sanitize_compiler_stderr, validate_source_paths, Source,
     },
     error::ContractVerifierError,
     resolver::{Compiler, CompilerPaths},
@@ -528,7 +528,13 @@ mod tests {
         };
         let serialized = serde_json::to_value(&input).unwrap();
 
-        assert_eq!(serialized["suppressedErrors"], serde_json::json!(["sendtransfer"]));
-        assert_eq!(serialized["suppressedWarnings"], serde_json::json!(["txorigin"]));
+        assert_eq!(
+            serialized["suppressedErrors"],
+            serde_json::json!(["sendtransfer"])
+        );
+        assert_eq!(
+            serialized["suppressedWarnings"],
+            serde_json::json!(["txorigin"])
+        );
     }
 }
