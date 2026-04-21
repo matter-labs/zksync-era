@@ -344,11 +344,18 @@ impl SandboxExecutor {
             tracing::debug!("Resolved block numbers (took {resolve_time:?})");
         }
 
+        let interop_fee_fallback = self.options.interop_fee_fallback().await;
         let env = match action {
             SandboxAction::Execution { fee_input, tx } => {
                 self.options
                     .eth_call
-                    .to_execute_env(&mut connection, resolved_block_info, *fee_input, tx)
+                    .to_execute_env(
+                        &mut connection,
+                        resolved_block_info,
+                        *fee_input,
+                        tx,
+                        interop_fee_fallback,
+                    )
                     .await?
             }
             &SandboxAction::Call {
@@ -363,6 +370,7 @@ impl SandboxExecutor {
                         resolved_block_info,
                         fee_input,
                         enforced_base_fee,
+                        interop_fee_fallback,
                     )
                     .await?
             }
@@ -373,7 +381,13 @@ impl SandboxExecutor {
             } => {
                 self.options
                     .estimate_gas
-                    .to_env(&mut connection, resolved_block_info, fee_input, base_fee)
+                    .to_env(
+                        &mut connection,
+                        resolved_block_info,
+                        fee_input,
+                        base_fee,
+                        interop_fee_fallback,
+                    )
                     .await?
             }
         };

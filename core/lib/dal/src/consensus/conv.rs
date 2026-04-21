@@ -315,8 +315,16 @@ impl ProtoFmt for Payload {
             },
             pubdata_limit: self.pubdata_limit,
             interop_roots: self.interop_roots.iter().map(ProtoRepr::build).collect(),
-            settlement_layer: self.settlement_layer.as_ref().map(ProtoRepr::build),
-            interop_fee: self.interop_fee,
+            settlement_layer: if self.protocol_version < ProtocolVersionId::Version31 {
+                None
+            } else {
+                self.settlement_layer.as_ref().map(ProtoRepr::build)
+            },
+            interop_fee: if self.protocol_version < ProtocolVersionId::Version31 {
+                None
+            } else {
+                self.interop_fee
+            },
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {

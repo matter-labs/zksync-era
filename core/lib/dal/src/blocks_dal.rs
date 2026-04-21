@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    convert::{Into, TryInto},
+    convert::{Into, TryFrom, TryInto},
     ops,
     sync::atomic::{AtomicBool, Ordering},
 };
@@ -24,6 +24,7 @@ use zksync_types::{
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
+    settlement::SettlementLayer,
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
@@ -32,14 +33,16 @@ use zksync_vm_interface::CircuitStatistic;
 pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptionalMetadata};
 use crate::{
     models::{
-        parse_protocol_version,
+        bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
-            CommonStorageL1BatchHeader, StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader,
-            StoragePubdataParams, UnsealedStorageL1Batch,
+            from_settlement_layer, CommonStorageL1BatchHeader, StorageL1Batch,
+            StorageL1BatchHeader, StorageL2BlockHeader, StoragePubdataParams,
+            UnsealedStorageL1Batch,
         },
         storage_eth_tx::L2BlockWithEthTx,
         storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
+        u256_to_big_decimal,
     },
     Core, CoreDal,
 };
@@ -47,6 +50,10 @@ use crate::{
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
+}
+
+pub struct L2ToL1Messages {
+    l2_to_l1_messages: Vec<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -176,7 +183,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                interop_fee,
+                pubdata_limit,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM
                 l1_batches
             ORDER BY
@@ -192,7 +202,10 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        Ok(Some(header.into()))
+        let header: CommonL1BatchHeader = header.try_into().map_err(|err: anyhow::Error| {
+            Instrumented::new("get_latest_l1_batch_header").constraint_error(err)
+        })?;
+        Ok(Some(header))
     }
 
     /// Returns common L1 batch's header (could be unsealed) by L1 batch number. The header contains fields that are
@@ -201,6 +214,8 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<CommonL1BatchHeader>> {
+        let instrumentation =
+            Instrumented::new("get_common_l1_batch_header").with_arg("number", &number);
         let Some(header) = sqlx::query_as!(
             CommonStorageL1BatchHeader,
             r#"
@@ -213,7 +228,11 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                interop_fee,
+                pubdata_limit,
+                settlement_layer_type,
+                settlement_layer_chain_id
+            
             FROM
                 l1_batches
             WHERE number = $1
@@ -227,7 +246,45 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        Ok(Some(header.into()))
+        let header: CommonL1BatchHeader = header
+            .try_into()
+            .map_err(|err: anyhow::Error| instrumentation.constraint_error(err))?;
+        Ok(Some(header))
+    }
+
+    pub async fn get_l1_batch_interop_fee_if_sealed(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<U256>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                interop_fee
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+                AND is_sealed
+            "#,
+            i64::from(number.0),
+        )
+        .instrument("get_l1_batch_interop_fee_if_sealed")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        let interop_fee = row.map(|row| bigdecimal_to_u256(row.interop_fee));
+        Ok(interop_fee)
+    }
+
+    /// Returns latest sealed L1 batch header. Returns `None` if there are no sealed batches.
+    pub async fn get_latest_sealed_l1_batch_header(
+        &mut self,
+    ) -> DalResult<Option<CommonL1BatchHeader>> {
+        let Some(number) = self.get_sealed_l1_batch_number().await? else {
+            return Ok(None);
+        };
+        self.get_common_l1_batch_header(number).await
     }
 
     pub async fn get_sealed_l2_block_number(&mut self) -> DalResult<Option<L2BlockNumber>> {
@@ -601,7 +658,11 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                interop_fee,
+                pubdata_limit,
+                settlement_layer_type,
+                settlement_layer_chain_id
+            
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -624,6 +685,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<L1BatchHeader>> {
+        let instrumentation = Instrumented::new("get_l1_batch_header").with_arg("number", &number);
         let storage_l1_batch_header = sqlx::query_as!(
             StorageL1BatchHeader,
             r#"
@@ -646,7 +708,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                interop_fee,
+                pubdata_limit,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM
                 l1_batches
             WHERE
@@ -665,7 +730,9 @@ impl BlocksDal<'_, '_> {
                 .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(number)
                 .await?;
             return Ok(Some(
-                storage_l1_batch_header.into_l1_batch_header_with_logs(l2_to_l1_logs),
+                storage_l1_batch_header
+                    .into_l1_batch_header_with_logs(l2_to_l1_logs)
+                    .map_err(|err| instrumentation.constraint_error(err))?,
             ));
         }
 
@@ -992,7 +1059,12 @@ impl BlocksDal<'_, '_> {
         unsealed_batch_header: UnsealedL1BatchHeader,
         conn: &mut Connection<'_, Core>,
     ) -> DalResult<()> {
-        sqlx::query!(
+        let instrumentation =
+            Instrumented::new("insert_l1_batch").with_arg("number", &unsealed_batch_header.number);
+        let (settlement_layer_type, settlement_layer_chain_id) =
+            from_settlement_layer(&unsealed_batch_header.settlement_layer);
+
+        let query = sqlx::query!(
             r#"
             INSERT INTO
             l1_batches (
@@ -1003,6 +1075,7 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
+                interop_fee,
                 pubdata_limit,
                 l1_tx_count,
                 l2_tx_count,
@@ -1012,7 +1085,9 @@ impl BlocksDal<'_, '_> {
                 used_contract_hashes,
                 created_at,
                 updated_at,
-                is_sealed
+                is_sealed,
+                settlement_layer_type,
+                settlement_layer_chain_id
             )
             VALUES
             (
@@ -1024,6 +1099,7 @@ impl BlocksDal<'_, '_> {
                 $6,
                 $7,
                 $8,
+                $9,
                 0,
                 0,
                 ''::bytea,
@@ -1032,7 +1108,9 @@ impl BlocksDal<'_, '_> {
                 '{}'::jsonb,
                 NOW(),
                 NOW(),
-                FALSE
+                FALSE,
+                $10,
+                $11
             )
             "#,
             i64::from(unsealed_batch_header.number.0),
@@ -1042,12 +1120,12 @@ impl BlocksDal<'_, '_> {
             unsealed_batch_header.fee_input.l1_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_l2_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_pubdata_price() as i64,
+            u256_to_big_decimal(unsealed_batch_header.interop_fee),
             unsealed_batch_header.pubdata_limit.map(|l| l as i64),
-        )
-        .instrument("insert_l1_batch")
-        .with_arg("number", &unsealed_batch_header.number)
-        .execute(conn)
-        .await?;
+            settlement_layer_type,
+            settlement_layer_chain_id
+        );
+        instrumentation.with(query).execute(conn).await?;
         Ok(())
     }
 
@@ -1159,6 +1237,7 @@ impl BlocksDal<'_, '_> {
     /// Marks provided L1 batch as sealed and populates it with all the runtime information.
     ///
     /// Errors if the batch does not exist.
+    #[allow(clippy::too_many_arguments)]
     pub async fn mark_l1_batch_as_sealed(
         &mut self,
         header: &L1BatchHeader,
@@ -1167,6 +1246,7 @@ impl BlocksDal<'_, '_> {
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
         bytes_per_blob: u64,
+        interop_fee: U256,
     ) -> anyhow::Result<()> {
         let initial_bootloader_contents_len = initial_bootloader_contents.len();
         let instrumentation = Instrumented::new("mark_l1_batch_as_sealed")
@@ -1199,6 +1279,7 @@ impl BlocksDal<'_, '_> {
             .map(|input| input.len() as u64)
             .unwrap_or(0)
             .div_ceil(bytes_per_blob);
+        let interop_fee = u256_to_big_decimal(interop_fee);
 
         let query = sqlx::query!(
             r#"
@@ -1221,6 +1302,7 @@ impl BlocksDal<'_, '_> {
                 pubdata_input = $16,
                 predicted_circuits_by_type = $17,
                 blobs_amount = $18,
+                interop_fee = $19,
                 updated_at = NOW(),
                 sealed_at = NOW(),
                 is_sealed = TRUE
@@ -1249,6 +1331,7 @@ impl BlocksDal<'_, '_> {
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
             blobs_amount as i64,
+            interop_fee,
         );
         let update_result = instrumentation.with(query).execute(self.storage).await?;
 
@@ -1292,6 +1375,7 @@ impl BlocksDal<'_, '_> {
     async fn get_unsealed_l1_batch_inner(
         conn: &mut Connection<'_, Core>,
     ) -> DalResult<Option<UnsealedL1BatchHeader>> {
+        let instrumentation = Instrumented::new("get_unsealed_l1_batch");
         let batch = sqlx::query_as!(
             UnsealedStorageL1Batch,
             r#"
@@ -1303,7 +1387,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                interop_fee,
+                pubdata_limit,
+                settlement_layer_type,
+                settlement_layer_chain_id
             FROM (
                 SELECT
                     number,
@@ -1313,8 +1400,11 @@ impl BlocksDal<'_, '_> {
                     l1_gas_price,
                     l2_fair_gas_price,
                     fair_pubdata_price,
+                    interop_fee,
                     pubdata_limit,
-                    is_sealed
+                    is_sealed,
+                    settlement_layer_type,
+                    settlement_layer_chain_id
                 FROM l1_batches
                 ORDER BY number DESC
                 LIMIT 1
@@ -1326,7 +1416,10 @@ impl BlocksDal<'_, '_> {
         .fetch_optional(conn)
         .await?;
 
-        Ok(batch.map(|b| b.into()))
+        batch
+            .map(UnsealedL1BatchHeader::try_from)
+            .transpose()
+            .map_err(|err| instrumentation.constraint_error(err))
     }
 
     pub async fn insert_l2_block(&mut self, l2_block_header: &L2BlockHeader) -> DalResult<()> {
@@ -1755,7 +1848,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                interop_fee,
+                pubdata_limit,
+                settlement_layer_chain_id,
+                settlement_layer_type
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1949,7 +2045,7 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-            WHERE "#, 
+            WHERE "#,
             _,
             r#" ORDER BY
                 number DESC
@@ -2016,7 +2112,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                interop_fee,
+                pubdata_limit,
+                settlement_layer_chain_id,
+                settlement_layer_type
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2109,7 +2208,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                interop_fee,
+                pubdata_limit,
+                settlement_layer_chain_id,
+                settlement_layer_type
             FROM
                 (
                     SELECT
@@ -2193,7 +2295,10 @@ impl BlocksDal<'_, '_> {
                         l1_gas_price,
                         l2_fair_gas_price,
                         fair_pubdata_price,
-                        pubdata_limit
+                        interop_fee,
+                        pubdata_limit,
+                        settlement_layer_chain_id,
+                        settlement_layer_type
                     FROM
                         l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2399,7 +2504,10 @@ impl BlocksDal<'_, '_> {
                     l1_gas_price,
                     l2_fair_gas_price,
                     fair_pubdata_price,
-                    pubdata_limit
+                    interop_fee,
+                    pubdata_limit,
+                    settlement_layer_chain_id,
+                    settlement_layer_type
                 FROM
                     l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2476,7 +2584,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                interop_fee,
+                pubdata_limit,
+                settlement_layer_chain_id,
+                settlement_layer_type
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2567,7 +2678,10 @@ impl BlocksDal<'_, '_> {
                 l1_gas_price,
                 l2_fair_gas_price,
                 fair_pubdata_price,
-                pubdata_limit
+                interop_fee,
+                pubdata_limit,
+                settlement_layer_chain_id,
+                settlement_layer_type
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2918,6 +3032,8 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<L1BatchWithOptionalMetadata>> {
+        let instrumentation =
+            Instrumented::new("get_optional_l1_batch_metadata").with_arg("number", &number);
         let Some(l1_batch) = self.get_storage_l1_batch(number).await? else {
             return Ok(None);
         };
@@ -2928,7 +3044,8 @@ impl BlocksDal<'_, '_> {
         Ok(Some(L1BatchWithOptionalMetadata {
             header: l1_batch
                 .clone()
-                .into_l1_batch_header_with_logs(l2_to_l1_logs),
+                .into_l1_batch_header_with_logs(l2_to_l1_logs)
+                .map_err(|err| instrumentation.constraint_error(err))?,
             metadata: l1_batch.try_into(),
         }))
     }
@@ -2966,21 +3083,22 @@ impl BlocksDal<'_, '_> {
         &mut self,
         storage_batch: StorageL1Batch,
     ) -> DalResult<Option<L1BatchWithMetadata>> {
-        let unsorted_factory_deps = self
-            .get_l1_batch_factory_deps(L1BatchNumber(storage_batch.number as u32))
-            .await?;
+        let l1_batch_number = L1BatchNumber(storage_batch.number as u32);
+        let instrumentation =
+            Instrumented::new("map_storage_l1_batch").with_arg("number", &l1_batch_number);
+        let unsorted_factory_deps = self.get_l1_batch_factory_deps(l1_batch_number).await?;
 
         let l2_to_l1_logs = self
-            .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(L1BatchNumber(
-                storage_batch.number as u32,
-            ))
+            .get_l2_to_l1_logs_for_batch::<UserL2ToL1Log>(l1_batch_number)
             .await?;
 
         let Ok(metadata) = storage_batch.clone().try_into() else {
             return Ok(None);
         };
 
-        let header: L1BatchHeader = storage_batch.into_l1_batch_header_with_logs(l2_to_l1_logs);
+        let header: L1BatchHeader = storage_batch
+            .into_l1_batch_header_with_logs(l2_to_l1_logs)
+            .map_err(|err| instrumentation.constraint_error(err))?;
 
         let raw_published_bytecode_hashes = self
             .storage
@@ -3194,6 +3312,46 @@ impl BlocksDal<'_, '_> {
         .unwrap_or(0);
 
         Ok(count != 0)
+    }
+
+    /// Returns `true` if there is any batch on the provided settlement layer that isn't fully committed yet.
+    /// This includes unsealed batches and sealed batches without a finalized commit tx.
+    pub async fn has_uncommitted_batches_on_settlement_layer(
+        &mut self,
+        settlement_layer: &SettlementLayer,
+    ) -> DalResult<bool> {
+        let (settlement_layer_type, settlement_layer_chain_id) =
+            from_settlement_layer(settlement_layer);
+        let has_uncommitted_batches = sqlx::query_scalar!(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                FROM l1_batches
+                WHERE
+                    number > 0
+                    AND settlement_layer_type = $1
+                    AND settlement_layer_chain_id = $2
+                    AND (
+                        eth_commit_tx_id IS NULL
+                        OR NOT EXISTS (
+                            SELECT 1 FROM eth_txs_history
+                            WHERE eth_tx_id = l1_batches.eth_commit_tx_id
+                                AND finality_status = 'finalized'
+                        )
+                    )
+            )
+            "#,
+            settlement_layer_type.as_str(),
+            settlement_layer_chain_id
+        )
+        .instrument("has_uncommitted_batches_on_settlement_layer")
+        .with_arg("settlement_layer_type", &settlement_layer_type)
+        .with_arg("settlement_layer_chain_id", &settlement_layer_chain_id)
+        .fetch_one(self.storage)
+        .await?
+        .unwrap_or_default();
+
+        Ok(has_uncommitted_batches)
     }
 
     // methods used for measuring Eth tx stage transition latencies
@@ -3562,6 +3720,58 @@ impl BlocksDal<'_, '_> {
         Ok(results.into_iter().map(L::from).collect())
     }
 
+    pub(crate) async fn get_l2_to_l1_messages_for_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Vec<Vec<u8>>> {
+        let results = sqlx::query_as!(
+            L2ToL1Messages,
+            r#"
+            SELECT
+                l2_to_l1_messages
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_l2_to_l1_messages_by_number")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_all(self.storage)
+        .await?;
+
+        let messages = results
+            .into_iter()
+            .flat_map(|record| record.l2_to_l1_messages)
+            .collect::<Vec<Vec<u8>>>();
+
+        Ok(messages)
+    }
+
+    pub async fn get_message_root(&mut self, l1_batch_number: L1BatchNumber) -> DalResult<H256> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                aggregation_root
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(l1_batch_number.0)
+        )
+        .instrument("get_aggregation_root")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row
+            .and_then(|row| row.aggregation_root)
+            .map(|root| H256::from_slice(&root))
+            .unwrap_or_default())
+    }
+
     pub async fn has_l2_block_bloom(&mut self, l2_block_number: L2BlockNumber) -> DalResult<bool> {
         let row = sqlx::query!(
             r#"
@@ -3711,7 +3921,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
         self.insert_l1_batch(header.to_unsealed_header()).await?;
-        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1)
+        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1, U256::zero())
             .await
     }
 
@@ -3779,8 +3989,8 @@ impl BlocksDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        aggregated_operations::AggregatedActionType, tx::IncludedTxLocation, Address,
-        ProtocolVersion,
+        aggregated_operations::AggregatedActionType, eth_sender::EthTxFinalityStatus,
+        tx::IncludedTxLocation, Address, ProtocolVersion,
     };
 
     use super::*;
@@ -3792,7 +4002,7 @@ mod tests {
     async fn save_mock_eth_tx(
         action_type: L1BatchAggregatedActionType,
         conn: &mut Connection<'_, Core>,
-    ) {
+    ) -> u32 {
         conn.eth_sender_dal()
             .save_eth_tx(
                 1,
@@ -3805,7 +4015,8 @@ mod tests {
                 false,
             )
             .await
-            .unwrap();
+            .unwrap()
+            .id
     }
 
     fn mock_l1_batch_header() -> L1BatchHeader {
@@ -3997,5 +4208,96 @@ mod tests {
             .await
             .unwrap()
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn has_uncommitted_batches_ignores_genesis_batch() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let genesis_header = create_l1_batch_header(0);
+        insert_mock_l1_batch_header(&mut conn, &genesis_header).await;
+
+        let settlement_layer = SettlementLayer::for_tests();
+        let has_uncommitted = conn
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .unwrap();
+        assert!(
+            !has_uncommitted,
+            "genesis batch must not be considered uncommitted for migration checks"
+        );
+
+        let regular_batch_header = create_l1_batch_header(1);
+        insert_mock_l1_batch_header(&mut conn, &regular_batch_header).await;
+
+        let has_uncommitted = conn
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .unwrap();
+        assert!(
+            has_uncommitted,
+            "non-genesis uncommitted batch should be detected"
+        );
+    }
+
+    #[tokio::test]
+    async fn has_uncommitted_batches_ignores_batches_with_finalized_commit_tx() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let regular_batch_header = create_l1_batch_header(1);
+        insert_mock_l1_batch_header(&mut conn, &regular_batch_header).await;
+
+        // Create an unrelated tx first to ensure `eth_txs.id` and `eth_txs_history.id` diverge.
+        save_mock_eth_tx(L1BatchAggregatedActionType::Commit, &mut conn).await;
+        let commit_eth_tx_id =
+            save_mock_eth_tx(L1BatchAggregatedActionType::Commit, &mut conn).await;
+        conn.blocks_dal()
+            .set_eth_tx_id_for_l1_batches(
+                L1BatchNumber(1)..=L1BatchNumber(1),
+                commit_eth_tx_id,
+                AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit),
+            )
+            .await
+            .unwrap();
+
+        let tx_hash = H256::repeat_byte(0x11);
+        let tx_history_id = conn
+            .eth_sender_dal()
+            .insert_tx_history(commit_eth_tx_id, 1, 1, None, None, tx_hash, &[0u8], 1, None)
+            .await
+            .unwrap();
+        assert!(
+            tx_history_id.is_some(),
+            "tx history row should be inserted for the commit tx"
+        );
+        conn.eth_sender_dal()
+            .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::from(1u64))
+            .await
+            .unwrap();
+
+        let settlement_layer = SettlementLayer::for_tests();
+        let has_uncommitted = conn
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .unwrap();
+        assert!(
+            !has_uncommitted,
+            "batch with finalized commit tx should not be considered uncommitted"
+        );
     }
 }
