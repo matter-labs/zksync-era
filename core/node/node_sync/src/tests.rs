@@ -71,11 +71,9 @@ impl MockMainNodeClient {
             virtual_blocks: Some(0),
             hash: Some(snapshot.l2_block_hash),
             protocol_version: ProtocolVersionId::latest(),
-            pubdata_params: Some(PubdataParams::genesis()),
+            pubdata_params: Default::default(),
             pubdata_limit: Some(100_000),
             interop_roots: Some(vec![]),
-            settlement_layer: Some(SettlementLayer::for_tests()),
-            interop_fee: Some(U256::zero()),
         };
 
         Self {

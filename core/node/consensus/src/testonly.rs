@@ -45,7 +45,7 @@ use zksync_types::{
     commitment::PubdataParams,
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    settlement::{SettlementLayer, WorkingSettlementLayer},
+    settlement::SettlementLayer,
     Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
     Transaction, U256,
 };
@@ -595,7 +595,7 @@ impl StateKeeperRunner {
                     &contracts_config.l1_specific_contracts(),
                     &contracts_config.l2_contracts(),
                     &genesis_config,
-                    WorkingSettlementLayer::for_tests(),
+                    SettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)
@@ -691,7 +691,7 @@ impl StateKeeperRunner {
                     &contracts_config.l1_specific_contracts(),
                     &contracts_config.l2_contracts(),
                     &genesis_config,
-                    WorkingSettlementLayer::for_tests(),
+                    SettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)

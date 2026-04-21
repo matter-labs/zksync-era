@@ -54,8 +54,6 @@ fn to_fetched_block(
             .collect(),
         pubdata_limit: payload.pubdata_limit,
         interop_roots: payload.interop_roots.clone(),
-        settlement_layer: payload.settlement_layer,
-        interop_fee: payload.interop_fee,
     })
 }
 

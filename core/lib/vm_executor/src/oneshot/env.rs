@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{OneshotEnv, TxExecutionMode};
-use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId, U256};
+use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId};
 
 use super::{
     BaseSystemContractsProvider, CallOrExecute, ContractsKind, EstimateGas, ResolvedBlockInfo,
@@ -52,7 +52,6 @@ impl OneshotEnvParameters<EstimateGas> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         base_fee: u64,
-        interop_fee_fallback: U256,
     ) -> anyhow::Result<OneshotEnv> {
         self.to_env_inner(
             connection,
@@ -60,7 +59,6 @@ impl OneshotEnvParameters<EstimateGas> {
             resolved_block_info,
             fee_input,
             Some(base_fee),
-            interop_fee_fallback,
         )
         .await
     }
@@ -74,7 +72,6 @@ impl OneshotEnvParameters<CallOrExecute> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
-        interop_fee_fallback: U256,
     ) -> anyhow::Result<OneshotEnv> {
         self.to_env_inner(
             connection,
@@ -82,7 +79,6 @@ impl OneshotEnvParameters<CallOrExecute> {
             resolved_block_info,
             fee_input,
             enforced_base_fee,
-            interop_fee_fallback,
         )
         .await
     }
@@ -94,7 +90,6 @@ impl OneshotEnvParameters<CallOrExecute> {
         resolved_block_info: &ResolvedBlockInfo,
         fee_input: BatchFeeInput,
         tx: &L2Tx,
-        interop_fee_fallback: U256,
     ) -> anyhow::Result<OneshotEnv> {
         self.to_env_inner(
             connection,
@@ -102,7 +97,6 @@ impl OneshotEnvParameters<CallOrExecute> {
             resolved_block_info,
             fee_input,
             Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
-            interop_fee_fallback,
         )
         .await
     }

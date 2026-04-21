@@ -1,6 +1,5 @@
 use std::{convert::TryInto, str::FromStr};
 
-use anyhow::{anyhow, bail};
 use bigdecimal::{BigDecimal, ToPrimitive};
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use thiserror::Error;
@@ -15,10 +14,8 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     settlement::SettlementLayer,
-    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
-
-use crate::models::bigdecimal_to_u256;
 
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
 pub(crate) const LEGACY_BLOCK_GAS_LIMIT: u32 = u32::MAX;
@@ -65,18 +62,15 @@ pub(crate) struct StorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
-    pub interop_fee: BigDecimal,
 
     pub pubdata_limit: Option<i64>,
-    pub settlement_layer_chain_id: i64,
-    pub settlement_layer_type: String,
 }
 
 impl StorageL1BatchHeader {
     pub fn into_l1_batch_header_with_logs(
         self,
         l2_to_l1_logs: Vec<UserL2ToL1Log>,
-    ) -> anyhow::Result<L1BatchHeader> {
+    ) -> L1BatchHeader {
         let priority_ops_onchain_data: Vec<_> = self
             .priority_ops_onchain_data
             .into_iter()
@@ -93,9 +87,7 @@ impl StorageL1BatchHeader {
             self.fair_pubdata_price.map(|p| p as u64),
         );
 
-        let settlement_layer =
-            to_settlement_layer(self.settlement_layer_type, self.settlement_layer_chain_id)?;
-        Ok(L1BatchHeader {
+        L1BatchHeader {
             number: L1BatchNumber(self.number as u32),
             timestamp: self.timestamp as u64,
             priority_ops_onchain_data,
@@ -119,10 +111,10 @@ impl StorageL1BatchHeader {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
-            interop_fee: bigdecimal_to_u256(self.interop_fee),
+            interop_fee: U256::zero(),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
-            settlement_layer,
-        })
+            settlement_layer: SettlementLayer::default(),
+        }
     }
 }
 
@@ -193,18 +185,15 @@ pub(crate) struct StorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
-    pub interop_fee: BigDecimal,
 
     pub pubdata_limit: Option<i64>,
-    pub settlement_layer_chain_id: i64,
-    pub settlement_layer_type: String,
 }
 
 impl StorageL1Batch {
     pub fn into_l1_batch_header_with_logs(
         self,
         l2_to_l1_logs: Vec<UserL2ToL1Log>,
-    ) -> anyhow::Result<L1BatchHeader> {
+    ) -> L1BatchHeader {
         let priority_ops_onchain_data: Vec<_> = self
             .priority_ops_onchain_data
             .into_iter()
@@ -220,10 +209,8 @@ impl StorageL1Batch {
             self.l2_fair_gas_price as u64,
             self.fair_pubdata_price.map(|p| p as u64),
         );
-        let settlement_layer =
-            to_settlement_layer(self.settlement_layer_type, self.settlement_layer_chain_id)?;
 
-        Ok(L1BatchHeader {
+        L1BatchHeader {
             number: L1BatchNumber(self.number as u32),
             timestamp: self.timestamp as u64,
             priority_ops_onchain_data,
@@ -247,10 +234,10 @@ impl StorageL1Batch {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
-            interop_fee: bigdecimal_to_u256(self.interop_fee),
+            interop_fee: U256::zero(),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
-            settlement_layer,
-        })
+            settlement_layer: SettlementLayer::default(),
+        }
     }
 }
 
@@ -338,23 +325,15 @@ pub(crate) struct UnsealedStorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
-    pub interop_fee: BigDecimal,
     pub pubdata_limit: Option<i64>,
-    pub settlement_layer_chain_id: i64,
-    pub settlement_layer_type: String,
 }
 
-impl TryFrom<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
-    type Error = anyhow::Error;
-
-    fn try_from(batch: UnsealedStorageL1Batch) -> Result<Self, Self::Error> {
+impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
+    fn from(batch: UnsealedStorageL1Batch) -> Self {
         let protocol_version: Option<ProtocolVersionId> = batch
             .protocol_version
             .map(|v| (v as u16).try_into().unwrap());
-        let settlement_layer =
-            to_settlement_layer(batch.settlement_layer_type, batch.settlement_layer_chain_id)?;
-
-        Ok(Self {
+        Self {
             number: L1BatchNumber(batch.number as u32),
             timestamp: batch.timestamp as u64,
             protocol_version,
@@ -365,10 +344,10 @@ impl TryFrom<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
-            interop_fee: bigdecimal_to_u256(batch.interop_fee),
+            interop_fee: U256::zero(),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
-            settlement_layer,
-        })
+            settlement_layer: SettlementLayer::default(),
+        }
     }
 }
 
@@ -382,23 +361,15 @@ pub(crate) struct CommonStorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
-    pub interop_fee: BigDecimal,
     pub pubdata_limit: Option<i64>,
-    pub settlement_layer_chain_id: i64,
-    pub settlement_layer_type: String,
 }
 
-impl TryFrom<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
-    type Error = anyhow::Error;
-
-    fn try_from(batch: CommonStorageL1BatchHeader) -> Result<Self, Self::Error> {
+impl From<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
+    fn from(batch: CommonStorageL1BatchHeader) -> Self {
         let protocol_version: Option<ProtocolVersionId> = batch
             .protocol_version
             .map(|v| (v as u16).try_into().unwrap());
-        let settlement_layer =
-            to_settlement_layer(batch.settlement_layer_type, batch.settlement_layer_chain_id)?;
-
-        Ok(Self {
+        Self {
             number: L1BatchNumber(batch.number as u32),
             is_sealed: batch.is_sealed,
             timestamp: batch.timestamp as u64,
@@ -410,10 +381,9 @@ impl TryFrom<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
-            interop_fee: bigdecimal_to_u256(batch.interop_fee),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
-            settlement_layer,
-        })
+            settlement_layer: SettlementLayer::default(),
+        }
     }
 }
 
@@ -770,32 +740,5 @@ impl From<StoragePubdataParams> for PubdataParams {
             PubdataType::from_str(&row.pubdata_type).unwrap(),
         )
         .unwrap()
-    }
-}
-
-pub(crate) fn to_settlement_layer(
-    settlement_layer_type: String,
-    settlement_layer_chain_id: i64,
-) -> anyhow::Result<SettlementLayer> {
-    let settlement_layer_chain_id = u64::try_from(settlement_layer_chain_id)
-        .map_err(|_| {
-            anyhow!(
-                "invalid settlement_layer_chain_id `{settlement_layer_chain_id}` in l1_batches; value must be non-negative"
-            )
-        })?;
-
-    match settlement_layer_type.as_str() {
-        "L1" => Ok(SettlementLayer::L1(SLChainId(settlement_layer_chain_id))),
-        "Gateway" => Ok(SettlementLayer::Gateway(SLChainId(
-            settlement_layer_chain_id,
-        ))),
-        _ => bail!("invalid settlement_layer_type `{settlement_layer_type}` in l1_batches; expected `L1` or `Gateway`"),
-    }
-}
-
-pub(crate) fn from_settlement_layer(settlement_layer: &SettlementLayer) -> (String, i64) {
-    match settlement_layer {
-        SettlementLayer::L1(SLChainId(id)) => ("L1".to_string(), *id as i64),
-        SettlementLayer::Gateway(SLChainId(id)) => ("Gateway".to_string(), *id as i64),
     }
 }

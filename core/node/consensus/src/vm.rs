@@ -84,7 +84,7 @@ impl VM {
         let env = ctx
             .wait(
                 self.options
-                    .to_call_env(&mut conn.0, &block_info, fee_input, None, U256::zero()),
+                    .to_call_env(&mut conn.0, &block_info, fee_input, None),
             )
             .await?
             .context("to_env()")?;

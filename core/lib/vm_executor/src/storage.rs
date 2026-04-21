@@ -373,7 +373,7 @@ impl L1BatchParamsProvider {
             chain_id,
             l1_batch_header.settlement_layer,
             first_l2_block_in_batch.interop_roots.clone(),
-            l1_batch_header.interop_fee,
+            U256::zero(),
         );
 
         Ok(RestoredL1BatchEnv {

@@ -57,8 +57,6 @@ pub struct FetchedBlock {
     pub pubdata_params: PubdataParams,
     pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
-    pub settlement_layer: Option<SettlementLayer>,
-    pub interop_fee: Option<U256>,
 }
 
 impl FetchedBlock {
@@ -114,8 +112,6 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             pubdata_params,
             pubdata_limit: block.pubdata_limit,
             interop_roots: block.interop_roots.clone().unwrap_or_default(),
-            settlement_layer: block.settlement_layer,
-            interop_fee: block.interop_fee,
         })
     }
 }
@@ -160,8 +156,6 @@ impl IoCursorExt for IoCursor {
         }
 
         let mut new_actions = Vec::new();
-        let settlement_layer = block.settlement_layer.unwrap_or(self.settlement_layer);
-        self.settlement_layer = settlement_layer;
         if block.l1_batch_number != self.l1_batch {
             assert_eq!(
                 block.l1_batch_number,
@@ -186,7 +180,7 @@ impl IoCursorExt for IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
-                    interop_fee: block.interop_fee.unwrap_or(U256::zero()),
+                    interop_fee: U256::zero(),
                     // It's ok that we lose info about millis since it's only used for sealing criteria.
                     first_l2_block: L2BlockParams::new_raw(
                         block.timestamp * 1000,
@@ -195,7 +189,7 @@ impl IoCursorExt for IoCursor {
                     ),
                     pubdata_params: block.pubdata_params,
                     pubdata_limit: block.pubdata_limit,
-                    settlement_layer,
+                    settlement_layer: SettlementLayer::default(),
                 },
                 number: block.l1_batch_number,
                 first_l2_block_number: block.number,
@@ -232,60 +226,5 @@ impl IoCursorExt for IoCursor {
         self.prev_l2_block_hash = local_block_hash;
 
         new_actions
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use zksync_types::{
-        commitment::PubdataParams, settlement::SettlementLayer, Address, L1BatchNumber,
-        L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
-    };
-
-    use super::{FetchedBlock, IoCursor, IoCursorExt};
-    use crate::sync_action::SyncAction;
-
-    #[test]
-    fn fallback_settlement_layer_is_taken_from_cursor() {
-        let mut cursor = IoCursor {
-            next_l2_block: L2BlockNumber(1),
-            prev_l2_block_hash: H256::zero(),
-            prev_l2_block_timestamp: 0,
-            l1_batch: L1BatchNumber(0),
-            prev_l1_batch_timestamp: 0,
-            settlement_layer: SettlementLayer::L1(SLChainId(31337)),
-        };
-        let block = FetchedBlock {
-            number: L2BlockNumber(1),
-            l1_batch_number: L1BatchNumber(1),
-            last_in_batch: true,
-            protocol_version: ProtocolVersionId::latest(),
-            timestamp: 1,
-            reference_hash: None,
-            l1_gas_price: 0,
-            l2_fair_gas_price: 0,
-            fair_pubdata_price: Some(0),
-            virtual_blocks: 0,
-            operator_address: Address::zero(),
-            transactions: vec![],
-            pubdata_params: PubdataParams::genesis(),
-            pubdata_limit: Some(100_000),
-            interop_roots: vec![],
-            settlement_layer: None,
-            interop_fee: Some(U256::zero()),
-        };
-
-        let actions = cursor.advance(block);
-        let Some(SyncAction::OpenBatch { params, .. }) = actions.first() else {
-            panic!("first action must be OpenBatch");
-        };
-        assert_eq!(
-            params.settlement_layer,
-            SettlementLayer::L1(SLChainId(31337))
-        );
-        assert_eq!(
-            cursor.settlement_layer,
-            SettlementLayer::L1(SLChainId(31337))
-        );
     }
 }

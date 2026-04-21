@@ -35,8 +35,8 @@ use zksync_types::{
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
     system_contracts::get_system_smart_contracts,
-    L1ChainId, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
-    TransactionTimeRangeConstraint, H256, U256,
+    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, TransactionTimeRangeConstraint,
+    H256,
 };
 
 use crate::{MempoolGuard, MempoolIO};
@@ -116,7 +116,6 @@ impl Tester {
                 max_gas_per_batch: 500_000_000_000,
                 max_pubdata_per_batch: 100_000_000_000,
             }),
-            U256::zero(),
         )
     }
 
@@ -141,7 +140,6 @@ impl Tester {
                 max_gas_per_batch: 500_000_000_000,
                 max_pubdata_per_batch: 100_000_000_000,
             }),
-            U256::zero(),
         );
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100, None, None);
@@ -185,7 +183,6 @@ impl Tester {
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
                 L1VerifierConfig::default(),
-                L1ChainId(9),
             )
             .await
             .unwrap();

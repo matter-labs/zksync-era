@@ -35,8 +35,8 @@ use zksync_types::{
     u256_to_h256,
     utils::storage_key_for_standard_token_balance,
     vm::FastVmMode,
-    AccountTreeId, Address, Execute, L1BatchNumber, L1ChainId, L2BlockNumber, PriorityOpId,
-    ProtocolVersionId, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
+    StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 
@@ -295,7 +295,6 @@ impl Tester {
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
                 Default::default(),
-                L1ChainId(9),
             )
             .await
             .unwrap();

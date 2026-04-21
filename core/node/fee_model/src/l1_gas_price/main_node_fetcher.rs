@@ -5,15 +5,11 @@ use std::{
 
 use async_trait::async_trait;
 use tokio::sync::watch::Receiver;
-use zksync_types::{
-    fee_model::{BatchFeeInput, FeeParams},
-    U256,
-};
+use zksync_types::fee_model::{BatchFeeInput, FeeParams};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::ClientRpcContext,
-    jsonrpsee,
-    namespaces::{EnNamespaceClient, ZksNamespaceClient},
+    namespaces::ZksNamespaceClient,
 };
 
 use crate::BatchFeeModelInputProvider;
@@ -30,14 +26,7 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 #[derive(Debug)]
 pub struct MainNodeFeeParamsFetcher {
     client: Box<DynClient<L2>>,
-    main_node_fee_state: RwLock<MainNodeFeeState>,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct MainNodeFeeState {
-    fee_params: FeeParams,
-    fee_input: BatchFeeInput,
-    interop_fee: U256,
+    main_node_fee_state: RwLock<(FeeParams, BatchFeeInput)>,
 }
 
 impl MainNodeFeeParamsFetcher {
@@ -46,12 +35,7 @@ impl MainNodeFeeParamsFetcher {
         let fee_input = fee_params.scale(1.0, 1.0);
         Self {
             client: client.for_component("fee_params_fetcher"),
-            main_node_fee_state: RwLock::new(MainNodeFeeState {
-                fee_params,
-                fee_input,
-                // Interop fee is zero until first successful poll
-                interop_fee: U256::zero(),
-            }),
+            main_node_fee_state: RwLock::new((fee_params, fee_input)),
         }
     }
 
@@ -62,43 +46,31 @@ impl MainNodeFeeParamsFetcher {
             // in the system *directly* relies on `BatchFeeModelInputProvider::get_fee_model_params`
             // except for `zks_getFeeParams`. Which is likely fine because EN is essentially
             // mimicking how it observed the call to main node.
-            let (params_result, input_result, interop_fee_result) = tokio::join!(
+            let (params_result, input_result) = tokio::join!(
                 self.client.get_fee_params().rpc_context("get_fee_params"),
                 self.client
                     .get_batch_fee_input()
-                    .rpc_context("get_batch_fee_input"),
-                self.client.get_interop_fee().rpc_context("get_interop_fee"),
+                    .rpc_context("get_batch_fee_input")
             );
-            {
-                let mut main_node_fee_state = self.main_node_fee_state.write().unwrap();
-
-                match params_result.and_then(|params| input_result.map(|input| (params, input))) {
-                    Ok((fee_params, fee_input)) => {
-                        main_node_fee_state.fee_params = fee_params;
-                        main_node_fee_state.fee_input =
-                            BatchFeeInput::PubdataIndependent(fee_input);
-                    }
-                    Err(err) => {
-                        tracing::warn!("Unable to get main node's fee params/input: {}", err);
-                    }
+            let fee_state_result =
+                params_result.and_then(|params| input_result.map(|input| (params, input)));
+            let main_node_fee_state = match fee_state_result {
+                Ok((fee_params, fee_input)) => {
+                    (fee_params, BatchFeeInput::PubdataIndependent(fee_input))
                 }
-
-                match interop_fee_result {
-                    Ok(interop_fee) => {
-                        main_node_fee_state.interop_fee = interop_fee;
+                Err(err) => {
+                    tracing::warn!("Unable to get main node's fee params/input: {}", err);
+                    // A delay to avoid spamming the main node with requests.
+                    if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
+                        .await
+                        .is_ok()
+                    {
+                        break;
                     }
-                    Err(err) => match err.as_ref() {
-                        jsonrpsee::core::client::Error::Call(error)
-                            if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
-                        {
-                            // Method is not supported by the main node, preserve the previously observed value.
-                        }
-                        _ => {
-                            tracing::warn!("Unable to get main node's interop fee: {}", err);
-                        }
-                    },
+                    continue;
                 }
-            }
+            };
+            *self.main_node_fee_state.write().unwrap() = main_node_fee_state;
 
             if tokio::time::timeout(SLEEP_INTERVAL, stop_receiver.changed())
                 .await
@@ -121,14 +93,10 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
         _l1_gas_price_scale_factor: f64,
         _l1_pubdata_price_scale_factor: f64,
     ) -> anyhow::Result<BatchFeeInput> {
-        Ok(self.main_node_fee_state.read().unwrap().fee_input)
+        Ok(self.main_node_fee_state.read().unwrap().1)
     }
 
     async fn get_fee_model_params(&self) -> FeeParams {
-        self.main_node_fee_state.read().unwrap().fee_params
-    }
-
-    async fn get_interop_fee(&self) -> U256 {
-        self.main_node_fee_state.read().unwrap().interop_fee
+        self.main_node_fee_state.read().unwrap().0
     }
 }

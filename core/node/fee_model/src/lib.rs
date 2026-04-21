@@ -3,12 +3,8 @@ use std::{fmt, sync::Arc};
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::{
-    fee_model::{
-        BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeParams, FeeParamsV1,
-        FeeParamsV2,
-    },
-    U256,
+use zksync_types::fee_model::{
+    BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeParams, FeeParamsV1, FeeParamsV2,
 };
 
 use crate::l1_gas_price::GasAdjuster;
@@ -46,9 +42,6 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
 
     /// Returns the fee model parameters using the denomination of the base token used (WEI for ETH).
     async fn get_fee_model_params(&self) -> FeeParams;
-
-    /// Returns the interop fee for the current batch.
-    async fn get_interop_fee(&self) -> U256;
 }
 
 impl dyn BatchFeeModelInputProvider {
@@ -67,7 +60,6 @@ pub struct MainNodeFeeInputProvider {
     provider: Arc<GasAdjuster>,
     base_token_ratio_provider: Arc<dyn BaseTokenRatioProvider>,
     config: FeeModelConfig,
-    configured_interop_fee: U256,
 }
 
 #[async_trait]
@@ -86,10 +78,6 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
             )),
         }
     }
-
-    async fn get_interop_fee(&self) -> U256 {
-        self.configured_interop_fee
-    }
 }
 
 impl MainNodeFeeInputProvider {
@@ -97,13 +85,11 @@ impl MainNodeFeeInputProvider {
         provider: Arc<GasAdjuster>,
         base_token_ratio_provider: Arc<dyn BaseTokenRatioProvider>,
         config: FeeModelConfig,
-        configured_interop_fee: U256,
     ) -> Self {
         Self {
             provider,
             base_token_ratio_provider,
             config,
-            configured_interop_fee,
         }
     }
 }
@@ -179,10 +165,6 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
     async fn get_fee_model_params(&self) -> FeeParams {
         self.inner.get_fee_model_params().await
     }
-
-    async fn get_interop_fee(&self) -> U256 {
-        self.inner.get_interop_fee().await
-    }
 }
 
 /// Mock [`BatchFeeModelInputProvider`] implementation that returns a constant value.
@@ -200,10 +182,6 @@ impl Default for MockBatchFeeParamsProvider {
 impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
     async fn get_fee_model_params(&self) -> FeeParams {
         self.0
-    }
-
-    async fn get_interop_fee(&self) -> U256 {
-        U256::zero()
     }
 }
 
@@ -376,7 +354,6 @@ mod tests {
                 Arc::new(gas_adjuster),
                 Arc::new(base_token_ratio_provider),
                 config,
-                U256::zero(),
             );
 
             let fee_params = fee_provider.get_fee_model_params().await;

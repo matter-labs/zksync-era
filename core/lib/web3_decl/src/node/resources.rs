@@ -4,7 +4,7 @@ use zksync_types::settlement::{SettlementLayer, WorkingSettlementLayer};
 use crate::client::{DynClient, L1, L2};
 
 #[derive(Debug, Clone)]
-pub struct SettlementModeResource(pub WorkingSettlementLayer);
+pub struct SettlementModeResource(WorkingSettlementLayer);
 
 impl Resource for SettlementModeResource {
     fn name() -> String {
