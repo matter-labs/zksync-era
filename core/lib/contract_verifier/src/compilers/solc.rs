@@ -74,6 +74,7 @@ impl Solc {
                 StandardJson {
                     language: "Solidity".to_owned(),
                     sources,
+                    other: serde_json::json!({}),
                     settings,
                 }
             }
@@ -109,6 +110,7 @@ impl Solc {
                 StandardJson {
                     language: "Yul".to_owned(),
                     sources,
+                    other: serde_json::json!({}),
                     settings,
                 }
             }

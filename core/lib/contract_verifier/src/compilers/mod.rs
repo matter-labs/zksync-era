@@ -19,11 +19,17 @@ mod vyper;
 mod zksolc;
 mod zkvyper;
 
+fn default_json_object() -> Value {
+    serde_json::json!({})
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct StandardJson {
     pub language: String,
     pub sources: HashMap<String, Source>,
+    #[serde(flatten, default = "default_json_object")]
+    other: Value,
     #[serde(default)]
     settings: Settings,
 }
@@ -42,7 +48,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             output_selection: None,
-            other: serde_json::json!({}),
+            other: default_json_object(),
         }
     }
 }
@@ -228,7 +234,10 @@ fn parse_standard_json_output(
     };
 
     let Some(bytecode_str) = contract.pointer("/evm/bytecode/object") else {
-        return Err(ContractVerifierError::AbstractContract(contract_name));
+        return Err(ContractVerifierError::MissingCompilerOutput {
+            contract_name,
+            field_path: "/evm/bytecode/object",
+        });
     };
     let bytecode_str = bytecode_str
         .as_str()
@@ -239,7 +248,10 @@ fn parse_standard_json_output(
 
     let deployed_bytecode = if get_deployed_bytecode {
         let Some(bytecode_str) = contract.pointer("/evm/deployedBytecode/object") else {
-            return Err(ContractVerifierError::AbstractContract(contract_name));
+            return Err(ContractVerifierError::MissingCompilerOutput {
+                contract_name,
+                field_path: "/evm/deployedBytecode/object",
+            });
         };
         let bytecode_str = bytecode_str
             .as_str()
@@ -282,4 +294,73 @@ fn is_suppressable_error(message: &str) -> bool {
     // All of them mention `suppressedErrors` in the message, which is a custom
     // `zksolc` configuration, so we use it as a marker.
     message.contains("suppressedErrors")
+}
+
+#[cfg(test)]
+mod parser_tests {
+    use super::parse_standard_json_output;
+    use crate::error::ContractVerifierError;
+
+    #[test]
+    fn reports_missing_creation_bytecode_path() {
+        let output = serde_json::json!({
+            "contracts": {
+                "Counter.sol": {
+                    "Counter": {
+                        "abi": []
+                    }
+                }
+            }
+        });
+
+        let err = parse_standard_json_output(
+            &output,
+            "Counter".to_owned(),
+            "Counter.sol".to_owned(),
+            false,
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ContractVerifierError::MissingCompilerOutput {
+                contract_name,
+                field_path: "/evm/bytecode/object",
+            } if contract_name == "Counter"
+        ));
+    }
+
+    #[test]
+    fn reports_missing_deployed_bytecode_path() {
+        let output = serde_json::json!({
+            "contracts": {
+                "Counter.sol": {
+                    "Counter": {
+                        "abi": [],
+                        "evm": {
+                            "bytecode": {
+                                "object": "00"
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        let err = parse_standard_json_output(
+            &output,
+            "Counter".to_owned(),
+            "Counter.sol".to_owned(),
+            true,
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ContractVerifierError::MissingCompilerOutput {
+                contract_name,
+                field_path: "/evm/deployedBytecode/object",
+            } if contract_name == "Counter"
+        ));
+    }
 }
