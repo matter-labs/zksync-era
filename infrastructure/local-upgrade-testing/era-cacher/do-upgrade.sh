@@ -109,11 +109,19 @@ fi
 zkstack chain set-da-validator-pair "$L1_DA_VALIDATOR" BlobsAndPubdataKeccak256 --chain era
 
 # Stage 3: Migrate token balances from NTV to AssetTracker
-# This can be done with any private key (deployer is used here)
+# This can be done with any private key (deployer is used here).
+# Read the L1 bridgehub proxy from the refreshed per-chain config rather than hardcoding it;
+# the deterministic local deployment is stable but any salt/network change would silently break.
+BRIDGEHUB_PROXY=$(awk '/^  bridgehub_proxy_addr:/ { print $2; exit }' \
+    "$WORKING_DIR/chains/era/configs/contracts.yaml")
+if [ -z "$BRIDGEHUB_PROXY" ]; then
+    echo "Could not read bridgehub_proxy_addr from runtime config" >&2
+    exit 1
+fi
 cd "$WORKING_DIR/contracts/l1-contracts"
 forge script deploy-scripts/upgrade/v31/EcosystemUpgrade_v31.s.sol:EcosystemUpgrade_v31 \
     --sig "stage3(address)" \
-    0xe792af664fc202319f9514ca5fe1a7d5494e8efc \
+    "$BRIDGEHUB_PROXY" \
     --rpc-url http://localhost:8545 \
     --broadcast \
     --private-key 0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110 \
