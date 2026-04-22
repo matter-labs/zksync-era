@@ -5,9 +5,8 @@ use itertools::Itertools;
 use zksync_contracts::chain_admin_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    api::Log, h256_to_u256,
-    protocol_upgrade::{peek_v31_rewrite_inputs, ProtocolUpgradePreimageOracle},
-    protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, ProtocolVersionId, H256, U256,
+    api::Log, h256_to_u256, protocol_upgrade::ProtocolUpgradePreimageOracle,
+    protocol_version::ProtocolSemanticVersion, Address, ProtocolUpgrade, H256, U256,
 };
 
 use crate::{
@@ -66,6 +65,16 @@ impl ProtocolUpgradePreimageOracle for &dyn EthClient {
 
         Ok(result)
     }
+
+    async fn rewrite_v31_upgrade_tx_data(
+        &self,
+        init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> anyhow::Result<Vec<u8>> {
+        self.get_l2_upgrade_tx_data(init_address, existing_tx_data)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 #[async_trait::async_trait]
@@ -109,30 +118,6 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             }
 
             for diamond_cut in diamond_cuts {
-                // v31 upgrades stage a placeholder `additionalForceDeploymentsData` in the
-                // `NewUpgradeCutData` event; `SettlementLayerV31UpgradeBase.upgrade()` rewrites it
-                // per-chain when the diamond cut runs on L1. Call the same view here so the tx we
-                // hand to the state keeper matches what L1 committed to the priority queue.
-                //
-                // Gated on `== Version31` specifically: `prepare_upgrade_call` only consumes the
-                // rewritten bytes for Version31, so calling the view for other minors would make a
-                // pointless eth_call whose result is discarded. When a future minor introduces its
-                // own rewrite protocol we expect to add a parallel branch rather than silently
-                // reusing this one.
-                let rewrite = peek_v31_rewrite_inputs(&diamond_cut)
-                    .map_err(EventProcessorError::internal)?;
-                let v31_upgrade_tx_data = if rewrite.minor_version
-                    == ProtocolVersionId::Version31 as u16
-                {
-                    Some(
-                        self.l1_client
-                            .get_l2_upgrade_tx_data(rewrite.init_address, rewrite.existing_tx_data)
-                            .await
-                            .map_err(EventProcessorError::contract_call)?,
-                    )
-                } else {
-                    None
-                };
                 let upgrade = ProtocolUpgrade {
                     timestamp,
                     ..ProtocolUpgrade::try_from_diamond_cut(
@@ -142,7 +127,6 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                             .get_chain_gateway_upgrade_info()
                             .await
                             .map_err(EventProcessorError::contract_call)?,
-                        v31_upgrade_tx_data,
                     )
                     .await
                     .map_err(EventProcessorError::internal)?

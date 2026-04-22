@@ -90,21 +90,36 @@ impl From<abi::VerifierParams> for VerifierParams {
     }
 }
 
-/// Protocol upgrade transactions do not contain preimages within them.
-/// Instead, they are expected to be known and need to be fetched, typically from L1.
+/// Oracle for chain-side data the server needs while reconstructing a protocol upgrade from its
+/// `NewUpgradeCutData` event — factory-dep preimages and v31+ `l2ProtocolUpgradeTx.data` rewrite.
+/// The data is not present in the event itself; it has to be fetched from L1.
 #[async_trait::async_trait]
 pub trait ProtocolUpgradePreimageOracle: Send + Sync {
+    /// Fetch the bytecode preimages for the upgrade tx's factory-dep hashes (stored by the
+    /// `BytecodesSupplier` on L1).
     async fn get_protocol_upgrade_preimages(
         &self,
         hashes: Vec<H256>,
     ) -> anyhow::Result<Vec<Vec<u8>>>;
+
+    /// Rewrite the v31 `l2ProtocolUpgradeTx.data` by calling the on-chain
+    /// `SettlementLayerV31UpgradeBase.getL2UpgradeTxData(bridgehub, chainId, existingTxData)` view
+    /// on the upgrade facet's `initAddress`. That view is what L1's diamond-cut `delegatecall`
+    /// invokes to replace the placeholder `additionalForceDeploymentsData` with per-chain data;
+    /// calling it here yields the exact bytes that were written into the L1 priority queue.
+    ///
+    /// Only called for `ProtocolVersionId::Version31`.
+    async fn rewrite_v31_upgrade_tx_data(
+        &self,
+        init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> anyhow::Result<Vec<u8>>;
 }
 
 /// Some upgrades have chain-dependent calldata that has to be prepared properly.
 async fn prepare_upgrade_call(
     proposed_upgrade: &abi::ProposedUpgrade,
     chain_specific: Option<ZkChainSpecificUpgradeData>,
-    v31_upgrade_tx_data: Option<Vec<u8>>,
 ) -> anyhow::Result<Vec<u8>> {
     // No upgrade
     if proposed_upgrade.l2_protocol_upgrade_tx.tx_type == U256::zero() {
@@ -113,16 +128,10 @@ async fn prepare_upgrade_call(
 
     let minor_version = proposed_upgrade.l2_protocol_upgrade_tx.nonce;
     let version = ProtocolVersionId::try_from(minor_version.as_u32() as u16).unwrap();
-    if version == ProtocolVersionId::Version31 {
-        // v31 places a per-chain `additionalForceDeploymentsData` placeholder in the
-        // `NewUpgradeCutData` payload; `SettlementLayerV31UpgradeBase.upgrade()` rewrites it at
-        // L1 diamond-cut time via `getL2UpgradeTxData(bridgehub, chainId, existingTxData)`.
-        // The watcher calls that same view off-chain and passes the result here.
-        return v31_upgrade_tx_data.context(
-            "v31 upgrade tx data must be fetched from getL2UpgradeTxData before prepare_upgrade_call",
-        );
-    }
     if version != ProtocolVersionId::gateway_upgrade() {
+        // Includes the v31 case: by the time we get here, `try_from_init_calldata` has already
+        // replaced the v31 placeholder with the bytes returned by `getL2UpgradeTxData`, so the
+        // passthrough is correct.
         return Ok(proposed_upgrade.l2_protocol_upgrade_tx.data.clone());
     }
 
@@ -163,79 +172,26 @@ async fn prepare_upgrade_call(
     Ok(full_data)
 }
 
-/// Inputs required to rewrite a v31 `l2ProtocolUpgradeTx.data` via the on-chain
-/// `getL2UpgradeTxData(bridgehub, chainId, existingTxData)` view.
-#[derive(Debug, Clone)]
-pub struct V31RewriteInputs {
-    /// The upgrade facet's deployed L1 address (`DiamondCutData.initAddress`). It exposes
-    /// `SettlementLayerV31UpgradeBase.getL2UpgradeTxData` which returns per-chain rewritten bytes.
-    pub init_address: Address,
-    /// Minor version of the upgrade (from `l2ProtocolUpgradeTx.nonce`). Callers should only
-    /// invoke the view when this equals `ProtocolVersionId::Version31` — future minors will get
-    /// their own rewrite branches rather than being implicitly routed through v31's.
-    pub minor_version: u16,
-    /// The placeholder `l2ProtocolUpgradeTx.data` that the view takes as input.
-    pub existing_tx_data: Vec<u8>,
-}
-
-/// Extract the init address, minor version, and placeholder tx data from a `DiamondCutData` blob
-/// without running the full `ProtocolUpgrade` decode. Used by the watcher to decide whether to
-/// call `getL2UpgradeTxData` (and with which arguments) before constructing the `ProtocolUpgrade`.
-pub fn peek_v31_rewrite_inputs(diamond_cut_data: &[u8]) -> anyhow::Result<V31RewriteInputs> {
-    let diamond_cut_tokens = DIAMOND_CUT
-        .decode_input(diamond_cut_data)
-        .context("decode DiamondCutData function input")?[0]
-        .clone()
-        .into_tuple()
-        .context("DiamondCutData tuple")?;
-    let init_address = diamond_cut_tokens
-        .get(1)
-        .cloned()
-        .context("DiamondCutData.initAddress missing")?
-        .into_address()
-        .context("DiamondCutData.initAddress not an address")?;
-    let init_calldata = diamond_cut_tokens
-        .get(2)
-        .cloned()
-        .context("DiamondCutData.initCalldata missing")?
-        .into_bytes()
-        .context("DiamondCutData.initCalldata not bytes")?;
-    let raw = init_calldata
-        .get(4..)
-        .context("DiamondCutData.initCalldata shorter than selector")?;
-    let upgrade = abi::ProposedUpgrade::decode(raw).context("decode ProposedUpgrade")?;
-    let minor_u64: u64 = upgrade
-        .l2_protocol_upgrade_tx
-        .nonce
-        .try_into()
-        .map_err(|_| anyhow::anyhow!("protocol upgrade minor version overflows u64"))?;
-    let minor_version: u16 = minor_u64
-        .try_into()
-        .map_err(|_| anyhow::anyhow!("protocol upgrade minor version overflows u16: {minor_u64}"))?;
-    Ok(V31RewriteInputs {
-        init_address,
-        minor_version,
-        existing_tx_data: upgrade.l2_protocol_upgrade_tx.data,
-    })
-}
-
 impl ProtocolUpgrade {
     pub async fn try_from_diamond_cut(
         diamond_cut_data: &[u8],
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
-        v31_upgrade_tx_data: Option<Vec<u8>>,
     ) -> anyhow::Result<Self> {
         // Unwraps are safe because we have validated the input against the function signature.
         let diamond_cut_tokens = DIAMOND_CUT.decode_input(diamond_cut_data)?[0]
             .clone()
             .into_tuple()
             .unwrap();
+        let init_address = diamond_cut_tokens[1]
+            .clone()
+            .into_address()
+            .context("DiamondCutData.initAddress")?;
         Self::try_from_init_calldata(
             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
+            init_address,
             preimage_oracle,
             chain_specific,
-            v31_upgrade_tx_data,
         )
         .await
     }
@@ -243,9 +199,9 @@ impl ProtocolUpgrade {
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
     async fn try_from_init_calldata(
         init_calldata: &[u8],
+        init_address: Address,
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
-        v31_upgrade_tx_data: Option<Vec<u8>>,
     ) -> anyhow::Result<Self> {
         let raw_data = init_calldata.get(4..).context("need >= 4 bytes")?;
         let mut upgrade =
@@ -273,8 +229,18 @@ impl ProtocolUpgrade {
                     .await?
             };
 
+            // v31 stores a placeholder `additionalForceDeploymentsData` in `l2ProtocolUpgradeTx.data`;
+            // L1's diamond-cut delegatecall replaces it via `getL2UpgradeTxData`. Do the same here
+            // so the server-side tx matches the L1 priority queue entry.
+            if version.minor == ProtocolVersionId::Version31 {
+                let placeholder = std::mem::take(&mut upgrade.l2_protocol_upgrade_tx.data);
+                upgrade.l2_protocol_upgrade_tx.data = preimage_oracle
+                    .rewrite_v31_upgrade_tx_data(init_address, placeholder)
+                    .await?;
+            }
+
             upgrade.l2_protocol_upgrade_tx.data =
-                prepare_upgrade_call(&upgrade, chain_specific, v31_upgrade_tx_data).await?;
+                prepare_upgrade_call(&upgrade, chain_specific).await?;
 
             Some(
                 Transaction::from_abi(
