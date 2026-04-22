@@ -198,3 +198,9 @@ abigen!(
     "../../../contracts/l1-contracts/zkstack-out/ISetupLegacyBridge.sol/ISetupLegacyBridge.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
+
+abigen!(
+    EcosystemUpgradeV31Abi,
+    "../../../contracts/l1-contracts/zkstack-out/EcosystemUpgrade_v31.s.sol/EcosystemUpgrade_v31.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);

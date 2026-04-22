@@ -1,8 +1,8 @@
 use anyhow::Context;
 use ethers::{
-    abi::Abi,
     contract::BaseContract,
     types::{Address, Bytes},
+    utils::hex,
 };
 use lazy_static::lazy_static;
 use serde::Deserialize;
@@ -24,7 +24,7 @@ use zkstack_cli_types::VMOption;
 use zksync_types::{SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
-    abi::IFINALIZEUPGRADEABI_ABI,
+    abi::{ECOSYSTEMUPGRADEV31ABI_ABI, IFINALIZEUPGRADEABI_ABI},
     admin_functions::{governance_execute_calls, AdminScriptMode},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
@@ -132,6 +132,17 @@ async fn no_governance_prepare(
             .l1_rpc_url()?
     };
 
+    // Build the explicit calldata up-front when the upgrade version needs it. We keep a handle on
+    // it so `get_broadcast_path` can derive the exact `<selector>-latest.json` filename that Forge
+    // writes for that invocation, rather than guessing by scanning the broadcast directory.
+    let forge_calldata: Option<Bytes> = match upgrade_version {
+        UpgradeVersion::V31InteropB => Some(build_v31_no_governance_prepare_calldata(
+            ecosystem_config,
+            vm_option,
+        )?),
+        _ => None,
+    };
+
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
@@ -143,11 +154,8 @@ async fn no_governance_prepare(
         .with_gas_limit(1_000_000_000_000)
         .with_broadcast();
 
-    if matches!(upgrade_version, UpgradeVersion::V31InteropB) {
-        forge = forge.with_calldata(&build_v31_no_governance_prepare_calldata(
-            ecosystem_config,
-            vm_option,
-        )?);
+    if let Some(calldata) = forge_calldata.as_ref() {
+        forge = forge.with_calldata(calldata);
     }
 
     forge = fill_forge_private_key(
@@ -167,6 +175,7 @@ async fn no_governance_prepare(
         &ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         get_ecosystem_upgrade_params(upgrade_version).script(),
         l1_chain_id,
+        forge_calldata.as_ref(),
     )?;
 
     // TODO Get rid of BrodacastFile usage
@@ -201,24 +210,8 @@ fn build_v31_no_governance_prepare_calldata(
     let ctm = contracts_config.ctm(vm_option);
     let governance = contracts_config.l1.governance_addr;
     let zk_token_asset_id = ecosystem_config.l1_network.zk_token_asset_id();
-    let ecosystem_upgrade_artifact = ecosystem_config
-        .path_to_foundry_scripts_for_ctm(vm_option)
-        .join("out/EcosystemUpgrade_v31.s.sol/EcosystemUpgrade_v31.json");
-    let ecosystem_upgrade_abi: Abi = serde_json::from_value(
-        serde_json::from_str::<serde_json::Value>(
-            &std::fs::read_to_string(&ecosystem_upgrade_artifact).with_context(|| {
-                format!("Failed to read {}", ecosystem_upgrade_artifact.display())
-            })?,
-        )
-        .context("Failed to parse EcosystemUpgrade_v31 artifact JSON")?
-        .get("abi")
-        .cloned()
-        .context("Missing abi field in EcosystemUpgrade_v31 artifact")?,
-    )
-    .context("Failed to parse EcosystemUpgrade_v31 ABI")?;
 
-    let no_governance_prepare = BaseContract::from(ecosystem_upgrade_abi);
-    let calldata = no_governance_prepare
+    let calldata = ECOSYSTEM_UPGRADE_V31
         .encode(
             "noGovernancePrepare",
             ((
@@ -242,10 +235,22 @@ fn build_v31_no_governance_prepare_calldata(
     Ok(Bytes::from(calldata))
 }
 
+/// Resolve the Foundry broadcast JSON that was written by the forge script we just ran.
+///
+/// Foundry writes one of two filenames depending on how the script was invoked:
+/// - `run-latest.json` when the script has a single public entry-point and is invoked without
+///   explicit calldata (the traditional `--sig <fn>(...)` path).
+/// - `<selector>-latest.json` where `<selector>` is the first 4 bytes of the calldata, when the
+///   script is invoked with `forge script ... --sig <raw hex>` or `with_calldata(...)`.
+///
+/// Rather than scanning the broadcast directory and guessing which `*-latest.json` is the one we
+/// want, we derive the filename deterministically from the same calldata we handed to Forge. If
+/// no explicit calldata was used, we fall back to the legacy `run-latest.json`.
 fn get_broadcast_path(
     foundry_root: &Path,
     script_path: impl AsRef<Path>,
     l1_chain_id: u64,
+    forge_calldata: Option<&Bytes>,
 ) -> anyhow::Result<PathBuf> {
     let script_name = script_path
         .as_ref()
@@ -255,25 +260,24 @@ fn get_broadcast_path(
         .join("broadcast")
         .join(script_name)
         .join(l1_chain_id.to_string());
-    let legacy_broadcast_path = broadcast_dir.join("run-latest.json");
-    if legacy_broadcast_path.exists() {
-        return Ok(legacy_broadcast_path);
-    }
 
-    let mut latest_candidates = std::fs::read_dir(&broadcast_dir)
-        .with_context(|| format!("Failed to read {}", broadcast_dir.display()))?
-        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-        .filter(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.ends_with("-latest.json"))
-        })
-        .collect::<Vec<_>>();
-    latest_candidates.sort();
-    latest_candidates
-        .into_iter()
-        .next_back()
-        .context("Failed to locate Foundry latest broadcast file")
+    let filename = match forge_calldata {
+        Some(calldata) => {
+            let selector = calldata
+                .0
+                .get(..4)
+                .context("forge calldata must include a 4-byte function selector")?;
+            format!("{}-latest.json", hex::encode(selector))
+        }
+        None => "run-latest.json".to_string(),
+    };
+    let path = broadcast_dir.join(&filename);
+    anyhow::ensure!(
+        path.exists(),
+        "Expected Foundry broadcast file at {} — did the `forge script` run succeed?",
+        path.display()
+    );
+    Ok(path)
 }
 
 async fn ecosystem_admin(
@@ -459,6 +463,8 @@ async fn governance_stage_2(
 
 lazy_static! {
     static ref FINALIZE_UPGRADE: BaseContract = BaseContract::from(IFINALIZEUPGRADEABI_ABI.clone());
+    static ref ECOSYSTEM_UPGRADE_V31: BaseContract =
+        BaseContract::from(ECOSYSTEMUPGRADEV31ABI_ABI.clone());
 }
 
 // Governance has approved the proposal, now it will insert the new protocol version into our STM (CTM)
