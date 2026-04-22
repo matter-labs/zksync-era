@@ -6,6 +6,7 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use std::path::{Path, PathBuf};
 use xshell::Shell;
 use zkstack_cli_common::{forge::Forge, logger, spinner::Spinner};
 use zkstack_cli_config::{
@@ -130,6 +131,72 @@ async fn no_governance_prepare(
             .await?
             .l1_rpc_url()?
     };
+
+    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
+        .script(
+            &get_ecosystem_upgrade_params(upgrade_version).script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_slow()
+        .with_gas_limit(1_000_000_000_000)
+        .with_broadcast();
+
+    if matches!(upgrade_version, UpgradeVersion::V31InteropB) {
+        forge = forge.with_calldata(&build_v31_no_governance_prepare_calldata(
+            ecosystem_config,
+            vm_option,
+        )?);
+    }
+
+    forge = fill_forge_private_key(
+        forge,
+        ecosystem_config.get_wallets()?.deployer.as_ref(),
+        WalletOwner::Deployer,
+    )?;
+
+    logger::info("Preparing the ecosystem for the upgrade!".to_string());
+
+    forge.run(shell)?;
+
+    logger::info("done!");
+
+    let l1_chain_id = ecosystem_config.l1_network.chain_id();
+    let broadcast_path = get_broadcast_path(
+        &ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
+        get_ecosystem_upgrade_params(upgrade_version).script(),
+        l1_chain_id,
+    )?;
+
+    // TODO Get rid of BrodacastFile usage
+    let broadcast_file: BroadcastFile = {
+        let file_content = std::fs::read_to_string(&broadcast_path).with_context(|| {
+            format!("Failed to read broadcast file {}", broadcast_path.display())
+        })?;
+        serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
+    };
+
+    let mut output = EcosystemUpgradeOutput::read(
+        shell,
+        get_ecosystem_upgrade_params(upgrade_version)
+            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
+    )?;
+
+    // Add all the transaction hashes.
+    for tx in broadcast_file.transactions {
+        output.transactions.push(tx.hash);
+    }
+
+    output.save_with_base_path(shell, &ecosystem_config.config)?;
+
+    Ok(())
+}
+
+fn build_v31_no_governance_prepare_calldata(
+    ecosystem_config: &EcosystemConfig,
+    vm_option: VMOption,
+) -> anyhow::Result<Bytes> {
     let contracts_config = ecosystem_config.get_contracts_config()?;
     let ctm = contracts_config.ctm(vm_option);
     let governance = contracts_config.l1.governance_addr;
@@ -172,79 +239,41 @@ async fn no_governance_prepare(
         )
         .context("Failed to encode v31 no-governance-prepare calldata")?;
 
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
-        .script(
-            &get_ecosystem_upgrade_params(upgrade_version).script(),
-            forge_args.clone(),
-        )
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url)
-        .with_slow()
-        .with_gas_limit(1_000_000_000_000)
-        .with_calldata(&Bytes::from(calldata))
-        .with_broadcast();
+    Ok(Bytes::from(calldata))
+}
 
-    forge = fill_forge_private_key(
-        forge,
-        ecosystem_config.get_wallets()?.deployer.as_ref(),
-        WalletOwner::Deployer,
-    )?;
-
-    logger::info("Preparing the ecosystem for the upgrade!".to_string());
-
-    forge.run(shell)?;
-
-    logger::info("done!");
-
-    let l1_chain_id = ecosystem_config.l1_network.chain_id();
-    let broadcast_dir = ecosystem_config
-        .path_to_foundry_scripts_for_ctm(vm_option)
-        .join(format!(
-            "broadcast/EcosystemUpgrade_v31.s.sol/{}",
-            l1_chain_id
-        ));
+fn get_broadcast_path(
+    foundry_root: &Path,
+    script_path: impl AsRef<Path>,
+    l1_chain_id: u64,
+) -> anyhow::Result<PathBuf> {
+    let script_name = script_path
+        .as_ref()
+        .file_name()
+        .context("Missing script filename")?;
+    let broadcast_dir = foundry_root
+        .join("broadcast")
+        .join(script_name)
+        .join(l1_chain_id.to_string());
     let legacy_broadcast_path = broadcast_dir.join("run-latest.json");
-    let broadcast_path = if legacy_broadcast_path.exists() {
-        legacy_broadcast_path
-    } else {
-        let mut latest_candidates = std::fs::read_dir(&broadcast_dir)
-            .with_context(|| format!("Failed to read {}", broadcast_dir.display()))?
-            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-            .filter(|path| {
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.ends_with("-latest.json"))
-            })
-            .collect::<Vec<_>>();
-        latest_candidates.sort();
-        latest_candidates
-            .into_iter()
-            .next_back()
-            .context("Failed to locate Foundry latest broadcast file")?
-    };
-
-    // TODO Get rid of BrodacastFile usage
-    let broadcast_file: BroadcastFile = {
-        let file_content = std::fs::read_to_string(&broadcast_path).with_context(|| {
-            format!("Failed to read broadcast file {}", broadcast_path.display())
-        })?;
-        serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
-    };
-
-    let mut output = EcosystemUpgradeOutput::read(
-        shell,
-        get_ecosystem_upgrade_params(upgrade_version)
-            .output(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option)),
-    )?;
-
-    // Add all the transaction hashes.
-    for tx in broadcast_file.transactions {
-        output.transactions.push(tx.hash);
+    if legacy_broadcast_path.exists() {
+        return Ok(legacy_broadcast_path);
     }
 
-    output.save_with_base_path(shell, &ecosystem_config.config)?;
-
-    Ok(())
+    let mut latest_candidates = std::fs::read_dir(&broadcast_dir)
+        .with_context(|| format!("Failed to read {}", broadcast_dir.display()))?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.ends_with("-latest.json"))
+        })
+        .collect::<Vec<_>>();
+    latest_candidates.sort();
+    latest_candidates
+        .into_iter()
+        .next_back()
+        .context("Failed to locate Foundry latest broadcast file")
 }
 
 async fn ecosystem_admin(

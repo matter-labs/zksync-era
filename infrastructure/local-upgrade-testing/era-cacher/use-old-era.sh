@@ -3,12 +3,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-
-OLD_REPO="$WORKSPACE_ROOT/zksync-old"
-NEW_REPO="$WORKSPACE_ROOT/zksync-new"
-
-WORKING_DIRECTORY="$WORKSPACE_ROOT/zksync-working"
+WORKING_DIRECTORY="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+WORKSPACE_PARENT="$(cd "$WORKING_DIRECTORY/.." && pwd)"
+OLD_REPO="$WORKSPACE_PARENT/zksync-old"
+NEW_REPO="$WORKSPACE_PARENT/zksync-new"
 
 # If zksync-working exists and zksync-new is empty/doesn't exist, move it to zksync-new
 if [ -d "$WORKING_DIRECTORY" ]; then

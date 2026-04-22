@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
@@ -83,13 +83,14 @@ async fn reset_db(shell: &Shell) -> anyhow::Result<()> {
     db::drop_db_if_exists(&db_config)
         .await
         .context(MSG_PRIVATE_RPC_FAILED_TO_DROP_DATABASE_ERR)?;
+    let _dir_guard = shell.push_dir(chain_config.link_to_code().join("private-rpc"));
     initialize_private_rpc_database(shell, &chain_config, &db_url).await?;
     Ok(())
 }
 
 async fn initialize_private_rpc_database(
     shell: &Shell,
-    chain_config: &ChainConfig,
+    _chain_config: &ChainConfig,
     db_url: &Url,
 ) -> anyhow::Result<()> {
     let db_config = db::DatabaseConfig::from_url(db_url)?;
@@ -102,12 +103,7 @@ async fn initialize_private_rpc_database(
 
     let db_url = db_config.full_url();
     let url_str = db_url.as_str();
-    let migrations_dir = chain_config
-        .link_to_code()
-        .join("private-rpc")
-        .join("drizzle")
-        .display()
-        .to_string();
+    let migrations_dir = "drizzle";
     Cmd::new(cmd!(
         shell,
         "cargo sqlx migrate run --database-url {url_str} --source {migrations_dir}"
@@ -134,13 +130,23 @@ fn prompt_db_config(config: &ChainConfig) -> anyhow::Result<Url> {
     Ok(db_config.full_url())
 }
 
+fn resolve_configs_dir(shell: &Shell, chain_config: &ChainConfig) -> PathBuf {
+    if chain_config.configs.is_absolute() {
+        return chain_config.configs.clone();
+    }
+
+    let code_root = if chain_config.link_to_code().is_absolute() {
+        chain_config.link_to_code()
+    } else {
+        shell.current_dir().join(chain_config.link_to_code())
+    };
+
+    code_root.join(chain_config.configs.clone())
+}
+
 pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
-    let configs_dir = if chain_config.configs.is_absolute() {
-        chain_config.configs.clone()
-    } else {
-        shell.current_dir().join(chain_config.configs.clone())
-    };
+    let configs_dir = resolve_configs_dir(shell, &chain_config);
 
     let chain_name = chain_config.name.clone();
 
@@ -214,7 +220,7 @@ pub async fn init(shell: &Shell, args: PrivateRpcCommandInitArgs) -> anyhow::Res
 pub async fn run_proxy(shell: &Shell) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
     // Read chain-level private rpc docker compose file
-    let backend_config_path = get_private_rpc_docker_compose_path(&chain_config.configs);
+    let backend_config_path = get_private_rpc_docker_compose_path(&resolve_configs_dir(shell, &chain_config));
     if !backend_config_path.exists() {
         anyhow::bail!(msg_private_rpc_chain_not_initialized(&chain_config.name));
     }
