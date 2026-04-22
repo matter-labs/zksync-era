@@ -357,11 +357,18 @@ impl EthClient for MockEthClient {
             base_token_l1_address: SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
             base_token_name: String::from("Ether"),
             base_token_symbol: String::from("ETH"),
-            v31_base_token_name: String::from("Ether"),
-            v31_base_token_symbol: String::from("ETH"),
-            base_token_decimals: 18,
-            base_token_origin_chain_id: U256::from(1),
         }))
+    }
+
+    async fn get_l2_upgrade_tx_data(
+        &self,
+        _init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> Result<Vec<u8>, ContractCallError> {
+        // The existing unit tests in this crate never drive a v31 upgrade flow, so they never
+        // reach `prepare_upgrade_call`'s v31 branch. Returning the input unchanged is enough to
+        // satisfy the trait; a real rewrite would require an anvil-backed integration test.
+        Ok(existing_tx_data)
     }
 
     async fn fflonk_scheduler_vk_hash(

@@ -15,9 +15,6 @@ use crate::{
     Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256, U256,
 };
 
-const FORCE_DEPLOY_AND_UPGRADE_SELECTOR: [u8; 4] = [0x48, 0x0d, 0x11, 0x85];
-const L2_V31_UPGRADE_SELECTOR: [u8; 4] = [0x98, 0xef, 0xea, 0xd8];
-
 /// Represents a call to be made during governance operation.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Call {
@@ -107,6 +104,7 @@ pub trait ProtocolUpgradePreimageOracle: Send + Sync {
 async fn prepare_upgrade_call(
     proposed_upgrade: &abi::ProposedUpgrade,
     chain_specific: Option<ZkChainSpecificUpgradeData>,
+    v31_upgrade_tx_data: Option<Vec<u8>>,
 ) -> anyhow::Result<Vec<u8>> {
     // No upgrade
     if proposed_upgrade.l2_protocol_upgrade_tx.tx_type == U256::zero() {
@@ -116,7 +114,13 @@ async fn prepare_upgrade_call(
     let minor_version = proposed_upgrade.l2_protocol_upgrade_tx.nonce;
     let version = ProtocolVersionId::try_from(minor_version.as_u32() as u16).unwrap();
     if version == ProtocolVersionId::Version31 {
-        return prepare_v31_upgrade_call(proposed_upgrade, chain_specific);
+        // v31 places a per-chain `additionalForceDeploymentsData` placeholder in the
+        // `NewUpgradeCutData` payload; `SettlementLayerV31UpgradeBase.upgrade()` rewrites it at
+        // L1 diamond-cut time via `getL2UpgradeTxData(bridgehub, chainId, existingTxData)`.
+        // The watcher calls that same view off-chain and passes the result here.
+        return v31_upgrade_tx_data.context(
+            "v31 upgrade tx data must be fetched from getL2UpgradeTxData before prepare_upgrade_call",
+        );
     }
     if version != ProtocolVersionId::gateway_upgrade() {
         return Ok(proposed_upgrade.l2_protocol_upgrade_tx.data.clone());
@@ -159,103 +163,60 @@ async fn prepare_upgrade_call(
     Ok(full_data)
 }
 
-fn prepare_v31_upgrade_call(
-    proposed_upgrade: &abi::ProposedUpgrade,
-    chain_specific: Option<ZkChainSpecificUpgradeData>,
-) -> anyhow::Result<Vec<u8>> {
-    let existing_data = &proposed_upgrade.l2_protocol_upgrade_tx.data;
-    anyhow::ensure!(
-        existing_data.starts_with(&FORCE_DEPLOY_AND_UPGRADE_SELECTOR),
-        "unexpected v31 outer selector: 0x{}",
-        hex::encode(&existing_data[..existing_data.len().min(4)])
-    );
+/// Inputs required to rewrite a v31 `l2ProtocolUpgradeTx.data` via the on-chain
+/// `getL2UpgradeTxData(bridgehub, chainId, existingTxData)` view.
+#[derive(Debug, Clone)]
+pub struct V31RewriteInputs {
+    /// The upgrade facet's deployed L1 address (`DiamondCutData.initAddress`). It exposes
+    /// `SettlementLayerV31UpgradeBase.getL2UpgradeTxData` which returns per-chain rewritten bytes.
+    pub init_address: Address,
+    /// Minor version of the upgrade (from `l2ProtocolUpgradeTx.nonce`). Callers should only
+    /// invoke the view when this equals `ProtocolVersionId::Version31` — future minors will get
+    /// their own rewrite branches rather than being implicitly routed through v31's.
+    pub minor_version: u16,
+    /// The placeholder `l2ProtocolUpgradeTx.data` that the view takes as input.
+    pub existing_tx_data: Vec<u8>,
+}
 
-    let tokens = ethabi::decode(
-        &[
-            ParamType::Array(Box::new(ForceDeployment::schema())),
-            ParamType::Address,
-            ParamType::Bytes,
-        ],
-        &existing_data[4..],
-    )?;
-    let mut tokens = tokens.into_iter();
-    let force_deployments = tokens
-        .next()
-        .context("force deployments")?
-        .into_array()
-        .context("force deployments array")?
-        .into_iter()
-        .map(ForceDeployment::decode)
-        .collect::<anyhow::Result<Vec<_>>>()?;
-    let delegate_to = tokens
-        .next()
-        .context("delegate_to")?
+/// Extract the init address, minor version, and placeholder tx data from a `DiamondCutData` blob
+/// without running the full `ProtocolUpgrade` decode. Used by the watcher to decide whether to
+/// call `getL2UpgradeTxData` (and with which arguments) before constructing the `ProtocolUpgrade`.
+pub fn peek_v31_rewrite_inputs(diamond_cut_data: &[u8]) -> anyhow::Result<V31RewriteInputs> {
+    let diamond_cut_tokens = DIAMOND_CUT
+        .decode_input(diamond_cut_data)
+        .context("decode DiamondCutData function input")?[0]
+        .clone()
+        .into_tuple()
+        .context("DiamondCutData tuple")?;
+    let init_address = diamond_cut_tokens
+        .get(1)
+        .cloned()
+        .context("DiamondCutData.initAddress missing")?
         .into_address()
-        .context("delegate_to address")?;
-    let existing_upgrade_calldata = tokens
-        .next()
-        .context("inner upgrade calldata")?
+        .context("DiamondCutData.initAddress not an address")?;
+    let init_calldata = diamond_cut_tokens
+        .get(2)
+        .cloned()
+        .context("DiamondCutData.initCalldata missing")?
         .into_bytes()
-        .context("inner upgrade calldata bytes")?;
-    anyhow::ensure!(
-        existing_upgrade_calldata.starts_with(&L2_V31_UPGRADE_SELECTOR),
-        "unexpected v31 inner selector: 0x{}",
-        hex::encode(&existing_upgrade_calldata[..existing_upgrade_calldata.len().min(4)])
-    );
-
-    let decoded_inner = ethabi::decode(
-        &[
-            ParamType::Bool,
-            ParamType::Address,
-            ParamType::Bytes,
-            ParamType::Bytes,
-        ],
-        &existing_upgrade_calldata[4..],
-    )?;
-    let mut decoded_inner = decoded_inner.into_iter();
-    let is_zksync_os = decoded_inner
-        .next()
-        .context("is_zksync_os")?
-        .into_bool()
-        .context("is_zksync_os bool")?;
-    let ctm_deployer = decoded_inner
-        .next()
-        .context("ctm_deployer")?
-        .into_address()
-        .context("ctm_deployer address")?;
-    let fixed_force_deployments_data = decoded_inner
-        .next()
-        .context("fixed_force_deployments_data")?
-        .into_bytes()
-        .context("fixed_force_deployments_data bytes")?;
-    let additional_force_deployments_data =
-        chain_specific.context("chain_specific")?.encode_v31_bytes();
-
-    let rebuilt_inner = [
-        L2_V31_UPGRADE_SELECTOR.to_vec(),
-        ethabi::encode(&[
-            Token::Bool(is_zksync_os),
-            Token::Address(ctm_deployer),
-            Token::Bytes(fixed_force_deployments_data),
-            Token::Bytes(additional_force_deployments_data),
-        ]),
-    ]
-    .concat();
-
-    Ok([
-        FORCE_DEPLOY_AND_UPGRADE_SELECTOR.to_vec(),
-        ethabi::encode(&[
-            Token::Array(
-                force_deployments
-                    .iter()
-                    .map(ForceDeployment::encode)
-                    .collect(),
-            ),
-            Token::Address(delegate_to),
-            Token::Bytes(rebuilt_inner),
-        ]),
-    ]
-    .concat())
+        .context("DiamondCutData.initCalldata not bytes")?;
+    let raw = init_calldata
+        .get(4..)
+        .context("DiamondCutData.initCalldata shorter than selector")?;
+    let upgrade = abi::ProposedUpgrade::decode(raw).context("decode ProposedUpgrade")?;
+    let minor_u64: u64 = upgrade
+        .l2_protocol_upgrade_tx
+        .nonce
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("protocol upgrade minor version overflows u64"))?;
+    let minor_version: u16 = minor_u64
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("protocol upgrade minor version overflows u16: {minor_u64}"))?;
+    Ok(V31RewriteInputs {
+        init_address,
+        minor_version,
+        existing_tx_data: upgrade.l2_protocol_upgrade_tx.data,
+    })
 }
 
 impl ProtocolUpgrade {
@@ -263,6 +224,7 @@ impl ProtocolUpgrade {
         diamond_cut_data: &[u8],
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
+        v31_upgrade_tx_data: Option<Vec<u8>>,
     ) -> anyhow::Result<Self> {
         // Unwraps are safe because we have validated the input against the function signature.
         let diamond_cut_tokens = DIAMOND_CUT.decode_input(diamond_cut_data)?[0]
@@ -273,6 +235,7 @@ impl ProtocolUpgrade {
             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
             preimage_oracle,
             chain_specific,
+            v31_upgrade_tx_data,
         )
         .await
     }
@@ -282,6 +245,7 @@ impl ProtocolUpgrade {
         init_calldata: &[u8],
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
+        v31_upgrade_tx_data: Option<Vec<u8>>,
     ) -> anyhow::Result<Self> {
         let raw_data = init_calldata.get(4..).context("need >= 4 bytes")?;
         let mut upgrade =
@@ -310,7 +274,7 @@ impl ProtocolUpgrade {
             };
 
             upgrade.l2_protocol_upgrade_tx.data =
-                prepare_upgrade_call(&upgrade, chain_specific).await?;
+                prepare_upgrade_call(&upgrade, chain_specific, v31_upgrade_tx_data).await?;
 
             Some(
                 Transaction::from_abi(
@@ -676,90 +640,5 @@ mod tests {
             .0
             .truncate(incorrect_log.data.0.len() - 32);
         assert!(TryInto::<GovernanceOperation>::try_into(incorrect_log).is_err());
-    }
-
-    #[test]
-    fn prepare_v31_upgrade_call_rewrites_placeholder_chain_specific_bytes() {
-        let force_deployment = ForceDeployment {
-            bytecode_hash: H256::repeat_byte(0x11),
-            new_address: Address::repeat_byte(0x22),
-            call_constructor: false,
-            value: U256::from(7),
-            input: vec![1, 2, 3],
-        };
-        let inner = [
-            L2_V31_UPGRADE_SELECTOR.to_vec(),
-            ethabi::encode(&[
-                Token::Bool(false),
-                Token::Address(Address::repeat_byte(0x33)),
-                Token::Bytes(vec![4, 5, 6]),
-                Token::Bytes(vec![]),
-            ]),
-        ]
-        .concat();
-        let outer = [
-            FORCE_DEPLOY_AND_UPGRADE_SELECTOR.to_vec(),
-            ethabi::encode(&[
-                Token::Array(vec![force_deployment.encode()]),
-                Token::Address(Address::repeat_byte(0x44)),
-                Token::Bytes(inner),
-            ]),
-        ]
-        .concat();
-        let proposed_upgrade = abi::ProposedUpgrade {
-            l2_protocol_upgrade_tx: Box::new(abi::L2CanonicalTransaction {
-                nonce: U256::from(ProtocolVersionId::Version31 as u16),
-                data: outer,
-                ..Default::default()
-            }),
-            factory_deps: None,
-            bootloader_hash: [0; 32],
-            default_account_hash: [0; 32],
-            evm_emulator_hash: [0; 32],
-            verifier: Address::zero(),
-            verifier_params: abi::VerifierParams::default(),
-            l1_contracts_upgrade_calldata: vec![],
-            post_upgrade_calldata: vec![],
-            upgrade_timestamp: U256::zero(),
-            new_protocol_version: ProtocolVersionId::Version31.into_packed_semver_with_patch(0),
-        };
-        let chain_specific = ZkChainSpecificUpgradeData {
-            base_token_asset_id: H256::repeat_byte(0x55),
-            l2_legacy_shared_bridge: Address::repeat_byte(0x66),
-            l2_predeployed_wrapped_base_token: Address::repeat_byte(0x77),
-            base_token_l1_address: Address::repeat_byte(0x88),
-            base_token_name: "Ether".to_owned(),
-            base_token_symbol: "ETH".to_owned(),
-            v31_base_token_name: "Ether".to_owned(),
-            v31_base_token_symbol: "ETH".to_owned(),
-            base_token_decimals: 18,
-            base_token_origin_chain_id: U256::from(1),
-        };
-
-        let rewritten =
-            prepare_v31_upgrade_call(&proposed_upgrade, Some(chain_specific.clone())).unwrap();
-        let decoded = ethabi::decode(
-            &[
-                ParamType::Array(Box::new(ForceDeployment::schema())),
-                ParamType::Address,
-                ParamType::Bytes,
-            ],
-            &rewritten[4..],
-        )
-        .unwrap();
-        let inner = decoded[2].clone().into_bytes().unwrap();
-        let decoded_inner = ethabi::decode(
-            &[
-                ParamType::Bool,
-                ParamType::Address,
-                ParamType::Bytes,
-                ParamType::Bytes,
-            ],
-            &inner[4..],
-        )
-        .unwrap();
-        let additional = decoded_inner[3].clone().into_bytes().unwrap();
-
-        assert_eq!(additional, chain_specific.encode_v31_bytes());
     }
 }
