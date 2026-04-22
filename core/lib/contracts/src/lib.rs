@@ -75,10 +75,15 @@ const L1_ASSET_ROUTER_FILE: (&str, &str) = (
     "bridge/asset-router",
     "L1AssetRouter.sol/L1AssetRouter.json",
 );
+const NATIVE_TOKEN_VAULT_FILE: (&str, &str) = (
+    "bridge/ntv",
+    "INativeTokenVaultBase.sol/INativeTokenVaultBase.json",
+);
 const L2_WRAPPED_BASE_TOKEN_STORE: (&str, &str) = (
     "bridge",
     "L2WrappedBaseTokenStore.sol/L2WrappedBaseTokenStore.json",
 );
+const IERC20_METADATA_FILE: (&str, &str) = ("", "IERC20Metadata.sol/IERC20Metadata.json");
 
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
@@ -223,8 +228,16 @@ pub fn l1_asset_router_contract() -> Contract {
     load_contract_for_both_compilers(L1_ASSET_ROUTER_FILE)
 }
 
+pub fn native_token_vault_contract() -> Contract {
+    load_contract_for_both_compilers(NATIVE_TOKEN_VAULT_FILE)
+}
+
 pub fn wrapped_base_token_store_contract() -> Contract {
     load_contract_for_both_compilers(L2_WRAPPED_BASE_TOKEN_STORE)
+}
+
+pub fn erc20_metadata_contract() -> Contract {
+    load_contract_for_both_compilers(IERC20_METADATA_FILE)
 }
 
 pub fn proof_manager_contract() -> Contract {

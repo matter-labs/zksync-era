@@ -2,7 +2,8 @@ use std::{collections::HashMap, fmt, sync::Arc};
 
 use anyhow::Context;
 use zksync_contracts::{
-    bytecode_supplier_contract, getters_facet_contract, l1_asset_router_contract, l2_message_root,
+    bridgehub_contract, bytecode_supplier_contract, erc20_metadata_contract,
+    getters_facet_contract, l1_asset_router_contract, l2_message_root, native_token_vault_contract,
     state_transition_manager_contract, verifier_contract, wrapped_base_token_store_contract,
 };
 use zksync_eth_client::{
@@ -14,9 +15,8 @@ use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
-    ethabi::{decode, Contract, ParamType},
+    ethabi::{decode, Contract, ParamType, Token},
     protocol_version::ProtocolSemanticVersion,
-    utils::encode_ntv_asset_id,
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256,
     SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
@@ -116,6 +116,8 @@ pub struct EthHttpQueryClient<Net: Network> {
     message_root_abi: Contract,
     l1_asset_router_abi: Contract,
     wrapped_base_token_store_abi: Contract,
+    native_token_vault_abi: Contract,
+    erc20_metadata_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
     l2_chain_id: L2ChainId,
 }
@@ -165,6 +167,8 @@ where
             chain_type_manager_abi: state_transition_manager_contract(),
             message_root_abi: l2_message_root(),
             l1_asset_router_abi: l1_asset_router_contract(),
+            native_token_vault_abi: native_token_vault_contract(),
+            erc20_metadata_abi: erc20_metadata_contract(),
             wrapped_base_token_store_abi: wrapped_base_token_store_contract(),
             confirmations_for_eth_event,
             wrapped_base_token_store,
@@ -509,35 +513,128 @@ where
     async fn get_chain_gateway_upgrade_info(
         &self,
     ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError> {
-        let Some(l1_shared_bridge_addr) = self.l1_shared_bridge_addr else {
-            tracing::warn!("l1 shared bridge is not provided!");
-            return Ok(None);
-        };
-
-        let Some(l1_wrapped_base_token_store) = self.wrapped_base_token_store else {
-            tracing::warn!("l1 wrapped base token store is not provided!");
-            return Ok(None);
-        };
+        let bridgehub_addr: Address = CallFunctionArgs::new("getBridgehub", ())
+            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
+            .call(&self.client)
+            .await?;
+        let base_token_asset_id: H256 = CallFunctionArgs::new("getBaseTokenAssetId", ())
+            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
+            .call(&self.client)
+            .await?;
+        let asset_router_addr: Address = CallFunctionArgs::new("assetRouter", ())
+            .for_contract(bridgehub_addr, &bridgehub_contract())
+            .call(&self.client)
+            .await?;
+        let native_token_vault_addr: Address = CallFunctionArgs::new("nativeTokenVault", ())
+            .for_contract(asset_router_addr, &self.l1_asset_router_abi)
+            .call(&self.client)
+            .await?;
+        let base_token_origin_address: Address =
+            CallFunctionArgs::new("originToken", H256::from(base_token_asset_id))
+                .for_contract(native_token_vault_addr, &self.native_token_vault_abi)
+                .call(&self.client)
+                .await?;
+        let base_token_origin_chain_id: U256 =
+            CallFunctionArgs::new("originChainId", H256::from(base_token_asset_id))
+                .for_contract(native_token_vault_addr, &self.native_token_vault_abi)
+                .call(&self.client)
+                .await?;
+        let (v31_base_token_name, v31_base_token_symbol, v31_base_token_decimals) =
+            if base_token_origin_address == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
+                (String::from("Ether"), String::from("ETH"), 18)
+            } else {
+                let local_token_addr: Address =
+                    CallFunctionArgs::new("tokenAddress", H256::from(base_token_asset_id))
+                        .for_contract(native_token_vault_addr, &self.native_token_vault_abi)
+                        .call(&self.client)
+                        .await?;
+                let name: Token = CallFunctionArgs::new("name", ())
+                    .for_contract(local_token_addr, &self.erc20_metadata_abi)
+                    .call(&self.client)
+                    .await?;
+                let symbol: Token = CallFunctionArgs::new("symbol", ())
+                    .for_contract(local_token_addr, &self.erc20_metadata_abi)
+                    .call(&self.client)
+                    .await?;
+                let decimals: Token = CallFunctionArgs::new("decimals", ())
+                    .for_contract(local_token_addr, &self.erc20_metadata_abi)
+                    .call(&self.client)
+                    .await?;
+                let name = match name {
+                    Token::String(value) => value,
+                    other => {
+                        return Err(ContractCallError::DetokenizeOutput {
+                            signature: "name".to_owned(),
+                            output: vec![other.clone()],
+                            source: zksync_types::web3::contract::Error::InvalidOutputType(
+                                format!("Expected string token for ERC20 name, got {other:?}"),
+                            ),
+                        });
+                    }
+                };
+                let symbol = match symbol {
+                    Token::String(value) => value,
+                    other => {
+                        return Err(ContractCallError::DetokenizeOutput {
+                            signature: "symbol".to_owned(),
+                            output: vec![other.clone()],
+                            source: zksync_types::web3::contract::Error::InvalidOutputType(
+                                format!("Expected string token for ERC20 symbol, got {other:?}"),
+                            ),
+                        });
+                    }
+                };
+                let decimals = match decimals {
+                    Token::Uint(value) if value <= U256::from(u8::MAX) => value.as_u32() as u8,
+                    Token::Uint(value) => {
+                        return Err(ContractCallError::DetokenizeOutput {
+                            signature: "decimals".to_owned(),
+                            output: vec![Token::Uint(value)],
+                            source: zksync_types::web3::contract::Error::InvalidOutputType(
+                                format!("ERC20 decimals out of u8 range: {value}"),
+                            ),
+                        });
+                    }
+                    other => {
+                        return Err(ContractCallError::DetokenizeOutput {
+                            signature: "decimals".to_owned(),
+                            output: vec![other.clone()],
+                            source: zksync_types::web3::contract::Error::InvalidOutputType(
+                                format!("Expected uint token for ERC20 decimals, got {other:?}"),
+                            ),
+                        });
+                    }
+                };
+                (name, symbol, decimals)
+            };
 
         let l2_chain_id = U256::from(self.l2_chain_id.as_u64());
 
-        // It does not matter whether the l1 shared bridge is an L1AssetRouter or L1Nullifier,
-        // either way it supports the "l2BridgeAddress" method.
-        let l2_legacy_shared_bridge: Address =
-            CallFunctionArgs::new("l2BridgeAddress", l2_chain_id)
-                .for_contract(l1_shared_bridge_addr, &self.l1_asset_router_abi)
-                .call(&self.client)
-                .await?;
+        let l2_legacy_shared_bridge =
+            if let Some(l1_shared_bridge_addr) = self.l1_shared_bridge_addr {
+                // It does not matter whether the l1 shared bridge is an L1AssetRouter or L1Nullifier,
+                // either way it supports the "l2BridgeAddress" method.
+                let bridge_addr: Address = CallFunctionArgs::new("l2BridgeAddress", l2_chain_id)
+                    .for_contract(l1_shared_bridge_addr, &self.l1_asset_router_abi)
+                    .call(&self.client)
+                    .await?;
 
-        if l2_legacy_shared_bridge == Address::zero() {
-            // This state is not completely impossible, but somewhat undesirable.
-            // Contracts will still allow the upgrade to go through without
-            // the shared bridge, so we will allow it here as well.
-            tracing::error!("L2 shared bridge from L1 is empty");
-        }
+                if bridge_addr == Address::zero() {
+                    // This state is not completely impossible, but somewhat undesirable.
+                    // Contracts will still allow the upgrade to go through without
+                    // the shared bridge, so we will allow it here as well.
+                    tracing::error!("L2 shared bridge from L1 is empty");
+                }
+                bridge_addr
+            } else {
+                tracing::warn!("l1 shared bridge is not provided; using zero address");
+                Address::zero()
+            };
 
-        let l2_predeployed_wrapped_base_token: Address =
-            CallFunctionArgs::new("l2WBaseTokenAddress", l2_chain_id)
+        let l2_predeployed_wrapped_base_token = if let Some(l1_wrapped_base_token_store) =
+            self.wrapped_base_token_store
+        {
+            let wrapped_addr: Address = CallFunctionArgs::new("l2WBaseTokenAddress", l2_chain_id)
                 .for_contract(
                     l1_wrapped_base_token_store,
                     &self.wrapped_base_token_store_abi,
@@ -545,20 +642,25 @@ where
                 .call(&self.client)
                 .await?;
 
-        if l2_predeployed_wrapped_base_token == Address::zero() {
-            // This state is not completely impossible, but somewhat undesirable.
-            // Contracts will still allow the upgrade to go through without
-            // the l2 predeployed wrapped base token, so we will allow it here as well.
-            tracing::error!("L2 predeployed wrapped base token is empty");
-        }
+            if wrapped_addr == Address::zero() {
+                // This state is not completely impossible, but somewhat undesirable.
+                // Contracts will still allow the upgrade to go through without
+                // the l2 predeployed wrapped base token, so we will allow it here as well.
+                tracing::error!("L2 predeployed wrapped base token is empty");
+            }
+            wrapped_addr
+        } else {
+            tracing::warn!("l1 wrapped base token store is not provided; using zero address");
+            Address::zero()
+        };
 
-        let base_token_l1_address: Address = CallFunctionArgs::new("getBaseToken", ())
+        let gateway_base_token_l1_address: Address = CallFunctionArgs::new("getBaseToken", ())
             .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
             .call(&self.client)
             .await?;
 
         let (base_token_name, base_token_symbol) =
-            if base_token_l1_address == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
+            if gateway_base_token_l1_address == SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
                 (String::from("Ether"), String::from("ETH"))
             } else {
                 // Due to an issue in the upgrade process, the automatically
@@ -566,20 +668,17 @@ where
                 (String::from("Base Token"), String::from("BT"))
             };
 
-        let base_token_asset_id = encode_ntv_asset_id(
-            // Note, that this is correct only for tokens that are being upgraded to the gateway protocol version.
-            // The chains that were deployed after it may have tokens with non-L1 base tokens.
-            U256::from(self.chain_id().await?.0),
-            base_token_l1_address,
-        );
-
         Ok(Some(ZkChainSpecificUpgradeData {
             base_token_asset_id,
             l2_legacy_shared_bridge,
             l2_predeployed_wrapped_base_token,
-            base_token_l1_address,
+            base_token_l1_address: base_token_origin_address,
             base_token_name,
             base_token_symbol,
+            v31_base_token_name,
+            v31_base_token_symbol,
+            base_token_decimals: v31_base_token_decimals,
+            base_token_origin_chain_id,
         }))
     }
 }

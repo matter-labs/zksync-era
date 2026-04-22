@@ -1,18 +1,27 @@
-if [ -d "./zksync-working" ] && [ -n "$(ls -A ./zksync-working)" ]; then
+#!/bin/bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+WORKING_DIRECTORY="$WORKSPACE_ROOT/zksync-working"
+OLD_REPO="$WORKSPACE_ROOT/zksync-old"
+NEW_REPO="$WORKSPACE_ROOT/zksync-new"
+
+if [ -d "$WORKING_DIRECTORY" ] && [ -n "$(ls -A "$WORKING_DIRECTORY")" ]; then
     echo "zksync-working found and is not empty. Cleaning containers and restarting services..."
-    cd zksync-working
+    cd "$WORKING_DIRECTORY"
     zkstack dev clean containers && zkstack up -o false
-    cd ..
 fi
 
 
-if [ -z "$(ls -A ./zksync-old)" ]; then
+if [ -d "$OLD_REPO" ] && [ -z "$(ls -A "$OLD_REPO")" ]; then
     echo "Moving zksync-working to zksync-old"
-    mv ./zksync-working ./zksync-old
+    mv "$WORKING_DIRECTORY" "$OLD_REPO"
 else
-    if [ -z "$(ls -A ./zksync-new)" ]; then
+    if [ -d "$NEW_REPO" ] && [ -z "$(ls -A "$NEW_REPO")" ]; then
         echo "Moving zksync-working to zksync-new"
-        mv ./zksync-working ./zksync-new
+        mv "$WORKING_DIRECTORY" "$NEW_REPO"
     else
         echo "Both zksync-old and zksync-new contain files. No reset action taken."
     fi

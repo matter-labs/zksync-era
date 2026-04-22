@@ -15,7 +15,7 @@ use zkstack_cli_config::{
     traits::{FileConfigTrait, ReadConfig},
     ZkStackConfig, ZkStackConfigTrait,
 };
-use zksync_basic_types::{web3::Bytes, Address, L1BatchNumber, H256, U256};
+use zksync_basic_types::{web3::Bytes as ZkBytes, Address, L1BatchNumber, H256, U256};
 use zksync_types::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -126,7 +126,10 @@ pub async fn fetch_chain_info(
     let chain_id = U256::from(args.chain_id);
 
     let bridgehub = BridgehubAbi::new(
-        upgrade_info.core_contracts.bridgehub_proxy_addr,
+        upgrade_info
+            .deployed_addresses
+            .bridgehub
+            .bridgehub_proxy_addr,
         l1_provider.clone(),
     );
     let zkchain_addr = bridgehub.get_zk_chain(chain_id).await?;
@@ -169,15 +172,14 @@ pub async fn fetch_chain_info(
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UpgradeInfo {
-    // Simplified: just read the specific addresses we need
-    pub(crate) core_contracts: CoreContracts,
+    pub(crate) deployed_addresses: DeployedAddresses,
     pub(crate) state_transition: StateTransition,
 
     pub(crate) contracts_config: ContractsConfig,
 
     // Information from upgrade
     #[serde(skip)]
-    pub(crate) chain_upgrade_diamond_cut: Bytes,
+    pub(crate) chain_upgrade_diamond_cut: ZkBytes,
     #[serde(default)]
     pub(crate) chain_upgrade_diamond_cut_file: Option<PathBuf>,
 }
@@ -190,7 +192,7 @@ impl UpgradeInfo {
                 let hex_string = std::fs::read_to_string(file_path)?;
                 let hex_trimmed = hex_string.trim().trim_start_matches("0x");
                 let bytes = hex::decode(hex_trimmed)?;
-                self.chain_upgrade_diamond_cut = Bytes(bytes);
+                self.chain_upgrade_diamond_cut = ZkBytes(bytes);
             }
         }
         Ok(())
@@ -200,7 +202,12 @@ impl UpgradeInfo {
 impl FileConfigTrait for UpgradeInfo {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CoreContracts {
+pub struct DeployedAddresses {
+    pub(crate) bridgehub: BridgehubAddresses,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BridgehubAddresses {
     pub(crate) bridgehub_proxy_addr: Address,
 }
 
@@ -371,14 +378,38 @@ pub(crate) async fn run(
         let wallets_config = chain_config.get_wallets_config()?;
 
         // Fill in default parameters
-        let args = args_input.params.fill_if_empty(shell).await?;
+        let mut args = args_input.clone().fill_if_empty(shell).await?;
+        if args.params.upgrade_description_path.is_none() {
+            args.params.upgrade_description_path = Some(
+                chain_config
+                    .contracts_path()
+                    .join(
+                        args_input
+                            .upgrade_version
+                            .get_default_upgrade_description_path(),
+                    )
+                    .to_string_lossy()
+                    .to_string(),
+            );
+        }
+        let upgrade_info = UpgradeInfo::read(
+            shell,
+            args.params
+                .upgrade_description_path
+                .clone()
+                .expect("upgrade_description_path is required"),
+        )?;
 
         let chain_address = contracts_config.l1.diamond_proxy_addr;
         let ctm_address = contracts_config
             .ecosystem_contracts
             .ctm
             .state_transition_proxy_addr;
-        let l1_rpc_url = args.l1_rpc_url.clone().context("l1_rpc_url is required")?;
+        let l1_rpc_url = args
+            .params
+            .l1_rpc_url
+            .clone()
+            .context("l1_rpc_url is required")?;
         let governor_private_key = wallets_config
             .governor
             .private_key_h256()
@@ -390,6 +421,11 @@ pub(crate) async fn run(
             ctm_address,
             l1_rpc_url,
             governor_private_key,
+            contracts_config.l1.chain_admin_addr,
+            upgrade_info.contracts_config.new_protocol_version,
+            args.params
+                .server_upgrade_timestamp
+                .expect("server_upgrade_timestamp is required"),
         )
         .await
     } else {
@@ -411,7 +447,10 @@ pub(crate) async fn run_chain_upgrade_from_ctm(
     chain_address: Address,
     ctm_address: Address,
     l1_rpc_url: String,
-    _governor_private_key: H256,
+    governor_private_key: H256,
+    chain_admin_addr: Address,
+    new_protocol_version: u64,
+    server_upgrade_timestamp: u64,
 ) -> anyhow::Result<()> {
     let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
     let chain_config = ZkStackConfig::current_chain(shell)?;
@@ -426,23 +465,29 @@ pub(crate) async fn run_chain_upgrade_from_ctm(
     let mut forge_args = ForgeScriptArgs::default();
     forge_args.resume = false;
 
-    // Get admin addresses
     let admin_address = contracts_config.l1.chain_admin_addr;
     let access_control_restriction = contracts_config
         .l1
         .access_control_restriction_addr
         .context("access_control_restriction_addr is required")?;
 
+    let timestamp_calldata =
+        set_upgrade_timestamp_calldata(new_protocol_version, server_upgrade_timestamp);
+    send_tx(
+        chain_admin_addr,
+        timestamp_calldata,
+        U256::zero(),
+        l1_rpc_url.clone(),
+        governor_private_key,
+        "set timestamp for upgrade",
+    )
+    .await?;
+
     // Encode the function call
     let calldata = ADMIN_FUNCTIONS
         .encode(
             "upgradeChainFromCTM",
-            (
-                chain_address,
-                ctm_address,
-                admin_address,
-                access_control_restriction,
-            ),
+            (chain_address, admin_address, access_control_restriction),
         )
         .context("Failed to encode upgradeChainFromCTM call")?;
 

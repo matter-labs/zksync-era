@@ -165,9 +165,7 @@ pub async fn governance_execute_calls(
     l1_rpc_url: String,
     governance_address: Address,
 ) -> anyhow::Result<AdminScriptOutput> {
-    // resume doesn't properly work here.
-    let mut forge_args = forge_args.clone();
-    forge_args.resume = false;
+    let forge_args = forge_args.clone();
 
     let calldata = ADMIN_FUNCTIONS
         .encode(
@@ -187,9 +185,9 @@ pub async fn governance_execute_calls(
     let description = "executing governance calls";
     let (forge, spinner_text) = match mode {
         AdminScriptMode::OnlySave => (forge, format!("Preparing calldata for {description}")),
-        AdminScriptMode::Broadcast(wallet) => {
+        AdminScriptMode::Broadcast(ref wallet) => {
             let forge = forge.with_broadcast();
-            let forge = fill_forge_private_key(forge, Some(&wallet), WalletOwner::Governor)?;
+            let forge = fill_forge_private_key(forge, Some(wallet), WalletOwner::Governor)?;
             check_the_balance(&forge).await?;
             (forge, format!("Executing {description}"))
         }
@@ -200,7 +198,16 @@ pub async fn governance_execute_calls(
     spinner.finish();
 
     let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&path_to_foundry_scripts);
-    Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
+    if output_path.exists() {
+        return Ok(AdminScriptOutputInner::read(shell, output_path)?.into());
+    }
+
+    match mode {
+        AdminScriptMode::OnlySave => {
+            anyhow::bail!("Expected admin script output at {}", output_path.display())
+        }
+        AdminScriptMode::Broadcast(_) => Ok(AdminScriptOutput::default()),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

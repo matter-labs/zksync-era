@@ -357,6 +357,10 @@ impl EthClient for MockEthClient {
             base_token_l1_address: SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
             base_token_name: String::from("Ether"),
             base_token_symbol: String::from("ETH"),
+            v31_base_token_name: String::from("Ether"),
+            v31_base_token_symbol: String::from("ETH"),
+            base_token_decimals: 18,
+            base_token_origin_chain_id: U256::from(1),
         }))
     }
 

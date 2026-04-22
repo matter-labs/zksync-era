@@ -1,5 +1,9 @@
 use anyhow::Context;
-use ethers::{contract::BaseContract, types::Address};
+use ethers::{
+    abi::Abi,
+    contract::BaseContract,
+    types::{Address, Bytes},
+};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use xshell::Shell;
@@ -126,9 +130,48 @@ async fn no_governance_prepare(
             .await?
             .l1_rpc_url()?
     };
+    let contracts_config = ecosystem_config.get_contracts_config()?;
+    let ctm = contracts_config.ctm(vm_option);
+    let governance = contracts_config.l1.governance_addr;
+    let zk_token_asset_id = ecosystem_config.l1_network.zk_token_asset_id();
+    let ecosystem_upgrade_artifact = ecosystem_config
+        .path_to_foundry_scripts_for_ctm(vm_option)
+        .join("out/EcosystemUpgrade_v31.s.sol/EcosystemUpgrade_v31.json");
+    let ecosystem_upgrade_abi: Abi = serde_json::from_value(
+        serde_json::from_str::<serde_json::Value>(
+            &std::fs::read_to_string(&ecosystem_upgrade_artifact).with_context(|| {
+                format!("Failed to read {}", ecosystem_upgrade_artifact.display())
+            })?,
+        )
+        .context("Failed to parse EcosystemUpgrade_v31 artifact JSON")?
+        .get("abi")
+        .cloned()
+        .context("Missing abi field in EcosystemUpgrade_v31 artifact")?,
+    )
+    .context("Failed to parse EcosystemUpgrade_v31 ABI")?;
 
-    // Note: The forge script now reads configuration from environment variables
-    // instead of input TOML files, so we no longer need to create EcosystemUpgradeInput
+    let no_governance_prepare = BaseContract::from(ecosystem_upgrade_abi);
+    let calldata = no_governance_prepare
+        .encode(
+            "noGovernancePrepare",
+            ((
+                contracts_config
+                    .core_ecosystem_contracts
+                    .bridgehub_proxy_addr,
+                ctm.state_transition_proxy_addr,
+                ctm.l1_bytecodes_supplier_addr,
+                ctm.l1_rollup_da_manager,
+                matches!(vm_option, VMOption::ZKSyncOsVM),
+                contracts_config.create2_factory_salt,
+                contracts_config.create2_factory_addr,
+                "/upgrade-envs/v0.31.0-interopB/local.toml".to_string(),
+                "/script-out/v31-upgrade-ecosystem.toml".to_string(),
+                governance,
+                zk_token_asset_id,
+            ),),
+        )
+        .context("Failed to encode v31 no-governance-prepare calldata")?;
+
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
@@ -138,6 +181,7 @@ async fn no_governance_prepare(
         .with_rpc_url(l1_rpc_url)
         .with_slow()
         .with_gas_limit(1_000_000_000_000)
+        .with_calldata(&Bytes::from(calldata))
         .with_broadcast();
 
     forge = fill_forge_private_key(
@@ -153,18 +197,37 @@ async fn no_governance_prepare(
     logger::info("done!");
 
     let l1_chain_id = ecosystem_config.l1_network.chain_id();
+    let broadcast_dir = ecosystem_config
+        .path_to_foundry_scripts_for_ctm(vm_option)
+        .join(format!(
+            "broadcast/EcosystemUpgrade_v31.s.sol/{}",
+            l1_chain_id
+        ));
+    let legacy_broadcast_path = broadcast_dir.join("run-latest.json");
+    let broadcast_path = if legacy_broadcast_path.exists() {
+        legacy_broadcast_path
+    } else {
+        let mut latest_candidates = std::fs::read_dir(&broadcast_dir)
+            .with_context(|| format!("Failed to read {}", broadcast_dir.display()))?
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.ends_with("-latest.json"))
+            })
+            .collect::<Vec<_>>();
+        latest_candidates.sort();
+        latest_candidates
+            .into_iter()
+            .next_back()
+            .context("Failed to locate Foundry latest broadcast file")?
+    };
 
     // TODO Get rid of BrodacastFile usage
     let broadcast_file: BroadcastFile = {
-        let file_content = std::fs::read_to_string(
-            ecosystem_config
-                .path_to_foundry_scripts_for_ctm(vm_option)
-                .join(format!(
-                    "broadcast/EcosystemUpgrade_v31.s.sol/{}/run-latest.json",
-                    l1_chain_id
-                )),
-        )
-        .context("Failed to read broadcast file")?;
+        let file_content = std::fs::read_to_string(&broadcast_path).with_context(|| {
+            format!("Failed to read broadcast file {}", broadcast_path.display())
+        })?;
         serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
     };
 

@@ -1,9 +1,14 @@
 #!/bin/bash
 
-OLD_REPO=./zksync-old
-NEW_REPO=./zksync-new
+set -euo pipefail
 
-WORKING_DIRECTORY=./zksync-working
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+OLD_REPO="$WORKSPACE_ROOT/zksync-old"
+NEW_REPO="$WORKSPACE_ROOT/zksync-new"
+
+WORKING_DIRECTORY="$WORKSPACE_ROOT/zksync-working"
 
 # If zksync-working exists and zksync-new is empty/doesn't exist, move it to zksync-new
 if [ -d "$WORKING_DIRECTORY" ]; then
@@ -21,4 +26,4 @@ else
   echo "Updating to use old era."
 fi
 
-mv $OLD_REPO $WORKING_DIRECTORY
+mv "$OLD_REPO" "$WORKING_DIRECTORY"

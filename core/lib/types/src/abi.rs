@@ -613,6 +613,10 @@ pub struct ZkChainSpecificUpgradeData {
     pub base_token_l1_address: Address,
     pub base_token_name: String,
     pub base_token_symbol: String,
+    pub v31_base_token_name: String,
+    pub v31_base_token_symbol: String,
+    pub base_token_decimals: u8,
+    pub base_token_origin_chain_id: U256,
 }
 
 impl ZkChainSpecificUpgradeData {
@@ -623,6 +627,10 @@ impl ZkChainSpecificUpgradeData {
         base_token_l1_address: Option<Address>,
         base_token_name: Option<String>,
         base_token_symbol: Option<String>,
+        v31_base_token_name: Option<String>,
+        v31_base_token_symbol: Option<String>,
+        base_token_decimals: Option<u8>,
+        base_token_origin_chain_id: Option<U256>,
     ) -> Option<Self> {
         Some(Self {
             base_token_asset_id: base_token_asset_id?,
@@ -633,6 +641,10 @@ impl ZkChainSpecificUpgradeData {
             base_token_l1_address: base_token_l1_address?,
             base_token_name: base_token_name?,
             base_token_symbol: base_token_symbol?,
+            v31_base_token_name: v31_base_token_name?,
+            v31_base_token_symbol: v31_base_token_symbol?,
+            base_token_decimals: base_token_decimals?,
+            base_token_origin_chain_id: base_token_origin_chain_id?,
         })
     }
 
@@ -659,5 +671,23 @@ impl ZkChainSpecificUpgradeData {
 
     pub fn encode_bytes(&self) -> Vec<u8> {
         ethabi::encode(&[self.encode()])
+    }
+
+    pub fn encode_v31_bytes(&self) -> Vec<u8> {
+        ethabi::encode(&[Token::Tuple(vec![
+            Token::Address(Address::zero()),
+            Token::Address(Address::zero()),
+            Token::Address(self.base_token_l1_address),
+            Token::Tuple(vec![
+                Token::String(self.v31_base_token_name.clone()),
+                Token::String(self.v31_base_token_symbol.clone()),
+                Token::Uint(self.base_token_decimals.into()),
+            ]),
+            Token::Tuple(vec![
+                Token::FixedBytes(self.base_token_asset_id.0.to_vec()),
+                Token::Uint(self.base_token_origin_chain_id),
+                Token::Address(self.base_token_l1_address),
+            ]),
+        ])])
     }
 }
