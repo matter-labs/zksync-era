@@ -19,11 +19,17 @@ mod vyper;
 mod zksolc;
 mod zkvyper;
 
+fn default_json_object() -> Value {
+    serde_json::json!({})
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct StandardJson {
     pub language: String,
     pub sources: HashMap<String, Source>,
+    #[serde(flatten, default = "default_json_object")]
+    other: Value,
     #[serde(default)]
     settings: Settings,
 }
@@ -42,7 +48,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             output_selection: None,
-            other: serde_json::json!({}),
+            other: default_json_object(),
         }
     }
 }
@@ -72,15 +78,18 @@ pub(crate) fn validate_source_paths(
 }
 
 /// Returns `true` if `source` contains an `import` directive whose path is absolute (`/…`)
-/// or starts with a parent-directory traversal (`../…`).  Both forms let the compiler
-/// resolve imports against the host filesystem and leak file contents in error messages.
+/// or uses a `file://` URL. These forms let the compiler resolve imports against the host
+/// filesystem and potentially leak file contents in error messages.
+///
+/// Relative imports containing `../` are allowed: they are standard Solidity practice and
+/// remain sandboxed by `validate_source_paths()` plus the empty compiler search directory.
 pub(crate) fn has_dangerous_imports(source: &str) -> bool {
     // Covers all Solidity import forms:
     //   import "/path";
-    //   import "../path";
     //   import {X} from "/path";
     //   import * as X from "/path";
-    let re = Regex::new(r#"\bimport\b[^;]*?["'](/|\.\.)"#).unwrap();
+    //   import "file:///path";
+    let re = Regex::new(r#"\bimport\b[^;]*?["'](?:/|file://)"#).unwrap();
     re.is_match(source)
 }
 
@@ -112,6 +121,30 @@ pub(crate) fn sanitize_compiler_stderr(stderr: &str) -> String {
         .filter(|line| !line.contains(" --> ") && !line.trim_start().starts_with('|'))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::has_dangerous_imports;
+
+    #[test]
+    fn allows_relative_parent_imports() {
+        let source = r#"
+            import {ContextUpgradeable} from "../utils/ContextUpgradeable.sol";
+            import {Hashes} from "./Hashes.sol";
+        "#;
+
+        assert!(
+            !has_dangerous_imports(source),
+            "relative imports within the submitted source tree must be allowed"
+        );
+    }
+
+    #[test]
+    fn rejects_absolute_imports() {
+        assert!(has_dangerous_imports(r#"import "/etc/shadow";"#));
+        assert!(has_dangerous_imports(r#"import "file:///etc/shadow";"#));
+    }
 }
 
 /// Users may provide either just contract name or source file name and contract name joined with ":".
@@ -201,7 +234,10 @@ fn parse_standard_json_output(
     };
 
     let Some(bytecode_str) = contract.pointer("/evm/bytecode/object") else {
-        return Err(ContractVerifierError::AbstractContract(contract_name));
+        return Err(ContractVerifierError::MissingCompilerOutput {
+            contract_name,
+            field_path: "/evm/bytecode/object",
+        });
     };
     let bytecode_str = bytecode_str
         .as_str()
@@ -212,7 +248,10 @@ fn parse_standard_json_output(
 
     let deployed_bytecode = if get_deployed_bytecode {
         let Some(bytecode_str) = contract.pointer("/evm/deployedBytecode/object") else {
-            return Err(ContractVerifierError::AbstractContract(contract_name));
+            return Err(ContractVerifierError::MissingCompilerOutput {
+                contract_name,
+                field_path: "/evm/deployedBytecode/object",
+            });
         };
         let bytecode_str = bytecode_str
             .as_str()
@@ -255,4 +294,73 @@ fn is_suppressable_error(message: &str) -> bool {
     // All of them mention `suppressedErrors` in the message, which is a custom
     // `zksolc` configuration, so we use it as a marker.
     message.contains("suppressedErrors")
+}
+
+#[cfg(test)]
+mod parser_tests {
+    use super::parse_standard_json_output;
+    use crate::error::ContractVerifierError;
+
+    #[test]
+    fn reports_missing_creation_bytecode_path() {
+        let output = serde_json::json!({
+            "contracts": {
+                "Counter.sol": {
+                    "Counter": {
+                        "abi": []
+                    }
+                }
+            }
+        });
+
+        let err = parse_standard_json_output(
+            &output,
+            "Counter".to_owned(),
+            "Counter.sol".to_owned(),
+            false,
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ContractVerifierError::MissingCompilerOutput {
+                contract_name,
+                field_path: "/evm/bytecode/object",
+            } if contract_name == "Counter"
+        ));
+    }
+
+    #[test]
+    fn reports_missing_deployed_bytecode_path() {
+        let output = serde_json::json!({
+            "contracts": {
+                "Counter.sol": {
+                    "Counter": {
+                        "abi": [],
+                        "evm": {
+                            "bytecode": {
+                                "object": "00"
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        let err = parse_standard_json_output(
+            &output,
+            "Counter".to_owned(),
+            "Counter.sol".to_owned(),
+            true,
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ContractVerifierError::MissingCompilerOutput {
+                contract_name,
+                field_path: "/evm/deployedBytecode/object",
+            } if contract_name == "Counter"
+        ));
+    }
 }

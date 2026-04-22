@@ -49,7 +49,7 @@ impl Collectors {
     fn final_resolution(&self, expected_tx_count: Option<usize>) -> LoadtestResult {
         let is_tx_count_acceptable = expected_tx_count.is_none_or(|expected_count| {
             const MIN_ACCEPTABLE_DELTA: f64 = -10.0;
-            const MAX_ACCEPTABLE_DELTA: f64 = 100.0;
+            const MAX_ACCEPTABLE_DELTA: f64 = 200.0;
 
             let actual_count = self.operation_results.tx_results.successes() as f64;
             let delta = 100.0 * (actual_count - expected_count as f64) / (expected_count as f64);

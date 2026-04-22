@@ -1,15 +1,20 @@
 use std::str::FromStr;
 
+use bigdecimal::BigDecimal;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
     api::en,
     commitment::{L2DACommitmentScheme, PubdataParams, PubdataType},
-    parse_h160, parse_h256, parse_h256_opt, Address, InteropRoot, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction, H256,
+    parse_h160, parse_h256, parse_h256_opt,
+    settlement::SettlementLayer,
+    Address, InteropRoot, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 
-use crate::{consensus_dal::Payload, models::parse_protocol_version};
+use crate::{
+    consensus_dal::Payload,
+    models::{bigdecimal_to_u256, parse_protocol_version, storage_block::to_settlement_layer},
+};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(crate) struct StorageSyncBlock {
@@ -33,6 +38,9 @@ pub(crate) struct StorageSyncBlock {
     pub l2_da_commitment_scheme: Option<i32>,
     pub pubdata_type: String,
     pub pubdata_limit: Option<i64>,
+    pub settlement_layer_type: String,
+    pub settlement_layer_chain_id: i64,
+    pub interop_fee: BigDecimal,
 }
 
 pub(crate) struct SyncBlock {
@@ -51,6 +59,8 @@ pub(crate) struct SyncBlock {
     pub pubdata_params: PubdataParams,
     pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
+    pub settlement_layer: SettlementLayer,
+    pub interop_fee: U256,
 }
 
 impl SyncBlock {
@@ -122,6 +132,12 @@ impl SyncBlock {
             .decode_column("pubdata_params")?,
             pubdata_limit: block.pubdata_limit.map(|l| l as u64),
             interop_roots,
+            settlement_layer: to_settlement_layer(
+                block.settlement_layer_type,
+                block.settlement_layer_chain_id,
+            )
+            .decode_column("settlement_layer_type")?,
+            interop_fee: bigdecimal_to_u256(block.interop_fee),
         })
     }
 }
@@ -145,6 +161,8 @@ impl SyncBlock {
             pubdata_params: Some(self.pubdata_params),
             pubdata_limit: self.pubdata_limit,
             interop_roots: Some(self.interop_roots),
+            settlement_layer: Some(self.settlement_layer),
+            interop_fee: Some(self.interop_fee),
         }
     }
 
@@ -164,8 +182,12 @@ impl SyncBlock {
             pubdata_params: self.pubdata_params,
             pubdata_limit: self.pubdata_limit,
             interop_roots: self.interop_roots,
-            settlement_layer: None,
-            interop_fee: None,
+            settlement_layer: Some(self.settlement_layer),
+            interop_fee: Some(
+                self.interop_fee
+                    .try_into()
+                    .expect("interop_fee doesn't fit consensus u64 wire format"),
+            ),
         }
     }
 }

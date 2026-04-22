@@ -36,16 +36,15 @@ struct EventMatcher {
 /// server-side filtered watch stream (`fieldSelector=involvedObject.kind=Pod,reason=<reason>`)
 /// so that the initial LIST only fetches relevant events instead of the full
 /// namespace event history.
-const GPU_EVENT_MATCHERS: &[EventMatcher] = &[
-    EventMatcher {
-        reason: "FailedScheduling",
-        message_contains: "Insufficient nvidia.com/gpu",
-    },
-    EventMatcher {
-        reason: "FailedScaleUp",
-        message_contains: "GCE out of resources",
-    },
-];
+///
+/// FailedScaleUp with "GCE out of resources" is the definitive signal that
+/// GPU nodes are unavailable — the cluster autoscaler tried to provision a
+/// node and GCE refused. This sets pod.out_of_resources (sticky) which caps
+/// the pool and triggers aggressive mode.
+const GPU_EVENT_MATCHERS: &[EventMatcher] = &[EventMatcher {
+    reason: "FailedScaleUp",
+    message_contains: "GCE out of resources",
+}];
 
 #[derive(Clone)]
 pub struct Watcher {
@@ -237,6 +236,20 @@ impl Watcher {
                                     dep.running = nums.available_replicas.unwrap_or_default() as usize;
                                     dep.desired = nums.replicas.unwrap_or_default() as usize;
 
+                                    // Track how long a deployment has been stuck
+                                    // (desired > 0 but running < desired).
+                                    // Only clear when the pool actually recovered
+                                    // (running >= desired with desired > 0). When desired == 0
+                                    // (our scaler capped the pool), keep stuck_since so
+                                    // deployment_stuck survives the cap cycle.
+                                    if dep.desired > 0 && dep.running < dep.desired {
+                                        if dep.stuck_since.is_none() {
+                                            dep.stuck_since = Some(Utc::now());
+                                        }
+                                    } else if dep.desired > 0 && dep.running >= dep.desired {
+                                        dep.stuck_since = None;
+                                    }
+
                                     tracing::info!(
                                         "Got deployment: {}, size: {}/{} un {}",
                                         d.name_any(),
@@ -322,21 +335,21 @@ impl Watcher {
                                         continue;
                                     };
 
-                                    // FailedScheduling → mark pod as out_of_resources
-                                    if matcher.reason == "FailedScheduling" {
-                                        if let Some(pod_data) = ns_data.pods.get_mut(&pod_name) {
-                                            pod_data.out_of_resources = true;
-                                        } else {
-                                            tracing::warn!(
-                                                "Pod {} not found in namespace {} for {} event",
-                                                pod_name,
-                                                namespace,
-                                                reason
-                                            );
-                                        }
+                                    // Mark the pod as out_of_resources (sticky until
+                                    // pod becomes Running or is deleted).
+                                    if let Some(pod_data) = ns_data.pods.get_mut(&pod_name) {
+                                        pod_data.out_of_resources = true;
+                                    } else {
+                                        tracing::warn!(
+                                            "Pod {} not found in namespace {} for {} event",
+                                            pod_name,
+                                            namespace,
+                                            reason
+                                        );
                                     }
 
-                                    // FailedScaleUp → record namespace-level scale error
+                                    // FailedScaleUp → also record namespace-level scale error
+                                    // (time-expiring, used as secondary signal).
                                     if matcher.reason == "FailedScaleUp" {
                                         let name = e.name_any();
                                         let time: DateTime<Utc> = match e.last_timestamp {

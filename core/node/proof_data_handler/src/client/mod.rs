@@ -51,11 +51,11 @@ impl ProofDataHandlerClient {
         tracing::info!("Started proof data submitter and proof fetcher");
 
         tokio::select! {
-            _ = proof_gen_data_submitter => {
-                tracing::info!("Proof data submitter stopped");
+            result = proof_gen_data_submitter => {
+                tracing::warn!("Proof data submitter stopped with result: {result:?}");
             }
-            _ = proof_fetcher => {
-                tracing::info!("Proof fetcher stopped");
+            result = proof_fetcher => {
+                tracing::warn!("Proof fetcher stopped with result: {result:?}");
             }
         }
 

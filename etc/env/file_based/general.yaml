@@ -58,6 +58,7 @@ state_keeper:
   batch_overhead_l1_gas: 800000
   max_gas_per_batch: 200000000
   max_pubdata_per_batch: 500000
+  configured_interop_fee: 1000000000
   fee_model_version: V2
   validation_computational_gas_limit: 300000
   save_call_traces: true
@@ -149,8 +150,7 @@ data_handler:
   proving_mode: PROVER_CLUSTER
 airbender_proof_data_handler:
   http_port: 4320
-  proof_generation_timeout_in_secs: 60
-  batch_permanently_ignored_timeout_in_hours: 240
+  proof_generation_timeout_in_secs: 3600
 prover_gateway:
   api_url: http://127.0.0.1:3320
   api_poll_duration_secs: 15

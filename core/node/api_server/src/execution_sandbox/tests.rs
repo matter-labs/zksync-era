@@ -14,6 +14,7 @@ use zksync_types::{
     api::state_override::{OverrideAccount, StateOverride},
     fee::Fee,
     fee_model::BatchFeeInput,
+    settlement::SettlementLayer,
     Address, ProtocolVersionId, Transaction, U256,
 };
 
@@ -37,7 +38,9 @@ async fn creating_block_args() {
         .await
         .unwrap();
 
-    let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
+    let pending_block_args = BlockArgs::pending(&mut storage, SettlementLayer::for_tests())
+        .await
+        .unwrap();
     assert_eq!(
         pending_block_args.block_id,
         api::BlockId::Number(api::BlockNumber::Pending)
@@ -59,9 +62,14 @@ async fn creating_block_args() {
     );
 
     let latest_block = api::BlockId::Number(api::BlockNumber::Latest);
-    let latest_block_args = BlockArgs::new(&mut storage, latest_block, &start_info)
-        .await
-        .unwrap();
+    let latest_block_args = BlockArgs::new(
+        &mut storage,
+        latest_block,
+        &start_info,
+        SettlementLayer::for_tests(),
+    )
+    .await
+    .unwrap();
     assert_eq!(latest_block_args.block_id, latest_block);
     assert_eq!(latest_block_args.resolved_block_number(), L2BlockNumber(1));
     assert_eq!(
@@ -70,9 +78,14 @@ async fn creating_block_args() {
     );
 
     let earliest_block = api::BlockId::Number(api::BlockNumber::Earliest);
-    let earliest_block_args = BlockArgs::new(&mut storage, earliest_block, &start_info)
-        .await
-        .unwrap();
+    let earliest_block_args = BlockArgs::new(
+        &mut storage,
+        earliest_block,
+        &start_info,
+        SettlementLayer::for_tests(),
+    )
+    .await
+    .unwrap();
     assert_eq!(earliest_block_args.block_id, earliest_block);
     assert_eq!(
         earliest_block_args.resolved_block_number(),
@@ -81,9 +94,14 @@ async fn creating_block_args() {
     assert_eq!(earliest_block_args.inner.l1_batch_timestamp(), Some(0));
 
     let missing_block = api::BlockId::Number(100.into());
-    let err = BlockArgs::new(&mut storage, missing_block, &start_info)
-        .await
-        .unwrap_err();
+    let err = BlockArgs::new(
+        &mut storage,
+        missing_block,
+        &start_info,
+        SettlementLayer::for_tests(),
+    )
+    .await
+    .unwrap_err();
     assert_matches!(err, BlockArgsError::Missing);
 }
 
@@ -107,9 +125,14 @@ async fn creating_block_args_after_snapshot_recovery() {
     );
 
     let latest_block = api::BlockId::Number(api::BlockNumber::Latest);
-    let err = BlockArgs::new(&mut storage, latest_block, &start_info)
-        .await
-        .unwrap_err();
+    let err = BlockArgs::new(
+        &mut storage,
+        latest_block,
+        &start_info,
+        SettlementLayer::for_tests(),
+    )
+    .await
+    .unwrap_err();
     assert_matches!(err, BlockArgsError::Missing);
 
     // Ensure there is a batch in the storage.
@@ -130,7 +153,9 @@ async fn creating_block_args_after_snapshot_recovery() {
         .await
         .unwrap();
 
-    let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
+    let pending_block_args = BlockArgs::pending(&mut storage, SettlementLayer::for_tests())
+        .await
+        .unwrap();
     assert_eq!(
         pending_block_args.block_id,
         api::BlockId::Number(api::BlockNumber::Pending)
@@ -148,9 +173,14 @@ async fn creating_block_args_after_snapshot_recovery() {
     ];
     for pruned_block in pruned_blocks {
         let pruned_block = api::BlockId::Number(pruned_block);
-        let err = BlockArgs::new(&mut storage, pruned_block, &start_info)
-            .await
-            .unwrap_err();
+        let err = BlockArgs::new(
+            &mut storage,
+            pruned_block,
+            &start_info,
+            SettlementLayer::for_tests(),
+        )
+        .await
+        .unwrap_err();
         assert_matches!(err, BlockArgsError::Pruned(_));
     }
 
@@ -160,15 +190,25 @@ async fn creating_block_args_after_snapshot_recovery() {
     ];
     for missing_block in missing_blocks {
         let missing_block = api::BlockId::Number(missing_block);
-        let err = BlockArgs::new(&mut storage, missing_block, &start_info)
-            .await
-            .unwrap_err();
+        let err = BlockArgs::new(
+            &mut storage,
+            missing_block,
+            &start_info,
+            SettlementLayer::for_tests(),
+        )
+        .await
+        .unwrap_err();
         assert_matches!(err, BlockArgsError::Missing);
     }
 
-    let latest_block_args = BlockArgs::new(&mut storage, latest_block, &start_info)
-        .await
-        .unwrap();
+    let latest_block_args = BlockArgs::new(
+        &mut storage,
+        latest_block,
+        &start_info,
+        SettlementLayer::for_tests(),
+    )
+    .await
+    .unwrap();
     assert_eq!(latest_block_args.block_id, latest_block);
     assert_eq!(latest_block_args.resolved_block_number(), l2_block.number);
     assert_eq!(
@@ -178,16 +218,26 @@ async fn creating_block_args_after_snapshot_recovery() {
 
     for pruned_block in pruned_blocks {
         let pruned_block = api::BlockId::Number(pruned_block);
-        let err = BlockArgs::new(&mut storage, pruned_block, &start_info)
-            .await
-            .unwrap_err();
+        let err = BlockArgs::new(
+            &mut storage,
+            pruned_block,
+            &start_info,
+            SettlementLayer::for_tests(),
+        )
+        .await
+        .unwrap_err();
         assert_matches!(err, BlockArgsError::Pruned(_));
     }
     for missing_block in missing_blocks {
         let missing_block = api::BlockId::Number(missing_block);
-        let err = BlockArgs::new(&mut storage, missing_block, &start_info)
-            .await
-            .unwrap_err();
+        let err = BlockArgs::new(
+            &mut storage,
+            missing_block,
+            &start_info,
+            SettlementLayer::for_tests(),
+        )
+        .await
+        .unwrap_err();
         assert_matches!(err, BlockArgsError::Missing);
     }
 }
@@ -200,16 +250,23 @@ async fn estimating_gas() {
         .await
         .unwrap();
 
-    let block_args = BlockArgs::pending(&mut connection).await.unwrap();
+    let block_args = BlockArgs::pending(&mut connection, SettlementLayer::for_tests())
+        .await
+        .unwrap();
     test_instantiating_vm(connection, block_args).await;
 
     let mut connection = pool.connection().await.unwrap();
     let start_info = BlockStartInfo::new(&mut connection, Duration::MAX)
         .await
         .unwrap();
-    let block_args = BlockArgs::new(&mut connection, api::BlockId::Number(0.into()), &start_info)
-        .await
-        .unwrap();
+    let block_args = BlockArgs::new(
+        &mut connection,
+        api::BlockId::Number(0.into()),
+        &start_info,
+        SettlementLayer::for_tests(),
+    )
+    .await
+    .unwrap();
     test_instantiating_vm(connection, block_args).await;
 }
 
@@ -262,7 +319,9 @@ async fn validating_transaction(set_balance: bool) {
         .await
         .unwrap();
 
-    let block_args = BlockArgs::pending(&mut connection).await.unwrap();
+    let block_args = BlockArgs::pending(&mut connection, SettlementLayer::for_tests())
+        .await
+        .unwrap();
 
     let executor = SandboxExecutor::real(
         SandboxExecutorOptions::mock().await,

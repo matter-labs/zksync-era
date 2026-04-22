@@ -14,8 +14,8 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
-    block::L1BatchHeader, commitment::L1BatchCommitmentMode, settlement::SettlementLayer,
-    tee_types::TeeType, L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
+    block::L1BatchHeader, settlement::SettlementLayer, L1BatchNumber, L2ChainId, ProtocolVersion,
+    ProtocolVersionId, H256,
 };
 
 use crate::create_proof_processing_router;
@@ -25,7 +25,7 @@ fn test_config() -> AirbenderProofDataHandlerConfig {
         http_port: 1337,
         first_processed_batch: L1BatchNumber(0),
         proof_generation_timeout: Duration::from_secs(600),
-        batch_permanently_ignored_timeout: Duration::from_secs(10 * 24 * 3_600),
+        max_attempts: 5,
     }
 }
 
@@ -37,34 +37,23 @@ async fn request_airbender_proof_inputs() {
         MockObjectStore::arc(),
         db_conn_pool.clone(),
         test_config(),
-        L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
-    let test_cases = vec![
-        (json!({ "tee_type": "sgx" }), StatusCode::NO_CONTENT),
-        (
-            json!({ "tee_type": "Sgx" }),
-            StatusCode::UNPROCESSABLE_ENTITY,
-        ),
-    ];
 
-    for (body, expected_status) in test_cases {
-        let req_body = Body::from(serde_json::to_vec(&body).unwrap());
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method(Method::POST)
-                    .uri("/airbender/proof_inputs")
-                    .header(http::header::CONTENT_TYPE, "application/json")
-                    .body(req_body)
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/airbender/proof_inputs")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
 
-        assert_eq!(response.status(), expected_status);
-    }
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
 }
 
 #[tokio::test]
@@ -74,7 +63,6 @@ async fn request_airbender_proof_inputs_no_lock_returns_404_for_missing_batch() 
         MockObjectStore::arc(),
         db_conn_pool,
         test_config(),
-        L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
 
@@ -96,13 +84,12 @@ async fn request_airbender_proof_inputs_no_lock_returns_404_for_missing_batch() 
 async fn request_airbender_proof_inputs_no_lock_returns_404_for_missing_blob_data() {
     let db_conn_pool = ConnectionPool::test_pool().await;
     save_default_protocol_version(&db_conn_pool).await;
-    insert_batch_for_tee_inputs(db_conn_pool.clone(), L1BatchNumber(1), true).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(1), true).await;
 
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
         db_conn_pool,
         test_config(),
-        L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
 
@@ -127,7 +114,6 @@ async fn present_batches_returns_null_fields_when_empty() {
         MockObjectStore::arc(),
         db_conn_pool,
         test_config(),
-        L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
 
@@ -151,15 +137,14 @@ async fn present_batches_returns_null_fields_when_empty() {
 async fn present_batches_returns_oldest_and_latest_batches() {
     let db_conn_pool = ConnectionPool::test_pool().await;
     save_default_protocol_version(&db_conn_pool).await;
-    insert_batch_for_tee_inputs(db_conn_pool.clone(), L1BatchNumber(1), true).await;
-    insert_batch_for_tee_inputs(db_conn_pool.clone(), L1BatchNumber(3), false).await;
-    insert_batch_for_tee_inputs(db_conn_pool.clone(), L1BatchNumber(5), true).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(1), true).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(3), false).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(5), true).await;
 
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
         db_conn_pool,
         test_config(),
-        L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
 
@@ -179,47 +164,26 @@ async fn present_batches_returns_oldest_and_latest_batches() {
     assert_eq!(body, json!({ "oldest_batch": 1, "latest_batch": 5 }));
 }
 
-// Test /airbender/submit_proofs endpoint using a mocked Airbender proof and verify response and db state
+// Test /airbender/submit_proofs endpoint
 #[tokio::test]
 async fn submit_airbender_proof() {
     let batch_number = L1BatchNumber::from(1);
     let db_conn_pool = ConnectionPool::test_pool().await;
 
-    mock_tee_batch_status(db_conn_pool.clone(), batch_number).await;
+    mock_airbender_batch_status(db_conn_pool.clone(), batch_number).await;
 
-    let airbender_proof_request_str = r#"{
-        "signature": "0001020304",
-        "pubkey": "0506070809",
-        "proof": "0A0B0C0D0E",
-        "tee_type": "sgx"
-    }"#;
-    let airbender_proof_request =
-        serde_json::from_str::<SubmitAirbenderProofRequest>(airbender_proof_request_str).unwrap();
-    let uri = format!("/airbender/submit_proofs/{}", batch_number.0);
+    let airbender_proof_request = SubmitAirbenderProofRequest {
+        l1_batch_number: batch_number.0,
+        prover_id: "test-prover".to_string(),
+        proof: vec![0x0A, 0x0B, 0x0C, 0x0D, 0x0E],
+    };
+    let uri = "/airbender/submit_proofs".to_string();
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
         db_conn_pool.clone(),
         test_config(),
-        L1BatchCommitmentMode::Rollup,
         L2ChainId::default(),
     );
-
-    // this should fail because we haven't saved the attestation for the pubkey yet
-
-    let response = send_submit_airbender_proof_request(&app, &uri, &airbender_proof_request).await;
-    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-
-    // save the attestation for the pubkey
-
-    let attestation = [15, 16, 17, 18, 19];
-    let mut proof_dal = db_conn_pool.connection().await.unwrap();
-    proof_dal
-        .airbender_proof_generation_dal()
-        .save_attestation(&airbender_proof_request.0.pubkey, &attestation)
-        .await
-        .expect("Failed to save attestation");
-
-    // resend the same request; this time, it should be successful
 
     let response = send_submit_airbender_proof_request(&app, &uri, &airbender_proof_request).await;
     assert_eq!(response.status(), StatusCode::OK);
@@ -235,54 +199,60 @@ async fn submit_airbender_proof() {
 
     assert!(oldest_batch_number.is_none());
 
-    // there should be one SGX proof in the db now
+    // there should be one proof in the db now
 
-    let proofs = proof_db_conn
+    let proof = proof_db_conn
         .airbender_proof_generation_dal()
-        .get_airbender_proofs(batch_number, Some(TeeType::Sgx))
+        .get_airbender_proof(batch_number)
         .await
-        .unwrap();
+        .unwrap()
+        .expect("proof should exist");
 
-    assert_eq!(proofs.len(), 1);
+    assert!(proof.proof_blob_url.is_some());
+}
 
-    let proof = &proofs[0];
+#[tokio::test]
+async fn submit_airbender_proof_rejects_when_not_picked() {
+    let batch_number = L1BatchNumber::from(1);
+    let db_conn_pool = ConnectionPool::test_pool().await;
 
-    assert_eq!(
-        proof.proof.as_ref().unwrap(),
-        &airbender_proof_request.0.proof
+    // Do NOT insert an airbender_proof_generation_job — the batch has no row at all
+    let airbender_proof_request = SubmitAirbenderProofRequest {
+        l1_batch_number: batch_number.0,
+        prover_id: "test-prover".to_string(),
+        proof: vec![0x0A, 0x0B, 0x0C],
+    };
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool.clone(),
+        test_config(),
+        L2ChainId::default(),
     );
-    assert_eq!(proof.attestation.as_ref().unwrap(), &attestation);
-    assert_eq!(
-        proof.signature.as_ref().unwrap(),
-        &airbender_proof_request.0.signature
-    );
-    assert_eq!(
-        proof.pubkey.as_ref().unwrap(),
-        &airbender_proof_request.0.pubkey
-    );
+
+    let response = send_submit_airbender_proof_request(
+        &app,
+        "/airbender/submit_proofs",
+        &airbender_proof_request,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }
 
 // Mock SQL db with information about the status of the Airbender proof generation
-async fn mock_tee_batch_status(
+async fn mock_airbender_batch_status(
     db_conn_pool: ConnectionPool<zksync_dal::Core>,
     batch_number: L1BatchNumber,
 ) {
     let mut proof_db_conn = db_conn_pool.connection().await.unwrap();
     let mut proof_dal = proof_db_conn.airbender_proof_generation_dal();
 
-    // there should not be any batches awaiting proof in the db yet
-
     let oldest_batch_number = proof_dal.get_oldest_picked_by_prover_batch().await.unwrap();
     assert!(oldest_batch_number.is_none());
 
-    // mock SQL table with relevant information about the status of Airbender proof generation
-
     proof_dal
-        .insert_airbender_proof_generation_job(batch_number, TeeType::Sgx)
+        .insert_airbender_proof_generation_job(batch_number)
         .await
         .expect("Failed to insert airbender_proof_generation_job");
-
-    // now, there should be one batch in the db awaiting proof
 
     let oldest_batch_number = proof_dal
         .get_oldest_picked_by_prover_batch()
@@ -315,7 +285,7 @@ async fn save_default_protocol_version(pool: &ConnectionPool<Core>) {
         .unwrap();
 }
 
-async fn insert_batch_for_tee_inputs(
+async fn insert_batch_for_airbender_inputs(
     pool: ConnectionPool<Core>,
     batch_number: L1BatchNumber,
     mark_as_present: bool,
@@ -347,8 +317,15 @@ async fn insert_batch_for_tee_inputs(
 }
 
 async fn response_json(response: Response) -> serde_json::Value {
-    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    serde_json::from_slice(&body).unwrap()
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("failed to read response body");
+    serde_json::from_slice(&body).unwrap_or_else(|err| {
+        panic!(
+            "failed to parse response as JSON: {err}\nbody: {}",
+            String::from_utf8_lossy(&body)
+        )
+    })
 }
 
 async fn send_submit_airbender_proof_request(

@@ -6,8 +6,9 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_types::fee_model::{
-    BaseTokenConversionRatio, FeeModelConfig, FeeModelConfigV1, FeeModelConfigV2,
+use zksync_types::{
+    fee_model::{BaseTokenConversionRatio, FeeModelConfig, FeeModelConfigV1, FeeModelConfigV2},
+    U256,
 };
 
 use super::resources::{ApiFeeInputResource, SequencerFeeInputResource};
@@ -22,6 +23,7 @@ use crate::{
 pub struct L1GasLayer {
     fee_model_config: FeeModelConfig,
     gas_price_scale_factor_open_batch: Option<f64>,
+    configured_interop_fee: U256,
 }
 
 #[derive(Debug, FromContext)]
@@ -47,6 +49,7 @@ impl L1GasLayer {
         Self {
             fee_model_config: Self::map_config(state_keeper_config),
             gas_price_scale_factor_open_batch,
+            configured_interop_fee: state_keeper_config.configured_interop_fee,
         }
     }
 
@@ -81,10 +84,17 @@ impl WiringLayer for L1GasLayer {
             .base_token_ratio_provider
             .unwrap_or_else(|| Arc::<BaseTokenConversionRatio>::default());
 
+        if self.configured_interop_fee > u64::MAX.into() {
+            return Err(WiringError::Configuration(format!(
+                "configured_interop_fee={} doesn't fit consensus u64 wire format",
+                self.configured_interop_fee
+            )));
+        }
         let main_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             input.gas_adjuster.clone(),
             ratio_provider,
             self.fee_model_config,
+            self.configured_interop_fee,
         ));
 
         let replica_pool = input.replica_pool.get().await?;

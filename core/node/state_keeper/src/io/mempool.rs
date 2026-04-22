@@ -582,7 +582,11 @@ impl MempoolIO {
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: unsealed_storage_batch.fee_address,
                 fee_input: unsealed_storage_batch.fee_input,
-                interop_fee: U256::zero(),
+                interop_fee: if protocol_version.is_pre_medium_interop() {
+                    U256::zero()
+                } else {
+                    unsealed_storage_batch.interop_fee
+                },
                 // We only persist timestamp in seconds.
                 // Unsealed batch is only used upon restart so it's ok to not use exact precise millis here.
                 first_l2_block: L2BlockParams::new_raw(
@@ -592,7 +596,7 @@ impl MempoolIO {
                 ),
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit: unsealed_storage_batch.pubdata_limit,
-                settlement_layer: self.settlement_layer,
+                settlement_layer: unsealed_storage_batch.settlement_layer,
             }));
         }
 
@@ -640,6 +644,17 @@ impl MempoolIO {
                 return Ok(None);
             };
             let timestamp = timestamp_ms / 1000;
+            let interop_fee = if protocol_version.is_pre_medium_interop() {
+                U256::zero()
+            } else {
+                self.batch_fee_input_provider.get_interop_fee().await
+            };
+            anyhow::ensure!(
+                interop_fee <= u64::MAX.into(),
+                "interop_fee for L1 batch #{} doesn't fit consensus u64 wire format: {}",
+                cursor.l1_batch,
+                interop_fee
+            );
 
             tracing::trace!(
                 "Fee input for L1 batch #{} is {:#?}",
@@ -686,7 +701,7 @@ impl MempoolIO {
                     protocol_version: Some(protocol_version),
                     fee_address: self.fee_account,
                     fee_input: self.filter.fee_input,
-                    interop_fee: U256::zero(),
+                    interop_fee,
                     pubdata_limit,
                     settlement_layer: self.settlement_layer,
                 })
@@ -720,7 +735,7 @@ impl MempoolIO {
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
-                interop_fee: U256::zero(),
+                interop_fee,
                 first_l2_block,
                 pubdata_params: self.pubdata_params(protocol_version)?,
                 pubdata_limit,

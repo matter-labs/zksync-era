@@ -1,5 +1,20 @@
 # Changelog
 
+## [29.15.2](https://github.com/matter-labs/zksync-era/compare/core-v29.15.1...core-v29.15.2) (2026-04-13)
+
+
+### Bug Fixes
+
+* add explicit timeouts to all reqwest HTTP clients + add lots of prover logs ([#4772](https://github.com/matter-labs/zksync-era/issues/4772)) ([ad7a55d](https://github.com/matter-labs/zksync-era/commit/ad7a55d8a4f4609a42ef1598a22aa6c1e4a72132))
+* **contract-verifier:** allow relative imports ([#4761](https://github.com/matter-labs/zksync-era/issues/4761)) ([53ec861](https://github.com/matter-labs/zksync-era/commit/53ec8612c126a6826447ed3f42e0d6b52cf3774e))
+
+## [29.15.1](https://github.com/matter-labs/zksync-era/compare/core-v29.15.0...core-v29.15.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **eth-proof-manage:** add explicit timeout to object_store ([#4762](https://github.com/matter-labs/zksync-era/issues/4762)) ([5c9d334](https://github.com/matter-labs/zksync-era/commit/5c9d3347afc23fcbb0bd4669cbc0bbb7eca3592f))
+
 ## [29.15.0](https://github.com/matter-labs/zksync-era/compare/core-v29.14.0...core-v29.15.0) (2026-03-25)
 
 

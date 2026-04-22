@@ -9,6 +9,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_object_store::ObjectStore;
 use zksync_shared_resources::{
     api::{BridgeAddressesHandle, SyncState},
     contracts::{L1ChainContractsResource, L1EcosystemContractsResource, L2ContractsResource},
@@ -121,6 +122,7 @@ pub struct Input {
     initial_settlement_mode: SettlementModeResource,
     dummy_verifier: DummyVerifierResource,
     l1batch_commitment_mode: L1BatchCommitmentModeResource,
+    object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -193,9 +195,7 @@ impl WiringLayer for Web3ServerLayer {
             &l1_contracts,
             &input.l1_ecosystem_contracts.0,
             &input.l2_contracts.0,
-            input
-                .initial_settlement_mode
-                .settlement_layer_for_sending_txs(),
+            input.initial_settlement_mode.0,
             input.dummy_verifier.0,
             input.l1batch_commitment_mode.0,
         );
@@ -247,6 +247,9 @@ impl WiringLayer for Web3ServerLayer {
         }
         if let Some(main_node_client) = input.main_node_client {
             api_builder = api_builder.with_l2_l1_log_proof_handler(main_node_client);
+        }
+        if let Some(object_store) = input.object_store {
+            api_builder = api_builder.with_object_store(object_store);
         }
         api_builder = self.optional_config.apply(api_builder);
 

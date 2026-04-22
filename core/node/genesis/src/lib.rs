@@ -280,6 +280,7 @@ pub async fn insert_genesis_batch_with_custom_state(
         &storage_logs,
         factory_deps,
         verifier_config,
+        genesis_params.config().l1_chain_id,
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");
@@ -474,6 +475,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
     storage_logs: &[StorageLog],
     factory_deps: HashMap<H256, Vec<u8>>,
     l1_verifier_config: L1VerifierConfig,
+    l1_chain_id: L1ChainId,
 ) -> Result<Vec<LogQuery>, GenesisError> {
     let version = ProtocolVersion {
         version: protocol_version,
@@ -488,7 +490,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         0,
         base_system_contracts.hashes(),
         protocol_version.minor,
-        SettlementLayer::default(),
+        SettlementLayer::L1(l1_chain_id.into()),
     );
     let batch_fee_input = BatchFeeInput::pubdata_independent(0, 0, 0);
 
@@ -530,6 +532,7 @@ pub(crate) async fn create_genesis_l1_batch_from_storage_logs_and_factory_deps(
             &[],
             Default::default(),
             ZK_SYNC_BYTES_PER_BLOB as u64,
+            U256::zero(),
         )
         .await?;
     transaction
@@ -567,6 +570,7 @@ pub async fn create_genesis_l1_batch(
     base_system_contracts: &BaseSystemContracts,
     system_contracts: &[DeployedContract],
     l1_verifier_config: L1VerifierConfig,
+    l1_chain_id: L1ChainId,
 ) -> Result<(), GenesisError> {
     let storage_logs = get_storage_logs(system_contracts);
 
@@ -587,6 +591,7 @@ pub async fn create_genesis_l1_batch(
         &storage_logs,
         factory_deps,
         l1_verifier_config,
+        l1_chain_id,
     )
     .await?;
     Ok(())
