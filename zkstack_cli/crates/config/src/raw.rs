@@ -6,19 +6,12 @@ use tokio::fs;
 use xshell::Shell;
 
 #[derive(Debug)]
-pub struct RawConfig {
+pub(crate) struct RawConfig {
     path: PathBuf,
     inner: serde_yaml::Value,
 }
 
 impl RawConfig {
-    pub fn from_value(inner: serde_yaml::Value) -> Self {
-        Self {
-            inner,
-            path: PathBuf::new(),
-        }
-    }
-
     pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
         let path = shell.current_dir().join(path);
         let raw = fs::read_to_string(&path)
@@ -42,18 +35,6 @@ impl RawConfig {
             "configuration is not a map"
         );
         Ok(Self { inner, path })
-    }
-
-    /// Return a sub-config rooted at `path` (dot-separated).
-    pub fn sub(&self, path: &str) -> anyhow::Result<Self> {
-        let inner = self
-            .get_raw(path)
-            .cloned()
-            .with_context(|| format!("config section `{path}` is missing in {:?}", self.path))?;
-        Ok(Self {
-            inner,
-            path: self.path.clone(),
-        })
     }
 
     pub fn get_raw(&self, path: &str) -> Option<&serde_yaml::Value> {
@@ -89,7 +70,7 @@ impl RawConfig {
 /// Mutable YAML configuration file.
 #[derive(Debug)]
 #[must_use = "Must be persisted"]
-pub struct PatchedConfig {
+pub(crate) struct PatchedConfig {
     base: RawConfig,
 }
 

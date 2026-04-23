@@ -24,7 +24,7 @@ mod manipulations;
 mod object_store;
 pub mod portal;
 pub mod private_proxy_compose;
-pub mod raw;
+mod raw;
 mod secrets;
 mod source_files;
 pub mod traits;

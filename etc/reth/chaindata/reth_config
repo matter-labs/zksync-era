@@ -103,11 +103,6 @@
     },
     "78192af4ce300352a7d44b17bc2b3a3df545e200": {
       "balance": "0x4B3B4CA85A86C47A098A224000000000"
-    },
-    "0x4e59b44847b379578588920cA78FbF26c0B4956C": {
-      "balance": "0x0",
-      "code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3",
-      "nonce": "0x1"
     }
   },
   "number": "0x0",
