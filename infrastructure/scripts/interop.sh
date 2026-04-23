@@ -135,7 +135,7 @@ cast send $GW_WRAPPED_ZK_TOKEN_ADDRESS "deposit()" --private-key $ERA_OPERATOR_P
 cast send $GW_WRAPPED_ZK_TOKEN_ADDRESS "approve(address,uint256)" $GW_ASSET_TRACKER_ADDRESS $AMOUNT --private-key $ERA_OPERATOR_PRIVATE_KEY --rpc-url $GW_RPC_URL
 # Agree to pay settlement fees for era chain
 ERA_CHAIN_ID=$(yq -r '.chain_id' chains/era/ZkStack.yaml)
-cast send $GW_ASSET_TRACKER_ADDRESS "agreeToPaySettlementFees(uint256)" $ERA_CHAIN_ID --private-key $ERA_OPERATOR_PRIVATE_KEY --rpc-url $GW_RPC_URL
+cast send $GW_ASSET_TRACKER_ADDRESS "setSettlementFeePayerAgreement(uint256)" $ERA_CHAIN_ID --private-key $ERA_OPERATOR_PRIVATE_KEY --rpc-url $GW_RPC_URL
 
 # Chain registrations on chain `validium` were skipped, as its deposits were paused. Do these registrations now
 zkstack chain --chain $SECOND_CHAIN_NAME register-on-all-chains 

@@ -110,7 +110,7 @@ export async function migrateToGatewayIfNeeded(chainName: string): Promise<void>
  * @param chainName - The name of the chain to set up payment of settlement fees for
  * @returns Promise that resolves when set up of settlement fees is complete
  */
-export async function agreeToPaySettlementFees(chainName: string): Promise<void> {
+export async function setSettlementFeePayerAgreement(chainName: string): Promise<void> {
     if (!shouldUseGatewayChain(chainName, 'payment of settlement fees')) {
         return;
     }
@@ -139,7 +139,7 @@ export async function agreeToPaySettlementFees(chainName: string): Promise<void>
     // Wrap 1 ETH to the operator, approve spending to GWAT, and agree to pay settlement fees for the chain
     await (await gwWrappedZkToken.deposit({ value: ethers.parseEther('1') })).wait();
     await (await gwWrappedZkToken.approve(GW_ASSET_TRACKER_ADDRESS, ethers.parseEther('1'))).wait();
-    await (await gwAssetTracker.agreeToPaySettlementFees(l2ChainId)).wait();
+    await (await gwAssetTracker.setSettlementFeePayerAgreement(l2ChainId, true)).wait();
 
     console.log(`✅ Successfully set up payment of settlement fees for ${chainName}`);
 }
