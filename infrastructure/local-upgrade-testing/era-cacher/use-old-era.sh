@@ -3,8 +3,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKING_DIRECTORY="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-WORKSPACE_PARENT="$(cd "$WORKING_DIRECTORY/.." && pwd)"
+WORKSPACE_PARENT="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKING_DIRECTORY="$WORKSPACE_PARENT/zksync-working"
 OLD_REPO="$WORKSPACE_PARENT/zksync-old"
 NEW_REPO="$WORKSPACE_PARENT/zksync-new"
 

@@ -3,9 +3,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-WORKING_DIR="$WORKSPACE_ROOT"
-HELPER_DIR="$WORKSPACE_ROOT/infrastructure/local-upgrade-testing/era-cacher"
+WORKSPACE_PARENT="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKING_DIR="$WORKSPACE_PARENT/zksync-working"
+HELPER_DIR="$SCRIPT_DIR"
 
 wait_for_rpc() {
     local url="$1"
@@ -49,14 +49,14 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --chain era \
     --observability=false
 
-zkstack server --chain era &> "$WORKSPACE_ROOT/../rollup3.log" &
+zkstack server --chain era &> "$WORKSPACE_PARENT/rollup3.log" &
 
 wait_for_rpc http://127.0.0.1:3050 "pre-upgrade era"
 
 zkstack dev rich-account 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 --chain era
 
 # When running locally, open a new terminal window here.
-cd "$WORKSPACE_ROOT/.."
+cd "$WORKSPACE_PARENT"
 "$HELPER_DIR/use-new-era.sh"
 cd "$WORKING_DIR"
 
@@ -125,7 +125,7 @@ forge script deploy-scripts/upgrade/v31/EcosystemUpgrade_v31.s.sol:EcosystemUpgr
 cd "$WORKING_DIR"
 
 pkill -9 zksync_server || true
-zkstack server --ignore-prerequisites --chain era &> "$WORKSPACE_ROOT/../rollup2.log" &
+zkstack server --ignore-prerequisites --chain era &> "$WORKSPACE_PARENT/rollup2.log" &
 
 wait_for_rpc http://127.0.0.1:3050 "post-upgrade era"
 

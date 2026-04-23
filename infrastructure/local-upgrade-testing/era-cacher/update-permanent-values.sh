@@ -7,7 +7,8 @@ echo "Updating permanent-values.toml with deployed contract addresses..."
 
 # Change to zksync-working directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKING_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+WORKSPACE_PARENT="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKING_DIR="$WORKSPACE_PARENT/zksync-working"
 
 if [ ! -d "$WORKING_DIR" ]; then
   echo "Error: zksync-working directory not found at $WORKING_DIR"
