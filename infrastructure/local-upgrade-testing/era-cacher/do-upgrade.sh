@@ -127,7 +127,7 @@ cd "$WORKING_DIR"
 pkill -9 zksync_server || true
 zkstack server --ignore-prerequisites --chain era &> "$WORKSPACE_PARENT/rollup2.log" &
 
-wait_for_rpc http://127.0.0.1:3050 "post-upgrade era"
+wait_for_rpc http://127.0.0.1:3050 "post-upgrade era" 600
 
 # Fund the main wallet (test_mnemonic index 0) with L1 ETH.
 # This wallet is used by init-test-wallet to distribute to the actual test wallet (index 101).
