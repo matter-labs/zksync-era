@@ -40,6 +40,7 @@ impl RegisterChainL1Config {
     pub fn new(chain_config: &ChainConfig, create2_factory_addr: Address) -> anyhow::Result<Self> {
         let initialize_legacy_bridge = chain_config.legacy_bridge.unwrap_or_default();
         let wallets_config = chain_config.get_wallets_config()?;
+        let use_dedicated_prove_execute_operators = chain_config.vm_option.is_zksync_os();
 
         Ok(Self {
             chain: ChainL1Config {
@@ -56,14 +57,12 @@ impl RegisterChainL1Config {
                     == L1BatchCommitmentMode::Validium,
                 validator_sender_operator_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,
-                validator_sender_operator_prove: wallets_config
-                    .prove_operator
-                    .as_ref()
-                    .map(|w| w.address),
-                validator_sender_operator_execute: wallets_config
-                    .execute_operator
-                    .as_ref()
-                    .map(|w| w.address),
+                validator_sender_operator_prove: use_dedicated_prove_execute_operators
+                    .then(|| wallets_config.prove_operator.as_ref().map(|w| w.address))
+                    .flatten(),
+                validator_sender_operator_execute: use_dedicated_prove_execute_operators
+                    .then(|| wallets_config.execute_operator.as_ref().map(|w| w.address))
+                    .flatten(),
                 allow_evm_emulator: chain_config.evm_emulator,
             },
             owner_address: wallets_config.governor.address,
