@@ -139,7 +139,7 @@ export async function setSettlementFeePayerAgreement(chainName: string): Promise
     // Wrap 1 ETH to the operator, approve spending to GWAT, and agree to pay settlement fees for the chain
     await (await gwWrappedZkToken.deposit({ value: ethers.parseEther('1') })).wait();
     await (await gwWrappedZkToken.approve(GW_ASSET_TRACKER_ADDRESS, ethers.parseEther('1'))).wait();
-    await (await gwAssetTracker.setSettlementFeePayerAgreement(l2ChainId)).wait();
+    await (await gwAssetTracker.setSettlementFeePayerAgreement(l2ChainId, true)).wait();
 
     console.log(`✅ Successfully set up payment of settlement fees for ${chainName}`);
 }
