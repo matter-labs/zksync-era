@@ -1,21 +1,18 @@
 use std::path::PathBuf;
 
 use anyhow::{bail, Context};
-use ethers::{contract::BaseContract, providers::Middleware, utils::hex};
-use lazy_static::lazy_static;
+use ethers::{providers::Middleware, utils::hex};
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
-    forge::{Forge, ForgeScriptArgs},
     logger,
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS,
     traits::{FileConfigTrait, ReadConfig},
     ZkStackConfig, ZkStackConfigTrait,
 };
-use zksync_basic_types::{web3::Bytes as ZkBytes, Address, L1BatchNumber, H256, U256};
+use zksync_basic_types::{web3::Bytes as ZkBytes, Address, L1BatchNumber, U256};
 use zksync_types::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -23,7 +20,7 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    abi::{BridgehubAbi, ZkChainAbi, ADMINFUNCTIONSABI_ABI},
+    abi::{BridgehubAbi, ZkChainAbi},
     commands::{
         chain::{
             admin_call_builder::{AdminCall, AdminCallBuilder},
@@ -37,13 +34,8 @@ use crate::{
     },
     utils::{
         addresses::apply_l1_to_l2_alias,
-        forge::{check_the_balance, fill_forge_private_key, WalletOwner},
     },
 };
-
-lazy_static! {
-    static ref ADMIN_FUNCTIONS: BaseContract = BaseContract::from(ADMINFUNCTIONSABI_ABI.clone());
-}
 
 #[derive(Debug, Default)]
 pub struct FetchedChainInfo {
@@ -178,7 +170,7 @@ pub struct UpgradeInfo {
     pub(crate) contracts_config: ContractsConfig,
 
     // Information from upgrade
-    #[serde(skip)]
+    #[serde(default)]
     pub(crate) chain_upgrade_diamond_cut: ZkBytes,
     #[serde(default)]
     pub(crate) chain_upgrade_diamond_cut_file: Option<PathBuf>,
@@ -371,147 +363,50 @@ pub(crate) async fn run(
     args_input: DefaultChainUpgradeArgs,
     run_upgrade: bool,
 ) -> anyhow::Result<()> {
-    if run_upgrade {
-        // Use simplified approach: call Forge script that reads from CTM
-        let chain_config = ZkStackConfig::current_chain(shell)?;
-        let contracts_config = chain_config.get_contracts_config()?;
-        let wallets_config = chain_config.get_wallets_config()?;
-
-        // Fill in default parameters
-        let mut args = args_input.clone().fill_if_empty(shell).await?;
-        if args.params.upgrade_description_path.is_none() {
-            args.params.upgrade_description_path = Some(
-                chain_config
-                    .contracts_path()
-                    .join(
-                        args_input
-                            .upgrade_version
-                            .get_default_upgrade_description_path(),
-                    )
-                    .to_string_lossy()
-                    .to_string(),
-            );
-        }
-        let upgrade_info = UpgradeInfo::read(
-            shell,
-            args.params
-                .upgrade_description_path
-                .clone()
-                .expect("upgrade_description_path is required"),
-        )?;
-
-        let chain_address = contracts_config.l1.diamond_proxy_addr;
-        let ctm_address = contracts_config
-            .ecosystem_contracts
-            .ctm
-            .state_transition_proxy_addr;
-        let l1_rpc_url = args
-            .params
-            .l1_rpc_url
-            .clone()
-            .context("l1_rpc_url is required")?;
-        let governor_private_key = wallets_config
-            .governor
-            .private_key_h256()
-            .context("governor private key is required")?;
-
-        run_chain_upgrade_from_ctm(
-            shell,
-            chain_address,
-            ctm_address,
-            l1_rpc_url,
-            governor_private_key,
-            contracts_config.l1.chain_admin_addr,
-            upgrade_info.contracts_config.new_protocol_version,
-            args.params
-                .server_upgrade_timestamp
-                .expect("server_upgrade_timestamp is required"),
-        )
-        .await
-    } else {
-        // Dry run - use old approach
-        run_chain_upgrade(
-            shell,
-            args_input.params.clone(),
-            run_upgrade,
-            args_input.upgrade_version,
-        )
-        .await
-    }
+    run_chain_upgrade(
+        shell,
+        args_input.params.clone(),
+        run_upgrade,
+        args_input.upgrade_version,
+    )
+    .await
 }
 
-/// Run chain upgrade using Forge script that reads diamond cut from CTM
-/// This bypasses TOML parsing issues with large hex strings
-pub(crate) async fn run_chain_upgrade_from_ctm(
-    shell: &Shell,
-    chain_address: Address,
-    ctm_address: Address,
-    l1_rpc_url: String,
-    governor_private_key: H256,
-    chain_admin_addr: Address,
-    new_protocol_version: u64,
-    server_upgrade_timestamp: u64,
-) -> anyhow::Result<()> {
-    let contracts_foundry_path = ZkStackConfig::from_file(shell)?.path_to_foundry_scripts();
-    let chain_config = ZkStackConfig::current_chain(shell)?;
-    let wallets_config = chain_config.get_wallets_config()?;
-    let contracts_config = chain_config.get_contracts_config()?;
+#[cfg(test)]
+mod tests {
+    use super::UpgradeInfo;
 
-    logger::info(format!(
-        "Running chain upgrade from CTM: chain={:?}, ctm={:?}",
-        chain_address, ctm_address
-    ));
+    #[test]
+    fn upgrade_info_reads_inline_chain_upgrade_diamond_cut() {
+        let config = r#"
+chain_upgrade_diamond_cut = "0x1234"
 
-    let mut forge_args = ForgeScriptArgs::default();
-    forge_args.resume = false;
+[deployed_addresses.bridgehub]
+bridgehub_proxy_addr = "0x0000000000000000000000000000000000000001"
 
-    let admin_address = contracts_config.l1.chain_admin_addr;
-    let access_control_restriction = contracts_config
-        .l1
-        .access_control_restriction_addr
-        .context("access_control_restriction_addr is required")?;
+[state_transition]
+validator_timelock_addr = "0x0000000000000000000000000000000000000002"
 
-    let timestamp_calldata =
-        set_upgrade_timestamp_calldata(new_protocol_version, server_upgrade_timestamp);
-    send_tx(
-        chain_admin_addr,
-        timestamp_calldata,
-        U256::zero(),
-        l1_rpc_url.clone(),
-        governor_private_key,
-        "set timestamp for upgrade",
-    )
-    .await?;
+[contracts_config]
+create2_factory_addr = "0x0000000000000000000000000000000000000003"
+create2_factory_salt = "0x0000000000000000000000000000000000000000000000000000000000000004"
+ecosystem_admin_addr = "0x0000000000000000000000000000000000000005"
+era_chain_id = 9
+l1_chain_id = 9
+l1_multicall3_addr = "0x0000000000000000000000000000000000000006"
+max_number_of_chains = 1
+owner_address = "0x0000000000000000000000000000000000000007"
+prior_protocol_version = 0
+shared_bridge_proxy_addr = "0x0000000000000000000000000000000000000008"
+stm_deployment_tracker_proxy_addr = "0x0000000000000000000000000000000000000009"
+validator_timelock_addr = "0x000000000000000000000000000000000000000a"
+chain_upgrade_approval_salt = "0x000000000000000000000000000000000000000000000000000000000000000b"
+new_protocol_version = 124554051586
+old_protocol_version = 124554051584
+"#;
 
-    // Encode the function call
-    let calldata = ADMIN_FUNCTIONS
-        .encode(
-            "upgradeChainFromCTM",
-            (chain_address, admin_address, access_control_restriction),
-        )
-        .context("Failed to encode upgradeChainFromCTM call")?;
-
-    // Set up the Forge script
-    let forge = Forge::new(&contracts_foundry_path)
-        .script(
-            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
-            forge_args.clone(),
-        )
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url.clone())
-        .with_broadcast()
-        .with_calldata(&calldata);
-
-    // Fill in the private key for the governor wallet
-    let forge =
-        fill_forge_private_key(forge, Some(&wallets_config.governor), WalletOwner::Governor)?;
-
-    // Check balance
-    check_the_balance(&forge).await?;
-
-    // Run the script
-    forge.run(shell)?;
-
-    logger::success("Chain upgrade from CTM completed successfully");
-    Ok(())
+        let upgrade_info: UpgradeInfo = toml::from_str(config).unwrap();
+        assert_eq!(upgrade_info.chain_upgrade_diamond_cut.0, vec![0x12, 0x34]);
+        assert!(upgrade_info.chain_upgrade_diamond_cut_file.is_none());
+    }
 }

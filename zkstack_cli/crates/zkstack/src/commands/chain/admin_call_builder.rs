@@ -8,12 +8,16 @@ use ethers::{
 use serde::Serialize;
 use xshell::Shell;
 use zkstack_cli_common::forge::ForgeScriptArgs;
+use zksync_basic_types::protocol_version::ProtocolVersionId;
 use zksync_types::{Address, U256};
 
 use crate::abi::{
     ADMINABI_ABI as ADMIN_ABI, CHAINADMINOWNABLEABI_ABI as CHAIN_ADMIN_OWNABLE_ABI,
     DIAMONDCUTABI_ABI as DIAMOND_CUT_ABI,
 };
+use crate::utils::protocol_version::get_minor_protocol_version;
+
+const LEGACY_UPGRADE_CHAIN_FROM_VERSION_SELECTOR: [u8; 4] = [0xfc, 0x57, 0x56, 0x5f];
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
@@ -176,15 +180,30 @@ impl AdminCallBuilder {
             .next()
             .expect("Failed to extract DiamondCutData token");
 
-        // Admin.upgradeChainFromVersion expects: (oldProtocolVersion, DiamondCutData)
-        let data = upgrade_fn
-            .encode_input(&[Token::Uint(U256::from(protocol_version)), diamond_cut_token])
-            .expect("encode upgradeChainFromVersion failed");
+        let packed_protocol_version = U256::from(protocol_version);
+        let minor_version = get_minor_protocol_version(packed_protocol_version)
+            .expect("Failed to unpack upgrade protocol version");
+        let data = if minor_version < ProtocolVersionId::Version31 {
+            let mut calldata = LEGACY_UPGRADE_CHAIN_FROM_VERSION_SELECTOR.to_vec();
+            calldata.extend(ethers::abi::encode(&[
+                Token::Uint(packed_protocol_version),
+                diamond_cut_token,
+            ]));
+            calldata
+        } else {
+            upgrade_fn
+                .encode_input(&[
+                    Token::Address(hyperchain_addr),
+                    Token::Uint(packed_protocol_version),
+                    diamond_cut_token,
+                ])
+                .expect("encode upgradeChainFromVersion failed")
+        };
 
         let description = "Executing upgrade:".to_string();
         let call = AdminCall {
             description,
-            data: data.to_vec(),
+            data,
             target: hyperchain_addr,
             value: U256::zero(),
         };
@@ -222,5 +241,77 @@ impl AdminCallBuilder {
             .unwrap();
 
         (data.to_vec(), sum)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zksync_types::web3::Bytes as Web3Bytes;
+
+    fn dummy_diamond_cut_data() -> Web3Bytes {
+        let encoded = ethers::abi::encode(&[Token::Tuple(vec![
+            Token::Array(vec![]),
+            Token::Address(Address::zero()),
+            Token::Bytes(vec![]),
+        ])]);
+        Web3Bytes(encoded)
+    }
+
+    #[test]
+    fn append_execute_upgrade_uses_legacy_signature_before_v31() {
+        let chain_address = Address::repeat_byte(0x11);
+        let packed_protocol_version =
+            ProtocolVersionId::Version29.into_packed_semver_with_patch(0).as_u64();
+        let mut builder = AdminCallBuilder::new(vec![]);
+        builder.append_execute_upgrade(chain_address, packed_protocol_version, dummy_diamond_cut_data());
+
+        let call = &builder.calls[0];
+        assert_eq!(call.target, chain_address);
+        assert_eq!(
+            &call.data[..4],
+            &LEGACY_UPGRADE_CHAIN_FROM_VERSION_SELECTOR
+        );
+
+        let diamond_cut_param_type = DIAMOND_CUT_ABI
+            .function("diamondCut")
+            .unwrap()
+            .inputs
+            .first()
+            .unwrap()
+            .kind
+            .clone();
+        let decoded = decode(
+            &[ParamType::Uint(256), diamond_cut_param_type],
+            &call.data[4..],
+        )
+        .unwrap();
+        assert_eq!(decoded[0].clone().into_uint().unwrap(), U256::from(packed_protocol_version));
+    }
+
+    #[test]
+    fn append_execute_upgrade_uses_current_signature_from_v31() {
+        let chain_address = Address::repeat_byte(0x22);
+        let packed_protocol_version =
+            ProtocolVersionId::Version31.into_packed_semver_with_patch(0).as_u64();
+        let mut builder = AdminCallBuilder::new(vec![]);
+        builder.append_execute_upgrade(chain_address, packed_protocol_version, dummy_diamond_cut_data());
+
+        let call = &builder.calls[0];
+        let upgrade_fn = ADMIN_ABI.function("upgradeChainFromVersion").unwrap();
+        assert_eq!(call.target, chain_address);
+        assert_eq!(&call.data[..4], &upgrade_fn.short_signature());
+
+        let decoded = decode(
+            &upgrade_fn
+                .inputs
+                .iter()
+                .map(|input| input.kind.clone())
+                .collect::<Vec<_>>(),
+            &call.data[4..],
+        )
+        .unwrap();
+        assert_eq!(decoded[0].clone().into_address().unwrap(), chain_address);
+        assert_eq!(decoded[1].clone().into_uint().unwrap(), U256::from(packed_protocol_version));
     }
 }

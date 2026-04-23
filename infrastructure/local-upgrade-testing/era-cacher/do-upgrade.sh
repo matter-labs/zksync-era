@@ -34,7 +34,6 @@ wait_for_rpc() {
 cd "$WORKING_DIR"
 
 upgrade_version="v31-interop-b"
-upgrade_file_extension="v31"
 
 # We delete information about the gateway chain as presence of old chain configs
 # changes the beavior of zkstack ecosystem init.
@@ -50,25 +49,21 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --chain era \
     --observability=false
 
-zkstack server --chain era &> ../rollup3.log &
+zkstack server --chain era &> "$WORKSPACE_ROOT/../rollup3.log" &
 
 wait_for_rpc http://127.0.0.1:3050 "pre-upgrade era"
 
-zkstack dev rich-account 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049  --chain era 
+zkstack dev rich-account 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 --chain era
 
 # When running locally, open a new terminal window here.
 cd "$WORKSPACE_ROOT/.."
 "$HELPER_DIR/use-new-era.sh"
 cd "$WORKING_DIR"
 
-# If you are running locally, ensure to go out and back to the zksync-working directory, i.e.
-# `cd ..` and then `cd zksync-working`.
-# Sometimes, the console may not reflect the changes made to the codebase.
-
 zkstackup --local
 zkstack dev contracts
 
-zkstack dev database migrate --prover false --core true  --chain era
+zkstack dev database migrate --prover false --core true --chain era
 
 # Keep the old-tree server active until the onchain upgrade reaches the new ABI.
 # The new-tree runtime cannot start safely against pre-upgrade v29 chain state.
@@ -76,13 +71,16 @@ zkstack dev database migrate --prover false --core true  --chain era
 # Update permanent-values.toml with addresses from running deployment
 "$HELPER_DIR/update-permanent-values.sh"
 
-zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage no-governance-prepare
-zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage ecosystem-admin
-zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage0
-zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage1
+zkstack dev run-ecosystem-upgrade --upgrade-version "$upgrade_version" --ecosystem-upgrade-stage no-governance-prepare
+zkstack dev run-ecosystem-upgrade --upgrade-version "$upgrade_version" --ecosystem-upgrade-stage ecosystem-admin
+zkstack dev run-ecosystem-upgrade --upgrade-version "$upgrade_version" --ecosystem-upgrade-stage governance-stage0
+zkstack dev run-ecosystem-upgrade --upgrade-version "$upgrade_version" --ecosystem-upgrade-stage governance-stage1
 
 cd "$WORKING_DIR/contracts/l1-contracts"
-UPGRADE_ECOSYSTEM_OUTPUT=script-out/v31-upgrade-ecosystem.toml UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_v31.s.sol/9/1658e297-latest.json YAML_OUTPUT_FILE=script-out/v31-local-output.yaml yarn upgrade-yaml-output-generator
+UPGRADE_ECOSYSTEM_OUTPUT=script-out/v31-upgrade-ecosystem.toml \
+UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_v31.s.sol/9/1658e297-latest.json \
+YAML_OUTPUT_FILE=script-out/v31-local-output.yaml \
+    yarn upgrade-yaml-output-generator
 cd "$WORKING_DIR"
 
 # Governance stage 1 updates canonical contracts config (including BytecodesSupplier).
@@ -93,13 +91,11 @@ cd "$WORKING_DIR"
 # The node reads chains/era/configs/contracts.yaml on restart.
 zkstack dev contracts
 
-zkstack dev run-chain-upgrade --upgrade-version $upgrade_version --force-display-finalization-params=true --dangerous-local-default-overrides=true --chain era
-zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage2
+zkstack dev run-chain-upgrade --upgrade-version "$upgrade_version" --force-display-finalization-params=true --dangerous-local-default-overrides=true --chain era
+zkstack dev run-ecosystem-upgrade --upgrade-version "$upgrade_version" --ecosystem-upgrade-stage governance-stage2
 
 # v31 SettlementLayerV31UpgradeBase intentionally resets s.l1DAValidator and s.l2DACommitmentScheme.
 # The operator must re-set the pair for eth_tx_aggregator to commit batches again.
-# Use rollup_l1_da_validator_addr from the refreshed per-chain config and the default Era
-# rollup scheme (BLOBS_AND_PUBDATA_KECCAK256 = ROLLUP_L2_DA_COMMITMENT_SCHEME).
 L1_DA_VALIDATOR=$(awk '/^  rollup_l1_da_validator_addr:/ { print $2; exit }' \
     "$WORKING_DIR/chains/era/configs/contracts.yaml")
 if [ -z "$L1_DA_VALIDATOR" ]; then
@@ -108,10 +104,8 @@ if [ -z "$L1_DA_VALIDATOR" ]; then
 fi
 zkstack chain set-da-validator-pair "$L1_DA_VALIDATOR" BlobsAndPubdataKeccak256 --chain era
 
-# Stage 3: Migrate token balances from NTV to AssetTracker
-# This can be done with any private key (deployer is used here).
-# Read the L1 bridgehub proxy from the refreshed per-chain config rather than hardcoding it;
-# the deterministic local deployment is stable but any salt/network change would silently break.
+# Stage 3: Migrate token balances from NTV to AssetTracker.
+# Read the live Bridgehub proxy from the refreshed runtime config instead of hardcoding it.
 BRIDGEHUB_PROXY=$(awk '/^  bridgehub_proxy_addr:/ { print $2; exit }' \
     "$WORKING_DIR/chains/era/configs/contracts.yaml")
 if [ -z "$BRIDGEHUB_PROXY" ]; then
@@ -135,17 +129,13 @@ zkstack server --ignore-prerequisites --chain era &> "$WORKSPACE_ROOT/../rollup2
 
 wait_for_rpc http://127.0.0.1:3050 "post-upgrade era"
 
-# Fund the main wallet (test_mnemonic index 0) with L1 ETH
-# This wallet is used by init-test-wallet to distribute to the actual test wallet (index 101)
-# init-test-wallet sends 10k ETH, so we need at least that much plus gas
-# Using the rich L1 account (RETH pre-funded account) to send ETH
+# Fund the main wallet (test_mnemonic index 0) with L1 ETH.
+# This wallet is used by init-test-wallet to distribute to the actual test wallet (index 101).
 cast send 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 \
     --value 10001ether \
     --rpc-url http://127.0.0.1:8545 \
     --private-key 0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110 \
     --gas-price 50gwei
 
-# Initialize test wallet - this will distribute 10k ETH from main wallet to test wallet
 zkstack dev init-test-wallet --chain era
-
-zkstack dev test integration --ignore-prerequisites --chain era
+zkstack dev test integration --no-deps --ignore-prerequisites --chain era
