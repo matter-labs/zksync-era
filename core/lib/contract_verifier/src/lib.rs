@@ -122,6 +122,31 @@ pub struct ContractVerifier {
 }
 
 impl ContractVerifier {
+    fn deployed_evm_bytecode(
+        deployed_contract: &DeployedContractData,
+    ) -> Result<&[u8], ContractVerifierError> {
+        let bytecode_hash = BytecodeHash::try_from(deployed_contract.bytecode_hash)
+            .context("Invalid bytecode hash")?;
+
+        match trim_padded_evm_bytecode(bytecode_hash, &deployed_contract.bytecode) {
+            Ok(bytecode) => Ok(bytecode),
+            Err(err) => {
+                if BytecodeHash::for_raw_evm_bytecode(&deployed_contract.bytecode).value()
+                    == deployed_contract.bytecode_hash
+                {
+                    tracing::warn!(
+                        contract_address = ?deployed_contract.contract_address,
+                        bytecode_hash = ?deployed_contract.bytecode_hash,
+                        "raw EVM bytecode found in factory_deps; using compatibility fallback"
+                    );
+                    Ok(deployed_contract.bytecode.as_slice())
+                } else {
+                    Err(anyhow::format_err!("invalid stored EVM bytecode: {err:#}").into())
+                }
+            }
+        }
+    }
+
     /// Creates a new verifier instance.
     pub async fn new(
         compilation_timeout: Duration,
@@ -261,12 +286,7 @@ impl ContractVerifier {
             .context("unknown bytecode kind")?;
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
-            BytecodeMarker::Evm => trim_padded_evm_bytecode(
-                BytecodeHash::try_from(deployed_contract.bytecode_hash)
-                    .context("Invalid bytecode hash")?,
-                &deployed_contract.bytecode,
-            )
-            .context("invalid stored EVM bytecode")?,
+            BytecodeMarker::Evm => Self::deployed_evm_bytecode(&deployed_contract)?,
         };
         let mut deployed_code = deployed_bytecode.to_vec();
         let deployed_identifier =
