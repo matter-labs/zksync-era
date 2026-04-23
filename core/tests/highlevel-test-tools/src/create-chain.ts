@@ -6,7 +6,7 @@ import { FileMutex } from './file-mutex';
 import { startServer, TestMainNode } from './start-server';
 import { initExternalNode, runExternalNode, TestExternalNode } from './start-external-node';
 import { generateRealisticLoad, waitForAllBatchesToBeExecuted } from './wait-for-batches';
-import { agreeToPaySettlementFees, migrateToGatewayIfNeeded } from './gateway';
+import { setSettlementFeePayerAgreement, migrateToGatewayIfNeeded } from './gateway';
 import { configsPath } from './zksync-home';
 import { chainNameToTestSuite } from './logs';
 
@@ -241,7 +241,7 @@ export async function createChainAndStartServer(chainType: ChainType, testSuiteN
 
         // Step 3: Migrate to gateway if needed and set up payment of settlement fees for interop
         await migrateToGatewayIfNeeded(chainConfig.chainName);
-        await agreeToPaySettlementFees(chainConfig.chainName);
+        await setSettlementFeePayerAgreement(chainConfig.chainName);
 
         // Step 4: Start the server
         console.log(`🚀 Starting server for ${chainConfig.chainName}...`);
