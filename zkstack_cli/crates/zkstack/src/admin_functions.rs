@@ -185,6 +185,7 @@ pub async fn governance_execute_calls(
         .with_calldata(&calldata);
 
     let description = "executing governance calls";
+    let is_broadcast = matches!(mode, AdminScriptMode::Broadcast(_));
     let (forge, spinner_text) = match mode {
         AdminScriptMode::OnlySave => (forge, format!("Preparing calldata for {description}")),
         AdminScriptMode::Broadcast(wallet) => {
@@ -198,6 +199,10 @@ pub async fn governance_execute_calls(
     let spinner = Spinner::new(&spinner_text);
     forge.run(shell)?;
     spinner.finish();
+
+    if is_broadcast {
+        return Ok(AdminScriptOutput::default());
+    }
 
     let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&path_to_foundry_scripts);
     Ok(AdminScriptOutputInner::read(shell, output_path)?.into())

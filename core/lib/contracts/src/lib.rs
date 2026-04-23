@@ -79,6 +79,10 @@ const L2_WRAPPED_BASE_TOKEN_STORE: (&str, &str) = (
     "bridge",
     "L2WrappedBaseTokenStore.sol/L2WrappedBaseTokenStore.json",
 );
+const ERA_SETTLEMENT_LAYER_V31_UPGRADE_FILE: (&str, &str) = (
+    "upgrades",
+    "EraSettlementLayerV31Upgrade.sol/EraSettlementLayerV31Upgrade.json",
+);
 
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
@@ -225,6 +229,10 @@ pub fn l1_asset_router_contract() -> Contract {
 
 pub fn wrapped_base_token_store_contract() -> Contract {
     load_contract_for_both_compilers(L2_WRAPPED_BASE_TOKEN_STORE)
+}
+
+pub fn era_settlement_layer_v31_upgrade_contract() -> Contract {
+    load_contract_for_both_compilers(ERA_SETTLEMENT_LAYER_V31_UPGRADE_FILE)
 }
 
 pub fn proof_manager_contract() -> Contract {

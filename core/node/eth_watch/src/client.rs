@@ -2,7 +2,8 @@ use std::{collections::HashMap, fmt, sync::Arc};
 
 use anyhow::Context;
 use zksync_contracts::{
-    bytecode_supplier_contract, getters_facet_contract, l1_asset_router_contract, l2_message_root,
+    bytecode_supplier_contract, era_settlement_layer_v31_upgrade_contract, getters_facet_contract,
+    hyperchain_contract, l1_asset_router_contract, l2_message_root,
     state_transition_manager_contract, verifier_contract, wrapped_base_token_store_contract,
 };
 use zksync_eth_client::{
@@ -72,6 +73,12 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         &self,
     ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError>;
 
+    async fn get_l2_upgrade_tx_data(
+        &self,
+        init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> Result<Vec<u8>, ContractCallError>;
+
     /// Returns ID of the chain.
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId>;
 
@@ -112,9 +119,11 @@ pub struct EthHttpQueryClient<Net: Network> {
     chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
+    hyperchain_contract_abi: Contract,
     chain_type_manager_abi: Contract,
     message_root_abi: Contract,
     l1_asset_router_abi: Contract,
+    era_settlement_layer_v31_upgrade_abi: Contract,
     wrapped_base_token_store_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
     l2_chain_id: L2ChainId,
@@ -162,9 +171,11 @@ where
                 .signature(),
             verifier_contract_abi: verifier_contract(),
             getters_facet_contract_abi: getters_facet_contract(),
+            hyperchain_contract_abi: hyperchain_contract(),
             chain_type_manager_abi: state_transition_manager_contract(),
             message_root_abi: l2_message_root(),
             l1_asset_router_abi: l1_asset_router_contract(),
+            era_settlement_layer_v31_upgrade_abi: era_settlement_layer_v31_upgrade_contract(),
             wrapped_base_token_store_abi: wrapped_base_token_store_contract(),
             confirmations_for_eth_event,
             wrapped_base_token_store,
@@ -581,6 +592,34 @@ where
             base_token_name,
             base_token_symbol,
         }))
+    }
+
+    async fn get_l2_upgrade_tx_data(
+        &self,
+        init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> Result<Vec<u8>, ContractCallError> {
+        let bridgehub: Address = CallFunctionArgs::new("getBridgehub", ())
+            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
+            .call(&self.client)
+            .await?;
+        let zksync_os: bool = CallFunctionArgs::new("getZKsyncOS", ())
+            .for_contract(self.diamond_proxy_addr, &self.hyperchain_contract_abi)
+            .call(&self.client)
+            .await?;
+
+        CallFunctionArgs::new(
+            "getL2UpgradeTxData",
+            (
+                bridgehub,
+                U256::from(self.l2_chain_id.as_u64()),
+                zksync_os,
+                existing_tx_data,
+            ),
+        )
+        .for_contract(init_address, &self.era_settlement_layer_v31_upgrade_abi)
+        .call(&self.client)
+        .await
     }
 }
 
