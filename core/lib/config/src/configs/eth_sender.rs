@@ -432,7 +432,6 @@ mod tests {
             fusaka_upgrade_safety_margin: 100
             fusaka_upgrade_block: 33582142
             fusaka_upgrade_timestamp: 1
-            settlement_fee_payer: null
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec
@@ -493,7 +492,6 @@ mod tests {
             fusaka_upgrade_safety_margin: 100
             fusaka_upgrade_block: 33582142
             fusaka_upgrade_timestamp: 1
-            settlement_fee_payer: null
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec
