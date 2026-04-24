@@ -36,8 +36,6 @@ use crate::{
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
 
-// Removed: LOCAL_GATEWAY_CHAIN_NAME - no longer needed with env var approach
-
 pub async fn run(
     shell: &Shell,
     args: EcosystemUpgradeArgs,
