@@ -4,17 +4,20 @@ This document records the necessity audit for the `zksync-era` side of the v29 -
 
 Validated state:
 
-- `zksync-era`: `2f3632dc9d551820212d2210363a987d4b1019a9`
+- `zksync-era`: `2efaa3f915c0a0bf407c94c732251d9a136fbf47` plus the local minimized `do-upgrade.sh` follow-up documented
+  below.
 - `contracts` submodule used by validation: `d248b3b0d3817ed53e801e56dc77c31c12538986`
 - clean command:
 
 ```bash
 PATH=/root/.cargo/bin:/root/tools/foundry-zksync-v0.1.5:$PATH \
-  ./era-cacher/do-upgrade.sh 2>&1 | tee /root/upgrade_validation_current/current-e2e-clean.log
+  bash era-cacher/do-upgrade.sh 2>&1 | tee /root/upgrade_validation_current/current-e2e-minimized-do-upgrade.log
 ```
 
 Result: `era-cacher/do-upgrade.sh` exited 0. The script completed the v31 chain upgrade, restarted the new server, and
-ran the non-prividium integration suite successfully.
+ran the non-prividium integration suite successfully. This validation used the reduced `do-upgrade.sh` shape: no helper
+functions, no manual deterministic CREATE2 `cast publish`, and a working-tree diff against `origin/draft-v31` of 43
+insertions / 13 deletions for that script.
 
 Integration result from the clean run:
 
@@ -33,7 +36,7 @@ protocol_versions:
 
 l1_batches:
 29 | 2  | 0..1
-31 | 73 | 2..74
+31 | 72 | 2..73
 
 factory_deps count for TransparentUpgradeableProxy + BeaconProxy hashes: 2
 ```
@@ -247,9 +250,7 @@ Disposition: keep.
 
 Changes:
 
-- make the script strict (`set -euo pipefail`) and path-independent.
-- wait for L1 and L2 RPC readiness instead of fixed sleeps.
-- deploy the deterministic CREATE2 factory when absent.
+- use the current checkout's local L1 genesis for the old checkout before starting reth.
 - keep the old-tree server running until the on-chain upgrade reaches the new ABI.
 - update permanent values from the live deployment.
 - generate v31 YAML from the selector-specific broadcast file.
@@ -258,7 +259,6 @@ Changes:
 - re-set the DA validator pair after v31 resets it.
 - run stage3 with live Bridgehub from runtime config.
 - create an empty bridged-token config only when the file is absent.
-- restart the new server and wait for post-upgrade RPC.
 - run the non-prividium integration suites with dependencies.
 
 Why: this script is the e2e harness. Its job is to exercise the real local v29 -> v31 path, not only make a partial
@@ -266,8 +266,7 @@ script succeed. Each ordering step is tied to a real runtime dependency observed
 
 Failure prevented:
 
-- fixed sleeps race RPC readiness.
-- missing CREATE2 factory breaks deterministic v31 deployments.
+- old v29 reth genesis lacks the deterministic CREATE2 factory predeploy that current v31 local tooling expects.
 - starting the new server too early fails against pre-upgrade v29 chain state.
 - stale config after governance stage 1 points the node at the wrong BytecodesSupplier.
 - unset DA validator pair prevents post-upgrade batch commitments.
@@ -276,8 +275,9 @@ Failure prevented:
 
 Evidence:
 
-- clean `do-upgrade.sh` run exited 0.
-- post-upgrade RPC became ready inside the script.
+- minimized `do-upgrade.sh` run exited 0 with no manual CREATE2 factory deployment helper.
+- logs show `Using deterministic Create2Factory address: 0x4e59...` from the normal deploy scripts, and no
+  `Deploying deterministic CREATE2` / `cast publish` helper path.
 - integration tests ran from the script and passed.
 
 ### `infrastructure/local-upgrade-testing/era-cacher/reset.sh`
@@ -340,7 +340,8 @@ Checked shortcut candidates:
   output.
 - Broadcast file guessed as `run-latest.json`: absent for v31. File is derived from the actual calldata selector.
 - Contract-side helper replacing zkstack chain upgrade path: removed. The final chain upgrade uses `run_chain_upgrade`.
-- Fixed sleeps as readiness proof: removed from the main flow. RPC polling is used.
+- Fixed sleeps as readiness proof: still present as in the historical script, but not used as final proof. The
+  post-upgrade integration suite is the readiness/correctness proof.
 - `--no-deps` integration shortcut: removed. The script runs integration tests with dependencies, excluding prividium by
   explicit suite list.
 - Manually injected DA validator pair: present but required operator action. v31 stage resets the pair; the script reads
