@@ -9,6 +9,12 @@ upgrade_file_extension="v31"
 # changes the beavior of zkstack ecosystem init.
 [ -d "./chains/gateway" ] && rm -rf "./chains/gateway"
 
+# The old v29 checkout's local reth genesis lacks the deterministic CREATE2 factory
+# predeploy expected by the v31 deployment scripts. Use the current local L1 genesis
+# instead of deploying the factory manually from this harness.
+rm -rf etc/reth/chaindata
+cp -a ../zksync-new/etc/reth/chaindata etc/reth/chaindata
+
 zkstackup --local && zkstack dev clean containers && zkstack up --observability false
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
@@ -21,11 +27,9 @@ zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
 
 zkstack server --chain era &> ../rollup3.log &
 
-zkstack dev rich-account 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049  --chain era 
+zkstack dev rich-account 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049  --chain era
 
 sleep 10
-
-pkill -9 zksync_server
 
 # When running locally, open a new terminal window here.
 cd .. && era-cacher/use-new-era.sh && cd zksync-working
@@ -39,13 +43,8 @@ zkstack dev contracts
 
 zkstack dev database migrate --prover false --core true  --chain era
 
-# All the actions below may be performed in a different window.
-RUST_BACKTRACE=1 zkstack server --ignore-prerequisites --chain era &> ../rollup.log &
-
-echo "Server started"
-
-# Wait for server to be ready
-sleep 5
+# Keep the old-tree server active until the onchain upgrade reaches the new ABI.
+# The new-tree runtime cannot start safely against pre-upgrade v29 chain state.
 
 # Update permanent-values.toml with addresses from running deployment
 ../era-cacher/update-permanent-values.sh
@@ -56,17 +55,31 @@ zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem
 zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage1
 
 cd contracts/l1-contracts
-UPGRADE_ECOSYSTEM_OUTPUT=script-out/v31-upgrade-ecosystem.toml UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_v31.s.sol/9/run-latest.json  YAML_OUTPUT_FILE=script-out/v31-local-output.yaml yarn upgrade-yaml-output-generator
+NO_GOVERNANCE_PREPARE_SELECTOR=$(cast sig \
+    'noGovernancePrepare((address,address,address,address,bool,bytes32,string,string,address,bytes32))' \
+    | cut -c3-10)
+UPGRADE_ECOSYSTEM_OUTPUT=script-out/v31-upgrade-ecosystem.toml UPGRADE_ECOSYSTEM_OUTPUT_TRANSACTIONS=broadcast/EcosystemUpgrade_v31.s.sol/9/${NO_GOVERNANCE_PREPARE_SELECTOR}-latest.json  YAML_OUTPUT_FILE=script-out/v31-local-output.yaml yarn upgrade-yaml-output-generator
 cd ../../
+
+# Governance stage 1 updates the canonical contracts config. Refresh the local
+# permanent values and generated runtime config before the chain upgrade.
+../era-cacher/update-permanent-values.sh
+zkstack dev contracts
 
 zkstack dev run-chain-upgrade --upgrade-version $upgrade_version --force-display-finalization-params=true --dangerous-local-default-overrides=true --chain era
 zkstack dev run-ecosystem-upgrade --upgrade-version $upgrade_version --ecosystem-upgrade-stage governance-stage2
 
+L1_DA_VALIDATOR=$(awk '/^  rollup_l1_da_validator_addr:/ { print $2; exit }' chains/era/configs/contracts.yaml)
+zkstack chain set-da-validator-pair "$L1_DA_VALIDATOR" BlobsAndPubdataKeccak256 --chain era
+
 # Stage 3: Migrate token balances from NTV to AssetTracker
 # This can be done with any private key (deployer is used here)
+BRIDGEHUB_PROXY=$(awk '/^  bridgehub_proxy_addr:/ { print $2; exit }' chains/era/configs/contracts.yaml)
 cd contracts/l1-contracts
+[ -f script-config/v31-bridged-tokens.toml ] || printf "[tokens]\nbridged_tokens = []\n" > script-config/v31-bridged-tokens.toml
 forge script deploy-scripts/upgrade/v31/EcosystemUpgrade_v31.s.sol:EcosystemUpgrade_v31 \
-    --sig "stage3()" \
+    --sig "stage3(address)" \
+    "$BRIDGEHUB_PROXY" \
     --rpc-url http://localhost:8545 \
     --broadcast \
     --private-key 0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110 \
@@ -78,7 +91,7 @@ cd ../../
 pkill -9 zksync_server
 zkstack server --ignore-prerequisites --chain era &> ../rollup2.log &
 
-sleep 10
+zkstack server wait --timeout 600 --chain era
 
 # Fund the main wallet (test_mnemonic index 0) with L1 ETH
 # This wallet is used by init-test-wallet to distribute to the actual test wallet (index 101)
@@ -93,4 +106,4 @@ cast send 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 \
 # Initialize test wallet - this will distribute 10k ETH from main wallet to test wallet
 zkstack dev init-test-wallet --chain era
 
-zkstack dev test integration --no-deps --ignore-prerequisites --chain era
+zkstack dev test integration --ignore-prerequisites --chain era

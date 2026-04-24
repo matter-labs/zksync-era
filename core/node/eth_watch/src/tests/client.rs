@@ -360,6 +360,14 @@ impl EthClient for MockEthClient {
         }))
     }
 
+    async fn get_l2_upgrade_tx_data(
+        &self,
+        _init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> Result<Vec<u8>, ContractCallError> {
+        Ok(existing_tx_data)
+    }
+
     async fn fflonk_scheduler_vk_hash(
         &self,
         _verifier_address: Address,

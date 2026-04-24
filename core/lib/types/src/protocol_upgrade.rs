@@ -90,14 +90,20 @@ impl From<abi::VerifierParams> for VerifierParams {
     }
 }
 
-/// Protocol upgrade transactions do not contain preimages within them.
-/// Instead, they are expected to be known and need to be fetched, typically from L1.
+/// Protocol upgrade transactions do not contain all data needed to execute them on L2.
+/// Factory-dep preimages and version-specific calldata rewrites are fetched from L1.
 #[async_trait::async_trait]
 pub trait ProtocolUpgradePreimageOracle: Send + Sync {
     async fn get_protocol_upgrade_preimages(
         &self,
         hashes: Vec<H256>,
     ) -> anyhow::Result<Vec<Vec<u8>>>;
+
+    async fn rewrite_v31_upgrade_tx_data(
+        &self,
+        init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> anyhow::Result<Vec<u8>>;
 }
 
 /// Some upgrades have chain-dependent calldata that has to be prepared properly.
@@ -111,10 +117,10 @@ async fn prepare_upgrade_call(
     }
 
     let minor_version = proposed_upgrade.l2_protocol_upgrade_tx.nonce;
-    if ProtocolVersionId::try_from(minor_version.as_u32() as u16).unwrap()
-        != ProtocolVersionId::gateway_upgrade()
-    {
-        // We'll just keep it the same for non-Gateway upgrades
+    let version = ProtocolVersionId::try_from(minor_version.as_u32() as u16).unwrap();
+    if version != ProtocolVersionId::gateway_upgrade() {
+        // Includes v31 after the placeholder data has already been rewritten by the on-chain
+        // helper in `try_from_init_calldata`.
         return Ok(proposed_upgrade.l2_protocol_upgrade_tx.data.clone());
     }
 
@@ -166,8 +172,13 @@ impl ProtocolUpgrade {
             .clone()
             .into_tuple()
             .unwrap();
+        let init_address = diamond_cut_tokens[1]
+            .clone()
+            .into_address()
+            .context("DiamondCutData.initAddress")?;
         Self::try_from_init_calldata(
             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
+            init_address,
             preimage_oracle,
             chain_specific,
         )
@@ -177,6 +188,7 @@ impl ProtocolUpgrade {
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
     async fn try_from_init_calldata(
         init_calldata: &[u8],
+        init_address: Address,
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
@@ -205,6 +217,13 @@ impl ProtocolUpgrade {
                     )
                     .await?
             };
+
+            if version.minor == ProtocolVersionId::Version31 {
+                let placeholder = std::mem::take(&mut upgrade.l2_protocol_upgrade_tx.data);
+                upgrade.l2_protocol_upgrade_tx.data = preimage_oracle
+                    .rewrite_v31_upgrade_tx_data(init_address, placeholder)
+                    .await?;
+            }
 
             upgrade.l2_protocol_upgrade_tx.data =
                 prepare_upgrade_call(&upgrade, chain_specific).await?;

@@ -1,18 +1,21 @@
 use std::path::Path;
 
 use ethers::{
-    abi::{decode, Abi, ParamType, Token},
+    abi::{decode, Abi, Function, Param, ParamType, StateMutability, Token},
     types::Bytes,
     utils::hex,
 };
 use serde::Serialize;
 use xshell::Shell;
 use zkstack_cli_common::forge::ForgeScriptArgs;
-use zksync_types::{Address, U256};
+use zksync_types::{Address, ProtocolVersionId, U256};
 
-use crate::abi::{
-    ADMINABI_ABI as ADMIN_ABI, CHAINADMINOWNABLEABI_ABI as CHAIN_ADMIN_OWNABLE_ABI,
-    DIAMONDCUTABI_ABI as DIAMOND_CUT_ABI,
+use crate::{
+    abi::{
+        ADMINABI_ABI as ADMIN_ABI, CHAINADMINOWNABLEABI_ABI as CHAIN_ADMIN_OWNABLE_ABI,
+        DIAMONDCUTABI_ABI as DIAMOND_CUT_ABI,
+    },
+    utils::protocol_version::get_minor_protocol_version,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -170,16 +173,46 @@ impl AdminCallBuilder {
             .clone();
 
         // Decode the raw diamond_cut_data bytes directly as DiamondCutData struct
-        let diamond_cut_token = decode(&[diamond_cut_param_type], &diamond_cut_data.0)
+        let diamond_cut_token = decode(&[diamond_cut_param_type.clone()], &diamond_cut_data.0)
             .expect("Failed to decode diamond_cut_data")
             .into_iter()
             .next()
             .expect("Failed to extract DiamondCutData token");
 
-        // Admin.upgradeChainFromVersion expects: (oldProtocolVersion, DiamondCutData)
-        let data = upgrade_fn
-            .encode_input(&[Token::Uint(U256::from(protocol_version)), diamond_cut_token])
-            .expect("encode upgradeChainFromVersion failed");
+        let old_minor = get_minor_protocol_version(U256::from(protocol_version))
+            .expect("Failed to unpack old protocol version");
+        let data = if old_minor < ProtocolVersionId::Version31 {
+            #[allow(deprecated)]
+            let legacy_upgrade_fn = Function {
+                name: "upgradeChainFromVersion".to_string(),
+                inputs: vec![
+                    Param {
+                        name: "_protocolVersion".to_string(),
+                        kind: ParamType::Uint(256),
+                        internal_type: None,
+                    },
+                    Param {
+                        name: "_cutData".to_string(),
+                        kind: diamond_cut_param_type,
+                        internal_type: None,
+                    },
+                ],
+                outputs: Vec::new(),
+                constant: None,
+                state_mutability: StateMutability::NonPayable,
+            };
+            legacy_upgrade_fn
+                .encode_input(&[Token::Uint(U256::from(protocol_version)), diamond_cut_token])
+                .expect("encode legacy upgradeChainFromVersion failed")
+        } else {
+            upgrade_fn
+                .encode_input(&[
+                    Token::Address(hyperchain_addr),
+                    Token::Uint(U256::from(protocol_version)),
+                    diamond_cut_token,
+                ])
+                .expect("encode upgradeChainFromVersion failed")
+        };
 
         let description = "Executing upgrade:".to_string();
         let call = AdminCall {

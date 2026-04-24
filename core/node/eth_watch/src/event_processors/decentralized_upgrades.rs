@@ -6,7 +6,7 @@ use zksync_contracts::chain_admin_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
     api::Log, h256_to_u256, protocol_upgrade::ProtocolUpgradePreimageOracle,
-    protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, H256, U256,
+    protocol_version::ProtocolSemanticVersion, Address, ProtocolUpgrade, H256, U256,
 };
 
 use crate::{
@@ -64,6 +64,16 @@ impl ProtocolUpgradePreimageOracle for &dyn EthClient {
         }
 
         Ok(result)
+    }
+
+    async fn rewrite_v31_upgrade_tx_data(
+        &self,
+        init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> anyhow::Result<Vec<u8>> {
+        self.get_l2_upgrade_tx_data(init_address, existing_tx_data)
+            .await
+            .map_err(Into::into)
     }
 }
 
