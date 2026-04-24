@@ -1,5 +1,12 @@
 # Changelog
 
+## [29.17.0](https://github.com/matter-labs/zksync-era/compare/core-v29.16.0...core-v29.17.0) (2026-04-24)
+
+
+### Features
+
+* v31 execute changes ([#4769](https://github.com/matter-labs/zksync-era/issues/4769)) ([d6a53ee](https://github.com/matter-labs/zksync-era/commit/d6a53eedbd415fd14a0ca0cf7b3e3a851f3201b1))
+
 ## [29.16.0](https://github.com/matter-labs/zksync-era/compare/core-v29.15.2...core-v29.16.0) (2026-04-23)
 
 
