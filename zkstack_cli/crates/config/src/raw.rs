@@ -6,7 +6,7 @@ use tokio::fs;
 use xshell::Shell;
 
 #[derive(Debug)]
-pub(crate) struct RawConfig {
+pub struct RawConfig {
     path: PathBuf,
     inner: serde_yaml::Value,
 }
@@ -68,7 +68,7 @@ impl RawConfig {
 /// Mutable YAML configuration file.
 #[derive(Debug)]
 #[must_use = "Must be persisted"]
-pub(crate) struct PatchedConfig {
+pub struct PatchedConfig {
     base: RawConfig,
 }
 

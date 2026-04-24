@@ -22,11 +22,8 @@ use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, L1BatchAggregatedActionType, L2BlockAggregatedActionType,
     },
-    commitment::{L1BatchWithMetadata, SerializeCommitment},
-    eth_sender::{
-        EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxBlobSidecarV2, EthTxFinalityStatus,
-        SidecarBlobV1,
-    },
+    commitment::{L1BatchWithMetadata, L2DACommitmentScheme, SerializeCommitment},
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxBlobSidecarV2, SidecarBlobV1},
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
@@ -34,7 +31,7 @@ use zksync_types::{
     server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, BlockId, BlockNumber, CallRequest},
-    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
+    Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 use super::aggregated_operations::{
@@ -51,8 +48,9 @@ use crate::{
 
 #[derive(Debug)]
 pub struct DAValidatorPair {
-    l1_validator: Address,
-    l2_validator: Address,
+    pub l1_validator: Address,
+    pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
+    pub l2_validator: Option<Address>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -518,6 +516,7 @@ impl EthTxAggregator {
             let da_validator_pair = Self::parse_da_validator_pair(
                 call_results_iterator.next().unwrap(),
                 "contract DA validator pair",
+                chain_protocol_version_id,
             )?;
 
             let execution_delay = Self::parse_execution_delay(
@@ -600,6 +599,7 @@ impl EthTxAggregator {
     fn parse_da_validator_pair(
         data: Token,
         name: &'static str,
+        protocol_version_id: ProtocolVersionId,
     ) -> Result<DAValidatorPair, EthSenderError> {
         // In the first word of the output, the L1 DA validator is present
         const L1_DA_VALIDATOR_OFFSET: usize = 12;
@@ -616,11 +616,42 @@ impl EthTxAggregator {
             )));
         }
 
-        let pair = DAValidatorPair {
-            l1_validator: Address::from_slice(&multicall_data[L1_DA_VALIDATOR_OFFSET..32]),
-            l2_validator: Address::from_slice(&multicall_data[L2_DA_VALIDATOR_OFFSET..64]),
-        };
+        let l1_validator = Address::from_slice(&multicall_data[L1_DA_VALIDATOR_OFFSET..32]);
 
+        let pair = if protocol_version_id.is_pre_medium_interop() {
+            DAValidatorPair {
+                l1_validator,
+                l2_validator: Some(Address::from_slice(
+                    &multicall_data[L2_DA_VALIDATOR_OFFSET..64],
+                )),
+                l2_da_commitment_scheme: None,
+            }
+        } else {
+            let raw_l2_da_commitment_scheme =
+                U256::from_big_endian(&multicall_data[L2_DA_VALIDATOR_OFFSET..64]);
+            if raw_l2_da_commitment_scheme > U256::from(u8::MAX) {
+                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                    format!(
+                        "Invalid L2DACommitmentScheme value in {name}: {}",
+                        raw_l2_da_commitment_scheme
+                    ),
+                )));
+            }
+
+            DAValidatorPair {
+                l1_validator,
+                l2_da_commitment_scheme: Some(
+                    L2DACommitmentScheme::try_from(raw_l2_da_commitment_scheme.as_u64() as u8)
+                        .map_err(|_| {
+                            EthSenderError::Parse(Web3ContractError::InvalidOutputType(format!(
+                                "Unsupported L2DACommitmentScheme value in {name}: {}",
+                                raw_l2_da_commitment_scheme
+                            )))
+                        })?,
+                ),
+                l2_validator: None,
+            }
+        };
         Ok(pair)
     }
 
@@ -796,10 +827,16 @@ impl EthTxAggregator {
             precommit_restriction: commit_restriction,
         };
 
-        // When migrating to or from gateway, the DA validator pair will be reset and so the chain should not
-        // send new commit transactions before the da validator pair is updated
-        if da_validator_pair.l1_validator == Address::zero()
-            || da_validator_pair.l2_validator == Address::zero()
+        if chain_protocol_version_id.is_pre_medium_interop() {
+            if da_validator_pair.l1_validator == Address::zero()
+                || da_validator_pair.l2_validator == Some(Address::zero())
+            {
+                let reason = Some("DA validator pair is not set on the settlement layer");
+                op_restrictions.commit_restriction = reason;
+                // We only disable commit operations, the rest are allowed
+            }
+        } else if da_validator_pair.l1_validator == Address::zero()
+            || da_validator_pair.l2_da_commitment_scheme == Some(L2DACommitmentScheme::None)
         {
             let reason = Some("DA validator pair is not set on the settlement layer");
             op_restrictions.commit_restriction = reason;
@@ -814,20 +851,20 @@ impl EthTxAggregator {
             op_restrictions.precommit_restriction = reason;
         }
 
+        let is_gateway = self.is_gateway_for_sending_txs(storage).await?;
+
         if gateway_migration_state == GatewayMigrationState::InProgress {
             let reason = Some("Gateway migration started");
             op_restrictions.commit_restriction = reason;
             op_restrictions.precommit_restriction = reason;
-            // For the migration from gateway to L1, we need to wait for all blocks to be executed
-            if matches!(self.settlement_layer, None | Some(SettlementLayer::L1(_))) {
-                op_restrictions.prove_restriction = reason;
-                op_restrictions.execute_restriction = reason;
-            } else if self
-                .is_waiting_for_batches_with_interop_roots_to_be_committed(storage)
+            // From V31 when migrating to or from gateway, we need to wait for all blocks to be executed,
+            // so there is no restriction for prove and execute operations
+            if self
+                .is_waiting_for_batches_with_current_settlement_layer_to_be_committed(storage)
                 .await?
             {
-                // For the migration from gateway to L1, we need to ensure all batches containing interop roots
-                // get committed and executed. Once this happens, we can re-enable commit & precommit.
+                // While old-settlement-layer batches are still uncommitted, keep
+                // commits/precommits flowing so migration can finish draining them.
                 op_restrictions.commit_restriction = None;
                 op_restrictions.precommit_restriction = None;
             }
@@ -853,10 +890,10 @@ impl EthTxAggregator {
                 priority_tree_start_index,
                 precommit_params.as_ref(),
                 execution_delay,
+                is_gateway,
             )
             .await?
         {
-            let is_gateway = self.is_gateway();
             let tx = self
                 .save_eth_tx(
                     storage,
@@ -1085,7 +1122,13 @@ impl EthTxAggregator {
                         (calldata, None)
                     }
                     L1BatchAggregatedOperation::Execute(op) => {
-                        args.extend(op.encode_for_eth_tx(chain_protocol_version_id));
+                        let settlement_fee_payer = self
+                            .config
+                            .settlement_fee_payer
+                            .unwrap_or(self.eth_client.sender_account());
+                        args.extend(
+                            op.encode_for_eth_tx(chain_protocol_version_id, settlement_fee_payer),
+                        );
                         let encoding_fn = if protocol_version.is_pre_gateway()
                             && chain_protocol_version_id.is_pre_gateway()
                         {
@@ -1207,7 +1250,9 @@ impl EthTxAggregator {
                 .unwrap_or_else(|| self.eth_client.sender_account()),
             (_, _) => self.eth_client.sender_account(),
         };
-        let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
+        let nonce = self
+            .get_next_nonce(&mut transaction, sender_addr, is_gateway)
+            .await?;
         let encoded_aggregated_op = self.encode_aggregated_op(
             aggregated_op,
             chain_protocol_version_id,
@@ -1295,21 +1340,30 @@ impl EthTxAggregator {
         Ok(eth_tx)
     }
 
-    // Just because we block all operations during gateway migration,
-    // this function should not be called when the settlement layer is unknown
-    fn is_gateway(&self) -> bool {
-        self.settlement_layer
-            .as_ref()
-            .map(|sl| sl.is_gateway())
-            .unwrap_or(false)
+    async fn is_gateway_for_sending_txs(
+        &self,
+        storage: &mut Connection<'_, Core>,
+    ) -> Result<bool, EthSenderError> {
+        let settlement_layer = if let Some(settlement_layer) = self.settlement_layer {
+            Some(settlement_layer)
+        } else {
+            storage
+                .blocks_dal()
+                .get_latest_sealed_l1_batch_header()
+                .await?
+                .map(|header| header.settlement_layer)
+        };
+        Ok(settlement_layer
+            .map(SettlementLayer::is_gateway)
+            .unwrap_or(false))
     }
 
     async fn get_next_nonce(
         &self,
         storage: &mut Connection<'_, Core>,
         from_addr: Address,
+        is_gateway: bool,
     ) -> Result<u64, EthSenderError> {
-        let is_gateway = self.is_gateway();
         let db_nonce = storage
             .eth_sender_dal()
             .get_next_nonce(from_addr, is_gateway)
@@ -1343,34 +1397,36 @@ impl EthTxAggregator {
         GatewayMigrationState::from_sl_and_notification(self.settlement_layer, notification)
     }
 
-    async fn is_waiting_for_batches_with_interop_roots_to_be_committed(
+    /// Returns `true` if there are batches on the current settlement layer not yet committed.
+    /// Used to block gateway migration until all batches are finalized.
+    async fn is_waiting_for_batches_with_current_settlement_layer_to_be_committed(
         &self,
         storage: &mut Connection<'_, Core>,
     ) -> Result<bool, EthSenderError> {
-        let latest_processed_l1_batch_number = storage
-            .interop_root_dal()
-            .get_latest_processed_interop_root_l1_batch_number()
+        let settlement_layer = if let Some(settlement_layer) = self.settlement_layer {
+            settlement_layer
+        } else if let Some(header) = storage
+            .blocks_dal()
+            .get_latest_sealed_l1_batch_header()
+            .await?
+        {
+            tracing::info!(
+                "Settlement layer for sending txs is unknown during gateway migration; using latest sealed L1 batch settlement layer for wait checks"
+            );
+            header.settlement_layer
+        } else {
+            tracing::info!(
+                "Settlement layer for sending txs is unknown during gateway migration and there are no sealed L1 batches yet; keep commit/precommit restrictions"
+            );
+            return Ok(false);
+        };
+
+        let has_uncommitted_batches = storage
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
             .await?;
 
-        if latest_processed_l1_batch_number.is_none() {
-            return Ok(false);
-        }
-
-        let last_sent_successfully_eth_tx = storage
-            .eth_sender_dal()
-            .get_last_sent_successfully_eth_tx_by_batch_and_op(
-                L1BatchNumber::from(latest_processed_l1_batch_number.unwrap()),
-                L1BatchAggregatedActionType::Commit,
-            )
-            .await;
-
-        if last_sent_successfully_eth_tx
-            .is_some_and(|tx| tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized)
-        {
-            return Ok(false);
-        }
-
-        Ok(true)
+        Ok(has_uncommitted_batches)
     }
 }
 

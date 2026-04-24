@@ -3,7 +3,8 @@ use std::{path::Path, sync::Arc};
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
-    abi::{encode, Token},
+    abi::parse_abi,
+    contract::Contract,
     prelude::Http,
     providers::{Middleware, Provider},
 };
@@ -11,8 +12,7 @@ use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::{Address, H256, U256};
-use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
-use zksync_types::ProtocolVersionId;
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
     gateway_common::{
@@ -27,42 +27,11 @@ use crate::{
         set_da_validator_pair_via_gateway, AdminScriptMode, AdminScriptOutput,
     },
     commands::chain::{admin_call_builder::AdminCall, utils::display_admin_script_output},
-    utils::addresses::apply_l1_to_l2_alias,
+    utils::{
+        addresses::{apply_l1_to_l2_alias, precompute_chain_address_on_gateway},
+        protocol_version::get_minor_protocol_version,
+    },
 };
-
-fn get_minor_protocol_version(protocol_version: U256) -> anyhow::Result<ProtocolVersionId> {
-    ProtocolVersionId::try_from_packed_semver(protocol_version)
-        .map_err(|err| anyhow::format_err!("Failed to unpack semver for protocol version: {err}"))
-}
-
-// The most reliable way to precompute the address is to simulate `createNewChain` function
-async fn precompute_chain_address_on_gateway(
-    l2_chain_id: u64,
-    base_token_asset_id: H256,
-    new_l2_admin: Address,
-    protocol_version: U256,
-    gateway_diamond_cut: Vec<u8>,
-    gw_ctm: ChainTypeManagerAbi<Provider<ethers::providers::Http>>,
-) -> anyhow::Result<Address> {
-    let ctm_data = encode(&[
-        Token::FixedBytes(base_token_asset_id.0.into()),
-        Token::Address(new_l2_admin),
-        Token::Uint(protocol_version),
-        Token::Bytes(gateway_diamond_cut),
-    ]);
-
-    let caller = if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
-        L2_BRIDGEHUB_ADDRESS
-    } else {
-        L2_CHAIN_ASSET_HANDLER_ADDRESS
-    };
-    let result = gw_ctm
-        .forwarded_bridge_mint(l2_chain_id.into(), ctm_data.into())
-        .from(caller)
-        .await?;
-
-    Ok(result)
-}
 
 #[derive(Debug)]
 pub(crate) struct MigrateToGatewayConfig {
@@ -270,27 +239,35 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         result.extend(da_validator_encoding_result.calls.into_iter());
     }
 
-    let is_validator_enabled =
-        if get_minor_protocol_version(context.protocol_version)?.is_pre_interop_fast_blocks() {
-            // In previous versions, we need to check if the validator is enabled
-            context
-                .gw_validator_timelock
-                .validators(context.l2_chain_id.into(), context.validator)
-                .await?
-        } else {
-            context
-                .gw_validator_timelock
-                .has_role_for_chain_id(
-                    context.l2_chain_id.into(),
-                    context
-                        .gw_validator_timelock
-                        .committer_role()
-                        .call()
-                        .await?,
-                    context.validator,
-                )
-                .await?
-        };
+    let is_validator_enabled = if get_minor_protocol_version(context.protocol_version)?
+        .is_pre_interop_fast_blocks()
+    {
+        // In previous versions, we need to check if the validator is enabled
+        let legacy_validator_timelock = Contract::new(
+                context.gw_validator_timelock_addr,
+                parse_abi(&[
+                    "function validators(uint256 _chainId, address _validator) external view returns (bool)",
+                ])?,
+                context.gw_provider.clone(),
+            );
+        legacy_validator_timelock
+            .method::<_, bool>("validators", (context.l2_chain_id, context.validator))?
+            .call()
+            .await?
+    } else {
+        context
+            .gw_validator_timelock
+            .has_role_for_chain_id(
+                context.l2_chain_id.into(),
+                context
+                    .gw_validator_timelock
+                    .committer_role()
+                    .call()
+                    .await?,
+                context.validator,
+            )
+            .await?
+    };
 
     // 4. If validator is not yet present, please include.
     if !is_validator_enabled {

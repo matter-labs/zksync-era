@@ -36,6 +36,7 @@ use crate::{
     admin_functions::{set_da_validator_pair, start_migrate_chain_from_gateway},
     commands::chain::{
         admin_call_builder::AdminCallBuilder,
+        args::init::da_configs::ValidiumTypeInternal,
         gateway::{
             constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
             gateway_common::{
@@ -59,6 +60,18 @@ pub struct MigrateFromGatewayArgs {
 
     #[clap(long)]
     pub gateway_chain_name: String,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// Gateway RPC URL. If not provided, will be read from gateway chain's general config.
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
+
+    /// Validium type for the chain. If not provided, will be read from chain's general config.
+    #[clap(long)]
+    pub validium_type: Option<ValidiumTypeInternal>,
 }
 
 lazy_static! {
@@ -82,7 +95,10 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .context("Gateway not present")?;
     let gateway_chain_id = gateway_chain_config.chain_id.as_u64();
 
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
     let chain_contracts_config = chain_config.get_contracts_config()?;
 
     let l1_diamond_cut_data = chain_config
@@ -91,8 +107,13 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .ctm
         .diamond_cut_data;
 
-    let gateway_general_config = gateway_chain_config.get_general_config().await?;
-    let gw_rpc_url = gateway_general_config.l2_http_url()?;
+    let gw_rpc_url = match args.gateway_rpc_url {
+        Some(url) => url,
+        None => {
+            let general_config = gateway_chain_config.get_general_config().await?;
+            general_config.l2_http_url()?
+        }
+    };
 
     let state = get_gateway_migration_state(
         l1_url.clone(),
@@ -169,7 +190,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
             .get_contracts_config()?
             .l1
             .diamond_proxy_addr,
-        gateway_provider,
+        gateway_provider.clone(),
     )
     .await?;
 
@@ -242,13 +263,18 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     Ok(())
 }
 
-const LOOK_WAITING_TIME_MS: u64 = 200;
+const LOOK_WAITING_TIME_MS: u64 = 1600;
+
+pub(crate) enum GatewayTransactionType {
+    Withdrawal,
+}
 
 pub(crate) async fn check_whether_gw_transaction_is_finalized(
     gateway_provider: &Client<L2>,
     l1_provider: Arc<Provider<Http>>,
     gateway_diamond_proxy: Address,
     hash: H256,
+    transaction_type: GatewayTransactionType,
 ) -> anyhow::Result<bool> {
     let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? else {
         return Ok(false);
@@ -260,12 +286,16 @@ pub(crate) async fn check_whether_gw_transaction_is_finalized(
 
     let batch_number = receipt.l1_batch_number.unwrap();
 
-    if gateway_provider
-        .get_finalize_withdrawal_params(hash, 0)
-        .await
-        .is_err()
-    {
-        return Ok(false);
+    match transaction_type {
+        GatewayTransactionType::Withdrawal => {
+            if gateway_provider
+                .get_finalize_withdrawal_params(hash, 0)
+                .await
+                .is_err()
+            {
+                return Ok(false);
+            }
+        }
     }
 
     // TODO(PLA-1121): investigate why waiting for the tx proof is not enough.
@@ -285,6 +315,7 @@ async fn await_for_withdrawal_to_finalize(
         l1_provider.clone(),
         gateway_diamond_proxy,
         hash,
+        GatewayTransactionType::Withdrawal,
     )
     .await?
     {

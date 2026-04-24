@@ -85,7 +85,7 @@ async fn generate_new_config(
     // This tool doesn't really insert the batch. It doesn't commit the transaction,
     // so the database is clean after using the tool
     let params = GenesisParams::load_genesis_params(updated_genesis.clone())?;
-    let batch_params = insert_genesis_batch(&mut transaction, &params).await?;
+    let batch_params = insert_genesis_batch(&mut transaction, &params.into()).await?;
 
     updated_genesis.genesis_commitment = Some(batch_params.commitment);
     updated_genesis.genesis_root_hash = Some(batch_params.root_hash);

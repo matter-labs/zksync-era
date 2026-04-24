@@ -15226,6 +15226,7 @@ dependencies = [
  "zksync_node_framework",
  "zksync_shared_resources",
  "zksync_system_constants",
+ "zksync_types",
  "zksync_web3_decl",
 ]
 

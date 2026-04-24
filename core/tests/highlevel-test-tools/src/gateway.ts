@@ -1,10 +1,57 @@
 import { executeCommand } from './execute-command';
 import { FileMutex } from './file-mutex';
+import { findHome } from './zksync-home';
+import { withDeadline } from './deadline';
+import { ConfigName, loadConfig } from 'utils/build/file-configs';
+import * as ethers from 'ethers';
+import * as zksync from 'zksync-ethers';
 
 /**
  * Global mutex for gateway migration to prevent concurrent migrations
  */
 const gatewayMutex = new FileMutex();
+/**
+ * Constants for migration readiness check
+ */
+const MIGRATION_STARTED_TOPIC = ethers.id('MigrationStarted(uint256,bytes32,uint256)');
+const BLOCK_SEARCH_RANGE = 5000;
+const MAX_BLOCK_LOOKBACK = 200000;
+const GATEWAY_CHAIN_NAME = 'gateway';
+const GATEWAY_MIGRATION_CONTEXT = 'gateway_migration';
+
+function shouldUseGatewayChain(chainName: string, action: string): boolean {
+    const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
+    if (useGatewayChain !== 'WITH_GATEWAY') {
+        console.log(`⏭️ Skipping ${action} for ${chainName} (USE_GATEWAY_CHAIN=${useGatewayChain})`);
+        return false;
+    }
+
+    return true;
+}
+
+function loadChainConfig(pathToHome: string, chain: string, config: ConfigName) {
+    return loadConfig({
+        pathToHome,
+        chain,
+        config
+    });
+}
+
+async function runGatewayCommand(chainName: string, args: string[]): Promise<void> {
+    await executeCommand('zkstack', ['chain', 'gateway', ...args], chainName, GATEWAY_MIGRATION_CONTEXT);
+}
+
+async function withGatewayMutex(chainName: string, stage: string, action: () => Promise<void>): Promise<void> {
+    console.log(`🔒 Acquiring mutex for ${stage} of ${chainName}...`);
+    await gatewayMutex.acquire();
+    console.log(`✅ Mutex acquired for ${stage} of ${chainName}`);
+
+    try {
+        await action();
+    } finally {
+        gatewayMutex.release();
+    }
+}
 
 /**
  * Migrates a chain to gateway if the USE_GATEWAY_CHAIN environment variable is set to 'WITH_GATEWAY'
@@ -13,52 +60,168 @@ const gatewayMutex = new FileMutex();
  * @returns Promise that resolves when migration is complete
  */
 export async function migrateToGatewayIfNeeded(chainName: string): Promise<void> {
-    const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
-
-    if (useGatewayChain !== 'WITH_GATEWAY') {
-        console.log(`⏭️ Skipping gateway migration for ${chainName} (USE_GATEWAY_CHAIN=${useGatewayChain})`);
+    if (!shouldUseGatewayChain(chainName, 'gateway migration')) {
         return;
     }
 
     console.log(`🔄 Migrating chain ${chainName} to gateway...`);
 
     try {
-        // Acquire mutex for gateway migration
-        console.log(`🔒 Acquiring mutex for gateway migration of ${chainName}...`);
-        await gatewayMutex.acquire();
-        console.log(`✅ Mutex acquired for gateway migration of ${chainName}`);
-
-        try {
-            await executeCommand(
-                'zkstack',
-                ['chain', 'gateway', 'migrate-to-gateway', '--chain', chainName, '--gateway-chain-name', 'gateway'],
+        await withGatewayMutex(chainName, 'gateway migration', async () => {
+            await runGatewayCommand(chainName, [
+                'migrate-to-gateway',
+                '--chain',
                 chainName,
-                'gateway_migration'
-            );
-
-            await executeCommand(
-                'zkstack',
-                [
-                    'chain',
-                    'gateway',
-                    'finalize-chain-migration-to-gateway',
-                    '--chain',
-                    chainName,
-                    '--gateway-chain-name',
-                    'gateway',
-                    '--deploy-paymaster'
-                ],
-                chainName,
-                'gateway_migration'
-            );
-
+                '--gateway-chain-name',
+                GATEWAY_CHAIN_NAME
+            ]);
             console.log(`✅ Successfully migrated chain ${chainName} to gateway`);
-        } finally {
-            // Always release the mutex
-            gatewayMutex.release();
-        }
+        });
     } catch (error) {
         console.error(`❌ Failed to migrate chain ${chainName} to gateway:`, error);
         throw error;
     }
+
+    // Wait until the migration is ready to finalize without holding the mutex.
+    await waitForMigrationReadyForFinalize(chainName);
+
+    try {
+        await withGatewayMutex(chainName, 'finalizing gateway migration', async () => {
+            await runGatewayCommand(chainName, [
+                'finalize-chain-migration-to-gateway',
+                '--chain',
+                chainName,
+                '--gateway-chain-name',
+                GATEWAY_CHAIN_NAME,
+                '--deploy-paymaster'
+            ]);
+            console.log(`✅ Successfully finalized migration of chain ${chainName} to gateway`);
+        });
+    } catch (error) {
+        console.error(`❌ Failed to finalize migration of chain ${chainName} to gateway:`, error);
+        throw error;
+    }
+}
+
+function loadMigrationFinalizeCheckConfig(chainName: string) {
+    const pathToHome = findHome();
+    const contractsConfig = loadChainConfig(pathToHome, chainName, 'contracts.yaml');
+    const secretsConfig = loadChainConfig(pathToHome, chainName, 'secrets.yaml');
+    const genesisConfig = loadChainConfig(pathToHome, chainName, 'genesis.yaml');
+    const gatewayContractsConfig = loadChainConfig(pathToHome, GATEWAY_CHAIN_NAME, 'contracts.yaml');
+
+    const l1RpcUrl = secretsConfig?.l1?.l1_rpc_url;
+    const gatewayRpcUrl = secretsConfig?.l1?.gateway_rpc_url;
+    const bridgehubProxyAddr = contractsConfig?.ecosystem_contracts?.bridgehub_proxy_addr;
+    const gatewayDiamondProxyAddr = gatewayContractsConfig?.l1?.diamond_proxy_addr;
+    const l2ChainId = Number(genesisConfig?.l2_chain_id);
+
+    if (!l1RpcUrl || !gatewayRpcUrl || !bridgehubProxyAddr || !gatewayDiamondProxyAddr || !Number.isFinite(l2ChainId)) {
+        throw new Error(
+            `Missing gateway migration config for chain ${chainName} ` +
+                `(l1RpcUrl=${!!l1RpcUrl}, gatewayRpcUrl=${!!gatewayRpcUrl}, bridgehubProxyAddr=${!!bridgehubProxyAddr}, ` +
+                `gatewayDiamondProxyAddr=${!!gatewayDiamondProxyAddr}, l2ChainId=${l2ChainId})`
+        );
+    }
+
+    return {
+        l1RpcUrl,
+        gatewayRpcUrl,
+        l2ChainId,
+        bridgehubProxyAddr,
+        gatewayDiamondProxyAddr
+    };
+}
+
+async function findLatestMigrationTxHash(
+    l1Provider: ethers.JsonRpcProvider,
+    chainAssetHandlerAddr: string,
+    l2ChainId: number
+): Promise<string | null> {
+    const latestBlock = await l1Provider.getBlockNumber();
+    const chainIdTopic = ethers.zeroPadValue(ethers.toBeHex(l2ChainId), 32);
+
+    for (
+        let toBlock = latestBlock;
+        toBlock >= 0 && latestBlock - toBlock <= MAX_BLOCK_LOOKBACK;
+        toBlock -= BLOCK_SEARCH_RANGE
+    ) {
+        const fromBlock = Math.max(0, toBlock - BLOCK_SEARCH_RANGE + 1);
+        const logs = await l1Provider.getLogs({
+            address: chainAssetHandlerAddr,
+            topics: [MIGRATION_STARTED_TOPIC, chainIdTopic],
+            fromBlock,
+            toBlock
+        });
+
+        if (logs.length > 0) {
+            return logs[logs.length - 1].transactionHash;
+        }
+    }
+
+    return null;
+}
+
+async function isMigrationReadyForFinalize(chainName: string): Promise<boolean> {
+    const config = loadMigrationFinalizeCheckConfig(chainName);
+    const l1Provider = new ethers.JsonRpcProvider(config.l1RpcUrl);
+    const gatewayProvider = new zksync.Provider(config.gatewayRpcUrl);
+    const bridgehub = new ethers.Contract(
+        config.bridgehubProxyAddr,
+        ['function chainAssetHandler() view returns (address)'],
+        l1Provider
+    );
+    const chainAssetHandlerAddr = await bridgehub.chainAssetHandler();
+
+    const migrationTxHash = await findLatestMigrationTxHash(l1Provider, chainAssetHandlerAddr, config.l2ChainId);
+    if (!migrationTxHash) {
+        console.log(
+            `[${chainName}] MigrationStarted event not found on chainAssetHandler=${chainAssetHandlerAddr} ` +
+                `for chainId=${config.l2ChainId}, topic=${MIGRATION_STARTED_TOPIC}`
+        );
+        return false;
+    }
+    const receipt = await l1Provider.getTransactionReceipt(migrationTxHash);
+    if (!receipt) {
+        console.log(`[${chainName}] No receipt for migrationTxHash=${migrationTxHash}`);
+        return false;
+    }
+
+    const gatewayMainContract = await gatewayProvider.getMainContractAddress();
+    const priorityOpHash = zksync.utils.getL2HashFromPriorityOp(receipt, gatewayMainContract);
+    const l2Receipt = await gatewayProvider.getTransactionReceipt(priorityOpHash);
+    if (!l2Receipt?.l1BatchNumber) {
+        console.log(
+            `[${chainName}] L2 receipt not ready: priorityOpHash=${priorityOpHash}, ` +
+                `l1BatchNumber=${l2Receipt?.l1BatchNumber ?? 'null'}`
+        );
+        return false;
+    }
+
+    const gatewayDiamondProxy = new ethers.Contract(
+        config.gatewayDiamondProxyAddr,
+        ['function getTotalBatchesExecuted() view returns (uint256)'],
+        l1Provider
+    );
+
+    const totalExecuted = BigInt(await gatewayDiamondProxy.getTotalBatchesExecuted());
+    const batchNumber = BigInt(l2Receipt.l1BatchNumber);
+    if (totalExecuted < batchNumber) {
+        console.log(`[${chainName}] Batch not yet executed: totalExecuted=${totalExecuted}, needed=${batchNumber}`);
+    }
+    return totalExecuted >= batchNumber;
+}
+
+export async function waitForMigrationReadyForFinalize(chainName: string): Promise<void> {
+    await withDeadline(
+        async () => {
+            if (await isMigrationReadyForFinalize(chainName)) {
+                console.log(`✅ Migration is ready to finalize for ${chainName}`);
+                return true;
+            }
+            console.log(`⏳ Migration not ready to finalize for ${chainName}, retrying...`);
+            return null;
+        },
+        { timeoutMs: 10 * 60 * 1000, intervalMs: 2000, label: `waitForMigrationReadyForFinalize(${chainName})` }
+    );
 }
