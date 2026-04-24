@@ -5,11 +5,50 @@ import * as ethers from 'ethers';
 
 import * as zksync from 'zksync-ethers';
 
+import {
+    ArtifactL1AssetTracker,
+    ArtifactL1BridgeHub,
+    ArtifactL1AssetRouter,
+    ArtifactNativeTokenVault,
+    ArtifactL1NativeTokenVault
+} from './constants';
+
 export interface EcosystemContracts {
     bridgehub: ethers.Contract;
     assetRouter: ethers.Contract;
     assetTracker: ethers.Contract;
     nativeTokenVault: ethers.Contract;
+}
+
+export async function getEcosystemContracts(wallet: zksync.Wallet): Promise<EcosystemContracts> {
+    const bridgehub = new ethers.Contract(
+        await (await wallet.getBridgehubContract()).getAddress(),
+        ArtifactL1BridgeHub.abi,
+        wallet.providerL1!
+    );
+    const assetRouter = new zksync.Contract(
+        await bridgehub.assetRouter(),
+        ArtifactL1AssetRouter.abi,
+        wallet.providerL1!
+    );
+    const nativeTokenVault = new zksync.Contract(
+        await assetRouter.nativeTokenVault(),
+        ArtifactNativeTokenVault.abi,
+        wallet.providerL1!
+    );
+    const l1NativeTokenVault = new zksync.Contract(
+        await assetRouter.nativeTokenVault(),
+        ArtifactL1NativeTokenVault.abi,
+        wallet.providerL1!
+    );
+    const assetTrackerAddress = await l1NativeTokenVault.l1AssetTracker();
+    const assetTracker = new zksync.Contract(assetTrackerAddress, ArtifactL1AssetTracker.abi, wallet.providerL1!);
+    return {
+        bridgehub,
+        assetRouter,
+        assetTracker,
+        nativeTokenVault
+    };
 }
 
 interface TokensDict {

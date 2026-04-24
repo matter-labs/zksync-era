@@ -11,7 +11,7 @@ import * as ethers from 'ethers';
 import { waitForL2ToL1LogProof } from '../src/helpers';
 import { RetryableWallet } from '../src/retry-provider';
 
-import { L2_MESSAGE_VERIFICATION_ADDRESS, ArtifactL2MessageVerification, ArtifactBridgeHub } from '../src/constants';
+import { L2_MESSAGE_VERIFICATION_ADDRESS, ArtifactL2MessageVerification, ArtifactL1BridgeHub } from '../src/constants';
 import { FinalizeWithdrawalParams } from 'zksync-ethers/build/types';
 import { waitForInteropRootNonZero, getGWBlockNumber } from '../src/helpers';
 
@@ -32,7 +32,7 @@ describe('Interop-A behavior checks', () => {
         // Skip interop tests if the SL is the same as the L1.
         const bridgehub = new ethers.Contract(
             await alice.provider.getBridgehubContractAddress(),
-            ArtifactBridgeHub.abi,
+            ArtifactL1BridgeHub.abi,
             alice.providerL1
         );
 

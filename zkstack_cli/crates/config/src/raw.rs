@@ -24,6 +24,8 @@ impl RawConfig {
         let inner = match extension {
             "yaml" | "yml" => serde_yaml::from_str(&raw)
                 .with_context(|| format!("failed deserializing config at `{path:?}` as YAML"))?,
+            "toml" => toml::from_str(&raw)
+                .with_context(|| format!("failed deserializing config at `{path:?}` as YAML"))?,
             "json" => serde_json::from_str(&raw)
                 .with_context(|| format!("failed deserializing config at `{path:?}` as YAML"))?,
             _ => anyhow::bail!("unsupported config file extension `{extension}`"),
@@ -165,6 +167,8 @@ impl PatchedConfig {
             "yaml" | "yml" => serde_yaml::to_string(&self.base.inner)
                 .with_context(|| format!("failed serializing config at `{path:?}` as YAML"))?,
             "json" => serde_json::to_string_pretty(&self.base.inner)
+                .with_context(|| format!("failed serializing config at `{path:?}` as YAML"))?,
+            "toml" => toml::to_string_pretty(&self.base.inner)
                 .with_context(|| format!("failed serializing config at `{path:?}` as YAML"))?,
             _ => {
                 anyhow::bail!("unsupported config file extension `{extension}`");

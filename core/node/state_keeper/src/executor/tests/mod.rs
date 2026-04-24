@@ -15,6 +15,7 @@ use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
     abi, address_to_h256, address_to_u256,
     block::L2BlockHasher,
+    ethabi::Token,
     get_nonce_key,
     utils::{deployed_address_create, storage_key_for_eth_balance},
     vm::FastVmMode,
@@ -44,9 +45,12 @@ fn assert_succeeded(execution_result: &BatchTransactionExecutionResult) {
 
 fn message_root_init_txn() -> Transaction {
     let calldata = l2_message_root()
-        .function("initialize")
+        .function("initL2")
         .unwrap()
-        .encode_input(&[])
+        .encode_input(&[
+            Token::Uint(U256::from(9u32)),
+            Token::Uint(U256::from(506u32)),
+        ])
         .unwrap();
 
     Transaction::from_abi(

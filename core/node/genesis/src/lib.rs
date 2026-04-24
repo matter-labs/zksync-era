@@ -2,7 +2,11 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
-use std::{collections::HashMap, fmt::Formatter};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fmt::Formatter,
+    path::Path,
+};
 
 use anyhow::Context as _;
 use kzg::ZK_SYNC_BYTES_PER_BLOB;
@@ -20,10 +24,11 @@ use zksync_types::{
     bytecode::BytecodeHash,
     commitment::{CommitmentInput, L1BatchCommitment, PubdataParams},
     fee_model::BatchFeeInput,
+    get_known_code_key,
     protocol_upgrade::decode_genesis_upgrade_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     settlement::SettlementLayer,
-    system_contracts::get_system_smart_contracts,
+    system_contracts::{get_genesis_additional_factory_deps, get_system_smart_contracts},
     u256_to_h256,
     web3::{BlockNumber, FilterBuilder},
     zk_evm_types::LogQuery,
@@ -86,44 +91,47 @@ pub struct GenesisParams {
     config: GenesisConfig,
 }
 
-#[derive(Debug, Clone)]
 pub struct GenesisParamsInitials {
-    base_system_contracts: BaseSystemContracts,
-    system_contracts: Vec<DeployedContract>,
-    config: GenesisConfig,
+    pub base_system_contracts: BaseSystemContracts,
+    pub system_contracts: Vec<DeployedContract>,
+    pub config: ContractsGenesis,
+    pub l1_chain_id: L1ChainId,
 }
 
 impl GenesisParamsInitials {
-    pub fn system_contracts(&self) -> &[DeployedContract] {
-        &self.system_contracts
-    }
+    pub fn load_params(contracts_genesis_path: &Path, l1_chain_id: L1ChainId) -> Self {
+        let base_system_contracts = BaseSystemContracts::load_from_disk();
+        let system_contracts = get_system_smart_contracts();
 
-    pub fn base_system_contracts(&self) -> &BaseSystemContracts {
-        &self.base_system_contracts
-    }
-
-    pub fn config(&self) -> &GenesisConfig {
-        &self.config
-    }
-
-    pub fn minor_protocol_version(&self) -> ProtocolVersionId {
-        self.config
-            .protocol_version
-            .expect("Protocol version must be set")
-            .minor
-    }
-
-    pub fn protocol_version(&self) -> ProtocolSemanticVersion {
-        self.config
-            .protocol_version
-            .expect("Protocol version must be set")
+        let config = ContractsGenesis::read(contracts_genesis_path).unwrap();
+        Self {
+            base_system_contracts,
+            system_contracts,
+            config,
+            l1_chain_id,
+        }
     }
 
     pub fn mock() -> Self {
+        let base_system_contracts = BaseSystemContracts::load_from_disk();
+        let base_system_contracts_hashes = base_system_contracts.hashes();
         Self {
-            base_system_contracts: BaseSystemContracts::load_from_disk(),
+            base_system_contracts,
             system_contracts: get_system_smart_contracts(),
-            config: mock_genesis_config(),
+            config: ContractsGenesis {
+                protocol_semantic_version: ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::latest(),
+                    patch: 0.into(),
+                },
+                genesis_root: H256::default(),
+                genesis_rollup_leaf_index: 26,
+                genesis_batch_commitment: H256::default(),
+                bootloader_hash: base_system_contracts_hashes.bootloader,
+                default_aa_hash: base_system_contracts_hashes.default_aa,
+                evm_emulator_hash: base_system_contracts_hashes.evm_emulator,
+                prover: L1VerifierConfig::default(),
+            },
+            l1_chain_id: L1ChainId(9),
         }
     }
 }
@@ -133,7 +141,26 @@ impl From<GenesisParams> for GenesisParamsInitials {
         Self {
             base_system_contracts: genesis_state.base_system_contracts,
             system_contracts: genesis_state.system_contracts,
-            config: genesis_state.config,
+            config: ContractsGenesis {
+                protocol_semantic_version: genesis_state.config.protocol_version.unwrap(),
+                genesis_root: genesis_state.config.genesis_root_hash.unwrap_or_default(),
+                genesis_rollup_leaf_index: genesis_state
+                    .config
+                    .rollup_last_leaf_index
+                    .unwrap_or_default(),
+                genesis_batch_commitment: genesis_state
+                    .config
+                    .genesis_commitment
+                    .unwrap_or_default(),
+                bootloader_hash: genesis_state.config.bootloader_hash.unwrap_or_default(),
+                default_aa_hash: genesis_state.config.default_aa_hash.unwrap_or_default(),
+                evm_emulator_hash: genesis_state.config.evm_emulator_hash,
+                prover: L1VerifierConfig {
+                    snark_wrapper_vk_hash: genesis_state.config.snark_wrapper_vk_hash,
+                    fflonk_snark_wrapper_vk_hash: genesis_state.config.fflonk_snark_wrapper_vk_hash,
+                },
+            },
+            l1_chain_id: genesis_state.config.l1_chain_id,
         }
     }
 }
@@ -284,37 +311,12 @@ pub fn make_genesis_batch_params(
     ))
 }
 
-fn contracts_genesis_from_genesis_config(
-    config: &GenesisConfig,
-) -> Result<ContractsGenesis, GenesisError> {
-    Ok(ContractsGenesis {
-        protocol_semantic_version: config
-            .protocol_version
-            .ok_or(GenesisError::MalformedConfig("protocol_version"))?,
-        genesis_root: config.genesis_root_hash.unwrap_or_default(),
-        genesis_rollup_leaf_index: config.rollup_last_leaf_index.unwrap_or_default(),
-        genesis_batch_commitment: config.genesis_commitment.unwrap_or_default(),
-        bootloader_hash: config
-            .bootloader_hash
-            .ok_or(GenesisError::MalformedConfig("bootloader"))?,
-        default_aa_hash: config
-            .default_aa_hash
-            .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
-        evm_emulator_hash: config.evm_emulator_hash,
-        prover: L1VerifierConfig {
-            snark_wrapper_vk_hash: config.snark_wrapper_vk_hash,
-            fflonk_snark_wrapper_vk_hash: config.fflonk_snark_wrapper_vk_hash,
-        },
-    })
-}
-
 pub async fn insert_genesis_batch_with_custom_state(
     storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParamsInitials,
     custom_genesis_state: Option<GenesisState>,
 ) -> Result<GenesisBatchParams, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
-    let contracts_genesis = contracts_genesis_from_genesis_config(genesis_params.config())?;
 
     // if a custom genesis state was provided, read storage logs and factory dependencies from there
     let (storage_logs, factory_deps): (Vec<StorageLog>, HashMap<H256, Vec<u8>>) =
@@ -329,9 +331,9 @@ pub async fn insert_genesis_batch_with_custom_state(
                     .map(|f| (H256(f.bytecode_hash), f.bytecode))
                     .collect(),
             ),
-            None => (
-                get_storage_logs(&genesis_params.system_contracts),
-                genesis_params
+            None => {
+                let mut storage_logs = get_storage_logs(&genesis_params.system_contracts);
+                let mut factory_deps: HashMap<H256, Vec<u8>> = genesis_params
                     .system_contracts
                     .iter()
                     .map(|c| {
@@ -340,34 +342,43 @@ pub async fn insert_genesis_batch_with_custom_state(
                             c.bytecode.clone(),
                         )
                     })
-                    .collect(),
-            ),
+                    .collect();
+
+                for bytecode in get_genesis_additional_factory_deps() {
+                    let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value();
+                    if let Entry::Vacant(entry) = factory_deps.entry(bytecode_hash) {
+                        storage_logs.push(StorageLog::new_write_log(
+                            get_known_code_key(&bytecode_hash),
+                            H256::from_low_u64_be(1),
+                        ));
+                        entry.insert(bytecode);
+                    }
+                }
+
+                (storage_logs, factory_deps)
+            }
         };
 
     // This action disregards how leaf indeces used to be ordered before, and it reorders them by
     // sorting by <address, key>, which is required for calculating genesis parameters.
     let deduped_log_queries = create_genesis_l1_batch_from_storage_logs_and_factory_deps(
         &mut transaction,
-        contracts_genesis.protocol_semantic_version,
-        genesis_params.base_system_contracts(),
+        genesis_params.config.protocol_semantic_version,
+        &genesis_params.base_system_contracts,
         &storage_logs,
         factory_deps,
-        contracts_genesis.prover,
-        genesis_params.config().l1_chain_id,
+        genesis_params.config.prover,
+        genesis_params.l1_chain_id,
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let base_system_contract_hashes = BaseSystemContractsHashes {
-        bootloader: contracts_genesis.bootloader_hash,
-        default_aa: contracts_genesis.default_aa_hash,
-        evm_emulator: contracts_genesis.evm_emulator_hash,
-    };
+    let base_system_contract_hashes = genesis_params.base_system_contracts.hashes();
 
     let (genesis_batch_params, block_commitment) = make_genesis_batch_params(
         deduped_log_queries,
         base_system_contract_hashes,
-        contracts_genesis.protocol_semantic_version.minor,
+        genesis_params.config.protocol_semantic_version.minor,
     )?;
 
     save_genesis_l1_batch_metadata(

@@ -9,8 +9,13 @@ import { ZeroAddress } from 'ethers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import path from 'path';
 import { logsTestPath } from 'utils/build/logs';
-import { getToken, L1Token } from 'utils/build/tokens';
-import { waitForMigrationReadyForFinalize, RpcHealthGuard } from 'highlevel-test-tools/src';
+import { getEcosystemContracts, getToken, L1Token } from 'utils/build/tokens';
+import { getMainWalletPk } from 'highlevel-test-tools/src/wallets';
+import {
+    waitForAllBatchesToBeExecuted,
+    waitForMigrationReadyForFinalize,
+    RpcHealthGuard
+} from 'highlevel-test-tools/src';
 import { FileMutex } from 'highlevel-test-tools/src/file-mutex';
 
 async function logsPath(name: string): Promise<string> {
@@ -173,6 +178,13 @@ describe('Migration From/To gateway test', function () {
             tryCount += 1;
             await utils.sleep(1);
         }
+    });
+
+    step('Pause deposits before initiating migration', async () => {
+        await zkstackExecWithMutex(
+            `zkstack chain pause-deposits --chain ${fileConfig.chain}`,
+            'pausing deposits before initiating migration'
+        );
 
         await waitForPriorityQueueToBeEmpty(direction);
     });
@@ -305,6 +317,34 @@ describe('Migration From/To gateway test', function () {
         await txHandle.waitFinalize();
     });
 
+    step('Check token settlement layers', async () => {
+        const tokenDetails = token;
+        const ecosystemContracts = await getEcosystemContracts(tester.syncWallet);
+        let assetId = await ecosystemContracts.nativeTokenVault.assetId(tokenDetails.address);
+        const chainId = (await tester.syncWallet.provider!.getNetwork()).chainId;
+        const migrationNumberL1 = await ecosystemContracts.assetTracker.assetMigrationNumber(chainId, assetId);
+
+        await zkstackExecWithMutex(
+            `zkstack dev init-test-wallet --chain gateway`,
+            'initializing test wallet for gateway'
+        );
+
+        const gatewayInfo = getGatewayInfo(pathToHome, fileConfig.chain!);
+        const gatewayEcosystemContracts = await getEcosystemContracts(
+            new zksync.Wallet(
+                getMainWalletPk(gatewayChain),
+                gatewayInfo?.gatewayProvider!,
+                tester.syncWallet.providerL1
+            )
+        );
+        const migrationNumberGateway = await gatewayEcosystemContracts.assetTracker.assetMigrationNumber(
+            chainId,
+            assetId
+        );
+
+        expect(migrationNumberL1 === migrationNumberGateway).to.be.true;
+    });
+
     step('Execute transactions after simple restart', async () => {
         // Stop server.
         await mainNodeSpawner.killAndSpawnMainNode();
@@ -329,6 +369,41 @@ describe('Migration From/To gateway test', function () {
         const filter = gwMainContract.filters.BatchPrecommitmentSet();
         const events = await gwMainContract.queryFilter(filter, fromBlock, 'latest');
         expect(events.length > 0, 'No precommitment events found on the gateway').to.be.true;
+    });
+
+    // Migrating back to the gateway is temporarily unsupported in v31.
+    // This test verifies that the operation fails as expected.
+    // TODO: When support is restored in future versions, remove this negative test.
+    step('Migrating back to gateway fails', async () => {
+        if (direction == 'TO') return;
+        // Pause deposits before trying migration back to gateway
+        await zkstackExecWithMutex(
+            `zkstack chain pause-deposits --chain ${fileConfig.chain}`,
+            'pausing deposits before migrating back to gateway'
+        );
+
+        await waitForPriorityQueueToBeEmpty('TO');
+
+        await zkstackExecWithMutex(
+            `zkstack chain gateway notify-about-to-gateway-update --chain ${fileConfig.chain}`,
+            'notifying about to gateway update'
+        );
+
+        // Wait for all batches to be executed
+        await waitForAllBatchesToBeExecuted(fileConfig.chain!);
+
+        try {
+            // We use utils.exec instead of utils.spawn to capture stdout/stderr for assertion
+            await zkstackExecWithMutex(
+                `zkstack chain gateway migrate-to-gateway --chain ${fileConfig.chain} --gateway-chain-name ${gatewayChain}`,
+                'migrating back to gateway'
+            );
+            expect.fail('Migrating back to gateway should have failed');
+        } catch (e: any) {
+            const output = `${e?.message || ''}\n${e?.stdout || ''}\n${e?.stderr || ''}`;
+            // 0x47d42b1b corresponds to IteratedMigrationsNotSupported() error
+            expect(output).to.match(/0x47d42b1b/i);
+        }
     });
 
     after('Try killing server', async () => {

@@ -5,7 +5,14 @@ import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
 import * as path from 'path';
 import { loadConfig } from 'utils/src/file-configs';
-import { GATEWAY_CHAIN_ID, L2_INTEROP_ROOT_STORAGE_ADDRESS, ArtifactL2InteropRootStorage } from './constants';
+import {
+    GATEWAY_CHAIN_ID,
+    L2_INTEROP_ROOT_STORAGE_ADDRESS,
+    L2_BRIDGEHUB_ADDRESS,
+    ArtifactL2InteropRootStorage,
+    ArtifactIBridgehubBase,
+    ArtifactIGetters
+} from './constants';
 
 import { log } from 'console';
 
@@ -97,6 +104,42 @@ export async function waitUntilBlockFinalized(
             if (printedBlockNumber < block.number) {
                 printedBlockNumber = block.number;
             }
+            await zksync.utils.sleep(wallet.provider.pollingInterval);
+        }
+    }
+}
+
+/**
+ * Waits until the requested block is executed on the gateway.
+ *
+ * @param wallet Wallet to use to poll the server.
+ * @param gwWallet Gateway wallet.
+ * @param blockNumber Number of block.
+ * @param timeoutMs Maximum time to wait (default 10 min).
+ */
+export async function waitUntilBlockExecutedOnGateway(
+    wallet: zksync.Wallet,
+    gwWallet: zksync.Wallet,
+    blockNumber: number,
+    timeoutMs: number = 10 * 60 * 1000
+) {
+    const start = Date.now();
+    const bridgehub = new ethers.Contract(L2_BRIDGEHUB_ADDRESS, ArtifactIBridgehubBase.abi, gwWallet);
+    const zkChainAddr = await bridgehub.getZKChain(await wallet.provider.getNetwork().then((net: any) => net.chainId));
+    const gettersFacet = new ethers.Contract(zkChainAddr, ArtifactIGetters.abi, gwWallet);
+
+    let batchNumber = (await wallet.provider.getBlockDetails(blockNumber)).l1BatchNumber;
+    let currentExecutedBatchNumber = 0;
+    while (currentExecutedBatchNumber < batchNumber) {
+        if (Date.now() - start > timeoutMs) {
+            throw new Error(
+                `waitUntilBlockExecutedOnGateway: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} (batch ${batchNumber}, current executed: ${currentExecutedBatchNumber})`
+            );
+        }
+        currentExecutedBatchNumber = await gettersFacet.getTotalBatchesExecuted();
+        if (currentExecutedBatchNumber >= batchNumber) {
+            break;
+        } else {
             await zksync.utils.sleep(wallet.provider.pollingInterval);
         }
     }
