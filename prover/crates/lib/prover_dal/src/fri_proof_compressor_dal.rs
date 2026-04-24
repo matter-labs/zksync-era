@@ -11,7 +11,7 @@ use zksync_basic_types::{
 };
 use zksync_db_connection::{connection::Connection, error::DalError, instrument::InstrumentExt};
 
-use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
+use crate::{duration_to_naive_time, pg_interval_from_duration, priority_for_chain, Prover};
 
 #[derive(Debug)]
 pub struct FriProofCompressorDal<'a, 'c> {
@@ -32,6 +32,7 @@ impl FriProofCompressorDal<'_, '_> {
             proof_compression_jobs_fri (
                 l1_batch_number,
                 chain_id,
+                priority,
                 fri_proof_blob_url,
                 status,
                 created_at,
@@ -41,11 +42,12 @@ impl FriProofCompressorDal<'_, '_> {
                 batch_sealed_at
             )
             VALUES
-            ($1, $2, $3, 'queued', NOW(), NOW(), $4, $5, $6)
+            ($1, $2, $3, $4, 'queued', NOW(), NOW(), $5, $6, $7)
             ON CONFLICT (l1_batch_number, chain_id) DO NOTHING
             "#,
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
+            priority_for_chain(batch_id.chain_id()),
             fri_proof_blob_url,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -210,14 +212,17 @@ impl FriProofCompressorDal<'_, '_> {
                 1
             "#,
             ProofCompressionJobStatus::Successful.to_string(),
-            ProofCompressionJobStatus::Skipped.to_string()
+            ProofCompressionJobStatus::Skipped.to_string(),
         )
         .fetch_optional(self.storage.conn())
         .await
         .ok()?;
         match row {
             Some(row) => Some((
-                L1BatchId::from_raw(row.chain_id as u64, row.l1_batch_number as u32),
+                L1BatchId::from_raw(
+                    row.chain_id as u64,
+                    row.l1_batch_number as u32,
+                ),
                 ProtocolSemanticVersion::new(
                     ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
                     VersionPatch(row.protocol_version_patch as u32),

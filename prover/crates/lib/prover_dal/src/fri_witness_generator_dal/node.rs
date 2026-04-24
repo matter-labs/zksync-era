@@ -14,7 +14,7 @@ use zksync_db_connection::{
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
-use crate::{Prover, ProverDal};
+use crate::{priority_for_chain, Prover, ProverDal};
 
 #[derive(Debug)]
 pub struct FriNodeWitnessGeneratorDal<'a, 'c> {
@@ -167,6 +167,7 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
             node_aggregation_witness_jobs_fri (
                 l1_batch_number,
                 chain_id,
+                priority,
                 circuit_id,
                 depth,
                 aggregations_url,
@@ -179,14 +180,15 @@ impl FriNodeWitnessGeneratorDal<'_, '_> {
                 batch_sealed_at
             )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7, 'waiting_for_proofs', NOW(), NOW(), $8, $9)
+            ($1, $2, $3, $4, $5, $6, $7, $8, 'waiting_for_proofs', NOW(), NOW(), $9, $10)
             ON CONFLICT (l1_batch_number, chain_id, circuit_id, depth) DO
             UPDATE
             SET
-            updated_at = NOW()
+                updated_at = NOW()
             "#,
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
+            priority_for_chain(batch_id.chain_id()),
             i16::from(circuit_id),
             i32::from(depth),
             aggregations_url,

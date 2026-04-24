@@ -12,7 +12,7 @@ use zksync_db_connection::{
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
-use crate::Prover;
+use crate::{priority_for_chain, Prover};
 
 #[derive(Debug)]
 pub struct FriRecursionTipWitnessGeneratorDal<'a, 'c> {
@@ -290,6 +290,7 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
             recursion_tip_witness_jobs_fri (
                 l1_batch_number,
                 chain_id,
+                priority,
                 status,
                 number_of_final_node_jobs,
                 protocol_version,
@@ -299,14 +300,15 @@ impl FriRecursionTipWitnessGeneratorDal<'_, '_> {
                 batch_sealed_at
             )
             VALUES
-            ($1, $2, 'waiting_for_proofs', $3, $4, NOW(), NOW(), $5, $6)
+            ($1, $2, $3, 'waiting_for_proofs', $4, $5, NOW(), NOW(), $6, $7)
             ON CONFLICT (l1_batch_number, chain_id) DO
             UPDATE
             SET
-            updated_at = NOW()
+                updated_at = NOW()
             "#,
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
+            priority_for_chain(batch_id.chain_id()),
             closed_form_inputs_and_urls.len() as i32,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
