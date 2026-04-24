@@ -6,7 +6,7 @@ Validated state:
 
 - `zksync-era`: `83fb90ef372e9ece983138fa8f47f38a7b734491` plus the local minimized `do-upgrade.sh` follow-up documented
   below.
-- `contracts` submodule used by validation: `7732d000a5743a42eb6ca1914de93974ad2c5716`
+- `contracts` submodule used by validation: `61730e9c087df47b165b976560626af4423754b0`
 - latest era-cacher command:
 
 ```bash
@@ -82,7 +82,7 @@ factory_deps count for TransparentUpgradeableProxy + BeaconProxy hashes: 2
 ## Executive Verdict
 
 The server-side PR is fundamentally correct with one required local follow-up: the `contracts` submodule must point at
-the final cleaned contracts commit `7732d000a5743a42eb6ca1914de93974ad2c5716`, because that is the contracts state
+the final cleaned contracts commit `61730e9c087df47b165b976560626af4423754b0`, because that is the contracts state
 validated by the clean e2e run. I found one non-functional cleanup item and removed it: a stale inline "Removed:"
 comment in `default_ecosystem_upgrade.rs`. I did not find behavioral changes that are safe to delete.
 
@@ -90,7 +90,7 @@ comment in `default_ecosystem_upgrade.rs`. I did not find behavioral changes tha
 
 ### `contracts` submodule
 
-Disposition: keep / update to `7732d000a5743a42eb6ca1914de93974ad2c5716`.
+Disposition: keep / update to `61730e9c087df47b165b976560626af4423754b0`.
 
 Why: the verified e2e flow depends on the final contracts cleanup shape: Era does not force-deploy
 `SystemContractProxyAdmin`, while `TransparentUpgradeableProxy` and `BeaconProxy` remain present as factory deps for
