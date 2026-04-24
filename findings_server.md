@@ -16,8 +16,7 @@ PATH=/root/.cargo/bin:/root/tools/foundry-zksync-v0.1.5:$PATH \
 
 Result: `era-cacher/do-upgrade.sh` exited 0. The script completed the v31 chain upgrade, restarted the new server, and
 ran the non-prividium integration suite successfully. This validation used the reduced `do-upgrade.sh` shape: no helper
-functions, no manual deterministic CREATE2 `cast publish`, and a working-tree diff against `origin/draft-v31` of 43
-insertions / 13 deletions for that script.
+functions and no manual deterministic CREATE2 `cast publish`.
 
 Integration result from the clean run:
 
@@ -301,7 +300,7 @@ Changes:
 - re-set the DA validator pair after v31 resets it.
 - run stage3 with live Bridgehub from runtime config.
 - create an empty bridged-token config only when the file is absent.
-- run the non-prividium integration suites with dependencies.
+- run integration tests with dependencies.
 
 Why: this script is the e2e harness. Its job is to exercise the real local v29 -> v31 path, not only make a partial
 script succeed. Each ordering step is tied to a real runtime dependency observed during testing.
@@ -350,8 +349,8 @@ Checked shortcut candidates:
 - Contract-side helper replacing zkstack chain upgrade path: removed. The final chain upgrade uses `run_chain_upgrade`.
 - Fixed sleeps as readiness proof: still present as in the historical script, but not used as final proof. The
   post-upgrade integration suite is the readiness/correctness proof.
-- `--no-deps` integration shortcut: removed. The script runs integration tests with dependencies, excluding prividium by
-  explicit suite list.
+- `--no-deps` integration shortcut: removed. The script runs the standard integration command with dependencies:
+  `zkstack dev test integration --ignore-prerequisites --chain era`.
 - Manually injected DA validator pair: present but required operator action. v31 stage resets the pair; the script reads
   the L1 validator address from runtime config and calls the normal zkstack command to re-set it.
 
@@ -368,10 +367,9 @@ prod-like or further from the v29 shape, and their disposition:
 - v31 broadcast selector in `do-upgrade.sh`: still present. It duplicates the `noGovernancePrepare` signature only to
   point `upgrade-yaml-output-generator` at Foundry's selector-named broadcast file. This is harness glue, not upgrade
   logic. The zkstack code itself derives the broadcast filename from actual calldata bytes.
-- explicit non-prividium integration suite list in `do-upgrade.sh`: still present. It diverges from the historical
-  unfiltered v29 command, but the unfiltered command reaches Jest and fails only in prividium because
-  `private-rpc-permissions.yaml` is absent. User guidance is to ignore prividium and delete prividium-only changes, so
-  the script runs the full non-prividium suite with dependencies.
+- explicit non-prividium integration suite list in `do-upgrade.sh`: removed. The script now uses the historical
+  unfiltered command shape: `zkstack dev test integration --ignore-prerequisites --chain era`. Prividium remains
+  intentionally out of scope if it fails because `private-rpc-permissions.yaml` is absent.
 - `update-permanent-values.sh` uses shell YAML extraction/sed sync: still present. This is not ideal, but it is confined
   to era-cacher harness state reconciliation. The canonical source remains `configs/contracts.yaml`, and the sync is
   needed because the post-upgrade server reads `chains/era/configs/contracts.yaml`.

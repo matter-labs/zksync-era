@@ -106,21 +106,4 @@ cast send 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 \
 # Initialize test wallet - this will distribute 10k ETH from main wallet to test wallet
 zkstack dev init-test-wallet --chain era
 
-zkstack dev test integration --ignore-prerequisites --chain era \
-    api/contract-verification \
-    api/debug \
-    api/web3 \
-    base-token \
-    contracts \
-    custom-account \
-    erc20 \
-    ether \
-    evm \
-    fees \
-    interop-a \
-    interop-b \
-    l1 \
-    l2-erc20 \
-    mempool \
-    paymaster \
-    system
+zkstack dev test integration --ignore-prerequisites --chain era
