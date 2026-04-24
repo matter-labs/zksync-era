@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt, sync::Arc};
 
 use anyhow::Context;
 use zksync_contracts::{
-    bytecode_supplier_contract, era_settlement_layer_v31_upgrade_contract, getters_facet_contract,
-    hyperchain_contract, l1_asset_router_contract, l2_message_root,
+    bytecode_supplier_contract, getters_facet_contract, hyperchain_contract,
+    l1_asset_router_contract, l2_message_root, settlement_layer_v31_upgrade_contract,
     state_transition_manager_contract, verifier_contract, wrapped_base_token_store_contract,
 };
 use zksync_eth_client::{
@@ -123,7 +123,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     chain_type_manager_abi: Contract,
     message_root_abi: Contract,
     l1_asset_router_abi: Contract,
-    era_settlement_layer_v31_upgrade_abi: Contract,
+    settlement_layer_v31_upgrade_abi: Contract,
     wrapped_base_token_store_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
     l2_chain_id: L2ChainId,
@@ -175,7 +175,7 @@ where
             chain_type_manager_abi: state_transition_manager_contract(),
             message_root_abi: l2_message_root(),
             l1_asset_router_abi: l1_asset_router_contract(),
-            era_settlement_layer_v31_upgrade_abi: era_settlement_layer_v31_upgrade_contract(),
+            settlement_layer_v31_upgrade_abi: settlement_layer_v31_upgrade_contract(),
             wrapped_base_token_store_abi: wrapped_base_token_store_contract(),
             confirmations_for_eth_event,
             wrapped_base_token_store,
@@ -617,7 +617,7 @@ where
                 existing_tx_data,
             ),
         )
-        .for_contract(init_address, &self.era_settlement_layer_v31_upgrade_abi)
+        .for_contract(init_address, &self.settlement_layer_v31_upgrade_abi)
         .call(&self.client)
         .await
     }

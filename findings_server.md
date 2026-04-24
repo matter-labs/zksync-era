@@ -84,7 +84,7 @@ Evidence:
 
 Disposition: keep.
 
-Change: adds `EraSettlementLayerV31Upgrade` ABI loading.
+Change: adds v31 settlement-layer upgrader ABI loading.
 
 Why: eth-watch must call the v31 on-chain helper `getL2UpgradeTxData(...)` on the actual v31 upgrader contract. Loading
 the ABI from checked-in/generated contract artifacts avoids runtime JSON path guessing and avoids reimplementing
@@ -98,6 +98,8 @@ Evidence:
 
 - clean e2e persisted protocol version 31 with upgrade tx hash `ccfcb39b...`.
 - post-upgrade server accepted the upgrade, restarted, and produced v31 batches.
+- follow-up audit renamed the Rust helper from Era-specific naming to generic settlement-layer naming; the checked-in
+  Era artifact is still used only because Era and ZKsync OS v31 upgraders expose the same `getL2UpgradeTxData` ABI.
 
 ### `core/lib/types/src/protocol_upgrade.rs`
 
@@ -201,6 +203,8 @@ Evidence:
 
 - clean e2e `run-chain-upgrade --upgrade-version v31-interop-b` completed.
 - L1 accepted the upgrade call and the DB contains protocol version 31.
+- follow-up audit replaced manual packed-semver bit extraction with the existing `get_minor_protocol_version(...)`
+  helper, preserving behavior while matching local practice.
 
 ### `zkstack_cli/crates/zkstack/src/commands/dev/commands/upgrades/default_chain_upgrade.rs`
 
@@ -350,6 +354,35 @@ Checked shortcut candidates:
   explicit suite list.
 - Manually injected DA validator pair: present but required operator action. v31 stage resets the pair; the script reads
   the L1 validator address from runtime config and calls the normal zkstack command to re-set it.
+
+## Follow-up Prod-Likeness Audit
+
+The whole server diff was re-scanned after the minimized contracts cleanup. These are the remaining places that are less
+prod-like or further from the v29 shape, and their disposition:
+
+- `build_v31_no_governance_prepare_calldata(...)`: still present. It manually encodes
+  `noGovernancePrepare(EcosystemUpgradeParams)` and embeds the v31 input/output paths. This is the least prod-like piece
+  left. It is not a shortcut because it calls the real Forge script and uses canonical config values, but it is less
+  clean than v29's `run()` entrypoint with env-provided paths. I left it in place because removing it requires a
+  contracts/script interface change, and the safer path is tracked by the inline PR review comment.
+- v31 broadcast selector in `do-upgrade.sh`: still present. It duplicates the `noGovernancePrepare` signature only to
+  point `upgrade-yaml-output-generator` at Foundry's selector-named broadcast file. This is harness glue, not upgrade
+  logic. The zkstack code itself derives the broadcast filename from actual calldata bytes.
+- explicit non-prividium integration suite list in `do-upgrade.sh`: still present. It diverges from the historical
+  unfiltered v29 command, but the unfiltered command reaches Jest and fails only in prividium because
+  `private-rpc-permissions.yaml` is absent. User guidance is to ignore prividium and delete prividium-only changes, so
+  the script runs the full non-prividium suite with dependencies.
+- `update-permanent-values.sh` uses shell YAML extraction/sed sync: still present. This is not ideal, but it is confined
+  to era-cacher harness state reconciliation. The canonical source remains `configs/contracts.yaml`, and the sync is
+  needed because the post-upgrade server reads `chains/era/configs/contracts.yaml`.
+- old checkout reth chaindata replacement: still present. It is harness-level compatibility for the v29 source checkout,
+  not a manual CREATE2 deployment shortcut. It uses the normal current local genesis instead of publishing code from the
+  harness.
+- Admin ABI version branch: kept, but tightened. The branch is required because a v29 source diamond exposes the legacy
+  two-argument `upgradeChainFromVersion`. The follow-up audit removed manual semver bit math and now uses the existing
+  protocol-version helper.
+- settlement-layer ABI naming: fixed. The code no longer exposes an Era-specific Rust name for a helper call that is
+  ABI-compatible across Era and ZKsync OS v31 upgraders.
 
 ## Residuals
 

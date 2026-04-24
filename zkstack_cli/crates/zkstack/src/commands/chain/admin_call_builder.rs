@@ -8,11 +8,14 @@ use ethers::{
 use serde::Serialize;
 use xshell::Shell;
 use zkstack_cli_common::forge::ForgeScriptArgs;
-use zksync_types::{Address, U256};
+use zksync_types::{Address, ProtocolVersionId, U256};
 
-use crate::abi::{
-    ADMINABI_ABI as ADMIN_ABI, CHAINADMINOWNABLEABI_ABI as CHAIN_ADMIN_OWNABLE_ABI,
-    DIAMONDCUTABI_ABI as DIAMOND_CUT_ABI,
+use crate::{
+    abi::{
+        ADMINABI_ABI as ADMIN_ABI, CHAINADMINOWNABLEABI_ABI as CHAIN_ADMIN_OWNABLE_ABI,
+        DIAMONDCUTABI_ABI as DIAMOND_CUT_ABI,
+    },
+    utils::protocol_version::get_minor_protocol_version,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -176,8 +179,9 @@ impl AdminCallBuilder {
             .next()
             .expect("Failed to extract DiamondCutData token");
 
-        let old_minor = (protocol_version >> 32) & 0xffff;
-        let data = if old_minor < 31 {
+        let old_minor = get_minor_protocol_version(U256::from(protocol_version))
+            .expect("Failed to unpack old protocol version");
+        let data = if old_minor < ProtocolVersionId::Version31 {
             #[allow(deprecated)]
             let legacy_upgrade_fn = Function {
                 name: "upgradeChainFromVersion".to_string(),
