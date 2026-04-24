@@ -1,14 +1,13 @@
 #!/bin/bash
 # Update permanent-values.toml with addresses from running server and zkstack config
 
-set -euo pipefail
+set -e
 
 echo "Updating permanent-values.toml with deployed contract addresses..."
 
 # Change to zksync-working directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_PARENT="$(cd "$SCRIPT_DIR/.." && pwd)"
-WORKING_DIR="$WORKSPACE_PARENT/zksync-working"
+WORKING_DIR="$SCRIPT_DIR/../zksync-working"
 
 if [ ! -d "$WORKING_DIR" ]; then
   echo "Error: zksync-working directory not found at $WORKING_DIR"

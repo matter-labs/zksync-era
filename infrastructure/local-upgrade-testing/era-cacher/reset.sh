@@ -1,28 +1,19 @@
-#!/bin/bash
-
-set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_PARENT="$(cd "$SCRIPT_DIR/.." && pwd)"
-WORKING_DIRECTORY="$WORKSPACE_PARENT/zksync-working"
-OLD_REPO="$WORKSPACE_PARENT/zksync-old"
-NEW_REPO="$WORKSPACE_PARENT/zksync-new"
-
-if [ -d "$WORKING_DIRECTORY" ] && [ -n "$(ls -A "$WORKING_DIRECTORY")" ]; then
+if [ -d "./zksync-working" ] && [ -n "$(ls -A ./zksync-working)" ]; then
     echo "zksync-working found and is not empty. Cleaning containers and restarting services..."
-    cd "$WORKING_DIRECTORY"
+    cd zksync-working
     zkstack dev clean containers && zkstack up -o false
+    cd ..
 fi
 
 
-if [ -d "$OLD_REPO" ] && [ -z "$(ls -A "$OLD_REPO")" ]; then
+if [ -z "$(ls -A ./zksync-old)" ]; then
     echo "Moving zksync-working to zksync-old"
-    mv "$WORKING_DIRECTORY" "$OLD_REPO"
+    mv ./zksync-working ./zksync-old
 else
-    if [ -d "$NEW_REPO" ] && [ -z "$(ls -A "$NEW_REPO")" ]; then
+    if [ -z "$(ls -A ./zksync-new)" ]; then
         echo "Moving zksync-working to zksync-new"
-        mv "$WORKING_DIRECTORY" "$NEW_REPO"
+        mv ./zksync-working ./zksync-new
     else
-        echo "Expected an empty sibling checkout at '$OLD_REPO' or '$NEW_REPO'. No reset action taken." >&2
+        echo "Both zksync-old and zksync-new contain files. No reset action taken."
     fi
 fi
