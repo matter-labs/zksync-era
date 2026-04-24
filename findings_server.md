@@ -4,54 +4,77 @@ This document records the necessity audit for the `zksync-era` side of the v29 -
 
 Validated state:
 
-- `zksync-era`: `2efaa3f915c0a0bf407c94c732251d9a136fbf47` plus the local minimized `do-upgrade.sh` follow-up documented
+- `zksync-era`: `83fb90ef372e9ece983138fa8f47f38a7b734491` plus the local minimized `do-upgrade.sh` follow-up documented
   below.
-- `contracts` submodule used by validation: `d248b3b0d3817ed53e801e56dc77c31c12538986`
-- clean command:
+- `contracts` submodule used by validation: `7732d000a5743a42eb6ca1914de93974ad2c5716`
+- latest era-cacher command:
 
 ```bash
-PATH=/root/.cargo/bin:/root/tools/foundry-zksync-v0.1.5:$PATH \
-  bash era-cacher/do-upgrade.sh 2>&1 | tee /root/upgrade_validation_current/current-e2e-minimized-do-upgrade.log
+PATH=/root/.cargo/bin:/root/.foundry/bin:$PATH \
+  bash era-cacher/do-upgrade.sh 2>&1 | tee /root/upgrade_validation_proxyadmin/proxyadmin-era-cacher.log
 ```
 
-Result: `era-cacher/do-upgrade.sh` exited 0. The script completed the v31 chain upgrade, restarted the new server, and
-ran the non-prividium integration suite successfully. This validation used the reduced `do-upgrade.sh` shape: no helper
-functions and no manual deterministic CREATE2 `cast publish`.
+Result: the script completed the v31 chain upgrade and stage3 migration, but the final integration command raced the
+post-upgrade server startup on a cold release build. The server was still compiling after the script's fixed 10 second
+sleep, so Jest initially failed with `ECONNREFUSED 127.0.0.1:3050`. I replaced that fixed post-upgrade sleep with the
+existing `zkstack server wait --timeout 600 --chain era` readiness check. After waiting for the upgraded server to
+become healthy, the standard unfiltered integration command ran against the upgraded node; all non-prividium suites
+passed.
 
-Integration result from the clean run:
-
-```text
-Test Suites: 1 skipped, 16 passed, 16 of 17 total
-Tests:       4 skipped, 182 passed, 186 total
-Integration tests ran successfully
-```
-
-Additional no-deps check requested after the minimized run:
-
-```bash
-PATH=/root/.cargo/bin:/root/tools/foundry-zksync-v0.1.5:$PATH \
-  zkstack dev test integration --no-deps --ignore-prerequisites --chain era \
-  2>&1 | tee /root/upgrade_validation_current/integration-no-deps-all-rerun.log
-```
-
-Result: the command reached Jest and ran all suites against the upgraded node. The expected prividium-only suite failed
-because `chains/era/configs/private-rpc-permissions.yaml` is absent; all non-prividium suites passed.
+Integration result after the upgraded server was healthy:
 
 ```text
 Test Suites: 1 failed, 1 skipped, 16 passed, 17 of 18 total
 Tests:       7 failed, 4 skipped, 182 passed, 193 total
 ```
 
-Database evidence after the clean run:
+```bash
+PATH=/root/.cargo/bin:/root/.foundry/bin:$PATH \
+  zkstack dev test integration --ignore-prerequisites --chain era \
+  2>&1 | tee /root/upgrade_validation_proxyadmin/integration-after-upgrade.log
+```
+
+The only failed suite was `tests/prividium.test.ts`, with every failure caused by the expected missing
+`chains/era/configs/private-rpc-permissions.yaml`. Per review scope, prividium is ignored; no changes should be kept
+only for prividium.
+
+```text
+PASS tests/paymaster.test.ts
+PASS tests/contracts.test.ts
+PASS tests/interop-b.test.ts
+PASS tests/custom-account.test.ts
+PASS tests/system.test.ts
+PASS tests/l1.test.ts
+PASS tests/api/contract-verification.test.ts
+PASS tests/ether.test.ts
+FAIL tests/prividium.test.ts
+PASS tests/api/web3.test.ts
+PASS tests/evm.test.ts
+PASS tests/mempool.test.ts
+PASS tests/interop-a.test.ts
+PASS tests/l2-erc20.test.ts
+PASS tests/api/debug.test.ts
+PASS tests/base-token.test.ts
+PASS tests/erc20.test.ts
+```
+
+Database evidence after the latest run:
 
 ```text
 protocol_versions:
 29 | 6c71a0efe8c4278aa14ed883397735792857f01b0fca184efcd6af92ea9165f5
-31 | ccfcb39b4a74c81c55092d829677b6420aa4eeba46ec6c4679d87e86484e9112
+31 | f203bf1238cfb13c207fd55c38bf08c4b18d1349777f6c17012a7d6705e69e49
 
 l1_batches:
-29 | 2  | 0..1
-31 | 72 | 2..73
+31 | latest observed batch 81
+
+miniblocks:
+31 | latest observed miniblock 193
+
+RPC:
+eth_blockNumber = 0xc1
+zks_L1BatchNumber = 0x51
+code at 0x000000000000000000000000000000000001000c = 0x
 
 factory_deps count for TransparentUpgradeableProxy + BeaconProxy hashes: 2
 ```
@@ -59,7 +82,7 @@ factory_deps count for TransparentUpgradeableProxy + BeaconProxy hashes: 2
 ## Executive Verdict
 
 The server-side PR is fundamentally correct with one required local follow-up: the `contracts` submodule must point at
-the final cleaned contracts commit `d248b3b0d3817ed53e801e56dc77c31c12538986`, because that is the contracts state
+the final cleaned contracts commit `7732d000a5743a42eb6ca1914de93974ad2c5716`, because that is the contracts state
 validated by the clean e2e run. I found one non-functional cleanup item and removed it: a stale inline "Removed:"
 comment in `default_ecosystem_upgrade.rs`. I did not find behavioral changes that are safe to delete.
 
@@ -67,15 +90,18 @@ comment in `default_ecosystem_upgrade.rs`. I did not find behavioral changes tha
 
 ### `contracts` submodule
 
-Disposition: keep / update to `d248b3b0d3817ed53e801e56dc77c31c12538986`.
+Disposition: keep / update to `7732d000a5743a42eb6ca1914de93974ad2c5716`.
 
-Why: the verified e2e flow depends on the final contracts cleanup shape: v31 Era system deps include
-`SystemContractProxyAdmin`, and proxy runtime bytecodes are present as factory deps. Without that contracts state, the
-server-side branch does not represent the tested flow.
+Why: the verified e2e flow depends on the final contracts cleanup shape: Era does not force-deploy
+`SystemContractProxyAdmin`, while `TransparentUpgradeableProxy` and `BeaconProxy` remain present as factory deps for
+runtime deployments performed by the v31 upgrade path. Without that contracts state, the server-side branch does not
+represent the tested flow.
 
 Evidence:
 
 - clean e2e run used this submodule commit.
+- post-upgrade runtime check showed `0x000000000000000000000000000000000001000c` has empty code, which is expected for
+  Era after the proxy-admin cleanup.
 - DB contains the expected `TransparentUpgradeableProxy` and `BeaconProxy` bytecode hashes after the upgrade.
 - post-upgrade batches were produced with protocol version 31.
 
@@ -300,6 +326,7 @@ Changes:
 - re-set the DA validator pair after v31 resets it.
 - run stage3 with live Bridgehub from runtime config.
 - create an empty bridged-token config only when the file is absent.
+- wait for the post-upgrade server health check before funding test wallets and starting integration tests.
 - run integration tests with dependencies.
 
 Why: this script is the e2e harness. Its job is to exercise the real local v29 -> v31 path, not only make a partial
@@ -313,13 +340,16 @@ Failure prevented:
 - unset DA validator pair prevents post-upgrade batch commitments.
 - hardcoded Bridgehub would drift from the actual local deployment.
 - `--no-deps` integration testing does not prove the full post-upgrade test environment.
+- fixed post-upgrade sleep races cold release builds and can start Jest before the upgraded RPC is listening.
 
 Evidence:
 
-- minimized `do-upgrade.sh` run exited 0 with no manual CREATE2 factory deployment helper.
+- latest `do-upgrade.sh` run completed the upgrade and stage3 migration with no manual CREATE2 factory deployment
+  helper.
 - logs show `Using deterministic Create2Factory address: 0x4e59...` from the normal deploy scripts, and no
   `Deploying deterministic CREATE2` / `cast publish` helper path.
-- integration tests ran from the script and passed.
+- the original fixed sleep was too short on a cold release build; manual `zkstack server wait` plus the same standard
+  integration command produced 16 passing non-prividium suites against the upgraded node.
 
 ### `infrastructure/local-upgrade-testing/era-cacher/update-permanent-values.sh`
 
@@ -347,8 +377,8 @@ Checked shortcut candidates:
   output.
 - Broadcast file guessed as `run-latest.json`: absent for v31. File is derived from the actual calldata selector.
 - Contract-side helper replacing zkstack chain upgrade path: removed. The final chain upgrade uses `run_chain_upgrade`.
-- Fixed sleeps as readiness proof: still present as in the historical script, but not used as final proof. The
-  post-upgrade integration suite is the readiness/correctness proof.
+- Fixed post-upgrade sleep as readiness proof: removed. The script now uses the existing
+  `zkstack server wait --timeout 600 --chain era` health-check path before funding test wallets and running integration.
 - `--no-deps` integration shortcut: removed. The script runs the standard integration command with dependencies:
   `zkstack dev test integration --ignore-prerequisites --chain era`.
 - Manually injected DA validator pair: present but required operator action. v31 stage resets the pair; the script reads
@@ -385,6 +415,7 @@ prod-like or further from the v29 shape, and their disposition:
 ## Residuals
 
 - The `contracts` submodule pointer is currently a required local change unless committed on the server branch.
-- Prividium tests are intentionally out of scope and are not part of the verified command.
+- Prividium tests are intentionally out of scope. They are included by the unfiltered historical integration command,
+  but their expected `private-rpc-permissions.yaml` failure is ignored and should not drive code changes.
 - Consensus logs still report old v29 proposal mismatch warnings. They did not block RPC, post-upgrade batch production,
   or integration tests, and are not tied to the v31 upgrade correctness path validated here.

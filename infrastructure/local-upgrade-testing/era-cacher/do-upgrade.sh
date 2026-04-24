@@ -91,7 +91,7 @@ cd ../../
 pkill -9 zksync_server
 zkstack server --ignore-prerequisites --chain era &> ../rollup2.log &
 
-sleep 10
+zkstack server wait --timeout 600 --chain era
 
 # Fund the main wallet (test_mnemonic index 0) with L1 ETH
 # This wallet is used by init-test-wallet to distribute to the actual test wallet (index 101)
