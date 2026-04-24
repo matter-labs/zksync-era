@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::Context;
 use ethers::{
     abi::{Function, Param, ParamType, StateMutability, Token},
@@ -7,7 +9,6 @@ use ethers::{
 };
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
 use xshell::Shell;
 use zkstack_cli_common::{forge::Forge, logger, spinner::Spinner};
 use zkstack_cli_config::{
