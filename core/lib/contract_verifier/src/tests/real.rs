@@ -296,6 +296,36 @@ fn relative_escape_attempt_input() -> serde_json::Map<String, serde_json::Value>
     .clone()
 }
 
+fn root_level_suppression_standard_json_input() -> serde_json::Map<String, serde_json::Value> {
+    serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "src/Counter.sol": {
+                "content": r#"
+                    pragma solidity ^0.8.19;
+
+                    contract Counter {
+                        receive() external payable {}
+
+                        function sweep() external {
+                            require(tx.origin == msg.sender);
+                            payable(msg.sender).transfer(address(this).balance);
+                        }
+                    }
+                "#,
+            },
+        },
+        "suppressedErrors": ["sendtransfer"],
+        "suppressedWarnings": ["txorigin"],
+        "settings": {
+            "optimizer": { "enabled": true },
+        },
+    })
+    .as_object()
+    .unwrap()
+    .clone()
+}
+
 async fn compile_standard_json_request(
     compiler_resolver: &EnvCompilerResolver,
     supported_compilers: TestCompilerVersions,
@@ -425,6 +455,33 @@ async fn relative_import_escape_is_still_blocked(bytecode_kind: BytecodeMarker) 
     );
 }
 
+#[tokio::test]
+async fn allows_root_level_standard_json_suppressions_with_zksolc() {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let output = compile_standard_json_request(
+        &compiler_resolver,
+        supported_compilers,
+        BytecodeMarker::EraVm,
+        root_level_suppression_standard_json_input(),
+        "src/Counter.sol:Counter",
+    )
+    .await
+    .unwrap();
+
+    assert!(!output.bytecode.is_empty());
+    assert!(
+        output
+            .abi
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| { item["type"] == "function" && item["name"] == "sweep" }),
+        "{:?}",
+        output.abi
+    );
+}
+
 #[test_casing(3, [(Some(100), None), (None, Some("shanghai")), (Some(200), Some("paris"))])]
 #[tokio::test]
 async fn using_standalone_solc_with_custom_settings(
@@ -525,7 +582,10 @@ async fn using_zksolc_with_abstract_contract(specify_contract_file: bool) {
     let err = compiler.compile(input).await.unwrap_err();
     assert_matches!(
         err,
-        ContractVerifierError::AbstractContract(name) if name == "ICounter"
+        ContractVerifierError::MissingCompilerOutput {
+            contract_name,
+            field_path: "/evm/bytecode/object",
+        } if contract_name == "ICounter"
     );
 }
 
