@@ -69,8 +69,12 @@ impl EthProofWatcher {
     pub async fn run(&self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!("Starting eth proof watcher");
 
-        let submitter_address: &'static str = self.client.submitter_address().to_string().leak();
-        let contract_address: &'static str = self.client.contract_address().to_string().leak();
+        // `Address` (`H160`) `Display` truncates to "0x1234…abcd". Use the alternate
+        // `LowerHex` formatter (`{:#x}`) to get the full 42-character address string.
+        let submitter_address: &'static str =
+            format!("{:#x}", self.client.submitter_address()).leak();
+        let contract_address: &'static str =
+            format!("{:#x}", self.client.contract_address()).leak();
 
         METRICS.submitter_address[&submitter_address].set(1);
         METRICS.contract_address[&contract_address].set(1);
