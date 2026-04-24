@@ -214,9 +214,31 @@ Changes:
 - allow `chain_upgrade_diamond_cut` to be read from `chain_upgrade_diamond_cut_file`.
 
 Why: the deleted helper bypassed the normal chain-upgrade command path by asking a contract-side helper to read from CTM
-and execute the upgrade. That was useful as a debugging shortcut but not honest e2e testing. The final path uses the
-generated upgrade description, parses the real diamond cut, schedules the upgrade through ChainAdmin, and executes the
-chain upgrade through the normal admin-call builder.
+and execute the upgrade. That helper was introduced to avoid TOML parsing failures on very large diamond-cut hex
+strings, not because the zkstack chain-upgrade path was semantically incapable of doing the upgrade. The final fix
+solves that root issue directly by loading `chain_upgrade_diamond_cut_file`, then keeps the normal command path for both
+dry-run and broadcast.
+
+The removed helper did the following:
+
+- read local chain/wallet config;
+- called `AdminFunctions.upgradeChainFromCTM(...)` through Forge;
+- let the Solidity helper recover the CTM from the chain and reconstruct the diamond cut from CTM logs;
+- executed the upgrade through `Utils.adminExecute(...)`.
+
+The retained normal path does the upgrade through the surfaces that `zkstack dev run-chain-upgrade` is supposed to
+exercise:
+
+- reads the generated v31 upgrade description and large diamond cut artifact;
+- fetches the live chain address and ChainAdmin from Bridgehub;
+- schedules the upgrade timestamp on ChainAdmin;
+- builds the ChainAdmin multicall via `AdminCallBuilder`;
+- encodes the source-chain-compatible `upgradeChainFromVersion` selector;
+- sends the final transaction through the normal zkstack transaction path.
+
+So the change removes a shortcut rather than removing required behavior. The only functionality from the helper that was
+actually needed was "large diamond-cut data can be loaded"; that is now handled explicitly by
+`chain_upgrade_diamond_cut_file`.
 
 Failure prevented:
 
