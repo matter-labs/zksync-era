@@ -188,4 +188,21 @@ cast send 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049 \
     --gas-price 50gwei
 
 zkstack dev init-test-wallet --chain era
-zkstack dev test integration --no-deps --ignore-prerequisites --chain era
+zkstack dev test integration --ignore-prerequisites --chain era \
+    api/contract-verification \
+    api/debug \
+    api/web3 \
+    base-token \
+    contracts \
+    custom-account \
+    erc20 \
+    ether \
+    evm \
+    fees \
+    interop-a \
+    interop-b \
+    l1 \
+    l2-erc20 \
+    mempool \
+    paymaster \
+    system
