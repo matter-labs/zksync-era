@@ -221,6 +221,9 @@ async fn no_governance_prepare(
             })
         }
         UpgradeVersion::V28_1VkEra => EcosystemUpgradeSpecificConfig::V28,
+        UpgradeVersion::V29_2 => {
+            anyhow::bail!("Ecosystem upgrade data generation is not applicable for V29_3")
+        }
         UpgradeVersion::V29_3 => {
             anyhow::bail!("Ecosystem upgrade data generation is not applicable for V29_3")
         }
@@ -635,6 +638,7 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScript
         UpgradeVersion::V28_1Vk => ZK_OS_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V28_1VkEra => ERA_V28_1_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersion::V29_2 => unreachable!("V29_2 does not support ecosystem upgrade"),
         UpgradeVersion::V29_3 => unreachable!("V29_3 does not support ecosystem upgrade"),
         UpgradeVersion::V29_4 => unreachable!("V29_4 does not support ecosystem upgrade"),
     }
