@@ -1,6 +1,6 @@
 //! Tests for `eth_call`.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
@@ -94,7 +94,7 @@ async fn eth_call_with_balance() {
         balance: Some(initial_balance),
         ..OverrideAccount::default()
     };
-    let state_override = StateOverride::new(HashMap::from([(alice.address(), account_overrides)]));
+    let state_override = StateOverride::new(BTreeMap::from([(alice.address(), account_overrides)]));
 
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;

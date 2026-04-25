@@ -1,6 +1,7 @@
 //! Tests for the VM-instantiating methods (e.g., `eth_call`).
 
 use std::{
+    collections::BTreeMap,
     str,
     sync::{
         atomic::{AtomicU32, Ordering},
@@ -1520,7 +1521,7 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
         call_request.from = Some(request_initiator);
         call_request.value = Some(1_000_000.into());
 
-        let state_override = HashMap::from([(
+        let state_override = BTreeMap::from([(
             request_initiator,
             OverrideAccount {
                 balance: Some(U256::max_value()),
