@@ -27,7 +27,7 @@ import {
     executeCommand,
     FileMutex,
     migrateToGatewayIfNeeded,
-    agreeToPaySettlementFees,
+    setSettlementFeePayerAgreement,
     startServer,
     RpcHealthGuard
 } from '../src';
@@ -362,7 +362,7 @@ export class ChainHandler {
             // We can now reliably migrate to gateway
             removeErrorListeners(this.inner.mainNode.process!);
             await migrateToGatewayIfNeeded(this.inner.chainName);
-            await agreeToPaySettlementFees(this.inner.chainName);
+            await setSettlementFeePayerAgreement(this.inner.chainName);
 
             await this.waitForShutdown();
             await this.startServer();
