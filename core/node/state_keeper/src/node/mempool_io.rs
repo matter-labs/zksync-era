@@ -20,8 +20,7 @@ use zksync_vm_executor::node::ApiTransactionFilter;
 
 use super::resources::StateKeeperIOResource;
 use crate::{
-    interop_fee::ConstantInteropFeeInputProvider, seal_criteria::ConditionalSealer, MempoolFetcher,
-    MempoolGuard, MempoolIO, SequencerSealer,
+    seal_criteria::ConditionalSealer, MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer,
 };
 
 /// Wiring layer for `MempoolIO`, an IO part of state keeper used by the main node.
@@ -135,10 +134,6 @@ impl WiringLayer for MempoolIOLayer {
             mempool_fetcher_pool,
         );
 
-        let interop_fee_input_provider = Arc::new(ConstantInteropFeeInputProvider::new(
-            self.state_keeper_config.interop_fee_fallback,
-        ));
-
         // Create mempool IO resource.
         let mempool_db_pool = master_pool
             .get_singleton()
@@ -148,7 +143,6 @@ impl WiringLayer for MempoolIOLayer {
         let io = MempoolIO::new(
             mempool_guard,
             batch_fee_input_provider,
-            interop_fee_input_provider,
             mempool_db_pool,
             &self.state_keeper_config,
             self.fee_account.address(),
@@ -157,7 +151,7 @@ impl WiringLayer for MempoolIOLayer {
             input.l2_contracts.0.da_validator_addr,
             input.zk_chain_on_chain_config.0.l2_da_commitment_scheme,
             self.pubdata_type,
-            input.settlement_mode.settlement_layer(),
+            input.settlement_mode,
         )?;
 
         // Create sealer.

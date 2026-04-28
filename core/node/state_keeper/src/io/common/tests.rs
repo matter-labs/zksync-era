@@ -313,14 +313,14 @@ async fn getting_first_l2_block_in_batch_after_snapshot_recovery() {
 async fn loading_pending_batch_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis_params = GenesisParamsInitials::mock();
-    insert_genesis_batch(&mut storage, &genesis_params)
+    let genesis_params = GenesisParams::mock();
+    insert_genesis_batch(&mut storage, &genesis_params.clone().into())
         .await
         .unwrap();
     store_pending_l2_blocks(
         &mut storage,
         1..=2,
-        genesis_params.base_system_contracts.hashes(),
+        genesis_params.base_system_contracts().hashes(),
         L1BatchNumber(1),
     )
     .await;

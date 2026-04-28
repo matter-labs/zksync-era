@@ -1,6 +1,5 @@
 use zksync_config::GenesisConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::{settlement::SettlementLayer, L1ChainId};
 
 use super::*;
 

@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE airbender_proof_generation_details\n            SET status = $1, updated_at = NOW(), prover_taken_at = NOW()\n            WHERE\n                l1_batch_number = (\n                    SELECT apgd.l1_batch_number\n                    FROM airbender_proof_generation_details apgd\n                    JOIN proof_generation_details p\n                        ON p.l1_batch_number = apgd.l1_batch_number\n                    WHERE\n                        p.l1_batch_number >= $3\n                        AND p.vm_run_data_blob_url IS NOT NULL\n                        AND p.proof_gen_data_blob_url IS NOT NULL\n                        AND (\n                            apgd.status = $2\n                            OR (\n                                apgd.status = $1\n                                AND apgd.prover_taken_at < NOW() - $4::INTERVAL\n                            )\n                        )\n                    ORDER BY apgd.l1_batch_number ASC\n                    LIMIT 1\n                    FOR UPDATE OF apgd SKIP LOCKED\n                )\n            RETURNING l1_batch_number, created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Interval"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ccbb815fa1d8f8764aa49965a098e45c8336d6a1ba5ae58889fd083fc2f7cdc8"
+}

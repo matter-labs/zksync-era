@@ -5,7 +5,7 @@ use zksync_types::{
     api::{en, ProtocolVersionInfo},
     protocol_version::ProtocolSemanticVersion,
     tokens::TokenInfo,
-    Address, L1BatchNumber, L2BlockNumber,
+    Address, L1BatchNumber, L2BlockNumber, U256,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -224,7 +224,7 @@ impl EnNamespace {
         Ok(protocol_version_info)
     }
 
-    pub async fn get_interop_fee_impl(&self) -> Result<u64, Web3Error> {
+    pub async fn get_interop_fee_impl(&self) -> Result<U256, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
         if let Some(unsealed_batch) = storage
             .blocks_dal()
@@ -235,6 +235,6 @@ impl EnNamespace {
             return Ok(unsealed_batch.interop_fee);
         }
 
-        Ok(self.state.tx_sender.configured_interop_fee())
+        Ok(self.state.tx_sender.current_interop_fee().await)
     }
 }

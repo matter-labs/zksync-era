@@ -13,7 +13,7 @@ use zksync_types::{
     commitment::PubdataParams,
     fee_model::BatchFeeInput,
     settlement::SettlementLayer,
-    Address, BloomInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
+    Address, BloomInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 
 pub(crate) use self::{committed_updates::CommittedUpdates, l2_block_updates::L2BlockUpdates};
@@ -43,7 +43,7 @@ pub struct UpdatesManager {
     l1_batch_timestamp: u64,
     fee_account_address: Address,
     batch_fee_input: BatchFeeInput,
-    interop_fee: u64,
+    interop_fee: U256,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
@@ -470,7 +470,7 @@ impl UpdatesManager {
         self.batch_fee_input
     }
 
-    pub fn interop_fee(&self) -> u64 {
+    pub fn interop_fee(&self) -> U256 {
         self.interop_fee
     }
 

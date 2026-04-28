@@ -26,7 +26,9 @@ use zksync_multivm::{
         derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit, get_max_new_factory_deps,
     },
 };
-use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
+use zksync_node_fee_model::{
+    ApiFeeInputProvider, BatchFeeModelInputProvider, MockBatchFeeParamsProvider,
+};
 use zksync_object_store::ObjectStore;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
@@ -78,20 +80,20 @@ pub async fn build_tx_sender(
     let max_concurrency = web3_json_config.vm_concurrency_limit;
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
-    let batch_fee_input_provider = ApiFeeInputProvider::new(
+    let batch_fee_input_provider = Arc::new(ApiFeeInputProvider::new(
         batch_fee_model_input_provider,
         replica_pool,
         web3_json_config.gas_price_scale_factor_open_batch,
-    );
-    let mut executor_options = SandboxExecutorOptions::new(
+    ));
+    let executor_options = SandboxExecutorOptions::new(
         tx_sender_config.chain_id,
         AccountTreeId::new(tx_sender_config.fee_account_addr),
         tx_sender_config.validation_computational_gas_limit,
+        batch_fee_input_provider.clone(),
     )
     .await?;
-    executor_options.set_interop_fee_fallback(tx_sender_config.interop_fee);
     let tx_sender = tx_sender_builder.build(
-        Arc::new(batch_fee_input_provider),
+        batch_fee_input_provider,
         Arc::new(vm_concurrency_limiter),
         executor_options,
         storage_caches,
@@ -104,7 +106,7 @@ pub async fn build_tx_sender(
 pub struct SandboxExecutorOptions {
     pub(crate) fast_vm_mode: FastVmMode,
     pub(crate) vm_dump_store: Option<Arc<dyn ObjectStore>>,
-    pub(crate) interop_fee_fallback: Option<u64>,
+    pub(crate) batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -122,6 +124,7 @@ impl SandboxExecutorOptions {
         chain_id: L2ChainId,
         operator_account: AccountTreeId,
         validation_computational_gas_limit: u32,
+        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     ) -> anyhow::Result<Self> {
         let estimate_gas_contracts =
             tokio::task::spawn_blocking(MultiVmBaseSystemContracts::load_estimate_gas_blocking)
@@ -135,7 +138,7 @@ impl SandboxExecutorOptions {
         Ok(Self {
             fast_vm_mode: FastVmMode::Old,
             vm_dump_store: None,
-            interop_fee_fallback: None,
+            batch_fee_input_provider,
             estimate_gas: OneshotEnvParameters::new(
                 Arc::new(estimate_gas_contracts),
                 chain_id,
@@ -160,8 +163,8 @@ impl SandboxExecutorOptions {
         self.fast_vm_mode = fast_vm_mode;
     }
 
-    pub fn set_interop_fee_fallback(&mut self, interop_fee: u64) {
-        self.interop_fee_fallback = Some(interop_fee);
+    pub(crate) async fn interop_fee_fallback(&self) -> U256 {
+        self.batch_fee_input_provider.get_interop_fee().await
     }
 
     pub fn set_vm_dump_object_store(&mut self, store: Arc<dyn ObjectStore>) {
@@ -169,9 +172,14 @@ impl SandboxExecutorOptions {
     }
 
     pub(crate) async fn mock() -> Self {
-        Self::new(L2ChainId::default(), AccountTreeId::default(), u32::MAX)
-            .await
-            .unwrap()
+        Self::new(
+            L2ChainId::default(),
+            AccountTreeId::default(),
+            u32::MAX,
+            Arc::new(MockBatchFeeParamsProvider::default()),
+        )
+        .await
+        .unwrap()
     }
 }
 
@@ -270,7 +278,6 @@ pub struct TxSenderConfig {
     pub max_allowed_l2_tx_gas_limit: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
-    pub interop_fee: u64,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
     pub timestamp_asserter_params: Option<TimestampAsserterParams>,
@@ -297,7 +304,6 @@ impl TxSenderConfig {
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
-            interop_fee: state_keeper_config.interop_fee_fallback,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
             timestamp_asserter_params: None,
@@ -401,8 +407,8 @@ impl TxSender {
         self.0.whitelisted_tokens_for_aa_cache.read().await.clone()
     }
 
-    pub(crate) fn configured_interop_fee(&self) -> u64 {
-        self.0.sender_config.interop_fee
+    pub(crate) async fn current_interop_fee(&self) -> U256 {
+        self.0.batch_fee_input_provider.get_interop_fee().await
     }
 
     async fn acquire_replica_connection(&self) -> anyhow::Result<Connection<'static, Core>> {

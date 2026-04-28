@@ -54,7 +54,6 @@ api:
     filters_limit: 5000
     subscriptions_limit: 5000
     pubsub_polling_interval: 200
-    main_node_interop_fee_poll_interval: 500
     max_nonce_ahead: 33
     gas_price_scale_factor: 1.4
     gas_price_scale_factor_open_batch: 1.35
@@ -80,6 +79,7 @@ api:
     latest_values_cache_size_mb: 200
     request_timeout_sec: 20
     tree_api_url: http://tree/
+    tree_api_request_timeout_sec: 45
     max_batch_request_size: 50
     websocket_requests_per_minute_limit: 1000
     mempool_cache_size: 1000

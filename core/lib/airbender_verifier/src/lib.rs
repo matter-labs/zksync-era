@@ -313,14 +313,15 @@ mod tests {
     use zksync_types::{
         commitment::{L2DACommitmentScheme, L2PubdataValidator},
         settlement::SettlementLayer,
+        U256,
     };
 
     use super::*;
 
     #[test]
     fn test_v1_json_serialization_roundtrip() {
-        let tvi = V1AirbenderVerifierInput::new(
-            VMRunWitnessInputData {
+        let tvi = V1AirbenderVerifierInput {
+            vm_run_data: VMRunWitnessInputData {
                 l1_batch_number: Default::default(),
                 used_bytecodes: Default::default(),
                 initial_heap_content: vec![],
@@ -332,14 +333,14 @@ mod tests {
                 pubdata_costs: vec![],
                 witness_block_state: Default::default(),
             },
-            WitnessInputMerklePaths::new(0),
-            vec![],
-            L1BatchEnv {
+            merkle_paths: WitnessInputMerklePaths::new(0),
+            l2_blocks_execution_data: vec![],
+            l1_batch_env: L1BatchEnv {
                 previous_batch_hash: Some(H256([1; 32])),
                 number: Default::default(),
                 timestamp: 0,
                 fee_input: Default::default(),
-                interop_fee: 0,
+                interop_fee: U256::zero(),
                 fee_account: Default::default(),
                 enforced_base_fee: None,
                 first_l2_block: L2BlockEnv {
@@ -351,7 +352,7 @@ mod tests {
                 },
                 settlement_layer: SettlementLayer::for_tests(),
             },
-            SystemEnv {
+            system_env: SystemEnv {
                 zk_porter_available: false,
                 version: Default::default(),
                 base_system_smart_contracts: BaseSystemContracts {
@@ -370,15 +371,15 @@ mod tests {
                 default_validation_computational_gas_limit: 0,
                 chain_id: Default::default(),
             },
-            PubdataParams::new(
+            pubdata_params: PubdataParams::new(
                 L2PubdataValidator::CommitmentScheme(
                     L2DACommitmentScheme::BlobsAndPubdataKeccak256,
                 ),
                 Default::default(),
             )
             .unwrap(),
-        );
-        let tvi = AirbenderVerifierInput::new(tvi);
+        };
+        let tvi = AirbenderVerifierInput::V1(tvi);
         let serialized =
             serde_json::to_vec(&tvi).expect("Failed to serialize AirbenderVerifierInput.");
         let deserialized: AirbenderVerifierInput = serde_json::from_slice(&serialized)

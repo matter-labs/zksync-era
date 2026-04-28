@@ -20,9 +20,9 @@ use zksync_types::{
     l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolSemanticVersion,
-    settlement::SettlementLayer,
+    settlement::{SettlementLayer, WorkingSettlementLayer},
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, StorageKey, TransactionTimeRangeConstraint, H256, U256,
+    ProtocolVersionId, SLChainId, StorageKey, TransactionTimeRangeConstraint, H256, U256,
 };
 
 use self::tester::Tester;
@@ -151,6 +151,99 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
         .await
         .expect("No batch params in the test mempool");
     assert_eq!(mempool.filter(), &want_filter);
+}
+
+async fn assert_new_batch_settlement_layer(
+    commitment_mode: L1BatchCommitmentMode,
+    working_settlement_layer: WorkingSettlementLayer,
+    expected_settlement_layer: SettlementLayer,
+) {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tester = Tester::new(commitment_mode);
+    tester.genesis(&connection_pool).await;
+
+    // Prepare a sealed batch so opening a new one follows the regular execution path.
+    let tx_result = tester
+        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .await;
+    tester
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
+        .await;
+
+    let (mut mempool, mut guard) = tester
+        .create_test_mempool_io_with_settlement_mode(
+            connection_pool.clone(),
+            working_settlement_layer,
+        )
+        .await;
+    let (io_cursor, _) = mempool.initialize().await.unwrap();
+
+    let tx_filter = l2_tx_filter(
+        &tester.create_batch_fee_input_provider().await,
+        ProtocolVersionId::latest(),
+    )
+    .await
+    .unwrap();
+    tester.insert_tx(
+        &mut guard,
+        tx_filter.fee_per_gas,
+        tx_filter.gas_per_pubdata,
+        TransactionTimeRangeConstraint::default(),
+    );
+
+    let batch_params = mempool
+        .wait_for_new_batch_params(&io_cursor, Duration::from_secs(10))
+        .await
+        .unwrap()
+        .expect("No batch params in the test mempool");
+    assert_eq!(batch_params.settlement_layer, expected_settlement_layer);
+
+    let mut storage = connection_pool.connection().await.unwrap();
+    let unsealed_batch = storage
+        .blocks_dal()
+        .get_unsealed_l1_batch()
+        .await
+        .unwrap()
+        .expect("Expected unsealed batch to be inserted");
+    assert_eq!(unsealed_batch.settlement_layer, expected_settlement_layer);
+}
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[tokio::test]
+async fn new_batch_uses_current_settlement_layer_when_migration_is_not_in_progress(
+    commitment_mode: L1BatchCommitmentMode,
+) {
+    let mut settlement_layer = WorkingSettlementLayer::new(
+        SettlementLayer::L1(SLChainId(1)),
+        SettlementLayer::Gateway(SLChainId(270)),
+    );
+    settlement_layer.set_migration_in_progress(false);
+
+    assert_new_batch_settlement_layer(
+        commitment_mode,
+        settlement_layer,
+        SettlementLayer::L1(SLChainId(1)),
+    )
+    .await;
+}
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[tokio::test]
+async fn new_batch_uses_target_settlement_layer_when_migration_is_in_progress(
+    commitment_mode: L1BatchCommitmentMode,
+) {
+    let mut settlement_layer = WorkingSettlementLayer::new(
+        SettlementLayer::L1(SLChainId(1)),
+        SettlementLayer::Gateway(SLChainId(270)),
+    );
+    settlement_layer.set_migration_in_progress(true);
+
+    assert_new_batch_settlement_layer(
+        commitment_mode,
+        settlement_layer,
+        SettlementLayer::Gateway(SLChainId(270)),
+    )
+    .await;
 }
 
 async fn test_timestamps(

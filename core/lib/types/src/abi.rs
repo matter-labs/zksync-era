@@ -491,24 +491,7 @@ impl Transaction {
                     .iter()
                     .map(|b| BytecodeHash::for_bytecode(b).value_u256())
                     .collect();
-
-                // Check factory dependencies with detailed error output
-                if tx.factory_deps != factory_deps_hashes {
-                    anyhow::bail!(
-                        "ABI Factory dependencies mismatch!\n\
-                        Transaction expects {} deps: {:?}\n\
-                        But provided {} deps: {:?}\n\
-                        Count match: {}\n\
-                        Content match: {}",
-                        tx.factory_deps.len(),
-                        tx.factory_deps,
-                        factory_deps_hashes.len(),
-                        factory_deps_hashes,
-                        tx.factory_deps.len() == factory_deps_hashes.len(),
-                        tx.factory_deps == factory_deps_hashes
-                    );
-                }
-
+                anyhow::ensure!(tx.factory_deps == factory_deps_hashes);
                 tx.hash()
             }
             Self::L2(raw) => TransactionRequest::from_bytes_unverified(raw)?.1,

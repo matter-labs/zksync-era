@@ -1,4 +1,4 @@
-use zksync_config::configs::house_keeper::HouseKeeperConfig;
+use zksync_config::configs::{house_keeper::HouseKeeperConfig, AirbenderProofDataHandlerConfig};
 use zksync_dal::node::{PoolResource, ReplicaPool};
 use zksync_node_framework::{
     service::StopReceiver,
@@ -14,6 +14,7 @@ use crate::{blocks_state_reporter::BlockMetricsReporter, periodic_job::PeriodicJ
 #[derive(Debug)]
 pub struct HouseKeeperLayer {
     house_keeper_config: HouseKeeperConfig,
+    airbender_config: Option<AirbenderProofDataHandlerConfig>,
 }
 
 #[derive(Debug, FromContext)]
@@ -28,9 +29,13 @@ pub struct Output {
 }
 
 impl HouseKeeperLayer {
-    pub fn new(house_keeper_config: HouseKeeperConfig) -> Self {
+    pub fn new(
+        house_keeper_config: HouseKeeperConfig,
+        airbender_config: Option<AirbenderProofDataHandlerConfig>,
+    ) -> Self {
         Self {
             house_keeper_config,
+            airbender_config,
         }
     }
 }
@@ -49,9 +54,15 @@ impl WiringLayer for HouseKeeperLayer {
         let replica_pool = input.replica_pool.get().await?;
 
         // Initialize and add tasks
+        let first_airbender_batch = self
+            .airbender_config
+            .map(|c| c.first_processed_batch)
+            .unwrap_or_default();
+
         let l1_batch_metrics_reporter = BlockMetricsReporter::new(
             self.house_keeper_config.l1_batch_metrics_reporting_interval,
             replica_pool,
+            first_airbender_batch,
         );
 
         Ok(Output {

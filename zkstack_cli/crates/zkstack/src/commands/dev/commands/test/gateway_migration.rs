@@ -12,6 +12,7 @@ const GATEWAY_SWITCH_TESTS_PATH: &str = "core/tests/gateway-migration-test";
 
 pub fn run(shell: &Shell, args: GatewayMigrationArgs) -> anyhow::Result<()> {
     let chain_config = ZkStackConfig::current_chain(shell)?;
+    shell.change_dir(chain_config.link_to_code().join(GATEWAY_SWITCH_TESTS_PATH));
 
     logger::info(MSG_GATEWAY_UPGRADE_TEST_RUN_INFO);
 
@@ -19,7 +20,6 @@ pub fn run(shell: &Shell, args: GatewayMigrationArgs) -> anyhow::Result<()> {
         install_and_build_dependencies(shell, &chain_config.link_to_code())?;
     }
 
-    shell.change_dir(chain_config.link_to_code().join(GATEWAY_SWITCH_TESTS_PATH));
     run_test(
         shell,
         &chain_config,

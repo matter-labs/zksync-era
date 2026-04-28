@@ -18,6 +18,7 @@ use tower_http::{
 use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides, Namespace};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_object_store::ObjectStore;
 use zksync_shared_resources::{
     api::{BridgeAddressesHandle, SyncState},
     tree::TreeApiClient,
@@ -114,6 +115,7 @@ struct OptionalApiParams {
     mempool_cache: Option<MempoolCache>,
     extended_tracing: bool,
     l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
+    object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 /// Structure capable of spawning a configured Web3 API server along with all the required
@@ -278,6 +280,11 @@ impl ApiBuilder {
         self
     }
 
+    pub fn with_object_store(mut self, object_store: Arc<dyn ObjectStore>) -> Self {
+        self.optional.object_store = Some(object_store);
+        self
+    }
+
     // Intended for tests only.
     #[doc(hidden)]
     fn with_method_tracer(mut self, method_tracer: Arc<MethodTracer>) -> Self {
@@ -354,6 +361,7 @@ impl ApiServer {
             bridge_addresses_handle: self.bridge_addresses_handle,
             tree_api: self.optional.tree_api,
             l2_l1_log_proof_handler: self.optional.l2_l1_log_proof_handler,
+            object_store: self.optional.object_store,
         })
     }
 

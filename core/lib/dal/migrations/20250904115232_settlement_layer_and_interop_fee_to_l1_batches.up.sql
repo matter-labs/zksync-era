@@ -1,3 +1,3 @@
 ALTER TABLE l1_batches ADD COLUMN settlement_layer_type TEXT NOT NULL DEFAULT 'L1';
 ALTER TABLE l1_batches ADD COLUMN settlement_layer_chain_id BIGINT NOT NULL DEFAULT 1;
-ALTER TABLE l1_batches ADD COLUMN interop_fee BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE l1_batches ADD COLUMN interop_fee NUMERIC(80) NOT NULL DEFAULT 0;

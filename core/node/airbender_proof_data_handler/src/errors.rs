@@ -7,8 +7,8 @@ use zksync_object_store::ObjectStoreError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AirbenderProcessorError {
-    #[error("General error: {0}")]
-    GeneralError(String),
+    #[error("General error: {0:#}")]
+    GeneralError(#[from] anyhow::Error),
     #[error("GCS error: {context}: {source}")]
     ObjectStore {
         source: ObjectStoreError,
@@ -20,11 +20,7 @@ pub enum AirbenderProcessorError {
 
 impl AirbenderProcessorError {
     pub fn status_code(&self) -> StatusCode {
-        match self {
-            Self::GeneralError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::ObjectStore { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Dal(_) => StatusCode::INTERNAL_SERVER_ERROR,
-        }
+        StatusCode::INTERNAL_SERVER_ERROR
     }
 }
 

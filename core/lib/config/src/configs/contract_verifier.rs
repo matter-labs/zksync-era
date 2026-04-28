@@ -13,6 +13,10 @@ pub struct ContractVerifierConfig {
     /// Max time of a single compilation.
     #[config(default_t = 4 * TimeUnit::Minutes, with = Fallback(TimeUnit::Seconds))]
     pub compilation_timeout: Duration,
+    /// Total request timeout for the GitHub compiler resolver HTTP client used to download
+    /// compiler binaries. Defaults to 5 minutes since binaries can be large.
+    #[config(default_t = 5 * TimeUnit::Minutes, with = Fallback(TimeUnit::Seconds))]
+    pub compiler_download_timeout: Duration,
     /// Port to which the Prometheus exporter server is listening.
     #[config(default_t = 3_318)]
     pub prometheus_port: u16,
@@ -39,6 +43,7 @@ mod tests {
     fn expected_config() -> ContractVerifierConfig {
         ContractVerifierConfig {
             compilation_timeout: Duration::from_secs(30),
+            compiler_download_timeout: Duration::from_secs(600),
             prometheus_port: 3314,
             port: 3070,
             etherscan_api_url: Some("https://api.etherscan.io/".to_owned()),
@@ -49,6 +54,7 @@ mod tests {
     fn parsing_from_env() {
         let env = r#"
             CONTRACT_VERIFIER_COMPILATION_TIMEOUT=30
+            CONTRACT_VERIFIER_COMPILER_DOWNLOAD_TIMEOUT=600
             CONTRACT_VERIFIER_PROMETHEUS_PORT=3314
             CONTRACT_VERIFIER_PORT=3070
             CONTRACT_VERIFIER_ETHERSCAN_API_URL="https://api.etherscan.io/"
@@ -66,6 +72,7 @@ mod tests {
         let yaml = r#"
           port: 3070
           compilation_timeout: 30
+          compiler_download_timeout: 600
           prometheus_port: 3314
           etherscan_api_url: https://api.etherscan.io/
         "#;
@@ -79,6 +86,7 @@ mod tests {
         let yaml = r#"
           port: 3070
           compilation_timeout: 30s
+          compiler_download_timeout: 10 min
           prometheus_port: 3314
           etherscan_api_url: https://api.etherscan.io/
         "#;

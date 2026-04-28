@@ -18,6 +18,8 @@ use zksync_types::{
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256,
 };
 
+use crate::models::bigdecimal_to_u256;
+
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
 pub(crate) const LEGACY_BLOCK_GAS_LIMIT: u32 = u32::MAX;
 
@@ -63,7 +65,7 @@ pub(crate) struct StorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
-    pub interop_fee: i64,
+    pub interop_fee: BigDecimal,
 
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_chain_id: i64,
@@ -117,8 +119,7 @@ impl StorageL1BatchHeader {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
-            interop_fee: u64::try_from(self.interop_fee)
-                .expect("interop_fee should be less than 2^64"),
+            interop_fee: bigdecimal_to_u256(self.interop_fee),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         })
@@ -192,7 +193,7 @@ pub(crate) struct StorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
-    pub interop_fee: i64,
+    pub interop_fee: BigDecimal,
 
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_chain_id: i64,
@@ -246,8 +247,7 @@ impl StorageL1Batch {
             pubdata_input: self.pubdata_input,
             fee_address: Address::from_slice(&self.fee_address),
             batch_fee_input,
-            interop_fee: u64::try_from(self.interop_fee)
-                .expect("interop_fee should be less than 2^64"),
+            interop_fee: bigdecimal_to_u256(self.interop_fee),
             pubdata_limit: self.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         })
@@ -338,7 +338,7 @@ pub(crate) struct UnsealedStorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
-    pub interop_fee: i64,
+    pub interop_fee: BigDecimal,
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_chain_id: i64,
     pub settlement_layer_type: String,
@@ -365,8 +365,7 @@ impl TryFrom<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
-            interop_fee: u64::try_from(batch.interop_fee)
-                .expect("interop_fee should be less than 2^64"),
+            interop_fee: bigdecimal_to_u256(batch.interop_fee),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         })
@@ -383,7 +382,7 @@ pub(crate) struct CommonStorageL1BatchHeader {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
     pub fair_pubdata_price: Option<i64>,
-    pub interop_fee: i64,
+    pub interop_fee: BigDecimal,
     pub pubdata_limit: Option<i64>,
     pub settlement_layer_chain_id: i64,
     pub settlement_layer_type: String,
@@ -411,8 +410,7 @@ impl TryFrom<CommonStorageL1BatchHeader> for CommonL1BatchHeader {
                 batch.fair_pubdata_price.map(|p| p as u64),
                 batch.l1_gas_price as u64,
             ),
-            interop_fee: u64::try_from(batch.interop_fee)
-                .expect("interop_fee should be less than 2^64"),
+            interop_fee: bigdecimal_to_u256(batch.interop_fee),
             pubdata_limit: batch.pubdata_limit.map(|l| l as u64),
             settlement_layer,
         })

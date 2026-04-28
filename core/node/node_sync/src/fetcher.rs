@@ -5,7 +5,7 @@ use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
 use zksync_types::{
     api::en::SyncBlock, block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms, settlement::SettlementLayer, Address, InteropRoot, L1BatchNumber,
-    L2BlockNumber, ProtocolVersionId, H256,
+    L2BlockNumber, ProtocolVersionId, H256, U256,
 };
 
 use super::{
@@ -58,7 +58,7 @@ pub struct FetchedBlock {
     pub pubdata_limit: Option<u64>,
     pub interop_roots: Vec<InteropRoot>,
     pub settlement_layer: Option<SettlementLayer>,
-    pub interop_fee: u64,
+    pub interop_fee: Option<U256>,
 }
 
 impl FetchedBlock {
@@ -115,7 +115,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             pubdata_limit: block.pubdata_limit,
             interop_roots: block.interop_roots.clone().unwrap_or_default(),
             settlement_layer: block.settlement_layer,
-            interop_fee: block.interop_fee.unwrap_or(0),
+            interop_fee: block.interop_fee,
         })
     }
 }
@@ -186,7 +186,7 @@ impl IoCursorExt for IoCursor {
                         block.fair_pubdata_price,
                         block.l1_gas_price,
                     ),
-                    interop_fee: block.interop_fee,
+                    interop_fee: block.interop_fee.unwrap_or(U256::zero()),
                     // It's ok that we lose info about millis since it's only used for sealing criteria.
                     first_l2_block: L2BlockParams::new_raw(
                         block.timestamp * 1000,
@@ -239,7 +239,7 @@ impl IoCursorExt for IoCursor {
 mod tests {
     use zksync_types::{
         commitment::PubdataParams, settlement::SettlementLayer, Address, L1BatchNumber,
-        L2BlockNumber, ProtocolVersionId, SLChainId, H256,
+        L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
     };
 
     use super::{FetchedBlock, IoCursor, IoCursorExt};
@@ -272,7 +272,7 @@ mod tests {
             pubdata_limit: Some(100_000),
             interop_roots: vec![],
             settlement_layer: None,
-            interop_fee: 0,
+            interop_fee: Some(U256::zero()),
         };
 
         let actions = cursor.advance(block);

@@ -55,7 +55,7 @@ impl Wallet {
     pub fn private_key_h256(&self) -> Option<H256> {
         self.private_key
             .as_ref()
-            .map(|k| parse_h256(&k.signer().to_bytes()[..]).unwrap())
+            .map(|k| parse_h256(k.signer().to_bytes().as_slice()).unwrap())
     }
 
     pub fn random(rng: &mut (impl Rng + CryptoRng)) -> Self {

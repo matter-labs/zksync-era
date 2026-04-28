@@ -12,13 +12,12 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_object_store::ObjectStore;
-use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
+use zksync_types::L2ChainId;
 
 /// Wiring layer for proof data handler server.
 #[derive(Debug)]
 pub struct AirbenderProofDataHandlerLayer {
     proof_data_handler_config: AirbenderProofDataHandlerConfig,
-    commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
 }
 
@@ -37,12 +36,10 @@ pub struct Output {
 impl AirbenderProofDataHandlerLayer {
     pub fn new(
         proof_data_handler_config: AirbenderProofDataHandlerConfig,
-        commitment_mode: L1BatchCommitmentMode,
         l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             proof_data_handler_config,
-            commitment_mode,
             l2_chain_id,
         }
     }
@@ -65,7 +62,6 @@ impl WiringLayer for AirbenderProofDataHandlerLayer {
             proof_data_handler_config: self.proof_data_handler_config,
             blob_store,
             main_pool,
-            commitment_mode: self.commitment_mode,
             l2_chain_id: self.l2_chain_id,
         };
 
@@ -78,7 +74,6 @@ pub struct AirbenderProofDataHandlerTask {
     proof_data_handler_config: AirbenderProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
     l2_chain_id: L2ChainId,
 }
 
@@ -93,7 +88,6 @@ impl Task for AirbenderProofDataHandlerTask {
             self.proof_data_handler_config,
             self.blob_store,
             self.main_pool,
-            self.commitment_mode,
             self.l2_chain_id,
             stop_receiver.0,
         )

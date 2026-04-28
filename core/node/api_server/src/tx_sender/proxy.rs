@@ -399,10 +399,10 @@ mod tests {
     async fn tx_cache_basics() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        let params = GenesisParams::load_genesis_params(mock_genesis_config())
-            .unwrap()
-            .into();
-        insert_genesis_batch(&mut storage, &params).await.unwrap();
+        let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
+        insert_genesis_batch(&mut storage, &params.into())
+            .await
+            .unwrap();
 
         let tx = create_l2_transaction(10, 100);
         let send_tx_called = Arc::new(AtomicBool::new(false));
@@ -521,10 +521,10 @@ mod tests {
     async fn transaction_is_not_stored_in_cache_on_main_node_failure() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        let params = GenesisParams::load_genesis_params(mock_genesis_config())
-            .unwrap()
-            .into();
-        insert_genesis_batch(&mut storage, &params).await.unwrap();
+        let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
+        insert_genesis_batch(&mut storage, &params.into())
+            .await
+            .unwrap();
 
         let tx = create_l2_transaction(10, 100);
         let main_node_client = MockClient::builder(L2::default())

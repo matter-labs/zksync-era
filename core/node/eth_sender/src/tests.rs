@@ -1061,10 +1061,12 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
         Some(H256::repeat_byte(3))
     );
     assert_eq!(data.verifier_address, Address::repeat_byte(5));
-    assert_eq!(
-        data.da_validator_pair.l2_da_commitment_scheme.unwrap(),
-        L2DACommitmentScheme::BlobsAndPubdataKeccak256
-    );
+    if !data.chain_protocol_version_id.is_pre_medium_interop() {
+        assert_eq!(
+            data.da_validator_pair.l2_da_commitment_scheme.unwrap(),
+            L2DACommitmentScheme::BlobsAndPubdataKeccak256
+        );
+    }
     assert_eq!(data.chain_protocol_version_id, ProtocolVersionId::latest());
 }
 

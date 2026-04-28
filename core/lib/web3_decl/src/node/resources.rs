@@ -26,6 +26,11 @@ impl SettlementModeResource {
     pub fn settlement_layer_for_sending_txs(&self) -> Option<SettlementLayer> {
         self.0.settlement_layer_for_sending_txs()
     }
+
+    // Returns the target settlement layer for construction of new batches after migration has started
+    pub fn target_settlement_layer(&self) -> SettlementLayer {
+        self.0.target_settlement_layer()
+    }
 }
 
 impl Resource<resource::Boxed> for DynClient<L1> {

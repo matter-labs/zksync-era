@@ -33,7 +33,7 @@ use zksync_vm_interface::CircuitStatistic;
 pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptionalMetadata};
 use crate::{
     models::{
-        parse_protocol_version,
+        bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
             from_settlement_layer, CommonStorageL1BatchHeader, StorageL1Batch,
             StorageL1BatchHeader, StorageL2BlockHeader, StoragePubdataParams,
@@ -42,6 +42,7 @@ use crate::{
         storage_eth_tx::L2BlockWithEthTx,
         storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
+        u256_to_big_decimal,
     },
     Core, CoreDal,
 };
@@ -254,9 +255,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batch_interop_fee_if_sealed(
         &mut self,
         number: L1BatchNumber,
-    ) -> DalResult<Option<u64>> {
-        let instrumentation =
-            Instrumented::new("get_l1_batch_interop_fee_if_sealed").with_arg("number", &number);
+    ) -> DalResult<Option<U256>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -274,12 +273,7 @@ impl BlocksDal<'_, '_> {
         .fetch_optional(self.storage)
         .await?;
 
-        let interop_fee = row
-            .map(|row| {
-                u64::try_from(row.interop_fee)
-                    .map_err(|err| instrumentation.arg_error("interop_fee", err))
-            })
-            .transpose()?;
+        let interop_fee = row.map(|row| bigdecimal_to_u256(row.interop_fee));
         Ok(interop_fee)
     }
 
@@ -1069,8 +1063,6 @@ impl BlocksDal<'_, '_> {
             Instrumented::new("insert_l1_batch").with_arg("number", &unsealed_batch_header.number);
         let (settlement_layer_type, settlement_layer_chain_id) =
             from_settlement_layer(&unsealed_batch_header.settlement_layer);
-        let interop_fee = i64::try_from(unsealed_batch_header.interop_fee)
-            .map_err(|err| instrumentation.arg_error("unsealed_batch_header.interop_fee", err))?;
 
         let query = sqlx::query!(
             r#"
@@ -1128,7 +1120,7 @@ impl BlocksDal<'_, '_> {
             unsealed_batch_header.fee_input.l1_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_l2_gas_price() as i64,
             unsealed_batch_header.fee_input.fair_pubdata_price() as i64,
-            interop_fee,
+            u256_to_big_decimal(unsealed_batch_header.interop_fee),
             unsealed_batch_header.pubdata_limit.map(|l| l as i64),
             settlement_layer_type,
             settlement_layer_chain_id
@@ -1254,7 +1246,7 @@ impl BlocksDal<'_, '_> {
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
         bytes_per_blob: u64,
-        interop_fee: u64,
+        interop_fee: U256,
     ) -> anyhow::Result<()> {
         let initial_bootloader_contents_len = initial_bootloader_contents.len();
         let instrumentation = Instrumented::new("mark_l1_batch_as_sealed")
@@ -1287,8 +1279,7 @@ impl BlocksDal<'_, '_> {
             .map(|input| input.len() as u64)
             .unwrap_or(0)
             .div_ceil(bytes_per_blob);
-        let interop_fee = i64::try_from(interop_fee)
-            .map_err(|err| instrumentation.arg_error("interop_fee", err))?;
+        let interop_fee = u256_to_big_decimal(interop_fee);
 
         let query = sqlx::query!(
             r#"
@@ -3930,7 +3921,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
         self.insert_l1_batch(header.to_unsealed_header()).await?;
-        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1, 0)
+        self.mark_l1_batch_as_sealed(header, &[], &[], &[], Default::default(), 1, U256::zero())
             .await
     }
 

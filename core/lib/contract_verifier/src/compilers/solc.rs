@@ -49,7 +49,7 @@ impl Solc {
             SourceCodeData::SolSingleFile(source_code) => {
                 if has_dangerous_imports(&source_code) {
                     return Err(ContractVerifierError::InvalidSourcePath(
-                        "import with absolute or traversal path".to_owned(),
+                        "import with absolute path".to_owned(),
                     ));
                 }
                 let source = Source {
@@ -74,6 +74,7 @@ impl Solc {
                 StandardJson {
                     language: "Solidity".to_owned(),
                     sources,
+                    other: serde_json::json!({}),
                     settings,
                 }
             }
@@ -85,7 +86,7 @@ impl Solc {
                 for source in compiler_input.sources.values() {
                     if has_dangerous_imports(&source.content) {
                         return Err(ContractVerifierError::InvalidSourcePath(
-                            "import with absolute or traversal path".to_owned(),
+                            "import with absolute path".to_owned(),
                         ));
                     }
                 }
@@ -109,6 +110,7 @@ impl Solc {
                 StandardJson {
                     language: "Yul".to_owned(),
                     sources,
+                    other: serde_json::json!({}),
                     settings,
                 }
             }
@@ -120,6 +122,105 @@ impl Solc {
             contract_name,
             file_name,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::contract_verification::api::CompilerVersions;
+
+    use super::*;
+
+    #[test]
+    fn build_input_allows_relative_parent_imports_in_standard_json() {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "src/Counter.sol": {
+                    "content": r#"
+                        pragma solidity ^0.8.20;
+                        import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+                        contract Counter is OwnableUpgradeable {
+                            function initialize(address owner) external initializer {
+                                __Ownable_init(owner);
+                            }
+                        }
+                    "#,
+                },
+                "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol": {
+                    "content": r#"
+                        pragma solidity ^0.8.20;
+                        import "../utils/ContextUpgradeable.sol";
+                        import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+                        abstract contract OwnableUpgradeable is Initializable, ContextUpgradeable {
+                            address private _owner;
+
+                            function __Ownable_init(address initialOwner) internal onlyInitializing {
+                                _owner = initialOwner;
+                            }
+                        }
+                    "#,
+                },
+                "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol": {
+                    "content": r#"
+                        pragma solidity ^0.8.20;
+                        import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+                        abstract contract ContextUpgradeable is Initializable {
+                            function _msgSender() internal view virtual returns (address) {
+                                return msg.sender;
+                            }
+                        }
+                    "#,
+                },
+                "@openzeppelin/contracts/proxy/utils/Initializable.sol": {
+                    "content": r#"
+                        pragma solidity ^0.8.20;
+
+                        abstract contract Initializable {
+                            modifier initializer() {
+                                _;
+                            }
+
+                            modifier onlyInitializing() {
+                                _;
+                            }
+                        }
+                    "#,
+                },
+            },
+            "settings": {
+                "optimizer": {
+                    "enabled": true,
+                },
+            },
+        });
+        let req = VerificationIncomingRequest {
+            contract_address: Default::default(),
+            source_code_data: SourceCodeData::StandardJsonInput(input.as_object().unwrap().clone()),
+            contract_name: "src/Counter.sol:Counter".to_owned(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_solc_version: "0.8.26".to_owned(),
+                compiler_zksolc_version: None,
+            },
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: Default::default(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: Default::default(),
+        };
+
+        let built = Solc::build_input(req).expect("relative parent imports should be allowed");
+
+        assert_eq!(built.file_name, "src/Counter.sol");
+        assert_eq!(built.contract_name, "Counter");
+        assert!(built
+            .standard_json
+            .sources
+            .contains_key("@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol"));
     }
 }
 
@@ -141,6 +242,7 @@ impl Compiler<SolcInput> for Solc {
             .arg("--standard-json")
             .arg("--allow-paths")
             .arg(compile_dir.path())
+            .current_dir(compile_dir.path())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

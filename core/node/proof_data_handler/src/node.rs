@@ -110,11 +110,11 @@ impl Task for ProofDataHandlerTask {
             );
 
             tokio::select! {
-                _ = client.run(stop_receiver.0.clone()) => {
-                    tracing::info!("Proof data handler client stopped");
+                result = client.run(stop_receiver.0.clone()) => {
+                    tracing::warn!("Proof data handler client stopped with result: {result:?}");
                 }
-                _ = proof_router.run(stop_receiver.0) => {
-                    tracing::info!("Proof router stopped");
+                result = proof_router.run(stop_receiver.0) => {
+                    tracing::warn!("Proof router stopped with result: {result:?}");
                 }
             }
         } else {

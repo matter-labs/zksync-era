@@ -3,7 +3,6 @@ use zksync_types::{
         AirbenderProof, ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus,
         L1ToL2TxsStatus, TransactionDetailedResult, TransactionExecutionInfo,
     },
-    tee_types::TeeType,
     web3, L1BatchNumber, L2BlockNumber, L2ChainId, H256,
 };
 use zksync_web3_decl::{
@@ -24,12 +23,11 @@ impl UnstableNamespaceServer for UnstableNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn airbender_proofs(
+    async fn airbender_proof(
         &self,
         l1_batch_number: L1BatchNumber,
-        tee_type: Option<TeeType>,
-    ) -> RpcResult<Vec<AirbenderProof>> {
-        self.get_airbender_proofs_impl(l1_batch_number, tee_type)
+    ) -> RpcResult<Option<AirbenderProof>> {
+        self.get_airbender_proof_impl(l1_batch_number)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

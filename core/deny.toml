@@ -31,6 +31,13 @@ ignore = [
   "RUSTSEC-2026-0047",
   "RUSTSEC-2026-0048",
   "RUSTSEC-2026-0049", # `rustls-webpki` CRL vulnerability, old 0.101.7/0.102.8 pinned by rustls 0.21/0.22 (transitive deps of aws-smithy, hyper-rustls)
+  # `rand` 0.8.x unsoundness in `ThreadRng` reseed under a custom logger calling rand from
+  # log macros. Patch only exists for >=0.9.3 / >=0.10.1; no fix backported to 0.8.x. We
+  # already updated 0.9.x to 0.9.3; rand 0.8.5 remains via many transitive deps
+  # (alloy-primitives, sqlx-postgres, jsonrpsee, boojum, secp256k1, foundry-compilers, ...)
+  # that haven't migrated to rand 0.9. The unsoundness requires a custom logger that calls
+  # rand from logging callbacks, which we don't do.
+  "RUSTSEC-2026-0097",
 ]
 
 [licenses]

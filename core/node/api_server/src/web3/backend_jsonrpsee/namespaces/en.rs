@@ -1,7 +1,7 @@
 use zksync_types::{
     api::{en, ProtocolVersionInfo},
     tokens::TokenInfo,
-    Address, L2BlockNumber,
+    Address, L2BlockNumber, U256,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -71,7 +71,7 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_interop_fee(&self) -> RpcResult<u64> {
+    async fn get_interop_fee(&self) -> RpcResult<U256> {
         self.get_interop_fee_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))

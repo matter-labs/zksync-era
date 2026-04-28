@@ -23,7 +23,7 @@
         "Bytea",
         "Jsonb",
         "Int8",
-        "Int8"
+        "Numeric"
       ]
     },
     "nullable": []
