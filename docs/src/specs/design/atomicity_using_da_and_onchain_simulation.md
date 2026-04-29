@@ -56,6 +56,10 @@ Each `Simulator` entry for a `flowId` moves through explicit states:
 
 This is contract-level atomicity, not chain-level rollback. The DA layer only gives all chains a common source of truth for observing whether the required preparation and finalization steps happened.
 
+Once `FinalitySignal` is emitted on `A`, the outcome is fixed even before each chain has finished its local execution — the chains are then in a `finalized`-decided / execution-pending state, and replay or further input cannot change it:
+
+![Post-finality delay: outcome fixed, execution pending](./post_finality_delay.png)
+
 ## Freeze Path
 
 We also need a freeze path if `FinalitySignal` never appears.
@@ -68,11 +72,13 @@ We should use a separate IMT fact contract:
 - the IMT root is published via `L2 -> L1` logs,
 - other chains prove inclusion or non-inclusion of the required fact.
 
-The timeout is essential because this design does not rely on Gateway/L1 to actively push finalization. Chains observe Gateway DA themselves, so they also need a clean rule for what happens if the expected data never appears.
+The timeout is essential because this design does not rely on Gateway/L1 to actively push finalization. Chains observe Gateway DA themselves, so they also need a clean rule for what happens if the expected data never appears. If the timeout elapses with no `FinalitySignal`, every chain proves non-inclusion against `A`'s IMT root and unlocks independently:
+
+![Timeout path: no finality, revert and unlock](./timeout_path_revert_and_unlock.png)
 
 ## Detailed Flow
 
-![Atomicity flow](../contracts/interop/img/atomicity_gateway_flow.svg)
+![Happy path: finalize then execute](./happy_path_finalize_then_execute.png)
 
 1. the users on all participating chains agree on a shared `flowId`,
 2. the users lock the required assets into `Simulator` on each chain under that `flowId` with a timeout,
