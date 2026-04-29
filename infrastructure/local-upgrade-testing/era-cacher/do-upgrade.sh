@@ -43,6 +43,120 @@ L1_RPC_URL="http://127.0.0.1:8545"
 L2_RPC_URL="http://127.0.0.1:3050"
 
 PROTOCOL_OPS_WORK="$WORKSPACE_PARENT/protocol-ops-work"
+OLD_ZKSYNC_REF="${ERA_CACHER_OLD_ZKSYNC_REF:-a273232b3b11c1382209bf52754d91f9dfdb2f17}"
+
+forge_version_line() {
+    local forge_bin="$1"
+    "$forge_bin" --version | head -n 1
+}
+
+is_old_v29_forge() {
+    local forge_bin="$1"
+    local version
+    version="$(forge_version_line "$forge_bin" 2>/dev/null || true)"
+    [[ "$version" =~ ^forge\ 0\.0\.4\ \(((ae913af65)|VERGEN_IDEMPOTENT_OUTPUT).*\)$ ]]
+}
+
+is_new_v31_forge() {
+    local forge_bin="$1"
+    local version
+    version="$(forge_version_line "$forge_bin" 2>/dev/null || true)"
+    [[ "$version" == "forge Version: 1.3.5-foundry-zksync-v0.1.5" ]]
+}
+
+resolve_foundry_bin_dir() {
+    local kind="$1"
+    local env_var="$2"
+    local matcher="$3"
+    shift 3
+
+    local candidate="${!env_var:-}"
+    if [ -n "$candidate" ]; then
+        if [ -x "$candidate/forge" ] && "$matcher" "$candidate/forge"; then
+            echo "$candidate"
+            return 0
+        fi
+        echo "$env_var points at $candidate, but $candidate/forge is not the expected $kind forge" >&2
+        exit 1
+    fi
+
+    for candidate in "$@"; do
+        if [ -x "$candidate/forge" ] && "$matcher" "$candidate/forge"; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    local forge_bin
+    forge_bin="$(command -v forge || true)"
+    if [ -n "$forge_bin" ] && "$matcher" "$forge_bin"; then
+        dirname "$forge_bin"
+        return 0
+    fi
+
+    echo "Could not find the expected $kind foundry-zksync forge binary." >&2
+    echo "Set $env_var to a directory containing forge/cast for that version." >&2
+    exit 1
+}
+
+setup_foundry_dispatch() {
+    local old_foundry_bin_dir
+    local new_foundry_bin_dir
+    old_foundry_bin_dir="$(resolve_foundry_bin_dir \
+        "v29" \
+        "ERA_CACHER_OLD_FOUNDRY_BIN_DIR" \
+        is_old_v29_forge \
+        "$HOME/.foundry/versions/foundry-zksync-ae913af65" \
+        "$HOME/.foundry/matter-labs/foundry-zksync/target/release")"
+    new_foundry_bin_dir="$(resolve_foundry_bin_dir \
+        "v31" \
+        "ERA_CACHER_NEW_FOUNDRY_BIN_DIR" \
+        is_new_v31_forge \
+        "$HOME/.foundry/versions/foundry-zksync-v0.1.5" \
+        "$HOME/.foundry/bin")"
+
+    for tool in forge cast; do
+        [ -x "$old_foundry_bin_dir/$tool" ] || { echo "Missing $old_foundry_bin_dir/$tool" >&2; exit 1; }
+        [ -x "$new_foundry_bin_dir/$tool" ] || { echo "Missing $new_foundry_bin_dir/$tool" >&2; exit 1; }
+    done
+
+    local dispatch_dir="$WORKSPACE_PARENT/foundry-dispatch"
+    mkdir -p "$dispatch_dir"
+    for tool in forge cast; do
+        cat > "$dispatch_dir/$tool" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -d "$ERA_CACHER_WORKING_DIR/.git" ] \
+    && [ "$(git -C "$ERA_CACHER_WORKING_DIR" rev-parse HEAD)" = "$ERA_CACHER_OLD_ZKSYNC_REF" ]; then
+    exec "$ERA_CACHER_OLD_FOUNDRY_BIN_DIR/TOOL" "$@"
+fi
+
+exec "$ERA_CACHER_NEW_FOUNDRY_BIN_DIR/TOOL" "$@"
+EOF
+        sed -i "s/TOOL/$tool/g" "$dispatch_dir/$tool"
+        chmod +x "$dispatch_dir/$tool"
+    done
+
+    if [ -x "$new_foundry_bin_dir/anvil" ]; then
+        cat > "$dispatch_dir/anvil" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec "$ERA_CACHER_NEW_FOUNDRY_BIN_DIR/anvil" "$@"
+EOF
+        chmod +x "$dispatch_dir/anvil"
+    fi
+
+    export ERA_CACHER_WORKING_DIR="$WORKING_DIR"
+    export ERA_CACHER_OLD_ZKSYNC_REF="$OLD_ZKSYNC_REF"
+    export ERA_CACHER_OLD_FOUNDRY_BIN_DIR="$old_foundry_bin_dir"
+    export ERA_CACHER_NEW_FOUNDRY_BIN_DIR="$new_foundry_bin_dir"
+    export PATH="$dispatch_dir:$PATH"
+
+    echo "Using v29 forge: $(forge_version_line "$old_foundry_bin_dir/forge")"
+    echo "Using v31 forge: $(forge_version_line "$new_foundry_bin_dir/forge")"
+}
 
 wait_for_rpc() {
     local url="$1"
@@ -74,6 +188,8 @@ ensure_empty_v31_bridged_tokens_config() {
 }
 
 # ── Phase 0: clean slate, swap to v29 checkout, deploy v29 ecosystem ──────
+
+setup_foundry_dispatch
 
 "$SCRIPT_DIR/reset.sh"
 
