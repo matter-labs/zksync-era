@@ -134,28 +134,28 @@ if [ -d "$ERA_CACHER_WORKING_DIR/.git" ] \
             deploy-scripts/AdminFunctions.s.sol)
                 set -- "$1" "$2:AdminFunctions" "${@:3}"
                 ;;
-            deploy-scripts/DeployCTM.s.sol)
+            deploy-scripts/DeployCTM.s.sol | deploy-scripts/ctm/DeployCTM.s.sol)
                 set -- "$1" "$2:DeployCTMScript" "${@:3}"
                 ;;
-            deploy-scripts/DeployErc20.s.sol)
+            deploy-scripts/DeployErc20.s.sol | deploy-scripts/tokens/DeployErc20.s.sol)
                 set -- "$1" "$2:DeployErc20Script" "${@:3}"
                 ;;
-            deploy-scripts/DeployL1CoreContracts.s.sol)
+            deploy-scripts/DeployL1CoreContracts.s.sol | deploy-scripts/ecosystem/DeployL1CoreContracts.s.sol)
                 set -- "$1" "$2:DeployL1CoreContractsScript" "${@:3}"
                 ;;
-            deploy-scripts/DeployL2Contracts.sol)
+            deploy-scripts/DeployL2Contracts.sol | deploy-scripts/chain/DeployL2Contracts.sol)
                 set -- "$1" "$2:DeployL2Script" "${@:3}"
                 ;;
-            deploy-scripts/DeployPaymaster.s.sol)
+            deploy-scripts/DeployPaymaster.s.sol | deploy-scripts/chain/DeployPaymaster.s.sol)
                 set -- "$1" "$2:DeployPaymaster" "${@:3}"
                 ;;
-            deploy-scripts/EnableEvmEmulator.s.sol)
+            deploy-scripts/EnableEvmEmulator.s.sol | deploy-scripts/chain/EnableEvmEmulator.s.sol)
                 set -- "$1" "$2:EnableEvmEmulator" "${@:3}"
                 ;;
-            deploy-scripts/RegisterCTM.s.sol)
+            deploy-scripts/RegisterCTM.s.sol | deploy-scripts/ecosystem/RegisterCTM.s.sol)
                 set -- "$1" "$2:RegisterCTM" "${@:3}"
                 ;;
-            deploy-scripts/RegisterZKChain.s.sol)
+            deploy-scripts/RegisterZKChain.s.sol | deploy-scripts/ctm/RegisterZKChain.s.sol)
                 set -- "$1" "$2:RegisterZKChainScript" "${@:3}"
                 ;;
             deploy-scripts/dev/SetupLegacyBridge.s.sol)
