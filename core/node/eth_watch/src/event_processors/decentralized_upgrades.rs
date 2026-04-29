@@ -85,6 +85,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
         let mut upgrades = HashMap::new();
+        let mut processed_events = 0;
         for event in &events {
             let version = event
                 .topics
@@ -98,23 +99,26 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 .context("upgrade timestamp is too big")
                 .map_err(EventProcessorError::internal)?;
 
-            let diamond_cuts = self
-                .sl_client
-                .diamond_cuts_since_version(self.last_seen_protocol_version)
-                .await
-                .map_err(EventProcessorError::client)?;
-
             let latest_protocol_version =
                 ProtocolSemanticVersion::try_from_packed(h256_to_u256(version))
                     .map_err(|err| EventProcessorError::internal(anyhow::anyhow!(err)))?;
             if latest_protocol_version <= self.last_seen_protocol_version {
                 // This version has been already processed, skip it.
+                processed_events += 1;
                 continue;
             }
+
+            let diamond_cuts = self
+                .sl_client
+                .diamond_cuts_since_version(self.last_seen_protocol_version)
+                .await
+                .map_err(EventProcessorError::client)?;
             if diamond_cuts.is_empty() {
-                return Err(EventProcessorError::internal(anyhow::anyhow!(
-                    "No diamond cuts found for protocol version {latest_protocol_version}"
-                )));
+                tracing::info!(
+                    %latest_protocol_version,
+                    "Upgrade timestamp observed before diamond cut data; retrying later"
+                );
+                break;
             }
 
             for diamond_cut in diamond_cuts {
@@ -162,6 +166,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     (upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash),
                 );
             }
+            processed_events += 1;
         }
 
         let new_upgrades: Vec<_> = upgrades
@@ -172,7 +177,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             .collect();
 
         let Some((last_upgrade, _, _)) = new_upgrades.last() else {
-            return Ok(events.len());
+            return Ok(processed_events);
         };
         let versions: Vec<_> = new_upgrades
             .iter()
@@ -231,7 +236,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         stage_latency.observe();
 
         self.last_seen_protocol_version = last_version;
-        Ok(events.len())
+        Ok(processed_events)
     }
 
     fn topic1(&self) -> Option<H256> {
