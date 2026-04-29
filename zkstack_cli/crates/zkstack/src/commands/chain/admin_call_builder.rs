@@ -173,7 +173,7 @@ impl AdminCallBuilder {
             .clone();
 
         // Decode the raw diamond_cut_data bytes directly as DiamondCutData struct
-        let diamond_cut_token = decode(&[diamond_cut_param_type.clone()], &diamond_cut_data.0)
+        let diamond_cut_token = decode(std::slice::from_ref(&diamond_cut_param_type), &diamond_cut_data.0)
             .expect("Failed to decode diamond_cut_data")
             .into_iter()
             .next()
