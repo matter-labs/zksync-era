@@ -173,11 +173,14 @@ impl AdminCallBuilder {
             .clone();
 
         // Decode the raw diamond_cut_data bytes directly as DiamondCutData struct
-        let diamond_cut_token = decode(std::slice::from_ref(&diamond_cut_param_type), &diamond_cut_data.0)
-            .expect("Failed to decode diamond_cut_data")
-            .into_iter()
-            .next()
-            .expect("Failed to extract DiamondCutData token");
+        let diamond_cut_token = decode(
+            std::slice::from_ref(&diamond_cut_param_type),
+            &diamond_cut_data.0,
+        )
+        .expect("Failed to decode diamond_cut_data")
+        .into_iter()
+        .next()
+        .expect("Failed to extract DiamondCutData token");
 
         let old_minor = get_minor_protocol_version(U256::from(protocol_version))
             .expect("Failed to unpack old protocol version");
