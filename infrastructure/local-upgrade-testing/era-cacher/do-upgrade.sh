@@ -129,40 +129,6 @@ set -euo pipefail
 
 if [ -d "$ERA_CACHER_WORKING_DIR/.git" ] \
     && [ "$(git -C "$ERA_CACHER_WORKING_DIR" rev-parse HEAD)" = "$ERA_CACHER_OLD_ZKSYNC_REF" ]; then
-    if [ "TOOL" = "forge" ] && [ "${1:-}" = "script" ]; then
-        case "${2:-}" in
-            deploy-scripts/AdminFunctions.s.sol)
-                set -- "$1" "$2:AdminFunctions" "${@:3}"
-                ;;
-            deploy-scripts/DeployCTM.s.sol)
-                set -- "$1" "$2:DeployCTMScript" "${@:3}"
-                ;;
-            deploy-scripts/DeployErc20.s.sol)
-                set -- "$1" "$2:DeployErc20Script" "${@:3}"
-                ;;
-            deploy-scripts/DeployL1CoreContracts.s.sol)
-                set -- "$1" "$2:DeployL1CoreContractsScript" "${@:3}"
-                ;;
-            deploy-scripts/DeployL2Contracts.sol)
-                set -- "$1" "$2:DeployL2Script" "${@:3}"
-                ;;
-            deploy-scripts/DeployPaymaster.s.sol)
-                set -- "$1" "$2:DeployPaymaster" "${@:3}"
-                ;;
-            deploy-scripts/EnableEvmEmulator.s.sol)
-                set -- "$1" "$2:EnableEvmEmulator" "${@:3}"
-                ;;
-            deploy-scripts/RegisterCTM.s.sol)
-                set -- "$1" "$2:RegisterCTM" "${@:3}"
-                ;;
-            deploy-scripts/RegisterZKChain.s.sol)
-                set -- "$1" "$2:RegisterZKChainScript" "${@:3}"
-                ;;
-            deploy-scripts/dev/SetupLegacyBridge.s.sol)
-                set -- "$1" "$2:SetupLegacyBridge" "${@:3}"
-                ;;
-        esac
-    fi
     exec "$ERA_CACHER_OLD_FOUNDRY_BIN_DIR/TOOL" "$@"
 fi
 
