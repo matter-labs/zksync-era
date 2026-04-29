@@ -99,6 +99,43 @@ resolve_foundry_bin_dir() {
     exit 1
 }
 
+ensure_cargo_on_path() {
+    if ! command -v cargo >/dev/null 2>&1 && [ -f "$HOME/.cargo/env" ]; then
+        # Non-interactive shells may not source the Rust toolchain environment.
+        # `zkstackup --local` requires cargo to rebuild the checkout's zkstack.
+        # shellcheck source=/dev/null
+        source "$HOME/.cargo/env"
+    fi
+
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "cargo is required to run zkstackup --local. Install Rust or source ~/.cargo/env." >&2
+        exit 1
+    fi
+}
+
+assert_zkstack_matches_worktree() {
+    local expected_ref
+    expected_ref="$(git -C "$WORKING_DIR" rev-parse HEAD)"
+
+    local version
+    version="$(zkstack --version 2>/dev/null || true)"
+    if [[ "$version" != *"${expected_ref:0:9}"* ]]; then
+        echo "zkstack binary does not match the active zksync-working checkout." >&2
+        echo "Expected commit prefix: ${expected_ref:0:9}" >&2
+        echo "Actual zkstack version:" >&2
+        echo "$version" >&2
+        exit 1
+    fi
+}
+
+install_zkstack_from_worktree() {
+    ensure_cargo_on_path
+    export PATH="$HOME/.local/bin:$PATH"
+
+    (cd "$WORKING_DIR" && zkstackup --local)
+    assert_zkstack_matches_worktree
+}
+
 setup_foundry_dispatch() {
     local old_foundry_bin_dir
     local new_foundry_bin_dir
@@ -179,6 +216,25 @@ wait_for_rpc() {
     return 1
 }
 
+wait_for_tcp() {
+    local host="$1"
+    local port="$2"
+    local label="$3"
+    local max_attempts="${4:-180}"
+    local sleep_seconds="${5:-2}"
+
+    for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+        if timeout 1 bash -c "</dev/tcp/$host/$port" >/dev/null 2>&1; then
+            echo "$label is ready at $host:$port"
+            return 0
+        fi
+        sleep "$sleep_seconds"
+    done
+
+    echo "Timed out waiting for $label at $host:$port" >&2
+    return 1
+}
+
 ensure_empty_v31_bridged_tokens_config() {
     local config_path="$WORKING_DIR/contracts/l1-contracts/script-config/v31-bridged-tokens.toml"
 
@@ -206,8 +262,11 @@ cd "$WORKING_DIR"
 rm -rf etc/reth/chaindata
 cp -a "$NEW_REPO/etc/reth/chaindata" etc/reth/chaindata
 
-zkstackup --local && zkstack dev clean containers && zkstack up --observability false
+install_zkstack_from_worktree
+zkstack dev clean containers
+zkstack up --observability false
 wait_for_rpc "$L1_RPC_URL" "l1"
+wait_for_tcp "127.0.0.1" "5432" "postgres"
 
 zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
     --deploy-ecosystem --l1-rpc-url="$L1_RPC_URL" \
@@ -229,7 +288,7 @@ cd "$WORKSPACE_PARENT"
 "$SCRIPT_DIR/use-new-era.sh"
 cd "$WORKING_DIR"
 
-zkstackup --local
+install_zkstack_from_worktree
 zkstack dev contracts
 
 zkstack dev database migrate --prover false --core true --chain era
