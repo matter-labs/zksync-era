@@ -171,8 +171,8 @@ jobs:
         working-directory: ./proof-manager-contracts
         shell: bash
         run: |
-          # for now these contracts will be pinned to specific commit
-          git checkout 22467ab
+          git fetch origin main --depth=1
+          git checkout origin/main
           git submodule update --init --recursive
 
       - name: Install foundry-zksync
