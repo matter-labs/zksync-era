@@ -227,10 +227,13 @@ impl AirbenderRequestProcessor {
             )));
         }
 
-        // Prev-batch hashes from L1 settlement of batch N-1.
+        // Prev-batch hashes from L1 settlement of batch N-1. For batch 1 we
+        // read the genesis batch (#0) metadata, which `genesis::insert_genesis_batch`
+        // populates at chain bootstrap — so batch 1 is provable. Batch 0 itself has
+        // no predecessor and isn't a valid proving target.
         let prev_number = L1BatchNumber(l1_batch_number.0.checked_sub(1).ok_or_else(|| {
             AirbenderProcessorError::GeneralError(anyhow::anyhow!(
-                "genesis batch ({l1_batch_number}) is not provable via Airbender V2"
+                "batch {l1_batch_number} has no predecessor (only batch 1+ are provable)"
             ))
         })?);
         let prev_metadata = connection
