@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use ethers::{
-    abi::{Function, Param, ParamType, StateMutability, Token},
+    abi::Token,
     contract::BaseContract,
     types::{Address, Bytes},
     utils::hex,
@@ -26,7 +26,7 @@ use zkstack_cli_types::VMOption;
 use zksync_types::{SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
-    abi::IFINALIZEUPGRADEABI_ABI,
+    abi::{ECOSYSTEMUPGRADEV31ABI_ABI, IFINALIZEUPGRADEABI_ABI},
     admin_functions::{governance_execute_calls, AdminScriptMode},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
@@ -207,47 +207,27 @@ fn build_v31_no_governance_prepare_calldata(
     let ctm = contracts_config.ctm(vm_option);
     let governance = contracts_config.l1.governance_addr;
     let zk_token_asset_id = ecosystem_config.l1_network.zk_token_asset_id();
-    #[allow(deprecated)]
-    let ecosystem_upgrade_v31 = Function {
-        name: "noGovernancePrepare".to_string(),
-        inputs: vec![Param {
-            name: "params".to_string(),
-            kind: ParamType::Tuple(vec![
-                ParamType::Address,
-                ParamType::Address,
-                ParamType::Address,
-                ParamType::Address,
-                ParamType::Bool,
-                ParamType::FixedBytes(32),
-                ParamType::String,
-                ParamType::String,
-                ParamType::Address,
-                ParamType::FixedBytes(32),
-            ]),
-            internal_type: Some("struct EcosystemUpgradeParams".to_string()),
-        }],
-        outputs: vec![],
-        constant: None,
-        state_mutability: StateMutability::NonPayable,
-    };
 
-    let calldata = ecosystem_upgrade_v31
-        .encode_input(&[Token::Tuple(vec![
-            Token::Address(
-                contracts_config
-                    .core_ecosystem_contracts
-                    .bridgehub_proxy_addr,
-            ),
-            Token::Address(ctm.state_transition_proxy_addr),
-            Token::Address(ctm.l1_bytecodes_supplier_addr),
-            Token::Address(ctm.l1_rollup_da_manager),
-            Token::Bool(matches!(vm_option, VMOption::ZKSyncOsVM)),
-            Token::FixedBytes(contracts_config.create2_factory_salt.as_bytes().to_vec()),
-            Token::String("/upgrade-envs/v0.31.0-interopB/local.toml".to_string()),
-            Token::String("/script-out/v31-upgrade-ecosystem.toml".to_string()),
-            Token::Address(governance),
-            Token::FixedBytes(zk_token_asset_id.as_bytes().to_vec()),
-        ])])
+    let calldata = ECOSYSTEM_UPGRADE_V31
+        .encode(
+            "noGovernancePrepare",
+            (Token::Tuple(vec![
+                Token::Address(
+                    contracts_config
+                        .core_ecosystem_contracts
+                        .bridgehub_proxy_addr,
+                ),
+                Token::Address(ctm.state_transition_proxy_addr),
+                Token::Address(ctm.l1_bytecodes_supplier_addr),
+                Token::Address(ctm.l1_rollup_da_manager),
+                Token::Bool(matches!(vm_option, VMOption::ZKSyncOsVM)),
+                Token::FixedBytes(contracts_config.create2_factory_salt.as_bytes().to_vec()),
+                Token::String("/upgrade-envs/v0.31.0-interopB/local.toml".to_string()),
+                Token::String("/script-out/v31-upgrade-ecosystem.toml".to_string()),
+                Token::Address(governance),
+                Token::FixedBytes(zk_token_asset_id.as_bytes().to_vec()),
+            ]),),
+        )
         .context("Failed to encode v31 no-governance-prepare calldata")?;
 
     Ok(Bytes::from(calldata))
@@ -469,6 +449,8 @@ async fn governance_stage_2(
 }
 
 lazy_static! {
+    static ref ECOSYSTEM_UPGRADE_V31: BaseContract =
+        BaseContract::from(ECOSYSTEMUPGRADEV31ABI_ABI.clone());
     static ref FINALIZE_UPGRADE: BaseContract = BaseContract::from(IFINALIZEUPGRADEABI_ABI.clone());
 }
 

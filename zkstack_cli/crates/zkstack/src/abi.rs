@@ -146,6 +146,12 @@ abigen!(
 );
 
 abigen!(
+    EcosystemUpgradeV31Abi,
+    "../../../contracts/l1-contracts/zkstack-out/EcosystemUpgrade_v31.s.sol/EcosystemUpgrade_v31.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
     IL1NativeTokenVaultAbi,
     "../../../contracts/l1-contracts/zkstack-out/IL1NativeTokenVault.sol/IL1NativeTokenVault.json",
     event_derives(serde::Deserialize, serde::Serialize)

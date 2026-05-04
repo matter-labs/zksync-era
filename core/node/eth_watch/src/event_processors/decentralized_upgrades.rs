@@ -166,6 +166,8 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     (upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash),
                 );
             }
+            // eth_watch advances its cursor by this return value. If the diamond cut
+            // is not visible yet, leave that event unprocessed so it is retried.
             processed_events += 1;
         }
 
