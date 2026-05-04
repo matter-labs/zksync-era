@@ -230,7 +230,7 @@ fn build_v31_no_governance_prepare_calldata(
         )
         .context("Failed to encode v31 no-governance-prepare calldata")?;
 
-    Ok(Bytes::from(calldata))
+    Ok(calldata)
 }
 
 fn get_broadcast_path(
