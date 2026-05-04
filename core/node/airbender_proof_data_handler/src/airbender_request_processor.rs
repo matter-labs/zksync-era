@@ -6,7 +6,10 @@ use zksync_airbender_prover_interface::{
     api::{
         AirbenderPresentBatchesResponse, SubmitAirbenderProofRequest, SubmitAirbenderProofResponse,
     },
-    inputs::{AirbenderVerifierInput, V1AirbenderVerifierInput},
+    inputs::{
+        AirbenderVerifierInput, BlobHash, CommitmentInput, V1AirbenderVerifierInput,
+        V2AirbenderVerifierInput,
+    },
     outputs::L1BatchAirbenderProofForL1,
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
@@ -14,9 +17,12 @@ use zksync_dal::{
     airbender_proof_generation_dal::{AirbenderProofGenerationJobStatus, LockedBatch},
     ConnectionPool, Core, CoreDal,
 };
+use zksync_l1_contract_interface::i_executor::commit::kzg::{
+    pubdata_to_blob_commitments, pubdata_to_blob_linear_hashes, pubdata_to_blob_versioned_hashes,
+};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
-use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_types::{blob::num_blobs_required, L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
 use crate::{errors::AirbenderProcessorError, metrics::METRICS};
@@ -202,13 +208,83 @@ impl AirbenderRequestProcessor {
                 ))
             })?;
 
-        Ok(AirbenderVerifierInput::V1(V1AirbenderVerifierInput {
+        let v1 = V1AirbenderVerifierInput {
             vm_run_data,
             merkle_paths,
             l2_blocks_execution_data,
             l1_batch_env,
             system_env,
             pubdata_params,
+        };
+
+        // Airbender V2 commitment chain assumes post-1.4.2 protocol semantics
+        // (blob hashes computed from EIP-4844 pubdata).
+        if v1.system_env.version.is_pre_1_4_2() {
+            return Err(AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                "batch {l1_batch_number}: protocol version {:?} is pre-1.4.2 — \
+                 Airbender V2 requires post-1.4.2 batches",
+                v1.system_env.version
+            )));
+        }
+
+        // Prev-batch hashes from L1 settlement of batch N-1.
+        let prev_number = L1BatchNumber(l1_batch_number.0.checked_sub(1).ok_or_else(|| {
+            AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                "genesis batch ({l1_batch_number}) is not provable via Airbender V2"
+            ))
+        })?);
+        let prev_metadata = connection
+            .blocks_dal()
+            .get_l1_batch_metadata(prev_number)
+            .await?
+            .ok_or_else(|| {
+                AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                    "previous batch {prev_number} has no committed metadata yet — \
+                     commitment_generator must run before Airbender V2 proving"
+                ))
+            })?;
+
+        // Blob hashes + EIP-4844 versioned hashes from VM pubdata via KZG.
+        let header = connection
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await?
+            .ok_or_else(|| {
+                AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                    "L1BatchHeader missing for batch {l1_batch_number}"
+                ))
+            })?;
+        let pubdata_input = header.pubdata_input.clone().ok_or_else(|| {
+            AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                "L1BatchHeader is missing pubdata_input for batch {l1_batch_number}"
+            ))
+        })?;
+        let num_blobs = num_blobs_required(&v1.system_env.version);
+
+        let commitments = pubdata_to_blob_commitments(num_blobs, &pubdata_input);
+        let linear_hashes = pubdata_to_blob_linear_hashes(num_blobs, pubdata_input.clone());
+        let versioned_hashes = pubdata_to_blob_versioned_hashes(num_blobs, &pubdata_input);
+
+        let blob_hashes = commitments
+            .into_iter()
+            .zip(linear_hashes)
+            .map(|(commitment, linear_hash)| BlobHash {
+                commitment,
+                linear_hash,
+            })
+            .collect::<Vec<_>>();
+
+        let commitment_input = CommitmentInput {
+            prev_batch_commitment: prev_metadata.metadata.commitment,
+            prev_meta_hash: prev_metadata.metadata.meta_parameters_hash,
+            prev_aux_hash: prev_metadata.metadata.aux_data_hash,
+            blob_hashes,
+            blob_versioned_hashes: versioned_hashes,
+        };
+
+        Ok(AirbenderVerifierInput::V2(V2AirbenderVerifierInput {
+            v1,
+            commitment_input,
         }))
     }
 

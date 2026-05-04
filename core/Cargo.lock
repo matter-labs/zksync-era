@@ -13528,6 +13528,7 @@ dependencies = [
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
+ "zksync_l1_contract_interface",
  "zksync_multivm",
  "zksync_node_framework",
  "zksync_object_store",
