@@ -42,12 +42,27 @@ pub(crate) trait CommitmentComputer: fmt::Debug + Send + Sync + 'static {
 #[derive(Debug)]
 pub(crate) struct AirbenderCommitmentComputer;
 
+impl AirbenderCommitmentComputer {
+    /// Airbender is currently deployed only against `Version31`. Reject other
+    /// versions so a producer mismatch surfaces here rather than as a silent
+    /// commitment divergence on L1.
+    fn ensure_supported(protocol_version: ProtocolVersionId) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            protocol_version == ProtocolVersionId::Version31,
+            "AirbenderCommitmentComputer only supports {:?}, got {protocol_version:?}",
+            ProtocolVersionId::Version31,
+        );
+        Ok(())
+    }
+}
+
 impl CommitmentComputer for AirbenderCommitmentComputer {
     fn events_queue_commitment(
         &self,
         _events_queue: &[LogQuery],
-        _protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<H256> {
+        Self::ensure_supported(protocol_version)?;
         // Airbender's L1 verifier doesn't include an events-queue commitment
         // in the auxiliary output; it's hashed in as zero. The Airbender RISC-V
         // verifier mirrors this in `crates/airbender_verifier/src/lib.rs` —
@@ -60,11 +75,8 @@ impl CommitmentComputer for AirbenderCommitmentComputer {
         initial_bootloader_contents: &[(usize, U256)],
         protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<H256> {
-        let expanded_memory_size = if protocol_version.is_pre_boojum() {
-            anyhow::bail!("Unsupported protocol version: {protocol_version:?}");
-        } else {
-            get_used_bootloader_memory_bytes(protocol_version.into())
-        };
+        Self::ensure_supported(protocol_version)?;
+        let expanded_memory_size = get_used_bootloader_memory_bytes(protocol_version.into());
 
         let full_bootloader_memory =
             expand_memory_contents(initial_bootloader_contents, expanded_memory_size);
