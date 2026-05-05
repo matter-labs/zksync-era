@@ -18,17 +18,6 @@ pub struct BlobHash {
     pub linear_hash: H256,
 }
 
-/// Version 1 of the data used as input for the airbender verifier.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct V1AirbenderVerifierInput {
-    pub vm_run_data: VMRunWitnessInputData,
-    pub merkle_paths: WitnessInputMerklePaths,
-    pub l2_blocks_execution_data: Vec<L2BlockExecutionData>,
-    pub l1_batch_env: L1BatchEnv,
-    pub system_env: SystemEnv,
-    pub pubdata_params: PubdataParams,
-}
-
 /// L1-settlement-bound data needed to verify the batch commitment chain.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CommitmentInput {
@@ -44,17 +33,19 @@ pub struct CommitmentInput {
     pub blob_versioned_hashes: Vec<H256>,
 }
 
-/// Version 2 of the verifier input: V1 plus the L1 commitment chain context.
+/// Data fed to the Airbender verifier.
+///
+/// `commitment_input` is `Some` when the producer can populate it (i.e., the
+/// previous batch has L1 settlement metadata available); `None` for VM-only
+/// consumers. The verifier requires `Some` for full proving.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct V2AirbenderVerifierInput {
-    pub v1: V1AirbenderVerifierInput,
-    pub commitment_input: CommitmentInput,
-}
-
-/// Data used as input for the airbender verifier.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[non_exhaustive]
-#[allow(clippy::large_enum_variant)]
-pub enum AirbenderVerifierInput {
-    V2(V2AirbenderVerifierInput),
+pub struct AirbenderVerifierInput {
+    pub vm_run_data: VMRunWitnessInputData,
+    pub merkle_paths: WitnessInputMerklePaths,
+    pub l2_blocks_execution_data: Vec<L2BlockExecutionData>,
+    pub l1_batch_env: L1BatchEnv,
+    pub system_env: SystemEnv,
+    pub pubdata_params: PubdataParams,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commitment_input: Option<CommitmentInput>,
 }

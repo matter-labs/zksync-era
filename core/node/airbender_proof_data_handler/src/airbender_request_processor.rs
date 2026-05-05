@@ -6,10 +6,7 @@ use zksync_airbender_prover_interface::{
     api::{
         AirbenderPresentBatchesResponse, SubmitAirbenderProofRequest, SubmitAirbenderProofResponse,
     },
-    inputs::{
-        AirbenderVerifierInput, BlobHash, CommitmentInput, V1AirbenderVerifierInput,
-        V2AirbenderVerifierInput,
-    },
+    inputs::{AirbenderVerifierInput, BlobHash, CommitmentInput},
     outputs::L1BatchAirbenderProofForL1,
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
@@ -208,22 +205,13 @@ impl AirbenderRequestProcessor {
                 ))
             })?;
 
-        let v1 = V1AirbenderVerifierInput {
-            vm_run_data,
-            merkle_paths,
-            l2_blocks_execution_data,
-            l1_batch_env,
-            system_env,
-            pubdata_params,
-        };
-
         // Airbender V2 commitment chain assumes post-1.4.2 protocol semantics
         // (blob hashes computed from EIP-4844 pubdata).
-        if v1.system_env.version.is_pre_1_4_2() {
+        if system_env.version.is_pre_1_4_2() {
             return Err(AirbenderProcessorError::GeneralError(anyhow::anyhow!(
                 "batch {l1_batch_number}: protocol version {:?} is pre-1.4.2 — \
                  Airbender V2 requires post-1.4.2 batches",
-                v1.system_env.version
+                system_env.version
             )));
         }
 
@@ -276,7 +264,7 @@ impl AirbenderRequestProcessor {
                 "L1BatchHeader is missing pubdata_input for batch {l1_batch_number}"
             ))
         })?;
-        let num_blobs = num_blobs_required(&v1.system_env.version);
+        let num_blobs = num_blobs_required(&system_env.version);
 
         let commitments = pubdata_to_blob_commitments(num_blobs, &pubdata_input);
         let linear_hashes = pubdata_to_blob_linear_hashes(num_blobs, pubdata_input.clone());
@@ -299,10 +287,15 @@ impl AirbenderRequestProcessor {
             blob_versioned_hashes: versioned_hashes,
         };
 
-        Ok(AirbenderVerifierInput::V2(V2AirbenderVerifierInput {
-            v1,
-            commitment_input,
-        }))
+        Ok(AirbenderVerifierInput {
+            vm_run_data,
+            merkle_paths,
+            l2_blocks_execution_data,
+            l1_batch_env,
+            system_env,
+            pubdata_params,
+            commitment_input: Some(commitment_input),
+        })
     }
 
     async fn lock_batch_for_proving(

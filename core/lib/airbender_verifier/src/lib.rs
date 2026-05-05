@@ -5,7 +5,7 @@
 //! merkle path.
 
 use anyhow::{bail, Context, Result};
-use zksync_airbender_prover_interface::inputs::V1AirbenderVerifierInput;
+use zksync_airbender_prover_interface::inputs::AirbenderVerifierInput;
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof, ValueHash,
@@ -39,7 +39,7 @@ pub trait Verify {
     fn verify(self) -> anyhow::Result<VerificationResult>;
 }
 
-impl Verify for V1AirbenderVerifierInput {
+impl Verify for AirbenderVerifierInput {
     /// Verify that the L1Batch produces the expected root hash
     /// by executing the VM and verifying the merkle paths of all
     /// touch storage slots.
@@ -320,7 +320,7 @@ mod tests {
 
     #[test]
     fn test_v1_json_serialization_roundtrip() {
-        let tvi = V1AirbenderVerifierInput {
+        let tvi = AirbenderVerifierInput {
             vm_run_data: VMRunWitnessInputData {
                 l1_batch_number: Default::default(),
                 used_bytecodes: Default::default(),
@@ -378,8 +378,8 @@ mod tests {
                 Default::default(),
             )
             .unwrap(),
+            commitment_input: None,
         };
-        let tvi = AirbenderVerifierInput::V1(tvi);
         let serialized =
             serde_json::to_vec(&tvi).expect("Failed to serialize AirbenderVerifierInput.");
         let deserialized: AirbenderVerifierInput = serde_json::from_slice(&serialized)
