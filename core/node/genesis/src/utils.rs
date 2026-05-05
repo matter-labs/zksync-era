@@ -11,7 +11,7 @@ use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
     block::{DeployedContract, L1BatchTreeData},
     bytecode::BytecodeHash,
-    commitment::L1BatchCommitment,
+    commitment::{AirbenderBatchCommitment, L1BatchCommitment},
     get_code_key, get_known_code_key, get_system_context_init_logs, h256_to_u256,
     tokens::{TokenInfo, TokenMetadata},
     u256_to_h256,
@@ -169,7 +169,7 @@ pub(super) async fn save_genesis_l1_batch_metadata(
     // variant's `commitment` and `aux_data_hash` match Boojum's exactly.
     // Persist them here so the V2 producer can read batch 0's row when
     // building V2 input for batch 1.
-    let airbender_genesis = zksync_types::commitment::AirbenderBatchCommitment {
+    let airbender_genesis = AirbenderBatchCommitment {
         commitment: commitment_artifacts.commitment_hash.commitment,
         aux_data_hash: commitment_artifacts.commitment_hash.aux_output,
         events_queue_commitment: H256::zero(),

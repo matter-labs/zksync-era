@@ -319,7 +319,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_v1_json_serialization_roundtrip() {
+    fn test_airbender_input_json_serialization_roundtrip() {
         let tvi = AirbenderVerifierInput {
             vm_run_data: VMRunWitnessInputData {
                 l1_batch_number: Default::default(),

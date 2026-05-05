@@ -10,7 +10,6 @@ use zk_evm_1_5_2::{
 };
 use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_multivm::{interface::VmEvent, utils::get_used_bootloader_memory_bytes};
 use zksync_system_constants::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::{
@@ -42,27 +41,16 @@ pub(crate) trait CommitmentComputer: fmt::Debug + Send + Sync + 'static {
 #[derive(Debug)]
 pub(crate) struct AirbenderCommitmentComputer;
 
-impl AirbenderCommitmentComputer {
-    /// Airbender is currently deployed only against `Version31`. Reject other
-    /// versions so a producer mismatch surfaces here rather than as a silent
-    /// commitment divergence on L1.
-    fn ensure_supported(protocol_version: ProtocolVersionId) -> anyhow::Result<()> {
-        anyhow::ensure!(
-            protocol_version == ProtocolVersionId::Version31,
-            "AirbenderCommitmentComputer only supports {:?}, got {protocol_version:?}",
-            ProtocolVersionId::Version31,
-        );
-        Ok(())
-    }
-}
-
+// Airbender is currently designed and tested against `ProtocolVersionId::Version31`;
+// the hash strategy below works for any post-Boojum version, but the L1 verifier
+// is only deployed against v31. Computing the row for other post-Boojum versions
+// is harmless — the row is unused on chains that don't enable Airbender proving.
 impl CommitmentComputer for AirbenderCommitmentComputer {
     fn events_queue_commitment(
         &self,
         _events_queue: &[LogQuery],
-        protocol_version: ProtocolVersionId,
+        _protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<H256> {
-        Self::ensure_supported(protocol_version)?;
         // Airbender's L1 verifier doesn't include an events-queue commitment
         // in the auxiliary output; it's hashed in as zero. The Airbender RISC-V
         // verifier mirrors this in `crates/airbender_verifier/src/lib.rs` —
@@ -75,7 +63,10 @@ impl CommitmentComputer for AirbenderCommitmentComputer {
         initial_bootloader_contents: &[(usize, U256)],
         protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<H256> {
-        Self::ensure_supported(protocol_version)?;
+        anyhow::ensure!(
+            !protocol_version.is_pre_boojum(),
+            "Unsupported protocol version: {protocol_version:?}",
+        );
         let expanded_memory_size = get_used_bootloader_memory_bytes(protocol_version.into());
 
         let full_bootloader_memory =
@@ -221,32 +212,6 @@ pub(crate) fn convert_vm_events_to_log_queries(events: &[VmEvent]) -> Vec<LogQue
                 .collect::<Vec<_>>()
         })
         .collect()
-}
-
-pub(crate) fn pubdata_to_blob_linear_hashes(
-    blobs_required: usize,
-    mut pubdata_input: Vec<u8>,
-) -> Vec<H256> {
-    // Now, we need to calculate the linear hashes of the blobs.
-    // Firstly, let's pad the pubdata to the size of the blob.
-    if pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB != 0 {
-        pubdata_input.resize(
-            pubdata_input.len()
-                + (ZK_SYNC_BYTES_PER_BLOB - pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB),
-            0,
-        );
-    }
-
-    let mut result = vec![H256::zero(); blobs_required];
-
-    pubdata_input
-        .chunks(ZK_SYNC_BYTES_PER_BLOB)
-        .enumerate()
-        .for_each(|(i, chunk)| {
-            result[i] = H256(keccak256(chunk));
-        });
-
-    result
 }
 
 pub(crate) async fn read_aggregation_root(

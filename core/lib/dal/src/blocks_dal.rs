@@ -3055,9 +3055,9 @@ impl BlocksDal<'_, '_> {
     /// Persists the Airbender-shape commitment artifacts for an L1 batch.
     ///
     /// Idempotent on retry via `ON CONFLICT DO NOTHING`: if a row already exists
-    /// for `number`, the new write is a no-op. Mirrors the behaviour of
-    /// [`Self::save_l1_batch_commitment_artifacts`], which uses
-    /// `WHERE commitment IS NULL` for the same purpose.
+    /// for `number`, the new write is a no-op (it is NOT replaced — divergent
+    /// values would be silently swallowed; the assumption is that
+    /// `commitment_generator` is deterministic for a given batch).
     pub async fn save_airbender_batch_commitment(
         &mut self,
         number: L1BatchNumber,
@@ -3093,7 +3093,8 @@ impl BlocksDal<'_, '_> {
 
     /// Returns the Airbender-shape commitment artifacts for an L1 batch, or
     /// `None` if no row exists yet (commitment generator hasn't run for that
-    /// batch, or the batch is pre-1.4.2).
+    /// batch, or the batch is pre-Boojum — `commitment_generator` skips
+    /// Airbender for those).
     pub async fn get_airbender_batch_commitment(
         &mut self,
         number: L1BatchNumber,

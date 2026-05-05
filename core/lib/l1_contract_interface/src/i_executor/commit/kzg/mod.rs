@@ -24,12 +24,12 @@ pub fn pubdata_to_blob_versioned_hashes(num_blobs: usize, pubdata_input: &[u8]) 
 
 /// Compute the keccak256 linear hash for each blob in `pubdata_input`.
 ///
-/// Mirrors `pubdata_to_blob_linear_hashes` from `commitment_generator::utils`,
-/// relocated here so all three pubdata-derived helpers
-/// (`commitments`, `linear_hashes`, `versioned_hashes`) live next to each other.
 /// Pubdata is padded to a multiple of `ZK_SYNC_BYTES_PER_BLOB`; the resulting
 /// vector has `blobs_required` entries, with empty slots set to `H256::zero()`.
-pub fn pubdata_to_blob_linear_hashes(blobs_required: usize, mut pubdata_input: Vec<u8>) -> Vec<H256> {
+pub fn pubdata_to_blob_linear_hashes(
+    blobs_required: usize,
+    mut pubdata_input: Vec<u8>,
+) -> Vec<H256> {
     if pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB != 0 {
         pubdata_input.resize(
             pubdata_input.len()

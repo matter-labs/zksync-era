@@ -259,7 +259,7 @@ impl AirbenderRequestProcessor {
                     "L1BatchHeader missing for batch {l1_batch_number}"
                 ))
             })?;
-        let pubdata_input = header.pubdata_input.clone().ok_or_else(|| {
+        let pubdata_input = header.pubdata_input.ok_or_else(|| {
             AirbenderProcessorError::GeneralError(anyhow::anyhow!(
                 "L1BatchHeader is missing pubdata_input for batch {l1_batch_number}"
             ))
@@ -267,8 +267,8 @@ impl AirbenderRequestProcessor {
         let num_blobs = num_blobs_required(&system_env.version);
 
         let commitments = pubdata_to_blob_commitments(num_blobs, &pubdata_input);
-        let linear_hashes = pubdata_to_blob_linear_hashes(num_blobs, pubdata_input.clone());
         let versioned_hashes = pubdata_to_blob_versioned_hashes(num_blobs, &pubdata_input);
+        let linear_hashes = pubdata_to_blob_linear_hashes(num_blobs, pubdata_input);
 
         let blob_hashes = commitments
             .into_iter()

@@ -6,7 +6,9 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_instrument::alloc::AllocationGuard;
-use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
+use zksync_l1_contract_interface::i_executor::commit::kzg::{
+    pubdata_to_blob_commitments, pubdata_to_blob_linear_hashes,
+};
 use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_types::{
     blob::num_blobs_required,
@@ -23,8 +25,8 @@ use zksync_types::{
 use crate::{
     metrics::{CommitmentStage, METRICS},
     utils::{
-        convert_vm_events_to_log_queries, pubdata_to_blob_linear_hashes, read_aggregation_root,
-        AirbenderCommitmentComputer, CommitmentComputer, RealCommitmentComputer,
+        convert_vm_events_to_log_queries, read_aggregation_root, AirbenderCommitmentComputer,
+        CommitmentComputer, RealCommitmentComputer,
     },
 };
 
@@ -45,13 +47,10 @@ struct CommitmentArtifactsBoth {
     airbender: Option<AirbenderBatchCommitment>,
 }
 
-/// Replace the `aux_commitments` field of a post-Boojum `CommitmentInput`
-/// in-place. Used to derive the Airbender-shape input from the Boojum input
-/// without re-fetching upstream data.
-///
-/// Panics for `PreBoojum` because Airbender's variant only applies to
-/// post-Boojum batches; the caller filters on `Option<AuxCommitments>` so
-/// this branch is unreachable in practice.
+/// Returns a copy of `input` with `aux_commitments` replaced by `aux`. Used to
+/// derive the Airbender-shape input from the Boojum input without re-fetching
+/// upstream data. Pre-Boojum is unreachable because the caller only invokes
+/// this when an Airbender `aux` is available, which never happens for pre-Boojum.
 fn override_aux_commitments(input: CommitmentInput, aux: AuxCommitments) -> CommitmentInput {
     match input {
         CommitmentInput::PostBoojum {
