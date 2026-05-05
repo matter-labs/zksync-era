@@ -328,6 +328,27 @@ pub struct BlobHash {
     pub linear_hash: H256,
 }
 
+/// Airbender-shape commitment for a single L1 batch.
+///
+/// Persisted in `airbender_batch_commitments` alongside the Boojum-shape row
+/// in `l1_batches`. The two variants share `pass_through_data_hash` and
+/// `meta_parameters_hash` (same math); they differ only in the inner
+/// `aux_commitments` (Airbender uses `H256::zero()` for the events queue and
+/// `Blake2(expanded_heap)` for the bootloader content commitment), which
+/// cascades into a different `aux_data_hash` and `commitment`.
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
+pub struct AirbenderBatchCommitment {
+    /// Top-level L1BatchCommitment hash with Airbender-shape aux_commitments.
+    pub commitment: H256,
+    /// Auxiliary output hash with Airbender-shape aux_commitments.
+    pub aux_data_hash: H256,
+    /// Always `H256::zero()` for now — kept addressable for debugging.
+    pub events_queue_commitment: H256,
+    /// `Blake2(expanded_bootloader_memory)` — the Airbender variant of the
+    /// bootloader initial content commitment.
+    pub bootloader_initial_content_commitment: H256,
+}
+
 /// Block Output produced by Virtual Machine
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]

@@ -163,6 +163,23 @@ pub(super) async fn save_genesis_l1_batch_metadata(
         .save_l1_batch_commitment_artifacts(L1BatchNumber(0), &commitment_artifacts)
         .await?;
 
+    // Genesis batch's `aux_commitments` are zero in both variants
+    // (`events_queue_commitment` and `bootloader_initial_content_commitment`
+    // are zero per `CommitmentInput::for_genesis_batch`), so the Airbender
+    // variant's `commitment` and `aux_data_hash` match Boojum's exactly.
+    // Persist them here so the V2 producer can read batch 0's row when
+    // building V2 input for batch 1.
+    let airbender_genesis = zksync_types::commitment::AirbenderBatchCommitment {
+        commitment: commitment_artifacts.commitment_hash.commitment,
+        aux_data_hash: commitment_artifacts.commitment_hash.aux_output,
+        events_queue_commitment: H256::zero(),
+        bootloader_initial_content_commitment: H256::zero(),
+    };
+    transaction
+        .blocks_dal()
+        .save_airbender_batch_commitment(L1BatchNumber(0), &airbender_genesis)
+        .await?;
+
     transaction.commit().await?;
     Ok(())
 }

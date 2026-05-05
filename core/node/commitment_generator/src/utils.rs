@@ -8,6 +8,7 @@ use zk_evm_1_5_2::{
     aux_structures::Timestamp as Timestamp_1_5_2,
     zk_evm_abstractions::queries::LogQuery as LogQuery_1_5_2,
 };
+use zksync_crypto_primitives::hasher::{blake2::Blake2Hasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_multivm::{interface::VmEvent, utils::get_used_bootloader_memory_bytes};
@@ -36,6 +37,42 @@ pub(crate) trait CommitmentComputer: fmt::Debug + Send + Sync + 'static {
         initial_bootloader_contents: &[(usize, U256)],
         protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<H256>;
+}
+
+#[derive(Debug)]
+pub(crate) struct AirbenderCommitmentComputer;
+
+impl CommitmentComputer for AirbenderCommitmentComputer {
+    fn events_queue_commitment(
+        &self,
+        _events_queue: &[LogQuery],
+        _protocol_version: ProtocolVersionId,
+    ) -> anyhow::Result<H256> {
+        // Airbender's L1 verifier doesn't include an events-queue commitment
+        // in the auxiliary output; it's hashed in as zero. The Airbender RISC-V
+        // verifier mirrors this in `crates/airbender_verifier/src/lib.rs` —
+        // any change here must be matched there.
+        Ok(H256::zero())
+    }
+
+    fn bootloader_initial_content_commitment(
+        &self,
+        initial_bootloader_contents: &[(usize, U256)],
+        protocol_version: ProtocolVersionId,
+    ) -> anyhow::Result<H256> {
+        let expanded_memory_size = if protocol_version.is_pre_boojum() {
+            anyhow::bail!("Unsupported protocol version: {protocol_version:?}");
+        } else {
+            get_used_bootloader_memory_bytes(protocol_version.into())
+        };
+
+        let full_bootloader_memory =
+            expand_memory_contents(initial_bootloader_contents, expanded_memory_size);
+        // Airbender's RISC-V verifier hashes the expanded bootloader memory
+        // with Blake2 (`Blake2Hasher.hash_bytes(&state.expanded_heap)` in
+        // `crates/airbender_verifier/src/lib.rs`). This must stay in sync.
+        Ok(Blake2Hasher.hash_bytes(&full_bootloader_memory))
+    }
 }
 
 #[derive(Debug)]
@@ -244,4 +281,40 @@ fn n_dim_array_key_in_layout(array_key: usize, indices: &[U256]) -> H256 {
     }
 
     key
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// AirbenderCommitmentComputer's events_queue_commitment is unconditionally zero —
+    /// the Airbender L1 verifier doesn't include events queue in its aux output.
+    #[test]
+    fn airbender_events_queue_commitment_is_zero() {
+        let computer = AirbenderCommitmentComputer;
+        let result = computer
+            .events_queue_commitment(&[], ProtocolVersionId::latest())
+            .expect("zero-args call should succeed");
+        assert_eq!(result, H256::zero());
+    }
+
+    /// Bootloader content commitment is `Blake2(expanded_memory)`. This pins the
+    /// math against accidental changes — the Airbender RISC-V verifier in
+    /// `crates/airbender_verifier/src/lib.rs` mirrors this exactly.
+    #[test]
+    fn airbender_bootloader_commitment_is_blake2_of_expanded_memory() {
+        let computer = AirbenderCommitmentComputer;
+        let pv = ProtocolVersionId::latest();
+        let contents = vec![(0, U256::from(42))];
+
+        let actual = computer
+            .bootloader_initial_content_commitment(&contents, pv)
+            .expect("post-Boojum bootloader content commitment should succeed");
+
+        let expected_size = get_used_bootloader_memory_bytes(pv.into());
+        let expected_memory = expand_memory_contents(&contents, expected_size);
+        let expected = Blake2Hasher.hash_bytes(&expected_memory);
+
+        assert_eq!(actual, expected);
+    }
 }

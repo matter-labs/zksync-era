@@ -11,8 +11,9 @@ use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_types::{
     blob::num_blobs_required,
     commitment::{
-        AuxCommitments, BlobHash, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
-        L1BatchCommitment, L1BatchCommitmentArtifacts, L1BatchCommitmentMode,
+        AirbenderBatchCommitment, AuxCommitments, BlobHash, CommitmentCommonInput, CommitmentInput,
+        L1BatchAuxiliaryOutput, L1BatchCommitment, L1BatchCommitmentArtifacts,
+        L1BatchCommitmentMode,
     },
     h256_to_u256,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -23,9 +24,55 @@ use crate::{
     metrics::{CommitmentStage, METRICS},
     utils::{
         convert_vm_events_to_log_queries, pubdata_to_blob_linear_hashes, read_aggregation_root,
-        CommitmentComputer, RealCommitmentComputer,
+        AirbenderCommitmentComputer, CommitmentComputer, RealCommitmentComputer,
     },
 };
+
+/// Both Boojum and Airbender variants of the auxiliary commitments for a single
+/// L1 batch. Airbender uses lighter math for two of the four sub-hashes; the
+/// other two come out identical.
+struct AuxCommitmentsBoth {
+    boojum: AuxCommitments,
+    airbender: AuxCommitments,
+}
+
+/// Both Boojum and Airbender variants of the per-batch commitment artifacts.
+/// `boojum` holds everything zksync-era already persisted in `l1_batches`.
+/// `airbender` holds the four hashes that go into `airbender_batch_commitments`.
+struct CommitmentArtifactsBoth {
+    boojum: L1BatchCommitmentArtifacts,
+    airbender: AirbenderBatchCommitment,
+}
+
+/// Replace the `aux_commitments` field of a post-Boojum `CommitmentInput`
+/// in-place. Used to derive the Airbender-shape input from the Boojum input
+/// without re-fetching upstream data.
+///
+/// Panics for `PreBoojum` because Airbender's variant only applies to
+/// post-Boojum batches; the caller filters on `Option<AuxCommitments>` so
+/// this branch is unreachable in practice.
+fn override_aux_commitments(input: CommitmentInput, aux: AuxCommitments) -> CommitmentInput {
+    match input {
+        CommitmentInput::PostBoojum {
+            common,
+            system_logs,
+            state_diffs,
+            blob_hashes,
+            aggregation_root,
+            ..
+        } => CommitmentInput::PostBoojum {
+            common,
+            system_logs,
+            state_diffs,
+            aux_commitments: aux,
+            blob_hashes,
+            aggregation_root,
+        },
+        CommitmentInput::PreBoojum { .. } => {
+            unreachable!("Airbender variant only applies to post-Boojum batches")
+        }
+    }
+}
 
 mod metrics;
 pub mod node;
@@ -81,7 +128,7 @@ impl CommitmentGenerator {
         &self,
         l1_batch_number: L1BatchNumber,
         protocol_version: ProtocolVersionId,
-    ) -> anyhow::Result<AuxCommitments> {
+    ) -> anyhow::Result<AuxCommitmentsBoth> {
         let mut connection = self
             .connection_pool
             .connection_tagged("commitment_generator")
@@ -105,6 +152,24 @@ impl CommitmentGenerator {
                 format!("Bootloader initial heap is missing for L1 batch #{l1_batch_number}")
             })?;
         drop(connection);
+
+        // Airbender's variant: events_queue commitment is unconditionally zero
+        // and bootloader content commitment is `Blake2(expanded_heap)`. Both
+        // are sub-millisecond — compute inline before the (more expensive)
+        // Boojum spawn_blocking takes ownership of `initial_bootloader_contents`.
+        let airbender_aux = {
+            let _guard = AllocationGuard::for_operation("commitment_generator#airbender");
+            let computer = AirbenderCommitmentComputer;
+            AuxCommitments {
+                events_queue_commitment: computer
+                    .events_queue_commitment(&events_queue, protocol_version)?,
+                bootloader_initial_content_commitment: computer
+                    .bootloader_initial_content_commitment(
+                        &initial_bootloader_contents,
+                        protocol_version,
+                    )?,
+            }
+        };
 
         let computer = self.computer.clone();
         let span = tracing::Span::current();
@@ -148,9 +213,14 @@ impl CommitmentGenerator {
                 )
             })??;
 
-        Ok(AuxCommitments {
+        let boojum_aux = AuxCommitments {
             events_queue_commitment,
             bootloader_initial_content_commitment,
+        };
+
+        Ok(AuxCommitmentsBoth {
+            boojum: boojum_aux,
+            airbender: airbender_aux,
         })
     }
 
@@ -159,7 +229,7 @@ impl CommitmentGenerator {
         &self,
         l1_batch_number: L1BatchNumber,
         commitment_mode: L1BatchCommitmentMode,
-    ) -> anyhow::Result<CommitmentInput> {
+    ) -> anyhow::Result<(CommitmentInput, Option<AuxCommitments>)> {
         tracing::info!("Started preparing commitment input for L1 batch #{l1_batch_number}");
 
         let mut connection = self
@@ -206,7 +276,7 @@ impl CommitmentGenerator {
             .await?;
         drop(connection);
 
-        let mut input = if protocol_version.is_pre_boojum() {
+        let (mut input, airbender_aux) = if protocol_version.is_pre_boojum() {
             let mut initial_writes = Vec::new();
             let mut repeated_writes = Vec::new();
             for (key, value) in touched_slots.into_iter().sorted_by_key(|(key, _)| *key) {
@@ -230,13 +300,16 @@ impl CommitmentGenerator {
                 }
             }
 
-            CommitmentInput::PreBoojum {
-                common,
-                initial_writes,
-                repeated_writes,
-            }
+            (
+                CommitmentInput::PreBoojum {
+                    common,
+                    initial_writes,
+                    repeated_writes,
+                },
+                None, // Airbender variant only applies to post-Boojum batches.
+            )
         } else {
-            let aux_commitments = self
+            let aux_commitments_both = self
                 .calculate_aux_commitments(header.number, protocol_version)
                 .await?;
 
@@ -310,43 +383,73 @@ impl CommitmentGenerator {
                 read_aggregation_root(&mut connection, l1_batch_number).await?
             };
 
-            CommitmentInput::PostBoojum {
-                common,
-                system_logs: header.system_logs,
-                state_diffs,
-                aux_commitments,
-                blob_hashes,
-                aggregation_root,
-            }
+            (
+                CommitmentInput::PostBoojum {
+                    common,
+                    system_logs: header.system_logs,
+                    state_diffs,
+                    aux_commitments: aux_commitments_both.boojum,
+                    blob_hashes,
+                    aggregation_root,
+                },
+                Some(aux_commitments_both.airbender),
+            )
         };
 
         self.tweak_input(&mut input, commitment_mode);
-        Ok(input)
+        Ok((input, airbender_aux))
     }
 
     #[tracing::instrument(skip(self))]
     async fn process_batch(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<L1BatchCommitmentArtifacts> {
+    ) -> anyhow::Result<CommitmentArtifactsBoth> {
         let commitment_mode = self.get_commitment_mode(l1_batch_number).await?;
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
-        let input = self.prepare_input(l1_batch_number, commitment_mode).await?;
+        let (input, airbender_aux) = self.prepare_input(l1_batch_number, commitment_mode).await?;
         let latency = latency.observe();
         tracing::debug!("Prepared commitment input for L1 batch #{l1_batch_number} in {latency:?}");
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::Calculate].start();
-        let mut commitment = L1BatchCommitment::new(input, self.disable_sanity_checks)?;
+
+        // Boojum artifacts (existing path, unchanged).
+        let mut commitment = L1BatchCommitment::new(input.clone(), self.disable_sanity_checks)?;
         self.post_process_commitment(&mut commitment, commitment_mode);
-        let artifacts = commitment.artifacts()?;
+        let boojum_artifacts = commitment.artifacts()?;
+
+        // Airbender artifacts: same input but with `aux_commitments` swapped to
+        // the Airbender variant. Only post-Boojum batches have an Airbender
+        // variant; pre-Boojum batches default to zero hashes (those rows won't
+        // be queried by the V2 producer, which refuses pre-1.4.2 anyway).
+        let airbender = if let Some(airbender_aux) = airbender_aux {
+            let airbender_input = override_aux_commitments(input, airbender_aux);
+            let mut airbender_commitment =
+                L1BatchCommitment::new(airbender_input, self.disable_sanity_checks)?;
+            self.post_process_commitment(&mut airbender_commitment, commitment_mode);
+            let airbender_artifacts = airbender_commitment.artifacts()?;
+            AirbenderBatchCommitment {
+                commitment: airbender_artifacts.commitment_hash.commitment,
+                aux_data_hash: airbender_artifacts.commitment_hash.aux_output,
+                events_queue_commitment: airbender_aux.events_queue_commitment,
+                bootloader_initial_content_commitment: airbender_aux
+                    .bootloader_initial_content_commitment,
+            }
+        } else {
+            AirbenderBatchCommitment::default()
+        };
+
         let latency = latency.observe();
         tracing::debug!(
             "Generated commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
         );
-        Ok(artifacts)
+        Ok(CommitmentArtifactsBoth {
+            boojum: boojum_artifacts,
+            airbender,
+        })
     }
 
     async fn get_commitment_mode(
@@ -392,8 +495,17 @@ impl CommitmentGenerator {
                 METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
             connection
                 .blocks_dal()
-                .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
+                .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts.boojum)
                 .await?;
+            // Persist Airbender variant only for post-Boojum batches (pre-Boojum
+            // batches don't have a meaningful Airbender variant; the V2 producer
+            // refuses them anyway).
+            if artifacts.airbender != AirbenderBatchCommitment::default() {
+                connection
+                    .blocks_dal()
+                    .save_airbender_batch_commitment(l1_batch_number, &artifacts.airbender)
+                    .await?;
+            }
             let latency = latency.observe();
             tracing::debug!(
                 "Stored commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"

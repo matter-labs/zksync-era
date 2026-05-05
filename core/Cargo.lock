@@ -13700,6 +13700,7 @@ dependencies = [
  "vise",
  "zk_evm 0.153.8-1",
  "zksync_contracts",
+ "zksync_crypto_primitives",
  "zksync_dal",
  "zksync_eth_client",
  "zksync_health_check",

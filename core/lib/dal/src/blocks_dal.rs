@@ -22,7 +22,9 @@ use zksync_types::{
         CommonBlockStatistics, CommonL1BatchHeader, L1BatchHeader, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
-    commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
+    commitment::{
+        AirbenderBatchCommitment, L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams,
+    },
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     settlement::SettlementLayer,
     writes::TreeWrite,
@@ -3047,6 +3049,81 @@ impl BlocksDal<'_, '_> {
                 .into_l1_batch_header_with_logs(l2_to_l1_logs)
                 .map_err(|err| instrumentation.constraint_error(err))?,
             metadata: l1_batch.try_into(),
+        }))
+    }
+
+    /// Persists the Airbender-shape commitment artifacts for an L1 batch.
+    ///
+    /// Idempotent on retry via `ON CONFLICT DO NOTHING`: if a row already exists
+    /// for `number`, the new write is a no-op. Mirrors the behaviour of
+    /// [`Self::save_l1_batch_commitment_artifacts`], which uses
+    /// `WHERE commitment IS NULL` for the same purpose.
+    pub async fn save_airbender_batch_commitment(
+        &mut self,
+        number: L1BatchNumber,
+        artifacts: &AirbenderBatchCommitment,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO airbender_batch_commitments (
+                l1_batch_number,
+                commitment,
+                aux_data_hash,
+                events_queue_commitment,
+                bootloader_initial_content_commitment,
+                created_at,
+                updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
+            "#,
+            i64::from(number.0),
+            artifacts.commitment.as_bytes(),
+            artifacts.aux_data_hash.as_bytes(),
+            artifacts.events_queue_commitment.as_bytes(),
+            artifacts.bootloader_initial_content_commitment.as_bytes(),
+        )
+        .instrument("save_airbender_batch_commitment")
+        .with_arg("number", &number)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    /// Returns the Airbender-shape commitment artifacts for an L1 batch, or
+    /// `None` if no row exists yet (commitment generator hasn't run for that
+    /// batch, or the batch is pre-1.4.2).
+    pub async fn get_airbender_batch_commitment(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<AirbenderBatchCommitment>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                commitment,
+                aux_data_hash,
+                events_queue_commitment,
+                bootloader_initial_content_commitment
+            FROM
+                airbender_batch_commitments
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_airbender_batch_commitment")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|r| AirbenderBatchCommitment {
+            commitment: H256::from_slice(&r.commitment),
+            aux_data_hash: H256::from_slice(&r.aux_data_hash),
+            events_queue_commitment: H256::from_slice(&r.events_queue_commitment),
+            bootloader_initial_content_commitment: H256::from_slice(
+                &r.bootloader_initial_content_commitment,
+            ),
         }))
     }
 

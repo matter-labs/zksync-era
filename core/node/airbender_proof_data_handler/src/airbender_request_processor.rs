@@ -246,6 +246,20 @@ impl AirbenderRequestProcessor {
                      commitment_generator must run before Airbender V2 proving"
                 ))
             })?;
+        // The Airbender variant uses lighter aux-commitment math (zero events
+        // queue + Blake2 bootloader heap), so its `commitment` and
+        // `aux_data_hash` differ from Boojum's. `meta_parameters_hash` matches
+        // and is read from the regular `l1_batches` row above.
+        let prev_airbender = connection
+            .blocks_dal()
+            .get_airbender_batch_commitment(prev_number)
+            .await?
+            .ok_or_else(|| {
+                AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                    "previous batch {prev_number} has no Airbender commitment yet — \
+                     commitment_generator must run before Airbender V2 proving"
+                ))
+            })?;
 
         // Blob hashes + EIP-4844 versioned hashes from VM pubdata via KZG.
         let header = connection
@@ -278,9 +292,9 @@ impl AirbenderRequestProcessor {
             .collect::<Vec<_>>();
 
         let commitment_input = CommitmentInput {
-            prev_batch_commitment: prev_metadata.metadata.commitment,
+            prev_batch_commitment: prev_airbender.commitment,
             prev_meta_hash: prev_metadata.metadata.meta_parameters_hash,
-            prev_aux_hash: prev_metadata.metadata.aux_data_hash,
+            prev_aux_hash: prev_airbender.aux_data_hash,
             blob_hashes,
             blob_versioned_hashes: versioned_hashes,
         };
