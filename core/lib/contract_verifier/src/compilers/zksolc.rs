@@ -89,64 +89,6 @@ impl ZkSolc {
         }
     }
 
-    fn ensure_selector_outputs(
-        output_selection: &mut serde_json::Value,
-        file_selector: &str,
-        contract_selector: &str,
-        outputs: &[&str],
-    ) {
-        if !output_selection.is_object() {
-            *output_selection = serde_json::json!({});
-        }
-
-        let file_entry = output_selection
-            .as_object_mut()
-            .unwrap()
-            .entry(file_selector.to_owned())
-            .or_insert_with(|| serde_json::json!({}));
-        if !file_entry.is_object() {
-            *file_entry = serde_json::json!({});
-        }
-
-        let contract_entry = file_entry
-            .as_object_mut()
-            .unwrap()
-            .entry(contract_selector.to_owned())
-            .or_insert_with(|| serde_json::json!([]));
-        if !contract_entry.is_array() {
-            *contract_entry = serde_json::json!([]);
-        }
-
-        let selected_outputs = contract_entry.as_array_mut().unwrap();
-        for output in outputs {
-            if !selected_outputs
-                .iter()
-                .any(|value| value.as_str() == Some(output))
-            {
-                selected_outputs.push(serde_json::Value::String((*output).to_owned()));
-            }
-        }
-    }
-
-    fn required_output_selection(
-        existing: Option<serde_json::Value>,
-        file_name: &str,
-        contract_name: &str,
-    ) -> serde_json::Value {
-        let mut output_selection = existing.unwrap_or_else(|| serde_json::json!({}));
-
-        Self::ensure_selector_outputs(&mut output_selection, "*", "*", &["abi", "evm"]);
-        Self::ensure_selector_outputs(&mut output_selection, "*", "", &["abi"]);
-        Self::ensure_selector_outputs(
-            &mut output_selection,
-            file_name,
-            contract_name,
-            &["abi", "evm"],
-        );
-
-        output_selection
-    }
-
     pub fn build_input(
         req: VerificationIncomingRequest,
         zksolc_version: &str,
@@ -446,8 +388,6 @@ impl Compiler<ZkSolcInput> for ZkSolc {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::contract_verification::api::{CompilerVersions, SourceCodeData};
-
     use zksync_types::contract_verification::api::{
         CompilerVersions, SourceCodeData, VerificationIncomingRequest,
     };
@@ -667,8 +607,7 @@ mod tests {
             evm_specific: Default::default(),
         };
 
-        let ZkSolcInput::StandardJson { input, .. } =
-            ZkSolc::build_input(req, "1.5.4").unwrap()
+        let ZkSolcInput::StandardJson { input, .. } = ZkSolc::build_input(req, "1.5.4").unwrap()
         else {
             panic!("expected standard-json input");
         };
@@ -726,8 +665,7 @@ mod tests {
             evm_specific: Default::default(),
         };
 
-        let ZkSolcInput::StandardJson { input, .. } =
-            ZkSolc::build_input(req, "1.5.4").unwrap()
+        let ZkSolcInput::StandardJson { input, .. } = ZkSolc::build_input(req, "1.5.4").unwrap()
         else {
             panic!("expected standard-json input");
         };
