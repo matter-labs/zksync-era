@@ -19,7 +19,6 @@ import { getTestContract, anyTransaction } from '../src/helpers';
 import { SYSTEM_CONTEXT_ADDRESS } from '../src/constants';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
-import { sleep } from 'utils/build';
 import { killPidWithAllChilds } from 'utils/build/kill';
 import path from 'path';
 import { NodeSpawner } from 'utils/src/node-spawner';
