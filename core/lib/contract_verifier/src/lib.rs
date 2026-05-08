@@ -483,7 +483,7 @@ impl ContractVerifier {
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let zksolc = self.compiler_resolver.resolve_zksolc(version).await?;
         tracing::debug!(?zksolc, ?version, "resolved compiler");
-        let input = ZkSolc::build_input(req)?;
+        let input = ZkSolc::build_input(req, &version.zk)?;
 
         time::timeout(self.compilation_timeout, zksolc.compile(input))
             .await
