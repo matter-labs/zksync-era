@@ -4,7 +4,6 @@ use anyhow::{bail, Context};
 use clap::Parser;
 use ethers::{
     abi::{Address, ParamType, Token},
-    contract::{BaseContract, Contract},
     middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
     signers::Signer,
@@ -12,7 +11,6 @@ use ethers::{
     utils::{hex, keccak256},
 };
 use futures::stream::{FuturesUnordered, StreamExt};
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -33,18 +31,13 @@ use zksync_types::H256;
 
 use crate::{
     abi::{
-        BridgehubAbi, MessageRootAbi, ZkChainAbi, IL1ASSETROUTERABI_ABI, IL1ASSETTRACKERABI_ABI,
-        IL1NATIVETOKENVAULTABI_ABI, IL2ASSETROUTERABI_ABI, IL2NATIVETOKENVAULTABI_ABI,
+        il1_asset_tracker_abi::FinalizeL1DepositParams, BridgehubAbi, IAssetTrackerBaseAbi,
+        IGWAssetTrackerAbi, IL1AssetRouterAbi, IL1AssetTrackerAbi, IL1NativeTokenVaultAbi,
+        IL2AssetRouterAbi, IL2AssetTrackerAbi, IL2NativeTokenVaultAbi, MessageRootAbi, ZkChainAbi,
+        IL1ASSETTRACKERABI_ABI,
     },
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
-
-lazy_static! {
-    static ref L2_NTV_FUNCTIONS: BaseContract =
-        BaseContract::from(IL2NATIVETOKENVAULTABI_ABI.clone());
-    static ref L2_ASSET_ROUTER_FUNCTIONS: BaseContract =
-        BaseContract::from(IL2ASSETROUTERABI_ABI.clone());
-}
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct InitiateTokenBalanceMigrationArgs {
@@ -193,19 +186,6 @@ async fn initiate_token_balance_migration(
     let l2_provider = Provider::<Http>::try_from(l2_rpc_url.as_str())?;
     let l2_chain_id = l2_provider.get_chainid().await?.as_u64();
 
-    // Migrate each token
-    let (tracker_addr, tracker_abi) = if to_gateway {
-        (
-            L2_ASSET_TRACKER_ADDRESS,
-            crate::abi::IL2ASSETTRACKERABI_ABI.clone(),
-        )
-    } else {
-        (
-            GW_ASSET_TRACKER_ADDRESS,
-            crate::abi::IGWASSETTRACKERABI_ABI.clone(),
-        )
-    };
-
     let rpc_url = if to_gateway { &l2_rpc_url } else { &gw_rpc_url };
     let provider = Provider::<Http>::try_from(rpc_url.as_str())?;
     let chain_id = provider.get_chainid().await?.as_u64();
@@ -215,7 +195,9 @@ async fn initiate_token_balance_migration(
     let mut next_nonce = client
         .get_transaction_count(wallet.address, Some(BlockId::Number(BlockNumber::Pending)))
         .await?;
-    let tracker = Contract::new(tracker_addr, tracker_abi, client);
+
+    let tracker_l2 = IL2AssetTrackerAbi::new(L2_ASSET_TRACKER_ADDRESS, client.clone());
+    let tracker_gw = IGWAssetTrackerAbi::new(GW_ASSET_TRACKER_ADDRESS, client);
 
     // Send all initiate migration transactions
     let mut pending_txs = FuturesUnordered::new();
@@ -225,32 +207,24 @@ async fn initiate_token_balance_migration(
             hex::encode(asset_id)
         );
 
-        let call_result = if to_gateway {
-            tracker.method::<_, ()>("initiateL1ToGatewayMigrationOnL2", (asset_id,))
+        let mut call = if to_gateway {
+            tracker_l2.initiate_l1_to_gateway_migration_on_l2(asset_id)
         } else {
-            tracker.method::<_, ()>(
-                "initiateGatewayToL1MigrationOnGateway",
-                (U256::from(l2_chain_id), asset_id),
-            )
+            tracker_gw
+                .initiate_gateway_to_l1_migration_on_gateway(U256::from(l2_chain_id), asset_id)
         };
 
-        match call_result {
-            Ok(mut call) => {
-                call.tx.set_nonce(next_nonce);
-                next_nonce += U256::from(1u64);
-
-                pending_txs.push(async move {
-                    match call.send().await {
-                        Ok(pending_tx) => (asset_id, pending_tx.await),
-                        Err(e) => {
-                            println!("Warning: Failed to migrate asset: {}", e);
-                            (asset_id, Ok(None))
-                        }
-                    }
-                });
+        call.tx.set_nonce(next_nonce);
+        next_nonce += U256::from(1u64);
+        pending_txs.push(async move {
+            match call.send().await {
+                Ok(pending_tx) => (asset_id, pending_tx.await),
+                Err(e) => {
+                    println!("Warning: Failed to migrate asset: {}", e);
+                    (asset_id, Ok(None))
+                }
             }
-            Err(e) => println!("Warning: Failed to create method call: {}", e),
-        }
+        });
     }
 
     // Wait for all txs to complete
@@ -348,50 +322,24 @@ async fn finalize_token_balance_migration(
 
         let bridgehub = BridgehubAbi::new(l1_bridgehub_addr, l1_provider.clone());
         let l1_asset_router_addr = bridgehub.asset_router().call().await?;
-        let l1_asset_router = Contract::new(
-            l1_asset_router_addr,
-            IL1ASSETROUTERABI_ABI.clone(),
-            l1_provider.clone(),
-        );
-        let l1_native_token_vault_addr: Address = l1_asset_router
-            .method::<_, Address>("nativeTokenVault", ())?
-            .call()
-            .await?;
-        let l1_native_token_vault = Contract::new(
-            l1_native_token_vault_addr,
-            IL1NATIVETOKENVAULTABI_ABI.clone(),
-            l1_provider.clone(),
-        );
-        let l1_asset_tracker_addr: Address = l1_native_token_vault
-            .method::<_, Address>("l1AssetTracker", ())?
-            .call()
-            .await?;
+        let l1_asset_router = IL1AssetRouterAbi::new(l1_asset_router_addr, l1_provider.clone());
+        let l1_native_token_vault_addr = l1_asset_router.native_token_vault().call().await?;
+        let l1_native_token_vault =
+            IL1NativeTokenVaultAbi::new(l1_native_token_vault_addr, l1_provider.clone());
+        let l1_asset_tracker_addr = l1_native_token_vault.l_1_asset_tracker().call().await?;
 
-        let l1_asset_tracker = Contract::new(
-            l1_asset_tracker_addr,
-            IL1ASSETTRACKERABI_ABI.clone(),
-            l1_client.clone(),
-        );
-        let l1_asset_tracker_base = Contract::new(
-            l1_asset_tracker_addr,
-            crate::abi::IASSETTRACKERBASEABI_ABI.clone(),
-            l1_provider.clone(),
-        );
+        let l1_asset_tracker = IL1AssetTrackerAbi::new(l1_asset_tracker_addr, l1_client.clone());
+        let l1_asset_tracker_base =
+            IAssetTrackerBaseAbi::new(l1_asset_tracker_addr, l1_provider.clone());
 
-        let (expected_selector, receive_method): ([u8; 4], &str) = if to_gateway {
-            (
-                keccak256("receiveL1ToGatewayMigrationOnL1((bytes1,address,uint256,bytes32,uint256,uint256,uint256,uint256,uint256,uint256))")[0..4]
-                    .try_into()
-                    .expect("selector length is always 4 bytes"),
-                "receiveL1ToGatewayMigrationOnL1",
-            )
+        let expected_selector: [u8; 4] = if to_gateway {
+            IL1ASSETTRACKERABI_ABI
+                .function("receiveL1ToGatewayMigrationOnL1")?
+                .short_signature()
         } else {
-            (
-                keccak256("receiveGatewayToL1MigrationOnL1((bytes1,address,uint256,bytes32,uint256,uint256,uint256,uint256))")[0..4]
-                    .try_into()
-                    .expect("selector length is always 4 bytes"),
-                "receiveGatewayToL1MigrationOnL1",
-            )
+            IL1ASSETTRACKERABI_ABI
+                .function("receiveGatewayToL1MigrationOnL1")?
+                .short_signature()
         };
 
         let mut next_nonce = l1_client
@@ -431,7 +379,7 @@ async fn finalize_token_balance_migration(
             }
 
             let already_migrated: bool = l1_asset_tracker_base
-                .method::<_, bool>("tokenMigrated", (data_chain_id, asset_id))?
+                .token_migrated(data_chain_id, asset_id.0)
                 .call()
                 .await?;
             if already_migrated {
@@ -447,42 +395,40 @@ async fn finalize_token_balance_migration(
                 .as_u64()
                 .try_into()
                 .context("l2_tx_number_in_block does not fit into u16")?;
-            let finalize_param = (
-                U256::from(source_chain_id),
-                U256::from(params.l2_batch_number.as_u64()),
-                U256::from(params.l2_message_index.as_u64()),
-                params.sender,
-                l2_tx_number_in_batch,
-                params.message.clone(),
-                params.proof.proof.clone(),
-            );
+            let finalize_param = FinalizeL1DepositParams {
+                chain_id: U256::from(source_chain_id),
+                l_2_batch_number: U256::from(params.l2_batch_number.as_u64()),
+                l_2_message_index: U256::from(params.l2_message_index.as_u64()),
+                l_2_sender: params.sender,
+                l_2_tx_number_in_batch: l2_tx_number_in_batch,
+                message: params.message.clone(),
+                merkle_proof: params.proof.proof.iter().map(|h| h.0).collect(),
+            };
 
-            let call_result = l1_asset_tracker.method::<_, ()>(receive_method, (finalize_param,));
-
-            match call_result {
-                Ok(mut call) => {
-                    migrated_asset_ids.push(asset_id);
-                    let gas_estimate = call
-                        .estimate_gas()
-                        .await
-                        .unwrap_or_else(|_| U256::from(1_500_000u64));
-                    let gas_limit =
-                        std::cmp::max(gas_estimate * U256::from(2u64), U256::from(1_500_000u64));
-                    call.tx.set_gas(gas_limit);
-                    call.tx.set_nonce(next_nonce);
-                    next_nonce += U256::from(1u64);
-                    pending_txs.push(async move {
-                        match call.send().await {
-                            Ok(pending_tx) => (asset_id, pending_tx.await),
-                            Err(e) => {
-                                println!("Warning: Failed to migrate asset: {}", e);
-                                (asset_id, Ok(None))
-                            }
-                        }
-                    });
+            migrated_asset_ids.push(asset_id);
+            let mut call = if to_gateway {
+                l1_asset_tracker.receive_l1_to_gateway_migration_on_l1(finalize_param)
+            } else {
+                l1_asset_tracker.receive_gateway_to_l1_migration_on_l1(finalize_param)
+            };
+            let gas_estimate = call
+                .estimate_gas()
+                .await
+                .unwrap_or_else(|_| U256::from(1_500_000u64));
+            let gas_limit =
+                std::cmp::max(gas_estimate * U256::from(2u64), U256::from(1_500_000u64));
+            call.tx.set_gas(gas_limit);
+            call.tx.set_nonce(next_nonce);
+            next_nonce += U256::from(1u64);
+            pending_txs.push(async move {
+                match call.send().await {
+                    Ok(pending_tx) => (asset_id, pending_tx.await),
+                    Err(e) => {
+                        println!("Warning: Failed to migrate asset: {}", e);
+                        (asset_id, Ok(None))
+                    }
                 }
-                Err(e) => println!("Warning: Failed to create L1 call: {}", e),
-            }
+            });
         }
 
         while let Some((asset_id, receipt_res)) = pending_txs.next().await {
@@ -517,17 +463,10 @@ async fn finalize_token_balance_migration(
         .unwrap()
         .with_chain_id(l2_chain_id);
     let l2_client = Arc::new(SignerMiddleware::new(l2_provider.clone(), l2_signer));
-    let tracker = Contract::new(
-        L2_ASSET_TRACKER_ADDRESS,
-        crate::abi::IASSETTRACKERBASEABI_ABI.clone(),
-        l2_client.clone(),
-    );
+    let tracker = IAssetTrackerBaseAbi::new(L2_ASSET_TRACKER_ADDRESS, l2_client);
     for asset_id in migrated_asset_ids.iter().copied() {
         loop {
-            let asset_is_migrated = tracker
-                .method::<_, bool>("tokenMigratedThisChain", asset_id)?
-                .call()
-                .await?;
+            let asset_is_migrated = tracker.token_migrated_this_chain(asset_id.0).call().await?;
             if asset_is_migrated {
                 break;
             }
@@ -542,35 +481,17 @@ async fn finalize_token_balance_migration(
 
 async fn get_asset_ids(l2_rpc_url: &str) -> anyhow::Result<Vec<[u8; 32]>> {
     let mut asset_ids = Vec::new();
-    let l2_provider = Provider::<Http>::try_from(l2_rpc_url)?;
+    let l2_provider = Arc::new(Provider::<Http>::try_from(l2_rpc_url)?);
 
-    let ntv = Contract::new(
-        L2_NATIVE_TOKEN_VAULT_ADDRESS,
-        L2_NTV_FUNCTIONS.abi().clone(),
-        Arc::new(l2_provider.clone()),
-    );
-    let count: U256 = ntv
-        .method::<_, U256>("bridgedTokensCount", ())?
-        .call()
-        .await?;
+    let ntv = IL2NativeTokenVaultAbi::new(L2_NATIVE_TOKEN_VAULT_ADDRESS, l2_provider.clone());
+    let count: U256 = ntv.bridged_tokens_count().call().await?;
 
     for i in 0..count.as_u64() {
-        asset_ids.push(
-            ntv.method::<_, [u8; 32]>("bridgedTokens", U256::from(i))?
-                .call()
-                .await?,
-        );
+        asset_ids.push(ntv.bridged_tokens(U256::from(i)).call().await?);
     }
 
-    let router = Contract::new(
-        L2_ASSET_ROUTER_ADDRESS,
-        L2_ASSET_ROUTER_FUNCTIONS.abi().clone(),
-        Arc::new(l2_provider),
-    );
-    let base_token_asset_id = router
-        .method::<_, [u8; 32]>("BASE_TOKEN_ASSET_ID", ())?
-        .call()
-        .await?;
+    let router = IL2AssetRouterAbi::new(L2_ASSET_ROUTER_ADDRESS, l2_provider);
+    let base_token_asset_id = router.base_token_asset_id().call().await?;
     asset_ids.push(base_token_asset_id);
 
     Ok(asset_ids)
