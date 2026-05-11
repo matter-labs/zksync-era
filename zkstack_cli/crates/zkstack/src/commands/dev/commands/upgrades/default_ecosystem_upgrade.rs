@@ -55,14 +55,7 @@ pub async fn run(
             .await?;
         }
         EcosystemUpgradeStage::EcosystemAdmin => {
-            ecosystem_admin(
-                &final_ecosystem_args,
-                shell,
-                &ecosystem_config,
-                &upgrade_version,
-                vm_option,
-            )
-            .await?;
+            ecosystem_admin(shell, &ecosystem_config, &upgrade_version, vm_option).await?;
         }
         EcosystemUpgradeStage::GovernanceStage0 => {
             governance_stage_0(
@@ -184,7 +177,6 @@ async fn no_governance_prepare(
 }
 
 async fn ecosystem_admin(
-    _init_args: &EcosystemUpgradeArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     upgrade_version: &UpgradeVersion,
