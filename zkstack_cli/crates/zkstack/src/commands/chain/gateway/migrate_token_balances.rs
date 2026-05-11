@@ -34,7 +34,6 @@ use crate::{
         il1_asset_tracker_abi::FinalizeL1DepositParams, BridgehubAbi, IAssetTrackerBaseAbi,
         IGWAssetTrackerAbi, IL1AssetRouterAbi, IL1AssetTrackerAbi, IL1NativeTokenVaultAbi,
         IL2AssetRouterAbi, IL2AssetTrackerAbi, IL2NativeTokenVaultAbi, MessageRootAbi, ZkChainAbi,
-        IL1ASSETTRACKERABI_ABI,
     },
     messages::MSG_CHAIN_NOT_INITIALIZED,
 };
@@ -332,16 +331,6 @@ async fn finalize_token_balance_migration(
         let l1_asset_tracker_base =
             IAssetTrackerBaseAbi::new(l1_asset_tracker_addr, l1_provider.clone());
 
-        let expected_selector: [u8; 4] = if to_gateway {
-            IL1ASSETTRACKERABI_ABI
-                .function("receiveL1ToGatewayMigrationOnL1")?
-                .short_signature()
-        } else {
-            IL1ASSETTRACKERABI_ABI
-                .function("receiveGatewayToL1MigrationOnL1")?
-                .short_signature()
-        };
-
         let mut next_nonce = l1_client
             .get_transaction_count(wallet.address, Some(BlockId::Number(BlockNumber::Pending)))
             .await?;
@@ -361,18 +350,11 @@ async fn finalize_token_balance_migration(
                 continue;
             }
 
-            let (data_chain_id, asset_id, selector) =
+            let (data_chain_id, asset_id) =
                 decode_token_balance_migration_message(&params.message.0, to_gateway)?;
             if data_chain_id.as_u64() != expected_data_chain_id {
                 println!(
                     "Skipping tx hash from different chain: 0x{}",
-                    hex::encode(tx_hash)
-                );
-                continue;
-            }
-            if selector != expected_selector {
-                println!(
-                    "Unexpected function selector for tx hash: 0x{}",
                     hex::encode(tx_hash)
                 );
                 continue;
@@ -680,14 +662,11 @@ async fn wait_for_migration_ready(
 fn decode_token_balance_migration_message(
     message: &[u8],
     to_gateway: bool,
-) -> anyhow::Result<(U256, H256, [u8; 4])> {
+) -> anyhow::Result<(U256, H256)> {
     if message.len() < 4 {
         bail!("L2->L1 message is too short");
     }
 
-    let selector: [u8; 4] = message[0..4]
-        .try_into()
-        .context("Failed to read function selector")?;
     let token_balance_migration_data = if to_gateway {
         ParamType::Tuple(vec![
             ParamType::FixedBytes(1),  // version
@@ -734,5 +713,5 @@ fn decode_token_balance_migration_message(
         .and_then(|token| token.clone().into_fixed_bytes())
         .context("Missing assetId")?;
 
-    Ok((chain_id, H256::from_slice(&asset_id_bytes), selector))
+    Ok((chain_id, H256::from_slice(&asset_id_bytes)))
 }
