@@ -32,6 +32,8 @@ ignore = [
   "RUSTSEC-2026-0048",
   "RUSTSEC-2026-0049", # `rustls-webpki` CRL vulnerability, old 0.101.7/0.102.8 pinned by rustls 0.21/0.22 (transitive deps of aws-smithy, hyper-rustls)
   "RUSTSEC-2026-0098", # `rustls-webpki` URI name constraints incorrectly accepted; same old 0.101.7 transitive pin as above
+  "RUSTSEC-2026-0099", # `rustls-webpki` name constraints accept wildcard cert names; affects 0.101.7/0.102.8/0.103.3 (transitive pins via rustls 0.21/0.22/0.23)
+  "RUSTSEC-2026-0104", # `rustls-webpki` reachable panic in CRL parsing; affects 0.101.7/0.102.8/0.103.3 (transitive pins via rustls 0.21/0.22/0.23). We don't use CRLs.
   # `rand` 0.8.x unsoundness in `ThreadRng` reseed under a custom logger calling rand from
   # log macros. Patch only exists for >=0.9.3 / >=0.10.1; no fix backported to 0.8.x. We
   # already updated 0.9.x to 0.9.3; rand 0.8.5 remains via many transitive deps
