@@ -1,5 +1,21 @@
 # Changelog
 
+## [29.16.0](https://github.com/matter-labs/zksync-era/compare/core-v29.15.2...core-v29.16.0) (2026-04-23)
+
+
+### Features
+
+* **core:** lay groundwork for v31 interop (additive schema, fee fallback) ([#4756](https://github.com/matter-labs/zksync-era/issues/4756)) ([093928d](https://github.com/matter-labs/zksync-era/commit/093928df07b13297173c13c527dc5015c9683f9e))
+
+
+### Bug Fixes
+
+* **consensus:** keep interop_fee wire as u64 and add U256-&gt;u64 safety checks ([#4781](https://github.com/matter-labs/zksync-era/issues/4781)) ([8d4c2fa](https://github.com/matter-labs/zksync-era/commit/8d4c2faf87f34c5f219ea4eac5209018b88b79b0))
+* **consensus:** omit interop_fee for pre-v31 payloads ([#4788](https://github.com/matter-labs/zksync-era/issues/4788)) ([4069e03](https://github.com/matter-labs/zksync-era/commit/4069e03c9805438c2294a47271d9f8654f218e33))
+* **contract-verifier:** preserve zksolc standard-json fields and report missing bytecode correctly ([#4786](https://github.com/matter-labs/zksync-era/issues/4786)) ([a273232](https://github.com/matter-labs/zksync-era/commit/a273232b3b11c1382209bf52754d91f9dfdb2f17))
+* Ensure prover jobs are assigned as intended ([#4782](https://github.com/matter-labs/zksync-era/issues/4782)) ([6672a2b](https://github.com/matter-labs/zksync-era/commit/6672a2b4a9f23a2817baf56d9270fcbc32c540b2))
+* **verifier:** handle raw stored evm bytecode in contract verifier ([#4785](https://github.com/matter-labs/zksync-era/issues/4785)) ([b19e8a1](https://github.com/matter-labs/zksync-era/commit/b19e8a1250d7b37de06bee21b8f87e304c1b8a55))
+
 ## [29.15.2](https://github.com/matter-labs/zksync-era/compare/core-v29.15.1...core-v29.15.2) (2026-04-13)
 
 

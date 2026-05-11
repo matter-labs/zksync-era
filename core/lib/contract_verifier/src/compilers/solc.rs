@@ -74,6 +74,7 @@ impl Solc {
                 StandardJson {
                     language: "Solidity".to_owned(),
                     sources,
+                    other: serde_json::json!({}),
                     settings,
                 }
             }
@@ -109,6 +110,7 @@ impl Solc {
                 StandardJson {
                     language: "Yul".to_owned(),
                     sources,
+                    other: serde_json::json!({}),
                     settings,
                 }
             }
@@ -219,6 +221,67 @@ mod tests {
             .standard_json
             .sources
             .contains_key("@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol"));
+    }
+
+    #[test]
+    fn build_input_uses_evm_bytecode_outputs_for_evm_contracts() {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "src/Counter.sol": {
+                    "content": "contract Counter {}",
+                },
+            },
+            "settings": {
+                "outputSelection": {
+                    "*": {
+                        "*": ["metadata"]
+                    }
+                },
+                "optimizer": {
+                    "enabled": true,
+                },
+            },
+        });
+        let req = VerificationIncomingRequest {
+            contract_address: Default::default(),
+            source_code_data: SourceCodeData::StandardJsonInput(input.as_object().unwrap().clone()),
+            contract_name: "src/Counter.sol:Counter".to_owned(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_solc_version: "0.8.26".to_owned(),
+                compiler_zksolc_version: None,
+            },
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: Default::default(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: Default::default(),
+        };
+
+        let built = Solc::build_input(req).expect("standard JSON input should build");
+        let output_selection = built
+            .standard_json
+            .settings
+            .output_selection
+            .as_ref()
+            .unwrap();
+        let selected_outputs = output_selection["*"]["*"].as_array().unwrap();
+
+        for expected_output in ["abi", "evm.bytecode", "evm.deployedBytecode"] {
+            assert!(
+                selected_outputs
+                    .iter()
+                    .any(|output| output.as_str() == Some(expected_output)),
+                "missing {expected_output:?}: {selected_outputs:?}"
+            );
+        }
+        assert!(
+            !selected_outputs
+                .iter()
+                .any(|output| output.as_str() == Some("evm")),
+            "standalone EVM solc should use explicit bytecode selectors: {selected_outputs:?}"
+        );
     }
 }
 

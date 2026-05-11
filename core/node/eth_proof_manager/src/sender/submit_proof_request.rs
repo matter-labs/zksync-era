@@ -16,6 +16,14 @@ use crate::{
     types::{ProofRequestIdentifier, ProofRequestParams},
 };
 
+#[derive(Debug, thiserror::Error)]
+enum SubmitRequestError {
+    #[error("pre-submit failure: {0}")]
+    Preparing(#[source] anyhow::Error),
+    #[error("submission outcome is uncertain: {0}")]
+    Submitting(#[source] anyhow::Error),
+}
+
 pub struct ProofRequestSubmitter {
     client: Box<dyn EthProofManagerClient>,
     connection_pool: ConnectionPool<Core>,
@@ -69,13 +77,23 @@ impl ProofRequestSubmitter {
     }
 
     pub async fn loop_iteration(&self) -> anyhow::Result<()> {
-        let batch_id = self.processor.lock_batch_for_proving_network().await?;
+        let batch_id = self
+            .connection_pool
+            .connection()
+            .await?
+            .eth_proof_manager_dal()
+            .lock_batch_for_proving_network_and_prepare()
+            .await?;
         if let Some(batch_id) = batch_id {
+            tracing::info!(
+                "Locked batch {} for proving-network submission and persisted preparing state",
+                batch_id
+            );
             match self.submit_request(batch_id).await {
                 Ok(_) => {
                     tracing::info!("Submitted proof request for batch {}", batch_id);
                 }
-                Err(e) => {
+                Err(SubmitRequestError::Preparing(e)) => {
                     tracing::error!(
                         "Failed to submit proof request for batch {}, moving to prover cluster, error: {}",
                         batch_id,
@@ -89,6 +107,13 @@ impl ProofRequestSubmitter {
                         .fallback_batch(batch_id)
                         .await?;
                 }
+                Err(SubmitRequestError::Submitting(e)) => {
+                    tracing::error!(
+                        "Failed to finish proving-network submission for batch {}, leaving it for watcher/recovery, error: {}",
+                        batch_id,
+                        e
+                    );
+                }
             }
         } else {
             tracing::info!("No batches to submit proof request for");
@@ -97,11 +122,13 @@ impl ProofRequestSubmitter {
         Ok(())
     }
 
-    pub async fn submit_request(&self, batch_id: L1BatchNumber) -> anyhow::Result<()> {
+    async fn submit_request(&self, batch_id: L1BatchNumber) -> Result<(), SubmitRequestError> {
         let proof_generation_data = self
             .processor
             .proof_generation_data_for_existing_batch(batch_id)
-            .await?;
+            .await
+            .map_err(anyhow::Error::from)
+            .map_err(SubmitRequestError::Preparing)?;
 
         tracing::info!("Need to send proof request for batch {}", batch_id);
 
@@ -117,8 +144,18 @@ impl ProofRequestSubmitter {
             )
             .await
             .map_err(|e| {
-                anyhow::anyhow!("Failed to put proof generation data into blob store: {}", e)
+                SubmitRequestError::Preparing(anyhow::anyhow!(
+                    "Failed to put proof generation data into blob store: {}",
+                    e
+                ))
             })?;
+
+        tracing::info!(
+            "Uploaded public witness input for batch {} to {}/{}",
+            batch_id,
+            bucket.as_str(),
+            key
+        );
 
         let url = format!(
             "{}/{}/{}",
@@ -129,10 +166,20 @@ impl ProofRequestSubmitter {
 
         self.connection_pool
             .connection()
-            .await?
+            .await
+            .map_err(anyhow::Error::from)
+            .map_err(SubmitRequestError::Preparing)?
             .eth_proof_manager_dal()
-            .insert_batch(batch_id, &url)
-            .await?;
+            .mark_batch_as_submitting(batch_id, &url)
+            .await
+            .map_err(anyhow::Error::from)
+            .map_err(SubmitRequestError::Preparing)?;
+
+        tracing::info!(
+            "Marked batch {} as submitting with witness input URL {}",
+            batch_id,
+            url
+        );
 
         let proof_request_identifier = ProofRequestIdentifier {
             chain_id: proof_generation_data.chain_id.as_u64(),
@@ -156,10 +203,14 @@ impl ProofRequestSubmitter {
             Ok(tx_hash) => {
                 self.connection_pool
                     .connection()
-                    .await?
+                    .await
+                    .map_err(anyhow::Error::from)
+                    .map_err(SubmitRequestError::Submitting)?
                     .eth_proof_manager_dal()
                     .mark_batch_as_sent(batch_id, tx_hash)
-                    .await?;
+                    .await
+                    .map_err(anyhow::Error::from)
+                    .map_err(SubmitRequestError::Submitting)?;
 
                 tracing::info!(
                     "Submitted proof request for batch {}, chain_id: {}, with tx hash {}",
@@ -170,11 +221,11 @@ impl ProofRequestSubmitter {
             }
             Err(e) => {
                 METRICS.reached_max_attempts[&TxType::ProofRequest].inc_by(1);
-                return Err(anyhow::anyhow!(
+                return Err(SubmitRequestError::Submitting(anyhow::anyhow!(
                     "Failed to submit proof request for batch {}, error: {}",
                     batch_id,
                     e
-                ));
+                )));
             }
         }
 
