@@ -146,8 +146,8 @@ abigen!(
 );
 
 abigen!(
-    EcosystemUpgradeV31Abi,
-    "../../../contracts/l1-contracts/zkstack-out/EcosystemUpgrade_v31.s.sol/EcosystemUpgrade_v31.json",
+    CoreUpgradeV31Abi,
+    "../../../contracts/l1-contracts/zkstack-out/CoreUpgrade_v31.s.sol/CoreUpgrade_v31.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
 

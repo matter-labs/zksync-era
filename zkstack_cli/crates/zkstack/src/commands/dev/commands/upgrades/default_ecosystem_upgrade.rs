@@ -25,7 +25,7 @@ use zkstack_cli_types::VMOption;
 use zksync_types::{SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
-    abi::{ECOSYSTEMUPGRADEV31ABI_ABI, IFINALIZEUPGRADEABI_ABI},
+    abi::{COREUPGRADEV31ABI_ABI, IFINALIZEUPGRADEABI_ABI},
     admin_functions::{governance_execute_calls, AdminScriptMode},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
@@ -200,7 +200,7 @@ fn build_v31_no_governance_prepare_calldata(
     let governance = contracts_config.l1.governance_addr;
     let zk_token_asset_id = ecosystem_config.l1_network.zk_token_asset_id();
 
-    let calldata = ECOSYSTEM_UPGRADE_V31
+    let calldata = CORE_UPGRADE_V31
         .encode(
             "noGovernancePrepare",
             (Token::Tuple(vec![
@@ -440,8 +440,7 @@ async fn governance_stage_2(
 }
 
 lazy_static! {
-    static ref ECOSYSTEM_UPGRADE_V31: BaseContract =
-        BaseContract::from(ECOSYSTEMUPGRADEV31ABI_ABI.clone());
+    static ref CORE_UPGRADE_V31: BaseContract = BaseContract::from(COREUPGRADEV31ABI_ABI.clone());
     static ref FINALIZE_UPGRADE: BaseContract = BaseContract::from(IFINALIZEUPGRADEABI_ABI.clone());
 }
 
