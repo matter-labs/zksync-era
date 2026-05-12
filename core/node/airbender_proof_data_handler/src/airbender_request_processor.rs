@@ -19,7 +19,9 @@ use zksync_l1_contract_interface::i_executor::commit::kzg::{
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
-use zksync_types::{blob::num_blobs_required, L1BatchNumber, L2ChainId};
+use zksync_types::{
+    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId,
+};
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
 use crate::{errors::AirbenderProcessorError, metrics::METRICS};
@@ -256,14 +258,23 @@ impl AirbenderRequestProcessor {
         let versioned_hashes = pubdata_to_blob_versioned_hashes(num_blobs, &pubdata_input);
         let linear_hashes = pubdata_to_blob_linear_hashes(num_blobs, pubdata_input);
 
-        let blob_hashes = commitments
-            .into_iter()
-            .zip(linear_hashes)
-            .map(|(commitment, linear_hash)| BlobHash {
-                commitment,
-                linear_hash,
-            })
-            .collect::<Vec<_>>();
+        // Mirror commitment_generator's Validium treatment: era zeros both
+        // commitment and linear_hash in the persisted aux output for Validium
+        // chains, so the prev-batch commitment chain that the verifier rebuilds
+        // must use zeroed blob hashes too — otherwise the proof's commitment
+        // disagrees with what era settled on L1.
+        let commitment_mode: L1BatchCommitmentMode = pubdata_params.pubdata_type().into();
+        let blob_hashes = match commitment_mode {
+            L1BatchCommitmentMode::Rollup => commitments
+                .into_iter()
+                .zip(linear_hashes)
+                .map(|(commitment, linear_hash)| BlobHash {
+                    commitment,
+                    linear_hash,
+                })
+                .collect::<Vec<_>>(),
+            L1BatchCommitmentMode::Validium => vec![BlobHash::default(); num_blobs],
+        };
 
         let commitment_input = CommitmentInput {
             prev_batch_commitment: prev_commitment_input.prev_batch_commitment,
