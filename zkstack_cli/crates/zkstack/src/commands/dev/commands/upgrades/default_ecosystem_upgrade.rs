@@ -566,5 +566,8 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScript
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29_3 => unreachable!("V29_3 does not support ecosystem upgrade"),
         UpgradeVersion::V29_4 => unreachable!("V29_4 does not support ecosystem upgrade"),
+        UpgradeVersion::V31InteropB => {
+            unimplemented!("V31 ecosystem upgrade is carried out via protocol-ops")
+        }
     }
 }
