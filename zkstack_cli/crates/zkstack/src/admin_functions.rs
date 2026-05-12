@@ -305,6 +305,10 @@ pub async fn admin_schedule_upgrade(
         .l1
         .access_control_restriction_addr
         .context("no access_control_restriction_addr")?;
+    let bridgehub = chain_contracts_config
+        .ecosystem_contracts
+        .bridgehub_proxy_addr;
+    let chain_id = ecosystem_config.load_current_chain()?.chain_id.as_u64();
 
     let calldata = ADMIN_FUNCTIONS
         .encode(
@@ -312,6 +316,8 @@ pub async fn admin_schedule_upgrade(
             (
                 admin_addr,
                 access_control_restriction,
+                bridgehub,
+                U256::from(chain_id),
                 new_protocol_version,
                 timestamp,
             ),

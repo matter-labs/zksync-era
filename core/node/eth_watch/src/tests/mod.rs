@@ -330,40 +330,6 @@ async fn test_normal_operation_upgrade_timestamp() {
 }
 
 #[test_log::test(tokio::test)]
-async fn test_upgrade_timestamp_before_diamond_cut_is_retried() {
-    let connection_pool = ConnectionPool::<Core>::test_pool().await;
-    setup_db(&connection_pool).await;
-    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
-
-    let upgrade = ProtocolUpgrade {
-        version: ProtocolSemanticVersion {
-            minor: ProtocolVersionId::next(),
-            patch: 0.into(),
-        },
-        tx: Some(build_upgrade_tx(ProtocolVersionId::next())),
-        ..Default::default()
-    };
-
-    let mut storage = connection_pool.connection().await.unwrap();
-    client
-        .add_upgrade_timestamp_without_diamond_cut(&[(upgrade.clone(), 10)])
-        .await;
-    client.set_last_finalized_block_number(15).await;
-    watcher.loop_iteration(&mut storage).await.unwrap();
-
-    let db_versions = storage.protocol_versions_dal().all_versions().await;
-    assert_eq!(db_versions.len(), 1);
-
-    client.add_upgrade_timestamp(&[(upgrade, 18)]).await;
-    client.set_last_finalized_block_number(20).await;
-    watcher.loop_iteration(&mut storage).await.unwrap();
-
-    let db_versions = storage.protocol_versions_dal().all_versions().await;
-    assert_eq!(db_versions.len(), 2);
-    assert_eq!(db_versions[1].minor, ProtocolVersionId::next());
-}
-
-#[test_log::test(tokio::test)]
 #[should_panic]
 async fn test_gap_in_single_batch() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;

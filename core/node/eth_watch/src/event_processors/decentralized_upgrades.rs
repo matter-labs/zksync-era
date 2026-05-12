@@ -2,14 +2,14 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use itertools::Itertools;
-use zksync_contracts::chain_admin_contract;
+use zksync_contracts::{chain_admin_contract, server_notifier_contract};
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
     api::Log,
     h256_to_u256,
     protocol_upgrade::ProtocolUpgradePreimageOracle,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
-    ProtocolUpgrade, H256, U256,
+    L2ChainId, ProtocolUpgrade, H256, U256,
 };
 
 use crate::{
@@ -23,9 +23,10 @@ use crate::{
 pub struct DecentralizedUpgradesEventProcessor {
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_protocol_version: ProtocolSemanticVersion,
-    update_upgrade_timestamp_signature: H256,
+    upgrade_timestamp_updated_signature: H256,
     sl_client: Arc<dyn EthClient>,
     l1_client: Arc<dyn EthClient>,
+    l2_chain_id: L2ChainId,
 }
 
 impl DecentralizedUpgradesEventProcessor {
@@ -33,16 +34,18 @@ impl DecentralizedUpgradesEventProcessor {
         last_seen_protocol_version: ProtocolSemanticVersion,
         sl_client: Arc<dyn EthClient>,
         l1_client: Arc<dyn EthClient>,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             last_seen_protocol_version,
-            update_upgrade_timestamp_signature: chain_admin_contract()
-                .event("UpdateUpgradeTimestamp")
-                .context("UpdateUpgradeTimestamp event is missing in ABI")
+            upgrade_timestamp_updated_signature: server_notifier_contract()
+                .event("UpgradeTimestampUpdated")
+                .context("UpgradeTimestampUpdated event is missing in ABI")
                 .unwrap()
                 .signature(),
             sl_client,
             l1_client,
+            l2_chain_id,
         }
     }
 }
@@ -82,9 +85,9 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         for event in &events {
             let version = event
                 .topics
-                .get(1)
+                .get(2)
                 .copied()
-                .context("missing topic 1")
+                .context("missing topic 2")
                 .map_err(EventProcessorError::internal)?;
             let timestamp: u64 = U256::from_big_endian(&event.data.0)
                 .try_into()
@@ -92,26 +95,24 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 .context("upgrade timestamp is too big")
                 .map_err(EventProcessorError::internal)?;
 
-            let latest_protocol_version =
-                ProtocolSemanticVersion::try_from_packed(h256_to_u256(version))
-                    .map_err(|err| EventProcessorError::internal(anyhow::anyhow!(err)))?;
-            if latest_protocol_version <= self.last_seen_protocol_version {
-                // This version has been already processed, skip it.
-                processed_events += 1;
-                continue;
-            }
-
             let diamond_cuts = self
                 .sl_client
                 .diamond_cuts_since_version(self.last_seen_protocol_version)
                 .await
                 .map_err(EventProcessorError::client)?;
+
+            let latest_protocol_version =
+                ProtocolSemanticVersion::try_from_packed(h256_to_u256(version))
+                    .map_err(|err| EventProcessorError::internal(anyhow::anyhow!(err)))?;
+            if latest_protocol_version <= self.last_seen_protocol_version {
+                // This version has been already processed, skip it.
+                continue;
+            }
+
             if diamond_cuts.is_empty() {
-                tracing::info!(
-                    %latest_protocol_version,
-                    "Upgrade timestamp observed before diamond cut data; retrying later"
-                );
-                break;
+                return Err(EventProcessorError::internal(anyhow::anyhow!(
+                    "No diamond cuts found for protocol version {latest_protocol_version}"
+                )));
             }
 
             for diamond_cut in diamond_cuts {
@@ -171,9 +172,6 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     (upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash),
                 );
             }
-            // eth_watch advances its cursor by this return value. If the diamond cut
-            // is not visible yet, leave that event unprocessed so it is retried.
-            processed_events += 1;
         }
 
         let new_upgrades: Vec<_> = upgrades
@@ -184,7 +182,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             .collect();
 
         let Some((last_upgrade, _, _)) = new_upgrades.last() else {
-            return Ok(processed_events);
+            return Ok(events.len());
         };
         let versions: Vec<_> = new_upgrades
             .iter()
@@ -243,11 +241,15 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         stage_latency.observe();
 
         self.last_seen_protocol_version = last_version;
-        Ok(processed_events)
+        Ok(events.len())
     }
 
     fn topic1(&self) -> Option<H256> {
-        Some(self.update_upgrade_timestamp_signature)
+        Some(self.upgrade_timestamp_updated_signature)
+    }
+
+    fn topic2(&self) -> Option<H256> {
+        Some(H256::from_low_u64_be(self.l2_chain_id.as_u64()))
     }
 
     fn event_source(&self) -> EventsSource {

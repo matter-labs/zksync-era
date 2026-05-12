@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
 use zksync_contracts::{
-    chain_admin_contract, hyperchain_contract, state_transition_manager_contract,
+    hyperchain_contract, server_notifier_contract, state_transition_manager_contract,
 };
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
@@ -83,18 +83,6 @@ impl FakeEthClientData {
         }
     }
 
-    fn add_upgrade_timestamp_without_diamond_cut(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
-        for (upgrade, eth_block) in upgrades {
-            self.upgrade_timestamp
-                .entry(*eth_block)
-                .or_default()
-                .push(upgrade_timestamp_log(
-                    u256_to_h256(upgrade.version.pack()),
-                    *eth_block,
-                ));
-        }
-    }
-
     fn set_last_finalized_block_number(&mut self, number: u64) {
         self.last_finalized_block_number = number;
     }
@@ -168,16 +156,6 @@ impl MockEthClient {
 
     pub async fn add_upgrade_timestamp(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
         self.inner.write().await.add_upgrade_timestamp(upgrades);
-    }
-
-    pub async fn add_upgrade_timestamp_without_diamond_cut(
-        &mut self,
-        upgrades: &[(ProtocolUpgrade, u64)],
-    ) {
-        self.inner
-            .write()
-            .await
-            .add_upgrade_timestamp_without_diamond_cut(upgrades);
     }
 
     pub async fn set_last_finalized_block_number(&mut self, number: u64) {
@@ -549,10 +527,11 @@ fn upgrade_timestamp_log(packed_version: H256, eth_block: u64) -> Log {
     Log {
         address: Address::repeat_byte(0x1),
         topics: vec![
-            chain_admin_contract()
-                .event("UpdateUpgradeTimestamp")
-                .expect("UpdateUpgradeTimestamp event is missing in ABI")
+            server_notifier_contract()
+                .event("UpgradeTimestampUpdated")
+                .expect("UpgradeTimestampUpdated event is missing in ABI")
                 .signature(),
+            u256_to_h256(L2ChainId::default().as_u64().into()),
             packed_version,
         ],
         data: final_data.into(),

@@ -20,7 +20,7 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    abi::{BridgehubAbi, ZkChainAbi},
+    abi::{BridgehubAbi, IChainTypeManagerAbi, ZkChainAbi},
     commands::{
         chain::{
             admin_call_builder::{AdminCall, AdminCallBuilder},
@@ -29,7 +29,10 @@ use crate::{
         dev::commands::upgrades::{
             args::chain::{ChainUpgradeParams, DefaultChainUpgradeArgs, UpgradeArgsInner},
             types::UpgradeVersion,
-            utils::{print_error, set_upgrade_timestamp_calldata},
+            utils::{
+                print_error, server_notifier_set_upgrade_timestamp_calldata,
+                set_upgrade_timestamp_calldata,
+            },
         },
     },
     utils::addresses::apply_l1_to_l2_alias,
@@ -39,6 +42,7 @@ use crate::{
 pub struct FetchedChainInfo {
     pub hyperchain_addr: Address,
     pub chain_admin_addr: Address,
+    pub server_notifier_addr: Address,
     pub settlement_layer: u64,
 }
 
@@ -127,10 +131,14 @@ pub async fn fetch_chain_info(
         bail!("Chain not present in bridgehub");
     }
 
+    let chain_type_manager_addr = bridgehub.chain_type_manager(chain_id).await?;
     let settlement_layer = bridgehub.settlement_layer(chain_id).await?;
     let zkchain = ZkChainAbi::new(zkchain_addr, l1_provider.clone());
+    let chain_type_manager =
+        IChainTypeManagerAbi::new(chain_type_manager_addr, l1_provider.clone());
 
     let chain_admin_addr = zkchain.get_admin().await?;
+    let server_notifier_addr = chain_type_manager.server_notifier_address().await?;
     // Repeat for GW
 
     if settlement_layer != l1_provider.get_chainid().await? {
@@ -156,6 +164,7 @@ pub async fn fetch_chain_info(
     Ok(FetchedChainInfo {
         hyperchain_addr: zkchain_addr,
         chain_admin_addr,
+        server_notifier_addr,
         settlement_layer: settlement_layer.as_u64(),
     })
 }
@@ -249,10 +258,13 @@ pub(crate) async fn run_chain_upgrade(
     logger::info(format!("chain_info: {:?}", chain_info));
 
     // 2. Generate calldata
+    let chain_id = args.chain_id.expect("chain_id is required");
+    let server_upgrade_timestamp = args
+        .server_upgrade_timestamp
+        .expect("server_upgrade_timestamp is required");
     let schedule_calldata = set_upgrade_timestamp_calldata(
         upgrade_info.contracts_config.new_protocol_version,
-        args.server_upgrade_timestamp
-            .expect("server_upgrade_timestamp is required"),
+        server_upgrade_timestamp,
     );
 
     let set_timestamp_call = AdminCall {
@@ -263,12 +275,23 @@ pub(crate) async fn run_chain_upgrade(
     };
     logger::info(serde_json::to_string_pretty(&set_timestamp_call)?);
 
+    let server_notifier_set_timestamp_call = AdminCall {
+        description: "Calldata to notify server of scheduled upgrade".to_string(),
+        data: server_notifier_set_upgrade_timestamp_calldata(
+            chain_id,
+            upgrade_info.contracts_config.new_protocol_version,
+            server_upgrade_timestamp,
+        ),
+        target: chain_info.server_notifier_addr,
+        value: U256::zero(),
+    };
+
     if !args.force_display_finalization_params.unwrap_or_default() {
         let chain_readiness = check_chain_readiness(
             args.l1_rpc_url.clone().expect("l1_rpc_url is required"),
             args.l2_rpc_url.clone().expect("l2_rpc_url is required"),
             args.gw_rpc_url.clone(),
-            args.chain_id.expect("chain_id is required"),
+            chain_id,
             args.gw_chain_id,
             chain_info.settlement_layer,
             upgrade_version,
@@ -281,33 +304,31 @@ pub(crate) async fn run_chain_upgrade(
         };
     }
 
-    let (calldata, total_value) = if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
-        logger::info("No calls to execute for gateway upgrade");
-        (vec![], U256::zero())
-    } else {
-        let mut admin_calls_finalize = AdminCallBuilder::new(vec![]);
+    let mut admin_calls_finalize = AdminCallBuilder::new(vec![server_notifier_set_timestamp_call]);
 
+    if chain_info.settlement_layer == args.gw_chain_id.unwrap() {
+        logger::info("No chain upgrade finalization calls to execute for gateway upgrade");
+    } else {
         admin_calls_finalize.append_execute_upgrade(
             chain_info.hyperchain_addr,
             upgrade_info.contracts_config.old_protocol_version,
             upgrade_info.chain_upgrade_diamond_cut.clone(),
         );
+    }
 
-        admin_calls_finalize.display();
+    admin_calls_finalize.display();
 
-        let (chain_admin_calldata, total_value) = if admin_calls_finalize.is_empty() {
-            logger::info("No calls to execute for direct upgrade");
-            (vec![], U256::zero())
-        } else {
-            let (data, value) = admin_calls_finalize.compile_full_calldata();
-            logger::info(format!(
-                "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
-                hex::encode(&data),
-                value,
-            ));
-            (data, value)
-        };
-        (chain_admin_calldata, total_value)
+    let (calldata, total_value) = if admin_calls_finalize.is_empty() {
+        logger::info("No calls to execute for direct upgrade");
+        (vec![], U256::zero())
+    } else {
+        let (data, value) = admin_calls_finalize.compile_full_calldata();
+        logger::info(format!(
+            "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
+            hex::encode(&data),
+            value,
+        ));
+        (data, value)
     };
 
     if run_upgrade {

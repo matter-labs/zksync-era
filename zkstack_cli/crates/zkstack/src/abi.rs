@@ -204,3 +204,9 @@ abigen!(
     "../../../contracts/l1-contracts/zkstack-out/ISetupLegacyBridge.sol/ISetupLegacyBridge.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );
+
+abigen!(
+    IServerNotifierAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IServerNotifier.sol/IServerNotifier.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);

@@ -358,38 +358,39 @@ describe('Upgrade test', function () {
             delegateCalldata
         ]);
 
-        const { stmUpgradeData, chainUpgradeCalldata, setTimestampCalldata } = await prepareUpgradeCalldata(
-            alice._providerL1(),
-            alice._providerL2(),
-            upgradeAddress!,
-            {
-                l2ProtocolUpgradeTx: {
-                    txType: 254,
-                    from: deployerAddress, // FORCE_DEPLOYER address
-                    to: complexUpgraderAddress, // ComplexUpgrader address
-                    gasLimit: contractsPriorityTxMaxGasLimit,
-                    gasPerPubdataByteLimit: zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
-                    maxFeePerGas: 0,
-                    maxPriorityFeePerGas: 0,
-                    paymaster: 0,
-                    value: 0,
-                    reserved: [0, 0, 0, 0],
-                    data,
-                    signature: '0x',
-                    factoryDeps: [
-                        bootloaderHash,
-                        defaultAccountHash,
-                        evmEmulatorHash,
-                        ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode))
-                    ],
-                    paymasterInput: '0x',
-                    reservedDynamic: '0x'
+        const { stmUpgradeData, chainUpgradeCalldata, setTimestampCalldata, setTimestampServerNotifierCall } =
+            await prepareUpgradeCalldata(
+                alice._providerL1(),
+                alice._providerL2(),
+                upgradeAddress!,
+                {
+                    l2ProtocolUpgradeTx: {
+                        txType: 254,
+                        from: deployerAddress, // FORCE_DEPLOYER address
+                        to: complexUpgraderAddress, // ComplexUpgrader address
+                        gasLimit: contractsPriorityTxMaxGasLimit,
+                        gasPerPubdataByteLimit: zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
+                        maxFeePerGas: 0,
+                        maxPriorityFeePerGas: 0,
+                        paymaster: 0,
+                        value: 0,
+                        reserved: [0, 0, 0, 0],
+                        data,
+                        signature: '0x',
+                        factoryDeps: [
+                            bootloaderHash,
+                            defaultAccountHash,
+                            evmEmulatorHash,
+                            ethers.hexlify(zksync.utils.hashBytecode(forceDeployBytecode))
+                        ],
+                        paymasterInput: '0x',
+                        reservedDynamic: '0x'
+                    },
+                    bootloaderHash,
+                    upgradeTimestamp: 1
                 },
-                bootloaderHash,
-                upgradeTimestamp: 1
-            },
-            gatewayInfo
-        );
+                gatewayInfo
+            );
         executeOperation = chainUpgradeCalldata;
 
         const pauseMigrationCalldata = await pauseMigrationsCalldata(
@@ -420,6 +421,7 @@ describe('Upgrade test', function () {
         console.log('Sending chain admin operation');
         // ChainAdminOwnable.sol: `setUpgradeTimestamp` has onlyOwner so we call it directly.
         await chainAdminSetTimestamp(setTimestampCalldata);
+        await sendChainAdminOperation(setTimestampServerNotifierCall, null);
 
         // Wait for server to process L1 event.
         await utils.sleep(2);
@@ -784,7 +786,22 @@ async function prepareUpgradeCalldata(
         params.upgradeTimestamp
     ]);
 
+    const chainId = (await l2Provider.getNetwork()).chainId;
     const bridgehubAddr = await l2Provider.getBridgehubContractAddress();
+    const bridgehub = new ethers.Contract(bridgehubAddr, contracts.bridgehubAbi, l1Provider);
+    const l1CTMAddress = await bridgehub.chainTypeManager(chainId);
+    const l1CTM = new ethers.Contract(l1CTMAddress, contracts.chainTypeManager, l1Provider);
+    const serverNotifierAddress = await l1CTM.serverNotifierAddress();
+
+    const setTimestampServerNotifierCall = {
+        target: serverNotifierAddress,
+        value: 0,
+        data: contracts.serverNotifierAbi.encodeFunctionData('setUpgradeTimestamp', [
+            chainId,
+            newProtocolVersion,
+            params.upgradeTimestamp
+        ])
+    };
 
     const stmUpgradeData = await prepareGovernanceCalldata(
         settlementLayerCTMAddress,
@@ -798,7 +815,8 @@ async function prepareUpgradeCalldata(
     return {
         stmUpgradeData,
         chainUpgradeCalldata,
-        setTimestampCalldata
+        setTimestampCalldata,
+        setTimestampServerNotifierCall
     };
 }
 
