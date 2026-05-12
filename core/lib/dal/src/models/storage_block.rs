@@ -750,6 +750,44 @@ impl ResolvedL1BatchForL2Block {
     }
 }
 
+/// Subset of previous-batch commitment artifacts the Airbender V2 prover
+/// consumes via `CommitmentInput.prev_*`. Joined from `l1_batches`
+/// (`meta_parameters_hash`) and `airbender_batch_commitments` in a single
+/// query — see [`crate::BlocksDal::get_prev_batch_airbender_commitment_input`].
+#[derive(Debug, Clone, Copy)]
+pub struct PrevBatchAirbenderCommitmentInput {
+    pub meta_parameters_hash: H256,
+    pub prev_batch_commitment: H256,
+    pub prev_aux_hash: H256,
+}
+
+pub(crate) struct StoragePrevBatchAirbenderCommitmentInput {
+    pub meta_parameters_hash: Option<Vec<u8>>,
+    pub airbender_commitment: Option<Vec<u8>>,
+    pub airbender_aux_data_hash: Option<Vec<u8>>,
+}
+
+impl TryFrom<StoragePrevBatchAirbenderCommitmentInput> for PrevBatchAirbenderCommitmentInput {
+    type Error = L1BatchMetadataError;
+
+    fn try_from(row: StoragePrevBatchAirbenderCommitmentInput) -> Result<Self, Self::Error> {
+        Ok(Self {
+            meta_parameters_hash: H256::from_slice(
+                &row.meta_parameters_hash
+                    .ok_or(L1BatchMetadataError::Incomplete("meta_parameters_hash"))?,
+            ),
+            prev_batch_commitment: H256::from_slice(
+                &row.airbender_commitment
+                    .ok_or(L1BatchMetadataError::Incomplete("airbender.commitment"))?,
+            ),
+            prev_aux_hash: H256::from_slice(
+                &row.airbender_aux_data_hash
+                    .ok_or(L1BatchMetadataError::Incomplete("airbender.aux_data_hash"))?,
+            ),
+        })
+    }
+}
+
 pub(crate) struct StoragePubdataParams {
     pub l2_da_validator_address: Option<Vec<u8>>,
     pub l2_da_commitment_scheme: Option<i32>,

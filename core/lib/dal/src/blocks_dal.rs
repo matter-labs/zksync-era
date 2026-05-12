@@ -32,14 +32,16 @@ use zksync_types::{
 };
 use zksync_vm_interface::CircuitStatistic;
 
-pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptionalMetadata};
+pub use crate::models::storage_block::{
+    L1BatchMetadataError, L1BatchWithOptionalMetadata, PrevBatchAirbenderCommitmentInput,
+};
 use crate::{
     models::{
         bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
             from_settlement_layer, CommonStorageL1BatchHeader, StorageL1Batch,
-            StorageL1BatchHeader, StorageL2BlockHeader, StoragePubdataParams,
-            UnsealedStorageL1Batch,
+            StorageL1BatchHeader, StorageL2BlockHeader, StoragePrevBatchAirbenderCommitmentInput,
+            StoragePubdataParams, UnsealedStorageL1Batch,
         },
         storage_eth_tx::L2BlockWithEthTx,
         storage_event::StorageL2ToL1Log,
@@ -56,16 +58,6 @@ pub struct BlocksDal<'a, 'c> {
 
 pub struct L2ToL1Messages {
     l2_to_l1_messages: Vec<Vec<u8>>,
-}
-
-/// Subset of `AirbenderBatchCommitment` plus `meta_parameters_hash` that the
-/// Airbender V2 prover consumes via `CommitmentInput.prev_*`. Returned by
-/// [`BlocksDal::get_prev_batch_airbender_commitment_input`] in one round-trip.
-#[derive(Debug, Clone, Copy)]
-pub struct PrevBatchAirbenderCommitmentInput {
-    pub meta_parameters_hash: H256,
-    pub prev_batch_commitment: H256,
-    pub prev_aux_hash: H256,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -3140,14 +3132,15 @@ impl BlocksDal<'_, '_> {
 
     /// Returns the three previous-batch hashes the Airbender V2 prover needs in
     /// its `CommitmentInput`, fetched in a single round-trip by joining
-    /// `l1_batches` with `airbender_batch_commitments`. Returns `None` if
-    /// either side hasn't been populated yet (commitment_generator must run
-    /// before Airbender V2 proving).
+    /// `l1_batches` with `airbender_batch_commitments`. Returns `None` if the
+    /// batch row is missing or either commitment side hasn't been populated yet
+    /// (commitment_generator must run before Airbender V2 proving).
     pub async fn get_prev_batch_airbender_commitment_input(
         &mut self,
         prev_number: L1BatchNumber,
     ) -> DalResult<Option<PrevBatchAirbenderCommitmentInput>> {
-        let row = sqlx::query!(
+        let Some(row) = sqlx::query_as!(
+            StoragePrevBatchAirbenderCommitmentInput,
             r#"
             SELECT
                 l1_batches.meta_parameters_hash,
@@ -3166,15 +3159,14 @@ impl BlocksDal<'_, '_> {
         .instrument("get_prev_batch_airbender_commitment_input")
         .with_arg("prev_number", &prev_number)
         .fetch_optional(self.storage)
-        .await?;
+        .await?
+        else {
+            return Ok(None);
+        };
 
-        Ok(row.and_then(|r| {
-            Some(PrevBatchAirbenderCommitmentInput {
-                meta_parameters_hash: H256::from_slice(&r.meta_parameters_hash?),
-                prev_batch_commitment: H256::from_slice(&r.airbender_commitment?),
-                prev_aux_hash: H256::from_slice(&r.airbender_aux_data_hash?),
-            })
-        }))
+        // Missing columns map to `None` at the DAL boundary — caller treats
+        // this the same as a missing row (commitment_generator hasn't run yet).
+        Ok(row.try_into().ok())
     }
 
     /// Single-column read of `l1_batches.pubdata_input`. Avoids the extra
