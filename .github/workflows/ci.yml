@@ -20,13 +20,17 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          fetch-depth: 2
+          # `tj-actions/changed-files` compares submodule SHAs too. When a PR only updates
+          # `contracts`, it needs enough submodule history to find the merge base there;
+          # otherwise it can miss the change and warn about an invalid revision range.
+          fetch-depth: 0
           submodules: "recursive"
 
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47
         with:
+          fetch_additional_submodule_history: true
           files_yaml: |
             prover:
               - 'prover/**'
@@ -44,6 +48,8 @@ jobs:
             core:
               - 'core/**'
               - '!core/CHANGELOG.md'
+              - 'contracts'
+              - 'contracts/**'
               - 'docker/contract-verifier/**'
               - 'docker/external-node/**'
               - 'docker/server/**'

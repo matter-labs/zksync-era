@@ -56,7 +56,7 @@ RUN apt update; apt install -y docker-ce-cli
 RUN git config --global http.postBuffer 1048576000
 
 # Install Node and yarn
-ENV NODE_MAJOR=18
+ENV NODE_MAJOR=20
 RUN mkdir -p /etc/apt/keyrings && \
     wget -c -O - https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
@@ -81,10 +81,10 @@ RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
 RUN rustup install nightly-2024-09-01
 RUN rustup default stable
 RUN cargo install --version=0.8.0 sqlx-cli
-RUN cargo install cargo-nextest
+RUN cargo install --locked cargo-nextest
 
 RUN git clone https://github.com/matter-labs/foundry-zksync
-RUN cd foundry-zksync && git reset --hard 27360d4c8d12beddbb730dae07ad33a206b38f4b && cargo build --release --bins
+RUN cd foundry-zksync && git checkout foundry-zksync-v0.1.5 && cargo build --release --bins
 RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
 RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
 

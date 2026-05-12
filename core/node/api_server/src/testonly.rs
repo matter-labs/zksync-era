@@ -20,9 +20,9 @@ use zksync_node_genesis::insert_genesis_batch;
 use zksync_node_test_utils::{create_l2_block, default_l1_batch_env, default_system_env};
 use zksync_state::PostgresStorage;
 use zksync_system_constants::{
-    CONTRACT_DEPLOYER_ADDRESS, L2_BASE_TOKEN_ADDRESS, NONCE_HOLDER_ADDRESS,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    BASE_TOKEN_HOLDER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, L2_ASSET_TRACKER_ADDRESS,
+    L2_BASE_TOKEN_ADDRESS, NONCE_HOLDER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_test_contracts::{
     Account, LoadnextContractExecutionParams, TestContract, TestEvmContract,
@@ -43,6 +43,7 @@ use zksync_types::{
     tx::{execute::Create2DeploymentParams, IncludedTxLocation},
     u256_to_h256,
     utils::storage_key_for_eth_balance,
+    web3::keccak256,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
     StorageLog, Transaction, EIP_712_TX_TYPE, H256, U256,
 };
@@ -65,6 +66,13 @@ fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
         )
         .flatten(),
     );
+}
+
+fn h256_mapping_slot_key(key: H256, mapping_slot: u64) -> H256 {
+    let mut input = [0_u8; 64];
+    input[..32].copy_from_slice(key.as_bytes());
+    input[32..].copy_from_slice(H256::from_low_u64_be(mapping_slot).as_bytes());
+    H256(keccak256(&input))
 }
 
 pub(crate) fn default_fee() -> Fee {
@@ -205,6 +213,31 @@ impl StateBuilder {
         self.with_contract(
             Self::INFINITE_LOOP_CONTRACT_ADDRESS,
             TestContract::infinite_loop().bytecode.to_vec(),
+        )
+    }
+
+    /// Initializes minimal L2 asset-tracker state required for L1 `to_mint` processing.
+    pub fn with_l1_base_token_minting(self, base_token_asset_id: H256) -> Self {
+        let base_token_holder_balance_key = storage_key_for_eth_balance(&BASE_TOKEN_HOLDER_ADDRESS);
+        self.with_storage_slot(
+            L2_ASSET_TRACKER_ADDRESS,
+            H256::from_low_u64_be(154),
+            H256::from_low_u64_be(1),
+        )
+        .with_storage_slot(
+            L2_ASSET_TRACKER_ADDRESS,
+            H256::from_low_u64_be(155),
+            base_token_asset_id,
+        )
+        .with_storage_slot(
+            L2_ASSET_TRACKER_ADDRESS,
+            h256_mapping_slot_key(base_token_asset_id, 153),
+            H256::from_low_u64_be(1),
+        )
+        .with_storage_slot(
+            *base_token_holder_balance_key.address(),
+            *base_token_holder_balance_key.key(),
+            H256::from_low_u64_be(10_u64.pow(19)),
         )
     }
 
