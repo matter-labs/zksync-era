@@ -23,7 +23,8 @@ use zksync_types::{
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
     commitment::{
-        AirbenderBatchCommitment, L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams,
+        AirbenderBatchCommitment, L1BatchCommitmentArtifacts, L1BatchWithMetadata,
+        PrevBatchAirbenderCommitmentInput, PubdataParams,
     },
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     settlement::SettlementLayer,
@@ -32,9 +33,7 @@ use zksync_types::{
 };
 use zksync_vm_interface::CircuitStatistic;
 
-pub use crate::models::storage_block::{
-    L1BatchMetadataError, L1BatchWithOptionalMetadata, PrevBatchAirbenderCommitmentInput,
-};
+pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptionalMetadata};
 use crate::{
     models::{
         bigdecimal_to_u256, parse_protocol_version,

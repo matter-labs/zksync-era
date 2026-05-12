@@ -346,6 +346,17 @@ pub struct AirbenderBatchCommitment {
     pub bootloader_initial_content_commitment: H256,
 }
 
+/// Subset of previous-batch commitment artifacts the Airbender V2 prover
+/// consumes via `CommitmentInput.prev_*`. Aggregated from `l1_batches`
+/// (`meta_parameters_hash`) and `airbender_batch_commitments` (commitment +
+/// `aux_data_hash`) in a single DAL query.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct PrevBatchAirbenderCommitmentInput {
+    pub meta_parameters_hash: H256,
+    pub prev_batch_commitment: H256,
+    pub prev_aux_hash: H256,
+}
+
 /// Block Output produced by Virtual Machine
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]

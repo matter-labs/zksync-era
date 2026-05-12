@@ -48,17 +48,18 @@ struct CommitmentArtifactsBoth {
 }
 
 /// Pre-built commitment inputs for a single batch. `boojum` is always present;
-/// `airbender` only exists for post-Boojum batches. The Airbender aux is kept
-/// alongside its input so the downstream `AirbenderBatchCommitment` can read
-/// it without re-matching on the enum.
+/// `airbender` only exists for post-Boojum batches.
 struct PreparedCommitmentInputs {
     boojum: CommitmentInput,
-    airbender: Option<AirbenderPreparedInput>,
+    airbender: Option<CommitmentInput>,
 }
 
-struct AirbenderPreparedInput {
-    input: CommitmentInput,
-    aux: AuxCommitments,
+fn zero_blob_commitments(input: &mut CommitmentInput) {
+    if let CommitmentInput::PostBoojum { blob_hashes, .. } = input {
+        for hashes in blob_hashes {
+            hashes.commitment = H256::zero();
+        }
+    }
 }
 
 mod metrics;
@@ -392,17 +393,11 @@ impl CommitmentGenerator {
 
             PreparedCommitmentInputs {
                 boojum,
-                airbender: Some(AirbenderPreparedInput {
-                    input: airbender_input,
-                    aux: aux_commitments_both.airbender,
-                }),
+                airbender: Some(airbender_input),
             }
         };
 
-        self.tweak_input(&mut prepared.boojum, commitment_mode);
-        if let Some(airbender) = prepared.airbender.as_mut() {
-            self.tweak_input(&mut airbender.input, commitment_mode);
-        }
+        self.tweak_input(&mut prepared, commitment_mode);
         Ok(prepared)
     }
 
@@ -430,16 +425,23 @@ impl CommitmentGenerator {
         // batches return `None` and aren't persisted.
         let airbender = prepared
             .airbender
-            .map(|ab| {
-                let mut commitment =
-                    L1BatchCommitment::new(ab.input, self.disable_sanity_checks)?;
+            .map(|input| {
+                let aux = match &input {
+                    CommitmentInput::PostBoojum {
+                        aux_commitments, ..
+                    } => *aux_commitments,
+                    CommitmentInput::PreBoojum { .. } => {
+                        unreachable!("airbender variant is built only for post-Boojum batches")
+                    }
+                };
+                let mut commitment = L1BatchCommitment::new(input, self.disable_sanity_checks)?;
                 self.post_process_commitment(&mut commitment, commitment_mode);
                 let artifacts = commitment.artifacts()?;
                 anyhow::Ok(AirbenderBatchCommitment {
                     commitment: artifacts.commitment_hash.commitment,
                     aux_data_hash: artifacts.commitment_hash.aux_output,
-                    events_queue_commitment: ab.aux.events_queue_commitment,
-                    bootloader_initial_content_commitment: ab.aux
+                    events_queue_commitment: aux.events_queue_commitment,
+                    bootloader_initial_content_commitment: aux
                         .bootloader_initial_content_commitment,
                 })
             })
@@ -520,17 +522,18 @@ impl CommitmentGenerator {
         Ok(())
     }
 
-    fn tweak_input(&self, input: &mut CommitmentInput, commitment_mode: L1BatchCommitmentMode) {
-        match (commitment_mode, input) {
-            (L1BatchCommitmentMode::Rollup, _) => {
-                // Do nothing
-            }
-            (L1BatchCommitmentMode::Validium, CommitmentInput::PostBoojum { blob_hashes, .. }) => {
-                for hashes in blob_hashes {
-                    hashes.commitment = H256::zero();
-                }
-            }
-            (L1BatchCommitmentMode::Validium, _) => { /* Do nothing */ }
+    fn tweak_input(
+        &self,
+        prepared: &mut PreparedCommitmentInputs,
+        commitment_mode: L1BatchCommitmentMode,
+    ) {
+        if commitment_mode == L1BatchCommitmentMode::Rollup {
+            return;
+        }
+        // Validium: zero out the blob commitments in both variants.
+        zero_blob_commitments(&mut prepared.boojum);
+        if let Some(airbender) = prepared.airbender.as_mut() {
+            zero_blob_commitments(airbender);
         }
     }
 

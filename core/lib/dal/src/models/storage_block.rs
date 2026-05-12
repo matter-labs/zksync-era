@@ -9,7 +9,8 @@ use zksync_types::{
     api,
     block::{CommonL1BatchHeader, L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{
-        L1BatchMetaParameters, L1BatchMetadata, L2DACommitmentScheme, PubdataParams, PubdataType,
+        L1BatchMetaParameters, L1BatchMetadata, L2DACommitmentScheme,
+        PrevBatchAirbenderCommitmentInput, PubdataParams, PubdataType,
     },
     eth_sender::EthTxFinalityStatus,
     fee_model::BatchFeeInput,
@@ -748,17 +749,6 @@ impl ResolvedL1BatchForL2Block {
     pub fn expected_l1_batch(&self) -> L1BatchNumber {
         self.block_l1_batch.unwrap_or(self.pending_l1_batch)
     }
-}
-
-/// Subset of previous-batch commitment artifacts the Airbender V2 prover
-/// consumes via `CommitmentInput.prev_*`. Joined from `l1_batches`
-/// (`meta_parameters_hash`) and `airbender_batch_commitments` in a single
-/// query — see [`crate::BlocksDal::get_prev_batch_airbender_commitment_input`].
-#[derive(Debug, Clone, Copy)]
-pub struct PrevBatchAirbenderCommitmentInput {
-    pub meta_parameters_hash: H256,
-    pub prev_batch_commitment: H256,
-    pub prev_aux_hash: H256,
 }
 
 pub(crate) struct StoragePrevBatchAirbenderCommitmentInput {
