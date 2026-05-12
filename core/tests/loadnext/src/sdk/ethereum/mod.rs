@@ -475,7 +475,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                     .as_u64()
                     .ok_or(ClientError::Other)?
             } else {
-                800000u64
+                1_200_000u64
             }
         };
 

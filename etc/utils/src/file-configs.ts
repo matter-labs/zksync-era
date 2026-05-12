@@ -39,6 +39,29 @@ export function loadEcosystem(pathToHome: string) {
     );
 }
 
+export function loadEcosystemConfig({ pathToHome, config }: { pathToHome: string; config: ConfigName }) {
+    const ecosystem = loadEcosystem(pathToHome);
+    if (!ecosystem || !ecosystem.config) {
+        return null;
+    }
+    const configPath = path.join(pathToHome, ecosystem.config, config);
+    if (!fs.existsSync(configPath)) {
+        return null;
+    }
+    return yaml.parse(fs.readFileSync(configPath, { encoding: 'utf-8' }), {
+        customTags: (tags) =>
+            tags.filter((tag) => {
+                if (typeof tag === 'string') {
+                    return true;
+                }
+                if (tag.format !== 'HEX') {
+                    return true;
+                }
+                return false;
+            })
+    });
+}
+
 export function loadChainConfig(pathToHome: string, chain: string) {
     const configPath = path.join(pathToHome, 'chains', chain, '/ZkStack.yaml');
 

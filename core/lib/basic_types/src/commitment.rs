@@ -267,7 +267,9 @@ impl PubdataParams {
 
     pub fn genesis() -> Self {
         PubdataParams {
-            pubdata_validator: L2PubdataValidator::Address(Address::zero()),
+            pubdata_validator: L2PubdataValidator::CommitmentScheme(
+                L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+            ),
             pubdata_type: PubdataType::Rollup,
         }
     }

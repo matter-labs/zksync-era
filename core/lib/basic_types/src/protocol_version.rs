@@ -136,7 +136,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
             // Note V30 is only present on zksync os
             ProtocolVersionId::Version30 => VmVersion::VmInterop,
-            ProtocolVersionId::Version31 => VmVersion::VmInterop, // TODO: Switch to `VmMediumInterop` after contracts are finalized
+            ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version32 => VmVersion::VmMediumInterop,
         }
@@ -177,7 +177,7 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_medium_interop(&self) -> bool {
-        self < &Self::Version32 // TODO: Switch to `Self::Version31` after contracts are finalized
+        self < &Self::Version31
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -328,7 +328,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version28 => VmVersion::VmEcPrecompiles,
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
             ProtocolVersionId::Version30 => VmVersion::VmInterop,
-            ProtocolVersionId::Version31 => VmVersion::VmInterop, // TODO: Switch to `VmMediumInterop` after contracts are finalized
+            ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
             // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version32 => VmVersion::VmMediumInterop,
         }
