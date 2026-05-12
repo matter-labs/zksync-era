@@ -5,8 +5,11 @@ use itertools::Itertools;
 use zksync_contracts::chain_admin_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    api::Log, h256_to_u256, protocol_upgrade::ProtocolUpgradePreimageOracle,
-    protocol_version::ProtocolSemanticVersion, Address, ProtocolUpgrade, H256, U256,
+    api::Log,
+    h256_to_u256,
+    protocol_upgrade::ProtocolUpgradePreimageOracle,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
+    ProtocolUpgrade, H256, U256,
 };
 
 use crate::{
@@ -65,16 +68,6 @@ impl ProtocolUpgradePreimageOracle for &dyn EthClient {
 
         Ok(result)
     }
-
-    async fn rewrite_v31_upgrade_tx_data(
-        &self,
-        init_address: Address,
-        existing_tx_data: Vec<u8>,
-    ) -> anyhow::Result<Vec<u8>> {
-        self.get_l2_upgrade_tx_data(init_address, existing_tx_data)
-            .await
-            .map_err(Into::into)
-    }
 }
 
 #[async_trait::async_trait]
@@ -122,19 +115,31 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             }
 
             for diamond_cut in diamond_cuts {
-                let upgrade = ProtocolUpgrade {
-                    timestamp,
-                    ..ProtocolUpgrade::try_from_diamond_cut(
-                        &diamond_cut,
-                        self.l1_client.as_ref(),
-                        self.l1_client
-                            .get_chain_gateway_upgrade_info()
+                let (mut upgrade, init_address) = ProtocolUpgrade::try_from_diamond_cut(
+                    &diamond_cut,
+                    self.l1_client.as_ref(),
+                    self.l1_client
+                        .get_chain_gateway_upgrade_info()
+                        .await
+                        .map_err(EventProcessorError::contract_call)?,
+                )
+                .await
+                .map_err(EventProcessorError::internal)?;
+
+                upgrade.timestamp = timestamp;
+
+                // v31 upgrade txs carry generic placeholder calldata in the diamond cut.
+                // Call the upgrader contract on L1 to get the chain-specific version.
+                if upgrade.version.minor == ProtocolVersionId::Version31 {
+                    if let Some(ref mut tx) = upgrade.tx {
+                        let placeholder = std::mem::take(&mut tx.execute.calldata);
+                        tx.execute.calldata = self
+                            .l1_client
+                            .get_l2_upgrade_tx_data(init_address, placeholder)
                             .await
-                            .map_err(EventProcessorError::contract_call)?,
-                    )
-                    .await
-                    .map_err(EventProcessorError::internal)?
-                };
+                            .map_err(EventProcessorError::contract_call)?;
+                    }
+                }
 
                 if upgrade.version > latest_protocol_version {
                     continue;
