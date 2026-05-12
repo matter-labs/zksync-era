@@ -18,7 +18,7 @@ use zksync_web3_decl::{
 };
 
 use crate::{
-    abi::{BridgehubAbi, IChainTypeManagerAbi, ZkChainAbi},
+    abi::{BridgehubAbi, ZkChainAbi},
     commands::{
         chain::admin_call_builder::{AdminCall, AdminCallBuilder},
         dev::commands::upgrades::utils::{print_error, set_upgrade_timestamp_calldata},
@@ -32,7 +32,6 @@ pub struct FetchedChainInfo {
     chain_admin_addr: Address,
     gw_hyperchain_addr: Address,
     l1_asset_router_proxy: Address,
-    server_notifier_addr: Address,
     settlement_layer: u64,
 }
 
@@ -120,14 +119,10 @@ pub async fn fetch_chain_info(
         bail!("Chain not present in bridgehub");
     }
 
-    let chain_type_manager_addr = bridgehub.chain_type_manager(chain_id).await?;
     let settlement_layer = bridgehub.settlement_layer(chain_id).await?;
     let zkchain = ZkChainAbi::new(zkchain_addr, l1_provider.clone());
-    let chain_type_manager =
-        IChainTypeManagerAbi::new(chain_type_manager_addr, l1_provider.clone());
 
     let chain_admin_addr = zkchain.get_admin().await?;
-    let server_notifier_addr = chain_type_manager.server_notifier_address().await?;
     let l1_asset_router_proxy = bridgehub.asset_router().await?;
 
     // Repeat for GW
@@ -154,7 +149,6 @@ pub async fn fetch_chain_info(
         chain_admin_addr,
         gw_hyperchain_addr: gw_zkchain_addr,
         l1_asset_router_proxy,
-        server_notifier_addr,
         settlement_layer: settlement_layer.as_u64(),
     })
 }

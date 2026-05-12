@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use itertools::Itertools;
-use zksync_contracts::{chain_admin_contract, server_notifier_contract};
+use zksync_contracts::server_notifier_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
     api::Log,
@@ -81,7 +81,6 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
         let mut upgrades = HashMap::new();
-        let mut processed_events = 0;
         for event in &events {
             let version = event
                 .topics
