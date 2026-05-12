@@ -330,8 +330,8 @@ impl ContractVerifier {
             Match::Partial => {
                 tracing::info!(
                     request_id = request.id,
-                    deployed = hex::encode(deployed_bytecode),
-                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    deployed_keccak256 = ?deployed_identifier.bytecode_keccak256,
+                    compiled_keccak256 = ?compiled_identifier.bytecode_keccak256,
                     "Partial bytecode match",
                 );
                 verification_problems.push(VerificationProblem::IncorrectMetadata);
@@ -339,8 +339,8 @@ impl ContractVerifier {
             Match::None => {
                 tracing::info!(
                     request_id = request.id,
-                    deployed = hex::encode(deployed_bytecode),
-                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    deployed_keccak256 = ?deployed_identifier.bytecode_keccak256,
+                    compiled_keccak256 = ?compiled_identifier.bytecode_keccak256,
                     "Deployed (runtime) bytecode mismatch",
                 );
                 return Err(ContractVerifierError::BytecodeMismatch);
