@@ -813,7 +813,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
 ) -> anyhow::Result<AdminScriptOutput> {
     let calldata = ADMIN_FUNCTIONS
         .encode(
-            "migrateChainToGateway",
+            "migrateChainToGatewayWithCutData",
             (
                 bridgehub,
                 U256::from(l1_gas_price),
