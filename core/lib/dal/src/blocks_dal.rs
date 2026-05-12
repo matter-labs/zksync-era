@@ -23,7 +23,8 @@ use zksync_types::{
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
     commitment::{
-        AirbenderBatchCommitment, L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams,
+        AirbenderBatchCommitment, L1BatchCommitmentArtifacts, L1BatchWithMetadata,
+        PrevBatchAirbenderCommitmentInput, PubdataParams,
     },
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     settlement::SettlementLayer,
@@ -38,8 +39,8 @@ use crate::{
         bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
             from_settlement_layer, CommonStorageL1BatchHeader, StorageL1Batch,
-            StorageL1BatchHeader, StorageL2BlockHeader, StoragePubdataParams,
-            UnsealedStorageL1Batch,
+            StorageL1BatchHeader, StorageL2BlockHeader, StoragePrevBatchAirbenderCommitmentInput,
+            StoragePubdataParams, UnsealedStorageL1Batch,
         },
         storage_eth_tx::L2BlockWithEthTx,
         storage_event::StorageL2ToL1Log,
@@ -3126,6 +3127,72 @@ impl BlocksDal<'_, '_> {
                 &r.bootloader_initial_content_commitment,
             ),
         }))
+    }
+
+    /// Returns the three previous-batch hashes the Airbender V2 prover needs in
+    /// its `CommitmentInput`, fetched in a single round-trip by joining
+    /// `l1_batches` with `airbender_batch_commitments`. Returns `None` if the
+    /// batch row is missing or either commitment side hasn't been populated yet
+    /// (commitment_generator must run before Airbender V2 proving).
+    pub async fn get_prev_batch_airbender_commitment_input(
+        &mut self,
+        prev_number: L1BatchNumber,
+    ) -> DalResult<Option<PrevBatchAirbenderCommitmentInput>> {
+        let Some(row) = sqlx::query_as!(
+            StoragePrevBatchAirbenderCommitmentInput,
+            r#"
+            SELECT
+                l1_batches.meta_parameters_hash,
+                airbender_batch_commitments.commitment AS "airbender_commitment?",
+                airbender_batch_commitments.aux_data_hash AS "airbender_aux_data_hash?"
+            FROM
+                l1_batches
+            LEFT JOIN airbender_batch_commitments
+                ON airbender_batch_commitments.l1_batch_number = l1_batches.number
+            WHERE
+                l1_batches.number = $1
+                AND l1_batches.is_sealed
+            "#,
+            i64::from(prev_number.0)
+        )
+        .instrument("get_prev_batch_airbender_commitment_input")
+        .with_arg("prev_number", &prev_number)
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        // Missing columns map to `None` at the DAL boundary — caller treats
+        // this the same as a missing row (commitment_generator hasn't run yet).
+        Ok(row.try_into().ok())
+    }
+
+    /// Single-column read of `l1_batches.pubdata_input`. Avoids the extra
+    /// `l2_to_l1_logs` query that `get_l1_batch_header` does when the caller
+    /// only needs the pubdata blob (e.g. to derive KZG blob hashes).
+    pub async fn get_l1_batch_pubdata_input(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<Vec<u8>>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                pubdata_input
+            FROM
+                l1_batches
+            WHERE
+                is_sealed
+                AND number = $1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_l1_batch_pubdata_input")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.and_then(|r| r.pubdata_input))
     }
 
     pub async fn get_l1_batch_tree_data(

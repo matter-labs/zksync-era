@@ -13,9 +13,9 @@ use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_types::{
     blob::num_blobs_required,
     commitment::{
-        AirbenderBatchCommitment, AuxCommitments, BlobHash, CommitmentCommonInput, CommitmentInput,
-        L1BatchAuxiliaryOutput, L1BatchCommitment, L1BatchCommitmentArtifacts,
-        L1BatchCommitmentMode,
+        AirbenderBatchCommitment, AuxCommitments, AuxCommitmentsBoth, BlobHash,
+        CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput, L1BatchCommitment,
+        L1BatchCommitmentArtifacts, L1BatchCommitmentMode,
     },
     h256_to_u256,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -30,14 +30,6 @@ use crate::{
     },
 };
 
-/// Both Boojum and Airbender variants of the auxiliary commitments for a single
-/// L1 batch. Airbender uses lighter math for two of the four sub-hashes; the
-/// other two come out identical.
-struct AuxCommitmentsBoth {
-    boojum: AuxCommitments,
-    airbender: AuxCommitments,
-}
-
 /// Both Boojum and Airbender variants of the per-batch commitment artifacts.
 /// `boojum` holds everything zksync-era already persisted in `l1_batches`.
 /// `airbender` holds the four hashes that go into `airbender_batch_commitments`,
@@ -47,29 +39,10 @@ struct CommitmentArtifactsBoth {
     airbender: Option<AirbenderBatchCommitment>,
 }
 
-/// Returns a copy of `input` with `aux_commitments` replaced by `aux`. Used to
-/// derive the Airbender-shape input from the Boojum input without re-fetching
-/// upstream data. Pre-Boojum is unreachable because the caller only invokes
-/// this when an Airbender `aux` is available, which never happens for pre-Boojum.
-fn override_aux_commitments(input: CommitmentInput, aux: AuxCommitments) -> CommitmentInput {
-    match input {
-        CommitmentInput::PostBoojum {
-            common,
-            system_logs,
-            state_diffs,
-            blob_hashes,
-            aggregation_root,
-            ..
-        } => CommitmentInput::PostBoojum {
-            common,
-            system_logs,
-            state_diffs,
-            aux_commitments: aux,
-            blob_hashes,
-            aggregation_root,
-        },
-        CommitmentInput::PreBoojum { .. } => {
-            unreachable!("Airbender variant only applies to post-Boojum batches")
+fn zero_blob_commitments(input: &mut CommitmentInput) {
+    if let CommitmentInput::PostBoojum { blob_hashes, .. } = input {
+        for hashes in blob_hashes {
+            hashes.commitment = H256::zero();
         }
     }
 }
@@ -223,7 +196,7 @@ impl CommitmentGenerator {
 
         Ok(AuxCommitmentsBoth {
             boojum: boojum_aux,
-            airbender: airbender_aux,
+            airbender: Some(airbender_aux),
         })
     }
 
@@ -232,7 +205,7 @@ impl CommitmentGenerator {
         &self,
         l1_batch_number: L1BatchNumber,
         commitment_mode: L1BatchCommitmentMode,
-    ) -> anyhow::Result<(CommitmentInput, Option<AuxCommitments>)> {
+    ) -> anyhow::Result<CommitmentInput> {
         tracing::info!("Started preparing commitment input for L1 batch #{l1_batch_number}");
 
         let mut connection = self
@@ -279,7 +252,7 @@ impl CommitmentGenerator {
             .await?;
         drop(connection);
 
-        let (mut input, airbender_aux) = if protocol_version.is_pre_boojum() {
+        let mut prepared = if protocol_version.is_pre_boojum() {
             let mut initial_writes = Vec::new();
             let mut repeated_writes = Vec::new();
             for (key, value) in touched_slots.into_iter().sorted_by_key(|(key, _)| *key) {
@@ -303,14 +276,11 @@ impl CommitmentGenerator {
                 }
             }
 
-            (
-                CommitmentInput::PreBoojum {
-                    common,
-                    initial_writes,
-                    repeated_writes,
-                },
-                None, // Airbender variant only applies to post-Boojum batches.
-            )
+            CommitmentInput::PreBoojum {
+                common,
+                initial_writes,
+                repeated_writes,
+            }
         } else {
             let aux_commitments_both = self
                 .calculate_aux_commitments(header.number, protocol_version)
@@ -386,21 +356,18 @@ impl CommitmentGenerator {
                 read_aggregation_root(&mut connection, l1_batch_number).await?
             };
 
-            (
-                CommitmentInput::PostBoojum {
-                    common,
-                    system_logs: header.system_logs,
-                    state_diffs,
-                    aux_commitments: aux_commitments_both.boojum,
-                    blob_hashes,
-                    aggregation_root,
-                },
-                Some(aux_commitments_both.airbender),
-            )
+            CommitmentInput::PostBoojum {
+                common,
+                system_logs: header.system_logs,
+                state_diffs,
+                aux_commitments_both,
+                blob_hashes,
+                aggregation_root,
+            }
         };
 
-        self.tweak_input(&mut input, commitment_mode);
-        Ok((input, airbender_aux))
+        self.tweak_input(&mut prepared, commitment_mode);
+        Ok(prepared)
     }
 
     #[tracing::instrument(skip(self))]
@@ -412,37 +379,19 @@ impl CommitmentGenerator {
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
-        let (input, airbender_aux) = self.prepare_input(l1_batch_number, commitment_mode).await?;
+        let prepared = self.prepare_input(l1_batch_number, commitment_mode).await?;
         let latency = latency.observe();
         tracing::debug!("Prepared commitment input for L1 batch #{l1_batch_number} in {latency:?}");
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::Calculate].start();
 
-        // Boojum artifacts (existing path, unchanged).
-        let mut commitment = L1BatchCommitment::new(input.clone(), self.disable_sanity_checks)?;
+        let mut commitment = L1BatchCommitment::new(prepared, self.disable_sanity_checks)?;
         self.post_process_commitment(&mut commitment, commitment_mode);
+        // Both variants are derived from the same `L1BatchCommitment`, so any
+        // post-processing on `auxiliary_output` applies to both hashes.
         let boojum_artifacts = commitment.artifacts()?;
-
-        // Airbender artifacts: same input but with `aux_commitments` swapped to
-        // the Airbender variant. Only post-Boojum batches have an Airbender
-        // variant; pre-Boojum batches return `None` and aren't persisted.
-        let airbender = airbender_aux
-            .map(|airbender_aux| {
-                let airbender_input = override_aux_commitments(input, airbender_aux);
-                let mut airbender_commitment =
-                    L1BatchCommitment::new(airbender_input, self.disable_sanity_checks)?;
-                self.post_process_commitment(&mut airbender_commitment, commitment_mode);
-                let airbender_artifacts = airbender_commitment.artifacts()?;
-                anyhow::Ok(AirbenderBatchCommitment {
-                    commitment: airbender_artifacts.commitment_hash.commitment,
-                    aux_data_hash: airbender_artifacts.commitment_hash.aux_output,
-                    events_queue_commitment: airbender_aux.events_queue_commitment,
-                    bootloader_initial_content_commitment: airbender_aux
-                        .bootloader_initial_content_commitment,
-                })
-            })
-            .transpose()?;
+        let airbender = commitment.airbender_artifacts()?;
 
         let latency = latency.observe();
         tracing::debug!(
@@ -519,18 +468,12 @@ impl CommitmentGenerator {
         Ok(())
     }
 
-    fn tweak_input(&self, input: &mut CommitmentInput, commitment_mode: L1BatchCommitmentMode) {
-        match (commitment_mode, input) {
-            (L1BatchCommitmentMode::Rollup, _) => {
-                // Do nothing
-            }
-            (L1BatchCommitmentMode::Validium, CommitmentInput::PostBoojum { blob_hashes, .. }) => {
-                for hashes in blob_hashes {
-                    hashes.commitment = H256::zero();
-                }
-            }
-            (L1BatchCommitmentMode::Validium, _) => { /* Do nothing */ }
+    fn tweak_input(&self, prepared: &mut CommitmentInput, commitment_mode: L1BatchCommitmentMode) {
+        if commitment_mode == L1BatchCommitmentMode::Rollup {
+            return;
         }
+        // Validium: zero out the blob commitments.
+        zero_blob_commitments(prepared);
     }
 
     fn post_process_commitment(

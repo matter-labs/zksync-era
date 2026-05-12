@@ -216,54 +216,40 @@ impl AirbenderRequestProcessor {
         }
 
         // Prev-batch hashes from L1 settlement of batch N-1. For batch 1 we
-        // read the genesis batch (#0) metadata, which `genesis::insert_genesis_batch`
-        // populates at chain bootstrap — so batch 1 is provable. Batch 0 itself has
-        // no predecessor and isn't a valid proving target.
+        // read the genesis batch (#0) commitments, which
+        // `genesis::insert_genesis_batch` populates at chain bootstrap — so
+        // batch 1 is provable. Batch 0 itself has no predecessor and isn't a
+        // valid proving target. The Airbender variant uses lighter
+        // aux-commitment math (zero events queue + Blake2 bootloader heap), so
+        // its `commitment` and `aux_data_hash` differ from Boojum's;
+        // `meta_parameters_hash` matches and is read from the regular
+        // `l1_batches` row in the same query.
         let prev_number = L1BatchNumber(l1_batch_number.0.checked_sub(1).ok_or_else(|| {
             AirbenderProcessorError::GeneralError(anyhow::anyhow!(
                 "batch {l1_batch_number} has no predecessor (only batch 1+ are provable)"
             ))
         })?);
-        let prev_metadata = connection
+        let prev_commitment_input = connection
             .blocks_dal()
-            .get_l1_batch_metadata(prev_number)
+            .get_prev_batch_airbender_commitment_input(prev_number)
             .await?
             .ok_or_else(|| {
                 AirbenderProcessorError::GeneralError(anyhow::anyhow!(
-                    "previous batch {prev_number} has no committed metadata yet — \
-                     commitment_generator must run before Airbender V2 proving"
-                ))
-            })?;
-        // The Airbender variant uses lighter aux-commitment math (zero events
-        // queue + Blake2 bootloader heap), so its `commitment` and
-        // `aux_data_hash` differ from Boojum's. `meta_parameters_hash` matches
-        // and is read from the regular `l1_batches` row above.
-        let prev_airbender = connection
-            .blocks_dal()
-            .get_airbender_batch_commitment(prev_number)
-            .await?
-            .ok_or_else(|| {
-                AirbenderProcessorError::GeneralError(anyhow::anyhow!(
-                    "previous batch {prev_number} has no Airbender commitment yet — \
+                    "previous batch {prev_number} has no Airbender commitment input yet — \
                      commitment_generator must run before Airbender V2 proving"
                 ))
             })?;
 
         // Blob hashes + EIP-4844 versioned hashes from VM pubdata via KZG.
-        let header = connection
+        let pubdata_input = connection
             .blocks_dal()
-            .get_l1_batch_header(l1_batch_number)
+            .get_l1_batch_pubdata_input(l1_batch_number)
             .await?
             .ok_or_else(|| {
                 AirbenderProcessorError::GeneralError(anyhow::anyhow!(
-                    "L1BatchHeader missing for batch {l1_batch_number}"
+                    "pubdata_input missing for batch {l1_batch_number}"
                 ))
             })?;
-        let pubdata_input = header.pubdata_input.ok_or_else(|| {
-            AirbenderProcessorError::GeneralError(anyhow::anyhow!(
-                "L1BatchHeader is missing pubdata_input for batch {l1_batch_number}"
-            ))
-        })?;
         let num_blobs = num_blobs_required(&system_env.version);
 
         let commitments = pubdata_to_blob_commitments(num_blobs, &pubdata_input);
@@ -280,9 +266,9 @@ impl AirbenderRequestProcessor {
             .collect::<Vec<_>>();
 
         let commitment_input = CommitmentInput {
-            prev_batch_commitment: prev_airbender.commitment,
-            prev_meta_hash: prev_metadata.metadata.meta_parameters_hash,
-            prev_aux_hash: prev_airbender.aux_data_hash,
+            prev_batch_commitment: prev_commitment_input.prev_batch_commitment,
+            prev_meta_hash: prev_commitment_input.meta_parameters_hash,
+            prev_aux_hash: prev_commitment_input.prev_aux_hash,
             blob_hashes,
             blob_versioned_hashes: versioned_hashes,
         };
