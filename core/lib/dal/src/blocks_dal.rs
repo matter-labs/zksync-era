@@ -58,6 +58,16 @@ pub struct L2ToL1Messages {
     l2_to_l1_messages: Vec<Vec<u8>>,
 }
 
+/// Subset of `AirbenderBatchCommitment` plus `meta_parameters_hash` that the
+/// Airbender V2 prover consumes via `CommitmentInput.prev_*`. Returned by
+/// [`BlocksDal::get_prev_batch_airbender_commitment_input`] in one round-trip.
+#[derive(Debug, Clone, Copy)]
+pub struct PrevBatchAirbenderCommitmentInput {
+    pub meta_parameters_hash: H256,
+    pub prev_batch_commitment: H256,
+    pub prev_aux_hash: H256,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct TxForPrecommit {
     pub l1_batch_number: Option<L1BatchNumber>,
@@ -3126,6 +3136,72 @@ impl BlocksDal<'_, '_> {
                 &r.bootloader_initial_content_commitment,
             ),
         }))
+    }
+
+    /// Returns the three previous-batch hashes the Airbender V2 prover needs in
+    /// its `CommitmentInput`, fetched in a single round-trip by joining
+    /// `l1_batches` with `airbender_batch_commitments`. Returns `None` if
+    /// either side hasn't been populated yet (commitment_generator must run
+    /// before Airbender V2 proving).
+    pub async fn get_prev_batch_airbender_commitment_input(
+        &mut self,
+        prev_number: L1BatchNumber,
+    ) -> DalResult<Option<PrevBatchAirbenderCommitmentInput>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                l1_batches.meta_parameters_hash,
+                airbender_batch_commitments.commitment AS "airbender_commitment?",
+                airbender_batch_commitments.aux_data_hash AS "airbender_aux_data_hash?"
+            FROM
+                l1_batches
+            LEFT JOIN airbender_batch_commitments
+                ON airbender_batch_commitments.l1_batch_number = l1_batches.number
+            WHERE
+                l1_batches.number = $1
+                AND l1_batches.is_sealed
+            "#,
+            i64::from(prev_number.0)
+        )
+        .instrument("get_prev_batch_airbender_commitment_input")
+        .with_arg("prev_number", &prev_number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.and_then(|r| {
+            Some(PrevBatchAirbenderCommitmentInput {
+                meta_parameters_hash: H256::from_slice(&r.meta_parameters_hash?),
+                prev_batch_commitment: H256::from_slice(&r.airbender_commitment?),
+                prev_aux_hash: H256::from_slice(&r.airbender_aux_data_hash?),
+            })
+        }))
+    }
+
+    /// Single-column read of `l1_batches.pubdata_input`. Avoids the extra
+    /// `l2_to_l1_logs` query that `get_l1_batch_header` does when the caller
+    /// only needs the pubdata blob (e.g. to derive KZG blob hashes).
+    pub async fn get_l1_batch_pubdata_input(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<Vec<u8>>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                pubdata_input
+            FROM
+                l1_batches
+            WHERE
+                is_sealed
+                AND number = $1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_l1_batch_pubdata_input")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.and_then(|r| r.pubdata_input))
     }
 
     pub async fn get_l1_batch_tree_data(

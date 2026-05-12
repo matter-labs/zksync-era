@@ -1,5 +1,4 @@
 pub use kzg::{pubdata_to_blob_commitments, KzgInfo, ZK_SYNC_BYTES_PER_BLOB};
-
 use zksync_types::{web3::keccak256, H256};
 
 /// Compute the EIP-4844 versioned hash for each blob in `pubdata_input`.
