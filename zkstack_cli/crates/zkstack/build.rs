@@ -4,7 +4,6 @@ use anyhow::{anyhow, Context};
 use ethers::contract::Abigen;
 use xshell::{cmd, Shell};
 
-// trigger ci
 const COMPLETION_DIR: &str = "completion";
 
 fn main() -> anyhow::Result<()> {
