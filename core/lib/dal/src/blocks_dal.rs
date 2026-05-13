@@ -22,7 +22,10 @@ use zksync_types::{
         CommonBlockStatistics, CommonL1BatchHeader, L1BatchHeader, L1BatchTreeData, L2BlockHeader,
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
-    commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata, PubdataParams},
+    commitment::{
+        AirbenderBatchCommitment, L1BatchCommitmentArtifacts, L1BatchWithMetadata,
+        PrevBatchAirbenderCommitmentInput, PubdataParams,
+    },
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     settlement::SettlementLayer,
     writes::TreeWrite,
@@ -36,8 +39,8 @@ use crate::{
         bigdecimal_to_u256, parse_protocol_version,
         storage_block::{
             from_settlement_layer, CommonStorageL1BatchHeader, StorageL1Batch,
-            StorageL1BatchHeader, StorageL2BlockHeader, StoragePubdataParams,
-            UnsealedStorageL1Batch,
+            StorageL1BatchHeader, StorageL2BlockHeader, StoragePrevBatchAirbenderCommitmentInput,
+            StoragePubdataParams, UnsealedStorageL1Batch,
         },
         storage_eth_tx::L2BlockWithEthTx,
         storage_event::StorageL2ToL1Log,
@@ -3048,6 +3051,148 @@ impl BlocksDal<'_, '_> {
                 .map_err(|err| instrumentation.constraint_error(err))?,
             metadata: l1_batch.try_into(),
         }))
+    }
+
+    /// Persists the Airbender-shape commitment artifacts for an L1 batch.
+    ///
+    /// Idempotent on retry via `ON CONFLICT DO NOTHING`: if a row already exists
+    /// for `number`, the new write is a no-op (it is NOT replaced — divergent
+    /// values would be silently swallowed; the assumption is that
+    /// `commitment_generator` is deterministic for a given batch).
+    pub async fn save_airbender_batch_commitment(
+        &mut self,
+        number: L1BatchNumber,
+        artifacts: &AirbenderBatchCommitment,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO airbender_batch_commitments (
+                l1_batch_number,
+                commitment,
+                aux_data_hash,
+                events_queue_commitment,
+                bootloader_initial_content_commitment,
+                created_at,
+                updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
+            "#,
+            i64::from(number.0),
+            artifacts.commitment.as_bytes(),
+            artifacts.aux_data_hash.as_bytes(),
+            artifacts.events_queue_commitment.as_bytes(),
+            artifacts.bootloader_initial_content_commitment.as_bytes(),
+        )
+        .instrument("save_airbender_batch_commitment")
+        .with_arg("number", &number)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    /// Returns the Airbender-shape commitment artifacts for an L1 batch, or
+    /// `None` if no row exists yet (commitment generator hasn't run for that
+    /// batch, or the batch is pre-Boojum — `commitment_generator` skips
+    /// Airbender for those).
+    pub async fn get_airbender_batch_commitment(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<AirbenderBatchCommitment>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                commitment,
+                aux_data_hash,
+                events_queue_commitment,
+                bootloader_initial_content_commitment
+            FROM
+                airbender_batch_commitments
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_airbender_batch_commitment")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|r| AirbenderBatchCommitment {
+            commitment: H256::from_slice(&r.commitment),
+            aux_data_hash: H256::from_slice(&r.aux_data_hash),
+            events_queue_commitment: H256::from_slice(&r.events_queue_commitment),
+            bootloader_initial_content_commitment: H256::from_slice(
+                &r.bootloader_initial_content_commitment,
+            ),
+        }))
+    }
+
+    /// Returns the three previous-batch hashes the Airbender V2 prover needs in
+    /// its `CommitmentInput`, fetched in a single round-trip by joining
+    /// `l1_batches` with `airbender_batch_commitments`. Returns `None` if the
+    /// batch row is missing or either commitment side hasn't been populated yet
+    /// (commitment_generator must run before Airbender V2 proving).
+    pub async fn get_prev_batch_airbender_commitment_input(
+        &mut self,
+        prev_number: L1BatchNumber,
+    ) -> DalResult<Option<PrevBatchAirbenderCommitmentInput>> {
+        let Some(row) = sqlx::query_as!(
+            StoragePrevBatchAirbenderCommitmentInput,
+            r#"
+            SELECT
+                l1_batches.meta_parameters_hash,
+                airbender_batch_commitments.commitment AS "airbender_commitment?",
+                airbender_batch_commitments.aux_data_hash AS "airbender_aux_data_hash?"
+            FROM
+                l1_batches
+            LEFT JOIN airbender_batch_commitments
+                ON airbender_batch_commitments.l1_batch_number = l1_batches.number
+            WHERE
+                l1_batches.number = $1
+                AND l1_batches.is_sealed
+            "#,
+            i64::from(prev_number.0)
+        )
+        .instrument("get_prev_batch_airbender_commitment_input")
+        .with_arg("prev_number", &prev_number)
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        // Missing columns map to `None` at the DAL boundary — caller treats
+        // this the same as a missing row (commitment_generator hasn't run yet).
+        Ok(row.try_into().ok())
+    }
+
+    /// Single-column read of `l1_batches.pubdata_input`. Avoids the extra
+    /// `l2_to_l1_logs` query that `get_l1_batch_header` does when the caller
+    /// only needs the pubdata blob (e.g. to derive KZG blob hashes).
+    pub async fn get_l1_batch_pubdata_input(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<Vec<u8>>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                pubdata_input
+            FROM
+                l1_batches
+            WHERE
+                is_sealed
+                AND number = $1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_l1_batch_pubdata_input")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.and_then(|r| r.pubdata_input))
     }
 
     pub async fn get_l1_batch_tree_data(
