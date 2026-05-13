@@ -9,7 +9,6 @@ use ethers::{
     abi::Address,
     contract::BaseContract,
     providers::{Http, Middleware, Provider},
-    types::Bytes,
 };
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -212,10 +211,6 @@ pub async fn run_inner(
         .get_finalize_migration_params(first_priority_op_hash, 0)
         .await?;
 
-    let gateway_gateway_config = gateway_chain_config
-        .get_gateway_config()
-        .context("Gateway config not present")?;
-    let gateway_diamond_cut = gateway_gateway_config.diamond_cut_data.0.clone();
     finish_migrate_chain_to_gateway(
         shell,
         args.forge_args.clone(),
@@ -228,12 +223,12 @@ pub async fn run_inner(
             .get_contracts_config()?
             .core_ecosystem_contracts
             .bridgehub_proxy_addr,
-        gateway_diamond_cut.into(),
         chain_config.chain_id.as_u64(),
         gateway_chain_id,
         first_priority_op_hash,
         params,
         args.tx_status,
+        gateway_rpc_url.clone(),
         l1_rpc_url.clone(),
     )
     .await?;
@@ -325,29 +320,32 @@ pub(crate) async fn finish_migrate_chain_to_gateway(
     foundry_scripts_path: &Path,
     wallet: Wallet,
     l1_bridgehub_addr: Address,
-    gateway_diamond_cut_data: Bytes,
     l2_chain_id: u64,
     gateway_chain_id: u64,
     l2_tx_hash: H256,
     params: FinalizeMigrationParams,
     tx_status: bool,
+    gateway_rpc_url: String,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
+    let l2_tx_number_in_batch = u16::try_from(params.l2_tx_number_in_block.as_u64())
+        .context("L2 transaction number in batch does not fit into uint16")?;
+
     let data = GATEWAY_UTILS_INTERFACE
         .encode(
             "finishMigrateChainToGateway",
-            (
+            ((
                 l1_bridgehub_addr,
-                gateway_diamond_cut_data,
+                l2_tx_number_in_batch,
+                tx_status as u8,
+                l2_tx_hash,
                 U256::from(l2_chain_id),
                 U256::from(gateway_chain_id),
-                l2_tx_hash,
                 U256::from(params.l2_batch_number.0[0]),
                 U256::from(params.l2_message_index.0[0]),
-                U256::from(params.l2_tx_number_in_block.0[0]),
+                gateway_rpc_url,
                 params.proof.proof,
-                tx_status as u8,
-            ),
+            ),),
         )
         .unwrap();
 
