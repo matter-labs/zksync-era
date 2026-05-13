@@ -807,19 +807,19 @@ pub(crate) async fn finalize_migrate_to_gateway(
     l1_gas_price: u64,
     l2_chain_id: u64,
     gateway_chain_id: u64,
-    gateway_rpc_url: String,
+    gateway_diamond_cut_data: Bytes,
     refund_recipient: Address,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
     let calldata = ADMIN_FUNCTIONS
         .encode(
-            "migrateChainToGateway",
+            "migrateChainToGatewayWithCutData",
             (
                 bridgehub,
                 U256::from(l1_gas_price),
                 U256::from(l2_chain_id),
                 U256::from(gateway_chain_id),
-                gateway_rpc_url,
+                gateway_diamond_cut_data,
                 refund_recipient,
                 mode.should_send(),
             ),
