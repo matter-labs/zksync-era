@@ -99,8 +99,10 @@ pub trait ProtocolUpgradePreimageOracle: Send + Sync {
         hashes: Vec<H256>,
     ) -> anyhow::Result<Vec<Vec<u8>>>;
 
-    async fn rewrite_v31_upgrade_tx_data(
+    // Returns input unchanged unless the protocol version needs a rewrite
+    async fn rewrite_upgrade_tx_data(
         &self,
+        protocol_version: ProtocolVersionId,
         init_address: Address,
         existing_tx_data: Vec<u8>,
     ) -> anyhow::Result<Vec<u8>>;
@@ -218,12 +220,10 @@ impl ProtocolUpgrade {
                     .await?
             };
 
-            if version.minor == ProtocolVersionId::Version31 {
-                let placeholder = std::mem::take(&mut upgrade.l2_protocol_upgrade_tx.data);
-                upgrade.l2_protocol_upgrade_tx.data = preimage_oracle
-                    .rewrite_v31_upgrade_tx_data(init_address, placeholder)
-                    .await?;
-            }
+            let tx_data = std::mem::take(&mut upgrade.l2_protocol_upgrade_tx.data);
+            upgrade.l2_protocol_upgrade_tx.data = preimage_oracle
+                .rewrite_upgrade_tx_data(version.minor, init_address, tx_data)
+                .await?;
 
             upgrade.l2_protocol_upgrade_tx.data =
                 prepare_upgrade_call(&upgrade, chain_specific).await?;

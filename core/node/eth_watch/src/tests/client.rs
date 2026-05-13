@@ -360,7 +360,7 @@ impl EthClient for MockEthClient {
         }))
     }
 
-    async fn get_l2_upgrade_tx_data(
+    async fn get_v31_l2_upgrade_tx_data(
         &self,
         _init_address: Address,
         existing_tx_data: Vec<u8>,
