@@ -17,6 +17,7 @@ use zksync_types::{
     api::{ChainAggProof, Log},
     ethabi::{decode, Contract, ParamType},
     protocol_version::ProtocolSemanticVersion,
+    u256_to_h256,
     utils::encode_ntv_asset_id,
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256,
@@ -57,12 +58,11 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         verifier_address: Address,
     ) -> Result<Option<H256>, ContractCallError>;
 
-    /// Returns upgrade diamond cuts since the protocol version.
-    /// It will include all potentially skipped versions
-    async fn diamond_cuts_since_version(
+    /// Returns the latest upgrade diamond cut for the old/from protocol version.
+    async fn diamond_cut_for_version(
         &self,
         version: ProtocolSemanticVersion,
-    ) -> EnrichedClientResult<Vec<Vec<u8>>>;
+    ) -> EnrichedClientResult<Option<Vec<u8>>>;
 
     async fn get_published_preimages(
         &self,
@@ -456,48 +456,39 @@ where
         }
     }
 
-    async fn diamond_cuts_since_version(
+    async fn diamond_cut_for_version(
         &self,
-        from_version: ProtocolSemanticVersion,
-    ) -> EnrichedClientResult<Vec<Vec<u8>>> {
+        version: ProtocolSemanticVersion,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
         let Some(state_transition_manager_address) = self.state_transition_manager_address else {
-            return Ok(vec![]);
+            return Ok(None);
         };
 
-        let to_block = self.client.block_number().await?;
-
-        let from_block = self
-            .block_for_diamond_cut_for_version(from_version.pack())
+        let Some(from_block) = self
+            .block_for_diamond_cut_for_version(version.pack())
             .await
             .map_err(|e| {
                 EnrichedClientError::custom(
-                    format!(
-                        "Failed to get block for diamond cut for version {from_version}: err {e}"
-                    ),
-                    "diamond_cuts_since_version",
+                    format!("Failed to get block for diamond cut for version {version}: err {e}"),
+                    "diamond_cut_for_version",
                 )
             })?
-            .ok_or(EnrichedClientError::custom(
-                format!("No diamond cut found for version {from_version}"),
-                "diamond_cuts_since_version",
-            ))
-            .map_err(|e| {
-                tracing::error!("{e}");
-                e
-            })?;
+        else {
+            return Ok(None);
+        };
 
         let logs = self
             .get_events_inner(
                 from_block.into(),
-                to_block.into(),
+                from_block.into(),
                 Some(vec![self.new_upgrade_cut_data_signature]),
-                None,
+                Some(vec![u256_to_h256(version.pack())]),
                 Some(vec![state_transition_manager_address]),
                 RETRY_LIMIT,
             )
             .await?;
 
-        Ok(logs.into_iter().map(|log| log.data.0).collect())
+        Ok(logs.into_iter().map(|log| log.data.0).next_back())
     }
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
         self.client.fetch_chain_id().await

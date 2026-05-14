@@ -10,10 +10,9 @@ use zksync_types::{
     api::{ChainAggProof, Log},
     bytecode::BytecodeHash,
     ethabi::{self, Token},
-    h256_to_u256,
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
-    protocol_version::ProtocolSemanticVersion,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
     u256_to_h256,
     utils::encode_ntv_asset_id,
     web3::{contract::Tokenizable, BlockNumber},
@@ -67,20 +66,47 @@ impl FakeEthClientData {
     }
 
     fn add_upgrade_timestamp(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
+        // Keep in sync with `setup_db()`: tests start from the previous protocol version.
+        let mut old_protocol_version = ProtocolSemanticVersion {
+            minor: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
+            patch: 0.into(),
+        };
         for (upgrade, eth_block) in upgrades {
             self.upgrade_timestamp
                 .entry(*eth_block)
                 .or_default()
                 .push(upgrade_timestamp_log(
-                    u256_to_h256(upgrade.version.pack()),
+                    u256_to_h256(old_protocol_version.pack()),
                     *eth_block,
                 ));
             self.diamond_upgrades
                 .entry(*eth_block)
                 .or_default()
-                .push(diamond_upgrade_log(upgrade.clone(), *eth_block));
+                .push(diamond_upgrade_log(
+                    old_protocol_version,
+                    upgrade.clone(),
+                    *eth_block,
+                ));
             self.add_bytecode_preimages(&upgrade.tx);
+            old_protocol_version = upgrade.version;
         }
+    }
+
+    fn add_diamond_cut(
+        &mut self,
+        old_protocol_version: ProtocolSemanticVersion,
+        upgrade: ProtocolUpgrade,
+        eth_block: u64,
+    ) {
+        self.add_bytecode_preimages(&upgrade.tx);
+        self.diamond_upgrades
+            .entry(eth_block)
+            .or_default()
+            .push(diamond_upgrade_log(
+                old_protocol_version,
+                upgrade,
+                eth_block,
+            ));
     }
 
     fn set_last_finalized_block_number(&mut self, number: u64) {
@@ -156,6 +182,18 @@ impl MockEthClient {
 
     pub async fn add_upgrade_timestamp(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
         self.inner.write().await.add_upgrade_timestamp(upgrades);
+    }
+
+    pub async fn add_diamond_cut(
+        &mut self,
+        old_protocol_version: ProtocolSemanticVersion,
+        upgrade: ProtocolUpgrade,
+        eth_block: u64,
+    ) {
+        self.inner
+            .write()
+            .await
+            .add_diamond_cut(old_protocol_version, upgrade, eth_block);
     }
 
     pub async fn set_last_finalized_block_number(&mut self, number: u64) {
@@ -263,52 +301,40 @@ impl EthClient for MockEthClient {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 
-    async fn diamond_cuts_since_version(
+    async fn diamond_cut_for_version(
         &self,
-        since_version: ProtocolSemanticVersion,
-    ) -> EnrichedClientResult<Vec<Vec<u8>>> {
+        version: ProtocolSemanticVersion,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        let packed_version = u256_to_h256(version.pack());
         let from_block = self
             .inner
             .read()
             .await
             .diamond_upgrades
-            .values()
-            .map(|logs| {
-                logs.iter().find_map(|log| {
-                    let version = log.topics.get(1)?;
-                    let version =
-                        ProtocolSemanticVersion::try_from_packed(h256_to_u256(*version)).ok()?;
-                    (version > since_version).then_some(log.block_number?.as_u64())
-                })
+            .iter()
+            .filter_map(|(block_number, logs)| {
+                logs.iter()
+                    .any(|log| log.topics.get(1) == Some(&packed_version))
+                    .then_some(*block_number)
             })
-            .min()
-            .flatten()
-            .unwrap_or(0);
-        let to_block = *self
-            .inner
-            .read()
-            .await
-            .diamond_upgrades
-            .keys()
             .max()
-            .unwrap_or(&0);
-
+            .unwrap_or(0);
         let logs = self
             .get_events(
                 U64::from(from_block).into(),
-                U64::from(to_block).into(),
+                U64::from(from_block).into(),
                 Some(
                     state_transition_manager_contract()
                         .event("NewUpgradeCutData")
                         .unwrap()
                         .signature(),
                 ),
-                None,
+                Some(packed_version),
                 RETRY_LIMIT,
             )
             .await?;
 
-        Ok(logs.into_iter().map(|log| log.data.0).collect())
+        Ok(logs.into_iter().map(|log| log.data.0).next_back())
     }
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
@@ -486,13 +512,17 @@ fn init_calldata(protocol_upgrade: ProtocolUpgrade) -> Vec<u8> {
     calldata
 }
 
-fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
+fn diamond_upgrade_log(
+    old_protocol_version: ProtocolSemanticVersion,
+    upgrade: ProtocolUpgrade,
+    eth_block: u64,
+) -> Log {
     // struct DiamondCutData {
     //     FacetCut[] facetCuts;
     //     address initAddress;
     //     bytes initCalldata;
     // }
-    let version = u256_to_h256(upgrade.version.pack());
+    let version = u256_to_h256(old_protocol_version.pack());
     let final_data = ethabi::encode(&[Token::Tuple(vec![
         Token::Array(vec![]),
         Token::Address(Address::zero()),

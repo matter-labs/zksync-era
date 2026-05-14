@@ -277,11 +277,7 @@ pub(crate) async fn run_chain_upgrade(
 
     let server_notifier_set_timestamp_call = AdminCall {
         description: "Calldata to notify server of scheduled upgrade".to_string(),
-        data: server_notifier_set_upgrade_timestamp_calldata(
-            chain_id,
-            upgrade_info.contracts_config.new_protocol_version,
-            server_upgrade_timestamp,
-        ),
+        data: server_notifier_set_upgrade_timestamp_calldata(chain_id, server_upgrade_timestamp),
         target: chain_info.server_notifier_addr,
         value: U256::zero(),
     };

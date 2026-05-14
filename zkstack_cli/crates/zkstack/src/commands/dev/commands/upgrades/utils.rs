@@ -31,14 +31,10 @@ pub(crate) fn set_upgrade_timestamp_calldata(
 
 pub(crate) fn server_notifier_set_upgrade_timestamp_calldata(
     chain_id: u64,
-    packed_protocol_version: u64,
     timestamp: u64,
 ) -> Vec<u8> {
     SERVER_NOTIFIER_ABI
-        .encode(
-            "setUpgradeTimestamp",
-            (chain_id, packed_protocol_version, timestamp),
-        )
+        .encode("setUpgradeTimestamp", (chain_id, timestamp))
         .unwrap()
         .to_vec()
 }
