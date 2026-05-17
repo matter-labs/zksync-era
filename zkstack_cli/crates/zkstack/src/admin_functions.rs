@@ -200,6 +200,8 @@ pub async fn governance_execute_calls(
     forge.run(shell)?;
     spinner.finish();
 
+    // AdminFunction's `governanceExecuteCalls` does not call `saveAndSendAdminTx`, so it never writes the output file.
+    // There is nothing to read back after a broadcast, the calls have already been executed on-chain.
     if is_broadcast {
         return Ok(AdminScriptOutput::default());
     }
