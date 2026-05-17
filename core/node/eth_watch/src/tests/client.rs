@@ -4,7 +4,7 @@ use tokio::sync::RwLock;
 use zksync_contracts::{
     hyperchain_contract, server_notifier_contract, state_transition_manager_contract,
 };
-use zksync_eth_client::{ContractCallError, EnrichedClientResult};
+use zksync_eth_client::{ContractCallError, EnrichedClientError, EnrichedClientResult};
 use zksync_types::{
     abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData},
     api::{ChainAggProof, Log},
@@ -88,6 +88,27 @@ impl FakeEthClientData {
                     *eth_block,
                 ));
             self.add_bytecode_preimages(&upgrade.tx);
+            old_protocol_version = upgrade.version;
+        }
+    }
+
+    fn add_upgrade_timestamp_for_chain(
+        &mut self,
+        chain_id: L2ChainId,
+        upgrades: &[(ProtocolUpgrade, u64)],
+    ) {
+        let mut old_protocol_version = ProtocolSemanticVersion {
+            minor: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
+            patch: 0.into(),
+        };
+        for (upgrade, eth_block) in upgrades {
+            self.upgrade_timestamp.entry(*eth_block).or_default().push(
+                upgrade_timestamp_log_for_chain(
+                    chain_id,
+                    u256_to_h256(old_protocol_version.pack()),
+                    *eth_block,
+                ),
+            );
             old_protocol_version = upgrade.version;
         }
     }
@@ -182,6 +203,17 @@ impl MockEthClient {
 
     pub async fn add_upgrade_timestamp(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
         self.inner.write().await.add_upgrade_timestamp(upgrades);
+    }
+
+    pub async fn add_upgrade_timestamp_for_chain(
+        &mut self,
+        chain_id: L2ChainId,
+        upgrades: &[(ProtocolUpgrade, u64)],
+    ) {
+        self.inner
+            .write()
+            .await
+            .add_upgrade_timestamp_for_chain(chain_id, upgrades);
     }
 
     pub async fn add_diamond_cut(
@@ -334,7 +366,15 @@ impl EthClient for MockEthClient {
             )
             .await?;
 
-        Ok(logs.into_iter().map(|log| log.data.0).next_back())
+        if logs.len() > 1 {
+            return Err(EnrichedClientError::custom(
+                format!(
+                    "Multiple NewUpgradeCutData events in block {from_block} for version {version}"
+                ),
+                "diamond_cut_for_version",
+            ));
+        }
+        Ok(logs.into_iter().map(|log| log.data.0).next())
     }
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
@@ -552,6 +592,14 @@ fn diamond_upgrade_log(
     }
 }
 fn upgrade_timestamp_log(packed_version: H256, eth_block: u64) -> Log {
+    upgrade_timestamp_log_for_chain(L2ChainId::default(), packed_version, eth_block)
+}
+
+pub(super) fn upgrade_timestamp_log_for_chain(
+    chain_id: L2ChainId,
+    packed_version: H256,
+    eth_block: u64,
+) -> Log {
     let final_data = ethabi::encode(&[U256::from(12345).into_token()]);
 
     Log {
@@ -561,7 +609,7 @@ fn upgrade_timestamp_log(packed_version: H256, eth_block: u64) -> Log {
                 .event("UpgradeTimestampUpdated")
                 .expect("UpgradeTimestampUpdated event is missing in ABI")
                 .signature(),
-            u256_to_h256(L2ChainId::default().as_u64().into()),
+            u256_to_h256(chain_id.as_u64().into()),
             packed_version,
         ],
         data: final_data.into(),

@@ -488,7 +488,15 @@ where
             )
             .await?;
 
-        Ok(logs.into_iter().map(|log| log.data.0).next_back())
+        if logs.len() > 1 {
+            return Err(EnrichedClientError::custom(
+                format!(
+                    "Multiple NewUpgradeCutData events in block {from_block} for version {version}"
+                ),
+                "diamond_cut_for_version",
+            ));
+        }
+        Ok(logs.into_iter().map(|log| log.data.0).next())
     }
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
         self.client.fetch_chain_id().await
