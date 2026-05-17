@@ -99,13 +99,15 @@ pub trait ProtocolUpgradePreimageOracle: Send + Sync {
         hashes: Vec<H256>,
     ) -> anyhow::Result<Vec<Vec<u8>>>;
 
-    // Returns input unchanged unless the protocol version needs a rewrite
+    // Returns input unchanged unless the protocol version needs a rewrite.
     async fn rewrite_upgrade_tx_data(
         &self,
-        protocol_version: ProtocolVersionId,
-        init_address: Address,
+        _protocol_version: ProtocolVersionId,
+        _init_address: Address,
         existing_tx_data: Vec<u8>,
-    ) -> anyhow::Result<Vec<u8>>;
+    ) -> anyhow::Result<Vec<u8>> {
+        Ok(existing_tx_data)
+    }
 }
 
 /// Some upgrades have chain-dependent calldata that has to be prepared properly.

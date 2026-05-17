@@ -113,6 +113,9 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             let old_protocol_version =
                 ProtocolSemanticVersion::try_from_packed(h256_to_u256(version))
                     .map_err(|err| EventProcessorError::internal(anyhow::anyhow!(err)))?;
+            // In normal operation, `old_protocol_version` should equal `last_seen_protocol_version` exactly:
+            // ServerNotifier validates that cut data exists for the current on-chain version before emitting
+            // the event, so we should only ever see one pending upgrade at a time.
             if old_protocol_version < self.last_seen_protocol_version {
                 // This version has been already processed, skip it.
                 continue;
