@@ -73,8 +73,14 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         &self,
     ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError>;
 
-    async fn get_v31_l2_upgrade_tx_data(
+    /// Returns the Bridgehub proxy address saved at startup, if available.
+    fn bridgehub_addr(&self) -> Option<Address>;
+
+    /// Calls `getL2UpgradeTxData` on the settlement-layer upgrade helper contract to obtain
+    /// chain-specific L2 upgrade tx calldata.
+    async fn get_l2_upgrade_tx_data(
         &self,
+        bridgehub_addr: Address,
         init_address: Address,
         existing_tx_data: Vec<u8>,
     ) -> Result<Vec<u8>, ContractCallError>;
@@ -117,6 +123,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     state_transition_manager_address: Option<Address>,
     server_notifier_address: Option<Address>,
     chain_admin_address: Option<Address>,
+    bridgehub_proxy_addr: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
     chain_type_manager_abi: Contract,
@@ -143,6 +150,7 @@ where
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
         server_notifier_address: Option<Address>,
+        bridgehub_proxy_addr: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
         l2_chain_id: L2ChainId,
     ) -> Self {
@@ -157,6 +165,7 @@ where
             state_transition_manager_address,
             server_notifier_address,
             chain_admin_address,
+            bridgehub_proxy_addr,
             bytecode_supplier_addr,
             new_upgrade_cut_data_signature: state_transition_manager_contract()
                 .event("NewUpgradeCutData")
@@ -591,20 +600,20 @@ where
         }))
     }
 
-    async fn get_v31_l2_upgrade_tx_data(
+    fn bridgehub_addr(&self) -> Option<Address> {
+        self.bridgehub_proxy_addr
+    }
+
+    async fn get_l2_upgrade_tx_data(
         &self,
+        bridgehub_addr: Address,
         init_address: Address,
         existing_tx_data: Vec<u8>,
     ) -> Result<Vec<u8>, ContractCallError> {
-        let bridgehub: Address = CallFunctionArgs::new("getBridgehub", ())
-            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
-            .call(&self.client)
-            .await?;
-
         CallFunctionArgs::new(
             "getL2UpgradeTxData",
             (
-                bridgehub,
+                bridgehub_addr,
                 U256::from(self.l2_chain_id.as_u64()),
                 // eth_watch in this binary is bound to an Era chain; Era diamonds
                 // pass `false` for the shared v31 settlement-layer helper.

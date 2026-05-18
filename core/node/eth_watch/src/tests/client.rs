@@ -426,8 +426,13 @@ impl EthClient for MockEthClient {
         }))
     }
 
-    async fn get_v31_l2_upgrade_tx_data(
+    fn bridgehub_addr(&self) -> Option<Address> {
+        None
+    }
+
+    async fn get_l2_upgrade_tx_data(
         &self,
+        _bridgehub_addr: Address,
         _init_address: Address,
         existing_tx_data: Vec<u8>,
     ) -> Result<Vec<u8>, ContractCallError> {
