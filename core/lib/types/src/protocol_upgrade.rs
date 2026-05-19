@@ -103,7 +103,6 @@ pub trait ProtocolUpgradePreimageOracle: Send + Sync {
     /// The default no-op is used by implementations that do not require on-chain preparation.
     async fn prepare_l2_upgrade_tx_data(
         &self,
-        _bridgehub_addr: Address,
         _init_address: Address,
         existing_tx_data: Vec<u8>,
     ) -> anyhow::Result<Vec<u8>> {
@@ -115,7 +114,6 @@ pub trait ProtocolUpgradePreimageOracle: Send + Sync {
 async fn prepare_upgrade_call(
     proposed_upgrade: &abi::ProposedUpgrade,
     init_address: Address,
-    bridgehub_addr: Option<Address>,
     chain_specific: Option<ZkChainSpecificUpgradeData>,
     preimage_oracle: &impl ProtocolUpgradePreimageOracle,
 ) -> anyhow::Result<Vec<u8>> {
@@ -128,10 +126,8 @@ async fn prepare_upgrade_call(
     let version = ProtocolVersionId::try_from(minor_version.as_u32() as u16).unwrap();
 
     if version == ProtocolVersionId::Version31 {
-        let bridgehub_addr = bridgehub_addr.context("bridgehub_addr required for v31 upgrade")?;
         return preimage_oracle
             .prepare_l2_upgrade_tx_data(
-                bridgehub_addr,
                 init_address,
                 proposed_upgrade.l2_protocol_upgrade_tx.data.clone(),
             )
@@ -184,7 +180,6 @@ impl ProtocolUpgrade {
         diamond_cut_data: &[u8],
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
-        bridgehub_addr: Option<Address>,
     ) -> anyhow::Result<Self> {
         // Unwraps are safe because we have validated the input against the function signature.
         let diamond_cut_tokens = DIAMOND_CUT.decode_input(diamond_cut_data)?[0]
@@ -200,7 +195,6 @@ impl ProtocolUpgrade {
             init_address,
             preimage_oracle,
             chain_specific,
-            bridgehub_addr,
         )
         .await
     }
@@ -211,7 +205,6 @@ impl ProtocolUpgrade {
         init_address: Address,
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
-        bridgehub_addr: Option<Address>,
     ) -> anyhow::Result<Self> {
         let raw_data = init_calldata.get(4..).context("need >= 4 bytes")?;
         let mut upgrade =
@@ -239,14 +232,9 @@ impl ProtocolUpgrade {
                     .await?
             };
 
-            upgrade.l2_protocol_upgrade_tx.data = prepare_upgrade_call(
-                &upgrade,
-                init_address,
-                bridgehub_addr,
-                chain_specific,
-                &preimage_oracle,
-            )
-            .await?;
+            upgrade.l2_protocol_upgrade_tx.data =
+                prepare_upgrade_call(&upgrade, init_address, chain_specific, &preimage_oracle)
+                    .await?;
 
             Some(
                 Transaction::from_abi(

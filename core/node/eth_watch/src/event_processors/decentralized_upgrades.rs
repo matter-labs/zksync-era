@@ -71,11 +71,10 @@ impl ProtocolUpgradePreimageOracle for &dyn EthClient {
 
     async fn prepare_l2_upgrade_tx_data(
         &self,
-        bridgehub_addr: Address,
         init_address: Address,
         existing_tx_data: Vec<u8>,
     ) -> anyhow::Result<Vec<u8>> {
-        self.get_l2_upgrade_tx_data(bridgehub_addr, init_address, existing_tx_data)
+        self.get_l2_upgrade_tx_data(init_address, existing_tx_data)
             .await
             .map_err(Into::into)
     }
@@ -132,7 +131,6 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                         .get_chain_gateway_upgrade_info()
                         .await
                         .map_err(EventProcessorError::contract_call)?,
-                    self.l1_client.bridgehub_addr(),
                 )
                 .await
                 .map_err(EventProcessorError::internal)?

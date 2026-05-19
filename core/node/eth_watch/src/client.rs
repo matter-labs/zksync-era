@@ -80,7 +80,6 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     /// chain-specific L2 upgrade tx calldata.
     async fn get_l2_upgrade_tx_data(
         &self,
-        bridgehub_addr: Address,
         init_address: Address,
         existing_tx_data: Vec<u8>,
     ) -> Result<Vec<u8>, ContractCallError>;
@@ -606,10 +605,16 @@ where
 
     async fn get_l2_upgrade_tx_data(
         &self,
-        bridgehub_addr: Address,
         init_address: Address,
         existing_tx_data: Vec<u8>,
     ) -> Result<Vec<u8>, ContractCallError> {
+        let bridgehub_addr = self.bridgehub_addr().ok_or_else(|| {
+            ContractCallError::EthereumGateway(EnrichedClientError::custom(
+                "Bridgehub address is required for v31 upgrade",
+                "get_l2_upgrade_tx_data",
+            ))
+        })?;
+
         CallFunctionArgs::new(
             "getL2UpgradeTxData",
             (
