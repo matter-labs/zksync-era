@@ -12,7 +12,9 @@ use zksync_db_connection::{
 use zksync_types::L1BatchNumber;
 
 use crate::{
-    models::storage_airbender_proof::{StorageAirbenderProof, StorageLockedBatch},
+    models::storage_airbender_proof::{
+        StorageAirbenderProof, StorageAirbenderSnarkProof, StorageLockedBatch,
+    },
     Core,
 };
 
@@ -26,9 +28,15 @@ pub enum AirbenderProofGenerationJobStatus {
     /// The batch has been picked by an Airbender prover and is currently being processed.
     #[strum(serialize = "picked_by_prover")]
     PickedByProver,
-    /// The proof has been successfully generated and submitted for the batch.
+    /// The FRI proof has been successfully generated and submitted for the batch.
     #[strum(serialize = "generated")]
     Generated,
+    /// The batch has been picked by a SNARK prover, which is wrapping the FRI proof.
+    #[strum(serialize = "picked_for_snark")]
+    PickedForSnark,
+    /// The SNARK proof has been generated and submitted for the batch and is ready for L1.
+    #[strum(serialize = "snark_generated")]
+    SnarkGenerated,
     /// The proof generation for the batch has failed, which can happen if its inputs (GCS blob
     /// files) are incomplete or the API is unavailable. Failed batches are retried for a specified
     /// period, as defined in the configuration.
@@ -211,6 +219,131 @@ impl AirbenderProofGenerationDal<'_, '_> {
         }
 
         Ok(())
+    }
+
+    /// Lock a batch for SNARK wrapping. Picks the oldest batch whose FRI proof has been
+    /// submitted (`status = 'generated'`), or reclaims a `picked_for_snark` batch whose
+    /// `snark_taken_at` exceeded `processing_timeout`.
+    pub async fn lock_batch_for_snark(
+        &mut self,
+        processing_timeout: Duration,
+        min_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<LockedBatch>> {
+        let processing_timeout = pg_interval_from_duration(processing_timeout);
+        let min_batch_number = i64::from(min_batch_number.0);
+        let picked_for_snark = AirbenderProofGenerationJobStatus::PickedForSnark.to_string();
+        let generated = AirbenderProofGenerationJobStatus::Generated.to_string();
+
+        let locked_batch = sqlx::query_as!(
+            StorageLockedBatch,
+            r#"
+            UPDATE airbender_proof_generation_details
+            SET status = $1, updated_at = NOW(), snark_taken_at = NOW()
+            WHERE
+                l1_batch_number = (
+                    SELECT apgd.l1_batch_number
+                    FROM airbender_proof_generation_details apgd
+                    WHERE
+                        apgd.l1_batch_number >= $3
+                        AND apgd.proof_blob_url IS NOT NULL
+                        AND (
+                            apgd.status = $2
+                            OR (
+                                apgd.status = $1
+                                AND apgd.snark_taken_at < NOW() - $4::INTERVAL
+                            )
+                        )
+                    ORDER BY apgd.l1_batch_number ASC
+                    LIMIT 1
+                    FOR UPDATE OF apgd SKIP LOCKED
+                )
+            RETURNING l1_batch_number, created_at
+            "#,
+            picked_for_snark,
+            generated,
+            min_batch_number,
+            processing_timeout,
+        )
+        .instrument("lock_batch_for_snark")
+        .with_arg("processing_timeout", &processing_timeout)
+        .with_arg("min_batch_number", &min_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(Into::into);
+
+        Ok(locked_batch)
+    }
+
+    pub async fn save_snark_proof_artifacts_metadata(
+        &mut self,
+        batch_number: L1BatchNumber,
+        snark_proof_blob_url: &str,
+        snark_prover_id: &str,
+    ) -> DalResult<()> {
+        let batch_number = i64::from(batch_number.0);
+        let query = sqlx::query!(
+            r#"
+            UPDATE airbender_proof_generation_details
+            SET
+                status = $1,
+                snark_proof_blob_url = $2,
+                snark_prover_id = $3,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $4
+                AND status = $5
+            "#,
+            AirbenderProofGenerationJobStatus::SnarkGenerated.to_string(),
+            snark_proof_blob_url,
+            snark_prover_id,
+            batch_number,
+            AirbenderProofGenerationJobStatus::PickedForSnark.to_string(),
+        );
+        let instrumentation = Instrumented::new("save_snark_proof_artifacts_metadata")
+            .with_arg("snark_proof_blob_url", &snark_proof_blob_url)
+            .with_arg("snark_prover_id", &snark_prover_id)
+            .with_arg("l1_batch_number", &batch_number);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Cannot save SNARK proof for batch {}: batch is not in '{}' status (it may have timed out and been reassigned)",
+                batch_number,
+                AirbenderProofGenerationJobStatus::PickedForSnark,
+            ));
+            return Err(err);
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_airbender_snark_proof(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<StorageAirbenderSnarkProof>> {
+        let proof = sqlx::query_as!(
+            StorageAirbenderSnarkProof,
+            r#"
+            SELECT
+                apgd.snark_proof_blob_url,
+                apgd.updated_at,
+                apgd.status
+            FROM
+                airbender_proof_generation_details apgd
+            WHERE
+                apgd.l1_batch_number = $1
+            "#,
+            i64::from(batch_number.0)
+        )
+        .instrument("get_airbender_snark_proof")
+        .with_arg("l1_batch_number", &batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(proof)
     }
 
     pub async fn get_airbender_proof(

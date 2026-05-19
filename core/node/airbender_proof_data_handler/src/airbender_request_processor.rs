@@ -9,7 +9,7 @@ use zksync_airbender_prover_interface::{
         SubmitAirbenderSnarkProofResponse,
     },
     inputs::{AirbenderVerifierInput, BlobHash, CommitmentInput},
-    outputs::L1BatchAirbenderProofForL1,
+    outputs::{L1BatchAirbenderProofForL1, L1BatchAirbenderSnarkProofForL1},
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{
@@ -393,13 +393,129 @@ impl AirbenderRequestProcessor {
     pub(crate) async fn get_snark_inputs(
         &self,
     ) -> Result<Option<AirbenderSnarkInputsResponse>, AirbenderProcessorError> {
-        unimplemented!("SNARK input distribution is not yet implemented")
+        tracing::debug!("Received request for SNARK inputs");
+
+        let min_batch_number = self.config.first_processed_batch;
+        let max_attempts = self.config.max_attempts;
+
+        for attempt in 0..max_attempts {
+            let Some(locked_batch) = self.lock_batch_for_snark(min_batch_number).await? else {
+                return Ok(None);
+            };
+            let batch_number = locked_batch.l1_batch_number;
+
+            match self.fri_proof_for_existing_batch(batch_number).await {
+                Ok((fri_proof, protocol_version)) => {
+                    return Ok(Some(AirbenderSnarkInputsResponse {
+                        l1_batch_number: batch_number.0,
+                        protocol_version,
+                        fri_proof,
+                    }));
+                }
+                Err(AirbenderProcessorError::ObjectStore {
+                    source: ObjectStoreError::KeyNotFound(_),
+                    context,
+                }) => {
+                    self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
+                        .await?;
+                    tracing::warn!(
+                        "FRI proof not available on GCS for batch {} (attempt {}/{}): {context}",
+                        batch_number,
+                        attempt + 1,
+                        max_attempts,
+                    );
+                    continue;
+                }
+                Err(err) => {
+                    self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
+                        .await?;
+                    return Err(err);
+                }
+            }
+        }
+
+        tracing::warn!(
+            "Exhausted {max_attempts} attempts to find a batch with available FRI proof"
+        );
+        Ok(None)
+    }
+
+    async fn lock_batch_for_snark(
+        &self,
+        min_batch_number: L1BatchNumber,
+    ) -> Result<Option<LockedBatch>, AirbenderProcessorError> {
+        self.pool
+            .connection_tagged("airbender_request_processor")
+            .await?
+            .airbender_proof_generation_dal()
+            .lock_batch_for_snark(self.config.snark_generation_timeout, min_batch_number)
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn fri_proof_for_existing_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<(Vec<u8>, u16), AirbenderProcessorError> {
+        let proof: L1BatchAirbenderProofForL1 = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(|source| AirbenderProcessorError::ObjectStore {
+                source,
+                context: "Failed to get L1BatchAirbenderProofForL1".into(),
+            })?;
+
+        let protocol_version = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?
+            .blocks_dal()
+            .get_batch_protocol_version_id(l1_batch_number)
+            .await?
+            .ok_or_else(|| {
+                AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                    "protocol version missing for batch {l1_batch_number}"
+                ))
+            })?;
+
+        Ok((proof.proof, protocol_version as u16))
     }
 
     pub(crate) async fn submit_snark_proof(
         &self,
-        Json(_proof): Json<SubmitAirbenderSnarkProofRequest>,
+        Json(proof): Json<SubmitAirbenderSnarkProofRequest>,
     ) -> Result<Json<SubmitAirbenderSnarkProofResponse>, AirbenderProcessorError> {
-        unimplemented!("SNARK proof submission is not yet implemented")
+        let l1_batch_number = L1BatchNumber(proof.l1_batch_number);
+        let prover_id = proof.prover_id;
+
+        let proof_for_gcs = L1BatchAirbenderSnarkProofForL1 {
+            snark_proof: proof.snark_proof,
+            snark_vk: proof.snark_vk,
+        };
+        let snark_proof_blob_url = self
+            .blob_store
+            .put(l1_batch_number, &proof_for_gcs)
+            .await
+            .map_err(|source| AirbenderProcessorError::ObjectStore {
+                source,
+                context: "Failed to upload SNARK proof to GCS".into(),
+            })?;
+
+        self.pool
+            .connection_tagged("airbender_request_processor")
+            .await?
+            .airbender_proof_generation_dal()
+            .save_snark_proof_artifacts_metadata(l1_batch_number, &snark_proof_blob_url, &prover_id)
+            .await?;
+
+        tracing::info!(
+            l1_batch_number = %l1_batch_number,
+            prover_id = %prover_id,
+            "Received SNARK proof for batch {}",
+            l1_batch_number
+        );
+
+        Ok(Json(SubmitAirbenderSnarkProofResponse::Success))
     }
 }
