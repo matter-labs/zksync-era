@@ -232,26 +232,27 @@ impl VmTesterBuilder {
 }
 
 fn l1_base_token_minting_storage_slots(base_token_asset_id: H256) -> Vec<(StorageKey, H256)> {
+    // L2AssetTracker slots mirror `forge inspect ...:L2AssetTracker storageLayout`.
     vec![
-        // L2AssetTracker.L1_CHAIN_ID (slot 154)
+        // L2AssetTracker.L1_CHAIN_ID (slot 204)
         (
             StorageKey::new(
                 AccountTreeId::new(L2_ASSET_TRACKER_ADDRESS),
-                H256::from_low_u64_be(154),
+                H256::from_low_u64_be(204),
             ),
             H256::from_low_u64_be(1),
         ),
-        // L2AssetTracker.BASE_TOKEN_ASSET_ID (slot 155)
+        // L2AssetTracker.BASE_TOKEN_ASSET_ID (slot 205)
         (
             StorageKey::new(
                 AccountTreeId::new(L2_ASSET_TRACKER_ADDRESS),
-                H256::from_low_u64_be(155),
+                H256::from_low_u64_be(205),
             ),
             base_token_asset_id,
         ),
-        // L2AssetTracker.isAssetRegistered[base_token_asset_id] (mapping at slot 153)
+        // L2AssetTracker.isAssetRegistered[base_token_asset_id] (mapping at slot 203)
         (
-            mapping_key(L2_ASSET_TRACKER_ADDRESS, base_token_asset_id, 153),
+            mapping_key(L2_ASSET_TRACKER_ADDRESS, base_token_asset_id, 203),
             H256::from_low_u64_be(1),
         ),
         // L2BaseTokenEra.eraAccountBalance[BaseTokenHolder] (mapping at slot 0)
