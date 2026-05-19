@@ -4,7 +4,9 @@ use axum::{extract::Path, Json};
 use chrono::Utc;
 use zksync_airbender_prover_interface::{
     api::{
-        AirbenderPresentBatchesResponse, SubmitAirbenderProofRequest, SubmitAirbenderProofResponse,
+        AirbenderPresentBatchesResponse, AirbenderSnarkInputsResponse, SubmitAirbenderProofRequest,
+        SubmitAirbenderProofResponse, SubmitAirbenderSnarkProofRequest,
+        SubmitAirbenderSnarkProofResponse,
     },
     inputs::{AirbenderVerifierInput, BlobHash, CommitmentInput},
     outputs::L1BatchAirbenderProofForL1,
@@ -386,5 +388,18 @@ impl AirbenderRequestProcessor {
         );
 
         Ok(Json(SubmitAirbenderProofResponse::Success))
+    }
+
+    pub(crate) async fn get_snark_inputs(
+        &self,
+    ) -> Result<Option<AirbenderSnarkInputsResponse>, AirbenderProcessorError> {
+        unimplemented!("SNARK input distribution is not yet implemented")
+    }
+
+    pub(crate) async fn submit_snark_proof(
+        &self,
+        Json(_proof): Json<SubmitAirbenderSnarkProofRequest>,
+    ) -> Result<Json<SubmitAirbenderSnarkProofResponse>, AirbenderProcessorError> {
+        unimplemented!("SNARK proof submission is not yet implemented")
     }
 }
