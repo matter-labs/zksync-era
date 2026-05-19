@@ -25,6 +25,7 @@ fn test_config() -> AirbenderProofDataHandlerConfig {
         http_port: 1337,
         first_processed_batch: L1BatchNumber(0),
         proof_generation_timeout: Duration::from_secs(600),
+        snark_generation_timeout: Duration::from_secs(600),
         max_attempts: 5,
     }
 }
