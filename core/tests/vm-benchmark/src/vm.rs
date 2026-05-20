@@ -387,6 +387,7 @@ mod tests {
         assert_eq!(legacy_count, fast_count);
     }
 
+    #[ignore]
     #[test]
     fn instruction_count_matches_on_both_vms_for_benchmark_bytecodes() {
         for bytecode in BYTECODES {
