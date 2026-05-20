@@ -32,15 +32,14 @@ impl StoredObject for L1BatchAirbenderProofForL1 {
     serialize_using_bincode!();
 }
 
-/// A SNARK-wrapped Airbender proof, suitable for L1 submission. Bundled with the
-/// verification key used to wrap the underlying FRI proof.
+/// A SNARK-wrapped Airbender proof, suitable for L1 submission. The wrapper
+/// VK is resolved at prover startup and known to the verifier out of band, so
+/// it isn't stored alongside the proof.
 #[serde_as]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct L1BatchAirbenderSnarkProofForL1 {
     #[serde_as(as = "Hex")]
     pub snark_proof: Vec<u8>,
-    #[serde_as(as = "Hex")]
-    pub snark_vk: Vec<u8>,
 }
 
 impl fmt::Debug for L1BatchAirbenderSnarkProofForL1 {

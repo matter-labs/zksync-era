@@ -326,7 +326,6 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
     let body_bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let parsed: AirbenderSnarkInputsResponse = serde_json::from_slice(&body_bytes).unwrap();
     assert_eq!(parsed.l1_batch_number, batch_number.0);
-    assert_eq!(parsed.protocol_version, ProtocolVersionId::latest() as u16);
     assert_eq!(parsed.fri_proof, fri_payload);
 
     let mut conn = db_conn_pool.connection().await.unwrap();
@@ -405,7 +404,6 @@ async fn submit_snark_proof_succeeds_when_picked_for_snark() {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
         snark_proof: vec![0x01, 0x02, 0x03, 0x04],
-        snark_vk: vec![0xAA, 0xBB, 0xCC],
     };
 
     let app = create_proof_processing_router(
@@ -440,7 +438,6 @@ async fn submit_snark_proof_rejects_when_not_picked_for_snark() {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
         snark_proof: vec![0x01, 0x02],
-        snark_vk: vec![0xAA],
     };
 
     let app = create_proof_processing_router(

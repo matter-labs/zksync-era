@@ -400,16 +400,6 @@ impl AirbenderRequestProcessor {
             };
             let batch_number = locked_batch.l1_batch_number;
 
-            let protocol_version = transaction
-                .blocks_dal()
-                .get_batch_protocol_version_id(batch_number)
-                .await?
-                .ok_or_else(|| {
-                    AirbenderProcessorError::GeneralError(anyhow::anyhow!(
-                        "protocol version missing for batch {batch_number}"
-                    ))
-                })?;
-
             let proof: L1BatchAirbenderProofForL1 = match self.blob_store.get(batch_number).await {
                 Ok(proof) => proof,
                 Err(ObjectStoreError::KeyNotFound(err)) => {
@@ -435,7 +425,6 @@ impl AirbenderRequestProcessor {
 
             return Ok(Some(AirbenderSnarkInputsResponse {
                 l1_batch_number: batch_number.0,
-                protocol_version: protocol_version as u16,
                 fri_proof: proof.proof,
             }));
         }
@@ -455,7 +444,6 @@ impl AirbenderRequestProcessor {
 
         let proof_for_gcs = L1BatchAirbenderSnarkProofForL1 {
             snark_proof: proof.snark_proof,
-            snark_vk: proof.snark_vk,
         };
         let snark_proof_blob_url = self
             .blob_store
