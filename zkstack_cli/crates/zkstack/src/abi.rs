@@ -146,6 +146,12 @@ abigen!(
 );
 
 abigen!(
+    CoreUpgradeV31Abi,
+    "../../../contracts/l1-contracts/zkstack-out/CoreUpgrade_v31.s.sol/CoreUpgrade_v31.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
     IL1NativeTokenVaultAbi,
     "../../../contracts/l1-contracts/zkstack-out/IL1NativeTokenVault.sol/IL1NativeTokenVault.json",
     event_derives(serde::Deserialize, serde::Serialize)
@@ -196,5 +202,11 @@ abigen!(
 abigen!(
     ISetupLegacyBridgeAbi,
     "../../../contracts/l1-contracts/zkstack-out/ISetupLegacyBridge.sol/ISetupLegacyBridge.json",
+    event_derives(serde::Deserialize, serde::Serialize)
+);
+
+abigen!(
+    IServerNotifierAbi,
+    "../../../contracts/l1-contracts/zkstack-out/IServerNotifier.sol/IServerNotifier.json",
     event_derives(serde::Deserialize, serde::Serialize)
 );

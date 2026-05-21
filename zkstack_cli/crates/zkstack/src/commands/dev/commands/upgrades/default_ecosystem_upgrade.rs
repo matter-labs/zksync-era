@@ -1,5 +1,12 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::Context;
-use ethers::{contract::BaseContract, types::Address};
+use ethers::{
+    abi::Token,
+    contract::BaseContract,
+    types::{Address, Bytes},
+    utils::hex,
+};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use xshell::Shell;
@@ -18,7 +25,7 @@ use zkstack_cli_types::VMOption;
 use zksync_types::{SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
 
 use crate::{
-    abi::IFINALIZEUPGRADEABI_ABI,
+    abi::{COREUPGRADEV31ABI_ABI, IFINALIZEUPGRADEABI_ABI},
     admin_functions::{governance_execute_calls, AdminScriptMode},
     commands::dev::commands::upgrades::{
         args::ecosystem::{EcosystemUpgradeArgs, EcosystemUpgradeArgsFinal, EcosystemUpgradeStage},
@@ -27,8 +34,6 @@ use crate::{
     messages::MSG_INTALLING_DEPS_SPINNER,
     utils::forge::{fill_forge_private_key, WalletOwner},
 };
-
-// Removed: LOCAL_GATEWAY_CHAIN_NAME - no longer needed with env var approach
 
 pub async fn run(
     shell: &Shell,
@@ -119,8 +124,14 @@ async fn no_governance_prepare(
             .l1_rpc_url()?
     };
 
-    // Note: The forge script now reads configuration from environment variables
-    // instead of input TOML files, so we no longer need to create EcosystemUpgradeInput
+    let forge_calldata = match upgrade_version {
+        UpgradeVersion::V31InteropB => Some(build_v31_no_governance_prepare_calldata(
+            ecosystem_config,
+            vm_option,
+        )?),
+        _ => None,
+    };
+
     let mut forge = Forge::new(&ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option))
         .script(
             &get_ecosystem_upgrade_params(upgrade_version).script(),
@@ -131,6 +142,10 @@ async fn no_governance_prepare(
         .with_slow()
         .with_gas_limit(1_000_000_000_000)
         .with_broadcast();
+
+    if let Some(calldata) = forge_calldata.as_ref() {
+        forge = forge.with_calldata(calldata);
+    }
 
     forge = fill_forge_private_key(
         forge,
@@ -145,18 +160,18 @@ async fn no_governance_prepare(
     logger::info("done!");
 
     let l1_chain_id = ecosystem_config.l1_network.chain_id();
+    let broadcast_path = get_broadcast_path(
+        &ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
+        get_ecosystem_upgrade_params(upgrade_version).script(),
+        l1_chain_id,
+        forge_calldata.as_ref(),
+    )?;
 
     // TODO Get rid of BrodacastFile usage
     let broadcast_file: BroadcastFile = {
-        let file_content = std::fs::read_to_string(
-            ecosystem_config
-                .path_to_foundry_scripts_for_ctm(vm_option)
-                .join(format!(
-                    "broadcast/EcosystemUpgrade_v31.s.sol/{}/run-latest.json",
-                    l1_chain_id
-                )),
-        )
-        .context("Failed to read broadcast file")?;
+        let file_content = std::fs::read_to_string(&broadcast_path).with_context(|| {
+            format!("Failed to read broadcast file {}", broadcast_path.display())
+        })?;
         serde_json::from_str(&file_content).context("Failed to parse broadcast file")?
     };
 
@@ -174,6 +189,74 @@ async fn no_governance_prepare(
     output.save_with_base_path(shell, &ecosystem_config.config)?;
 
     Ok(())
+}
+
+fn build_v31_no_governance_prepare_calldata(
+    ecosystem_config: &EcosystemConfig,
+    vm_option: VMOption,
+) -> anyhow::Result<Bytes> {
+    let contracts_config = ecosystem_config.get_contracts_config()?;
+    let ctm = contracts_config.ctm(vm_option);
+    let governance = contracts_config.l1.governance_addr;
+    let zk_token_asset_id = ecosystem_config.l1_network.zk_token_asset_id();
+
+    let calldata = CORE_UPGRADE_V31
+        .encode(
+            "noGovernancePrepare",
+            (Token::Tuple(vec![
+                Token::Address(
+                    contracts_config
+                        .core_ecosystem_contracts
+                        .bridgehub_proxy_addr,
+                ),
+                Token::Address(ctm.state_transition_proxy_addr),
+                Token::Address(ctm.l1_bytecodes_supplier_addr),
+                Token::Address(ctm.l1_rollup_da_manager),
+                Token::Bool(matches!(vm_option, VMOption::ZKSyncOsVM)),
+                Token::FixedBytes(contracts_config.create2_factory_salt.as_bytes().to_vec()),
+                Token::String("/upgrade-envs/v0.31.0-interopB/local.toml".to_string()),
+                Token::String("/script-out/v31-upgrade-ecosystem.toml".to_string()),
+                Token::Address(governance),
+                Token::FixedBytes(zk_token_asset_id.as_bytes().to_vec()),
+            ]),),
+        )
+        .context("Failed to encode v31 no-governance-prepare calldata")?;
+
+    Ok(calldata)
+}
+
+fn get_broadcast_path(
+    foundry_root: &Path,
+    script_path: impl AsRef<Path>,
+    l1_chain_id: u64,
+    forge_calldata: Option<&Bytes>,
+) -> anyhow::Result<PathBuf> {
+    let script_name = script_path
+        .as_ref()
+        .file_name()
+        .context("Missing script filename")?;
+    let broadcast_dir = foundry_root
+        .join("broadcast")
+        .join(script_name)
+        .join(l1_chain_id.to_string());
+
+    let filename = match forge_calldata {
+        Some(calldata) => {
+            let selector = calldata
+                .0
+                .get(..4)
+                .context("forge calldata must include a 4-byte function selector")?;
+            format!("{}-latest.json", hex::encode(selector))
+        }
+        None => "run-latest.json".to_string(),
+    };
+    let path = broadcast_dir.join(&filename);
+    anyhow::ensure!(
+        path.exists(),
+        "Expected Foundry broadcast file at {}",
+        path.display()
+    );
+    Ok(path)
 }
 
 async fn ecosystem_admin(
@@ -357,6 +440,7 @@ async fn governance_stage_2(
 }
 
 lazy_static! {
+    static ref CORE_UPGRADE_V31: BaseContract = BaseContract::from(COREUPGRADEV31ABI_ABI.clone());
     static ref FINALIZE_UPGRADE: BaseContract = BaseContract::from(IFINALIZEUPGRADEABI_ABI.clone());
 }
 
@@ -481,5 +565,8 @@ fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScript
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
         UpgradeVersion::V29_3 => unreachable!("V29_3 does not support ecosystem upgrade"),
         UpgradeVersion::V29_4 => unreachable!("V29_4 does not support ecosystem upgrade"),
+        UpgradeVersion::V31InteropB => {
+            unreachable!("V31 ecosystem upgrade is carried out via protocol-ops")
+        }
     }
 }

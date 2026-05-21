@@ -795,7 +795,7 @@ impl ContractVerifier {
                 let error_message = match &error {
                     ContractVerifierError::Internal(err) => {
                         // Do not expose the error externally, but log it.
-                        tracing::warn!(request_id, "internal error processing request: {err}");
+                        tracing::warn!(request_id, "internal error processing request: {err:#}");
                         "internal error".to_owned()
                     }
                     _ => error.to_string(),
