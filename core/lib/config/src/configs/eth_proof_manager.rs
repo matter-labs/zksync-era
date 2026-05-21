@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use smart_config::{DescribeConfig, DeserializeConfig};
+use zksync_basic_types::Address;
 
 use crate::ObjectStoreConfig;
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -11,6 +12,13 @@ pub struct EthProofManagerConfig {
     /// HTTP RPC URL of L2(where contracts are deployed)
     #[config(default_t = "http://127.0.0.1:8545".to_string())]
     pub http_rpc_url: String,
+    /// Address of the USDC ERC20 token used by the ProofManager contract.
+    /// Exposed as config because the `usdc` field on `ProofManagerStorage` is
+    /// internal (no on-chain getter), so the server cannot discover it from the
+    /// contract itself. Used to compute the contract's free USDC balance metric.
+    /// Required; the server will panic on startup if this is not set, since the
+    /// metric is treated as load-bearing for operational visibility.
+    pub usdc_address: Address,
     /// Public object store URL
     #[config(default_t = "".to_string())]
     pub public_object_store_url: String,

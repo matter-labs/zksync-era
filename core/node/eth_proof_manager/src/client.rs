@@ -3,12 +3,15 @@ use std::{cmp::max, ops::Deref, sync::Arc};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
-use zksync_eth_client::{BoundEthInterface, EnrichedClientError, Options};
+use zksync_eth_client::{
+    BoundEthInterface, CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
+    Options,
+};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::{
     api::Log,
-    ethabi::{self},
-    web3::{BlockId, BlockNumber, Filter, FilterBuilder},
+    ethabi::{self, Token},
+    web3::{self, BlockId, BlockNumber, Filter, FilterBuilder},
     Address, SLChainId, H256, U256,
 };
 
@@ -70,6 +73,30 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
     fn contract_address(&self) -> Address;
 
     async fn submitter_balance(&self) -> Result<f64, ClientError>;
+
+    /// Free USDC held by the ProofManager contract: on-chain USDC balance
+    /// minus the `owedReward` accrued to each proving network. Does not
+    /// account for in-flight obligations (`heapObligations`, `potentialFutureReward`)
+    /// because those fields are internal on the contract and have no getter;
+    /// see the metric doc on [`crate::metrics::EthProofManagerMetrics::proof_manager_free_usdc`].
+    async fn proof_manager_free_usdc(&self) -> Result<f64, ClientError>;
+}
+
+/// Minimal ABI for `IERC20.balanceOf(address) -> uint256`. We don't depend on a
+/// full IERC20 artifact because that would couple this crate to a specific
+/// L1/L2 contracts build; instead we build the single function we need on the
+/// fly. The deserialization is cheap (a ~200-byte JSON once per polling tick).
+fn erc20_balance_of_abi() -> ethabi::Contract {
+    serde_json::from_str(
+        r#"[{
+            "inputs": [{"name": "account", "type": "address"}],
+            "name": "balanceOf",
+            "outputs": [{"name": "", "type": "uint256"}],
+            "stateMutability": "view",
+            "type": "function"
+        }]"#,
+    )
+    .expect("hard-coded ERC20 balanceOf ABI is valid")
 }
 
 impl ProofManagerClient {
@@ -443,5 +470,113 @@ impl EthProofManagerClient for ProofManagerClient {
             .await
             .map(|balance| balance.as_u64() as f64)
             .map_err(Into::into)
+    }
+
+    async fn proof_manager_free_usdc(&self) -> Result<f64, ClientError> {
+        let usdc_address = self.config.usdc_address;
+        let contract_address = self.client.contract_addr();
+        let eth_interface = self.client.deref().as_ref();
+
+        // Step 1: read the on-chain USDC balance held by the ProofManager.
+        let balance: U256 = CallFunctionArgs::new("balanceOf", contract_address)
+            .for_contract(usdc_address, &erc20_balance_of_abi())
+            .call(eth_interface)
+            .await?;
+
+        // Step 2: subtract each proving network's accrued `owedReward`. These
+        // are the only obligations we can read from chain — `heapObligations`
+        // and `potentialFutureReward` are internal storage on the contract.
+        //
+        // `ProvingNetwork::None` is intentionally skipped; per the contract
+        // it always carries a zero `owedReward` and is only used as an escape
+        // hatch for "no assignee", so reading it would be wasted RPC traffic.
+        let fermah_owed =
+            read_owed_reward(eth_interface, self.client.contract(), contract_address, 1).await?;
+        let lagrange_owed =
+            read_owed_reward(eth_interface, self.client.contract(), contract_address, 2).await?;
+
+        // Saturating subtraction defends against a brief on-chain race where
+        // a withdrawal has cleared `usdc.balanceOf` but the `owedReward` reset
+        // is not yet visible in our snapshot. A negative free balance would
+        // wrap into a huge positive number when cast to `f64` via `as_u64`.
+        let obligations = fermah_owed.saturating_add(lagrange_owed);
+        let free = balance.saturating_sub(obligations);
+
+        // Matches the precision/casting convention used by `submitter_balance`
+        // above. USDC has 6 decimals so realistic balances fit comfortably in
+        // u64 even for fully-funded contracts.
+        Ok(free.as_u64() as f64)
+    }
+}
+
+/// Reads `ProvingNetworkInfo.owedReward` for the given proving-network enum
+/// value (1 = Fermah, 2 = Lagrange — matches the `ProvingNetwork` enum in
+/// `IProofManager`). Returns the raw token amount in USDC's smallest unit.
+///
+/// We decode manually rather than via `CallFunctionArgs::call::<_>()` because
+/// the function returns a single struct-typed output, which arrives from
+/// `ethabi` as one `Token::Tuple` rather than as flat fields. The web3
+/// `Detokenize` impls don't unwrap that nesting for us.
+async fn read_owed_reward(
+    eth_interface: &dyn EthInterface,
+    proof_manager_abi: &ethabi::Contract,
+    proof_manager_address: Address,
+    proving_network_enum_value: u8,
+) -> Result<U256, ContractCallError> {
+    let func = proof_manager_abi
+        .function("provingNetworkInfo")
+        .map_err(ContractCallError::Function)?;
+
+    let input_tokens = vec![Token::Uint(U256::from(proving_network_enum_value))];
+    let encoded_input = func.encode_input(&input_tokens).map_err(|source| {
+        ContractCallError::EncodeInput {
+            signature: func.signature(),
+            input: input_tokens,
+            source,
+        }
+    })?;
+
+    let request = web3::CallRequest {
+        from: None,
+        to: Some(proof_manager_address),
+        data: Some(web3::Bytes(encoded_input)),
+        gas: None,
+        gas_price: None,
+        value: None,
+        transaction_type: None,
+        access_list: None,
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+    };
+
+    let encoded_output = eth_interface.call_contract_function(request, None).await?;
+    let output_tokens =
+        func.decode_output(&encoded_output.0)
+            .map_err(|source| ContractCallError::DecodeOutput {
+                signature: func.signature(),
+                output: encoded_output,
+                source,
+            })?;
+
+    // Expected shape: `[Token::Tuple([status: uint8, addr: address, owedReward: uint256])]`.
+    match output_tokens.as_slice() {
+        [Token::Tuple(fields)] => match fields.as_slice() {
+            [Token::Uint(_status), Token::Address(_addr), Token::Uint(owed)] => Ok(*owed),
+            _ => Err(unexpected_proving_network_info_layout(func, output_tokens)),
+        },
+        _ => Err(unexpected_proving_network_info_layout(func, output_tokens)),
+    }
+}
+
+fn unexpected_proving_network_info_layout(
+    func: &ethabi::Function,
+    output: Vec<Token>,
+) -> ContractCallError {
+    ContractCallError::DetokenizeOutput {
+        signature: func.signature(),
+        output,
+        source: web3::contract::Error::InvalidOutputType(
+            "provingNetworkInfo returned unexpected token layout".to_string(),
+        ),
     }
 }

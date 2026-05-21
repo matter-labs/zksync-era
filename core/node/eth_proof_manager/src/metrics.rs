@@ -29,6 +29,14 @@ pub(super) struct EthProofManagerMetrics {
     #[metrics(labels = ["contract_address"])]
     pub contract_address: LabeledFamily<&'static str, Gauge, 1>,
     pub submitter_balance: Gauge<f64>,
+    /// Free USDC balance of the ProofManager contract: the on-chain USDC
+    /// balance minus the `owedReward` already accrued to each proving network.
+    /// Approximates the contract's own `_can_accept_request` view, but does
+    /// *not* subtract `potentialFutureReward` or `heapObligations` because
+    /// those fields are `internal` on the contract and have no public getter,
+    /// so this gauge reads higher than the true free amount when requests are
+    /// in flight. Expressed in raw token units (USDC has 6 decimals).
+    pub proof_manager_free_usdc: Gauge<f64>,
 }
 
 #[vise::register]
