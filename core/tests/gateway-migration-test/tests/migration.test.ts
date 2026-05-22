@@ -303,11 +303,22 @@ describe('Migration From/To gateway test', function () {
         let slAddressl1 = await l1MainContract.getSettlementLayer();
         let slAddressGW = await slMainContract.getSettlementLayer();
         if (direction == 'TO') {
-            expect(slAddressl1 != ZeroAddress);
-            expect(slAddressGW == ZeroAddress);
+            expect(
+                slAddressl1,
+                'Chain should have a non-zero settlement layer on L1 after migrating TO gateway'
+            ).to.not.equal(ZeroAddress);
+            expect(
+                slAddressGW,
+                'Chain should have zero settlement layer on gateway after migrating TO gateway'
+            ).to.equal(ZeroAddress);
         } else {
-            expect(slAddressl1 == ZeroAddress);
-            expect(slAddressGW != ZeroAddress);
+            expect(slAddressl1, 'Chain should have zero settlement layer on L1 after migrating FROM gateway').to.equal(
+                ZeroAddress
+            );
+            expect(
+                slAddressGW,
+                'Chain should have a non-zero settlement layer on gateway after migrating FROM gateway'
+            ).to.not.equal(ZeroAddress);
         }
     });
 
