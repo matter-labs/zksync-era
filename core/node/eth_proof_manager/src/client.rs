@@ -474,6 +474,11 @@ impl EthProofManagerClient for ProofManagerClient {
 
     async fn proof_manager_free_usdc(&self) -> Result<f64, ClientError> {
         let usdc_address = self.config.usdc_address;
+        assert!(
+            usdc_address != Address::zero(),
+            "eth_proof_manager.usdc_address is unset; set it in the general config \
+             so the proof_manager_free_usdc metric can be reported"
+        );
         let contract_address = self.client.contract_addr();
         let eth_interface = self.client.deref().as_ref();
 
@@ -528,13 +533,13 @@ async fn read_owed_reward(
         .map_err(ContractCallError::Function)?;
 
     let input_tokens = vec![Token::Uint(U256::from(proving_network_enum_value))];
-    let encoded_input = func.encode_input(&input_tokens).map_err(|source| {
-        ContractCallError::EncodeInput {
-            signature: func.signature(),
-            input: input_tokens,
-            source,
-        }
-    })?;
+    let encoded_input =
+        func.encode_input(&input_tokens)
+            .map_err(|source| ContractCallError::EncodeInput {
+                signature: func.signature(),
+                input: input_tokens,
+                source,
+            })?;
 
     let request = web3::CallRequest {
         from: None,
@@ -550,13 +555,13 @@ async fn read_owed_reward(
     };
 
     let encoded_output = eth_interface.call_contract_function(request, None).await?;
-    let output_tokens =
-        func.decode_output(&encoded_output.0)
-            .map_err(|source| ContractCallError::DecodeOutput {
-                signature: func.signature(),
-                output: encoded_output,
-                source,
-            })?;
+    let output_tokens = func.decode_output(&encoded_output.0).map_err(|source| {
+        ContractCallError::DecodeOutput {
+            signature: func.signature(),
+            output: encoded_output,
+            source,
+        }
+    })?;
 
     // Expected shape: `[Token::Tuple([status: uint8, addr: address, owedReward: uint256])]`.
     match output_tokens.as_slice() {

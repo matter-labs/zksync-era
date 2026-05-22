@@ -16,8 +16,10 @@ pub struct EthProofManagerConfig {
     /// Exposed as config because the `usdc` field on `ProofManagerStorage` is
     /// internal (no on-chain getter), so the server cannot discover it from the
     /// contract itself. Used to compute the contract's free USDC balance metric.
-    /// Required; the server will panic on startup if this is not set, since the
-    /// metric is treated as load-bearing for operational visibility.
+    /// Defaults to the zero address so pre-existing config fixtures keep
+    /// parsing; the eth-proof-manager watcher panics on startup when the
+    /// effective value is still zero, since the metric is load-bearing.
+    #[config(default_t = Address::zero())]
     pub usdc_address: Address,
     /// Public object store URL
     #[config(default_t = "".to_string())]
