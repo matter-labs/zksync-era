@@ -13,14 +13,14 @@ pub use zksync_types::{
     api::{Block, BlockNumber, Log, TransactionReceipt, TransactionRequest},
     ethabi,
     web3::{
-        BlockHeader, Bytes, CallRequest, FeeHistory, Index, SyncState, TraceFilter, U64Number,
-        ValueOrArray, Work,
+        AccessList, BlockHeader, Bytes, CallRequest, FeeHistory, Index, SyncState, TraceFilter,
+        U64Number, ValueOrArray, Work,
     },
     Address, Transaction, H160, H256, H64, U256, U64,
 };
 use zksync_types::{
-    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, L1ChainId,
-    L2ChainId,
+    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion,
+    transaction_request::Eip712Meta, L1ChainId, L2ChainId,
 };
 
 /// Token in the ZKsync network
@@ -119,6 +119,111 @@ pub struct Filter {
     pub topics: Option<Vec<Option<ValueOrArray<H256>>>>,
     #[serde(rename = "blockHash", skip_serializing_if = "Option::is_none")]
     pub block_hash: Option<H256>,
+}
+
+/// Result returned by `eth_fillTransaction`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FillTransaction {
+    /// EIP-2718 encoded signed transaction bytes with all defaults filled.
+    pub raw: Bytes,
+    /// Filled unsigned transaction request.
+    pub tx: FilledTransactionRequest,
+}
+
+/// Unsigned transaction request accepted by `eth_fillTransaction`.
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FillTransactionRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<Address>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to: Option<Address>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gas: Option<U256>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gas_price: Option<U256>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_fee_per_gas: Option<U256>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_priority_fee_per_gas: Option<U256>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<U256>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<Bytes>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<Bytes>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<U256>,
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub transaction_type: Option<U64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub access_list: Option<AccessList>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eip712_meta: Option<Eip712Meta>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chain_id: Option<U256>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_fee_per_blob_gas: Option<U256>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blob_versioned_hashes: Option<Vec<H256>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blobs: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commitments: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proofs: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sidecar: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authorization_list: Option<serde_json::Value>,
+}
+
+impl From<FillTransactionRequest> for zksync_types::transaction_request::CallRequest {
+    fn from(request: FillTransactionRequest) -> Self {
+        Self {
+            from: request.from,
+            to: request.to,
+            gas: request.gas,
+            gas_price: request.gas_price,
+            max_fee_per_gas: request.max_fee_per_gas,
+            max_priority_fee_per_gas: request.max_priority_fee_per_gas,
+            value: request.value,
+            data: request.data,
+            input: request.input,
+            nonce: request.nonce,
+            transaction_type: request.transaction_type,
+            access_list: request.access_list,
+            eip712_meta: request.eip712_meta,
+        }
+    }
+}
+
+/// Filled transaction request returned by `eth_fillTransaction`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FilledTransactionRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<Address>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to: Option<Address>,
+    pub gas: U256,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gas_price: Option<U256>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_fee_per_gas: Option<U256>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_priority_fee_per_gas: Option<U256>,
+    pub value: U256,
+    pub input: Bytes,
+    pub nonce: U256,
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub transaction_type: Option<U64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub access_list: Option<AccessList>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eip712_meta: Option<Eip712Meta>,
+    pub chain_id: U256,
 }
 
 impl From<zksync_types::web3::Filter> for Filter {

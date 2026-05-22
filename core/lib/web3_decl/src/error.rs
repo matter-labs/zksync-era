@@ -56,6 +56,8 @@ pub enum Web3Error {
     TransactionUnready(String),
     #[error("Invalid timeout. Max timeout is {0}ms")]
     InvalidTimeout(u64),
+    #[error("Invalid transaction request: {0}")]
+    InvalidTransactionRequest(String),
 }
 
 /// Client RPC error with additional details: the method name and arguments of the called method.
