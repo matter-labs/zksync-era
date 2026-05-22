@@ -376,11 +376,22 @@ describe('Migration From/To gateway test', function () {
     // TODO: When support is restored in future versions, remove this negative test.
     step('Migrating back to gateway fails', async () => {
         if (direction == 'TO') return;
-        // Pause deposits before trying migration back to gateway
-        await zkstackExecWithMutex(
-            `zkstack chain pause-deposits --chain ${fileConfig.chain}`,
-            'pausing deposits before migrating back to gateway'
-        );
+        // Pause deposits before trying migration back to gateway.
+        // Deposits may already be paused from the earlier "Pause deposits before initiating
+        // migration" step — the migrate-from-gateway flow does not always re-enable them — so
+        // a `DepositsAlreadyPaused()` revert here is a no-op precondition and not a failure.
+        try {
+            await zkstackExecWithMutex(
+                `zkstack chain pause-deposits --chain ${fileConfig.chain}`,
+                'pausing deposits before migrating back to gateway'
+            );
+        } catch (e: any) {
+            const output = `${e?.message || ''}\n${e?.stdout || ''}\n${e?.stderr || ''}`;
+            if (!/DepositsAlreadyPaused\(\)/.test(output)) {
+                throw e;
+            }
+            console.log('Deposits already paused; continuing to migration-back assertion.');
+        }
 
         await waitForPriorityQueueToBeEmpty('TO');
 
