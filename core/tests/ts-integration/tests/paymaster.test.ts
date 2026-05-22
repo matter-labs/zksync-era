@@ -188,9 +188,19 @@ describe('Paymaster tests', () => {
             minimalAllowance: fee,
             innerInput: new Uint8Array()
         });
+        // Pin `gasPrice` to the value we used to compute `fee`. The testnet paymaster
+        // computes `requiredETH = gasLimit * maxFeePerGas` and checks `amount >=
+        // requiredETH` (otherwise returns magic=0 → "Paymaster validation returned
+        // invalid magic value"). It then transfers `amount` of ERC20 from the user;
+        // `paidFeeWithPaymaster` asserts that the ERC20 transfer amount equals the
+        // ETH fee log amount (`requiredETH`), so the two must agree. Without an
+        // explicit override, ethers samples a fresh fee at submission time, which
+        // can differ from the captured `gasPrice` if L1 fees moved during the test
+        // and produces flaky "invalid magic value" / "missing ERC20 fee log" failures.
         const txPromise = alice.sendTransaction({
             ...tx,
             gasLimit,
+            gasPrice,
             customData: {
                 gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
                 paymasterParams
