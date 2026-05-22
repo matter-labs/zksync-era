@@ -84,10 +84,6 @@ impl EthProofWatcher {
             METRICS
                 .submitter_balance
                 .set(self.client.submitter_balance().await?);
-
-            // Tracks the ProofManager's USDC balance net of already-accrued
-            // proving-network rewards. Lets operators alert when the contract
-            // dips below the reserve needed to keep accepting new requests.
             METRICS
                 .proof_manager_free_usdc
                 .set(self.client.proof_manager_free_usdc().await?);

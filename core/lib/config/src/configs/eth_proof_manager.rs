@@ -12,14 +12,8 @@ pub struct EthProofManagerConfig {
     /// HTTP RPC URL of L2(where contracts are deployed)
     #[config(default_t = "http://127.0.0.1:8545".to_string())]
     pub http_rpc_url: String,
-    /// Address of the USDC ERC20 token used by the ProofManager contract.
-    /// Exposed as config because the `usdc` field on `ProofManagerStorage` is
-    /// internal (no on-chain getter), so the server cannot discover it from the
-    /// contract itself. Used to compute the contract's free USDC balance metric.
-    /// Defaults to the zero address (via `Address::default`) so pre-existing
-    /// config fixtures keep parsing; the eth-proof-manager watcher panics on
-    /// startup when the effective value is still zero, since the metric is
-    /// load-bearing.
+    /// USDC token address used by the ProofManager contract. Required for the
+    /// free-USDC metric; the watcher panics on first tick if left at zero.
     #[config(default)]
     pub usdc_address: Address,
     /// Public object store URL

@@ -74,18 +74,13 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
 
     async fn submitter_balance(&self) -> Result<f64, ClientError>;
 
-    /// Free USDC held by the ProofManager contract: on-chain USDC balance
-    /// minus the `owedReward` accrued to each proving network. Does not
-    /// account for in-flight obligations (`heapObligations`, `potentialFutureReward`)
-    /// because those fields are internal on the contract and have no getter;
-    /// see the metric doc on [`crate::metrics::EthProofManagerMetrics::proof_manager_free_usdc`].
+    /// USDC balance of the ProofManager minus accrued `owedReward`. See the
+    /// gauge doc for the obligations it does not subtract.
     async fn proof_manager_free_usdc(&self) -> Result<f64, ClientError>;
 }
 
-/// Minimal ABI for `IERC20.balanceOf(address) -> uint256`. We don't depend on a
-/// full IERC20 artifact because that would couple this crate to a specific
-/// L1/L2 contracts build; instead we build the single function we need on the
-/// fly. The deserialization is cheap (a ~200-byte JSON once per polling tick).
+/// Minimal `IERC20.balanceOf` ABI, built on the fly to avoid depending on a
+/// specific contracts artifact.
 fn erc20_balance_of_abi() -> ethabi::Contract {
     serde_json::from_str(
         r#"[{
@@ -476,52 +471,33 @@ impl EthProofManagerClient for ProofManagerClient {
         let usdc_address = self.config.usdc_address;
         assert!(
             usdc_address != Address::zero(),
-            "eth_proof_manager.usdc_address is unset; set it in the general config \
-             so the proof_manager_free_usdc metric can be reported"
+            "eth_proof_manager.usdc_address is unset",
         );
         let contract_address = self.client.contract_addr();
         let eth_interface = self.client.deref().as_ref();
 
-        // Step 1: read the on-chain USDC balance held by the ProofManager.
         let balance: U256 = CallFunctionArgs::new("balanceOf", contract_address)
             .for_contract(usdc_address, &erc20_balance_of_abi())
             .call(eth_interface)
             .await?;
 
-        // Step 2: subtract each proving network's accrued `owedReward`. These
-        // are the only obligations we can read from chain — `heapObligations`
-        // and `potentialFutureReward` are internal storage on the contract.
-        //
-        // `ProvingNetwork::None` is intentionally skipped; per the contract
-        // it always carries a zero `owedReward` and is only used as an escape
-        // hatch for "no assignee", so reading it would be wasted RPC traffic.
+        // 1 = Fermah, 2 = Lagrange; matches the ProvingNetwork enum.
         let fermah_owed =
             read_owed_reward(eth_interface, self.client.contract(), contract_address, 1).await?;
         let lagrange_owed =
             read_owed_reward(eth_interface, self.client.contract(), contract_address, 2).await?;
 
-        // Saturating subtraction defends against a brief on-chain race where
-        // a withdrawal has cleared `usdc.balanceOf` but the `owedReward` reset
-        // is not yet visible in our snapshot. A negative free balance would
-        // wrap into a huge positive number when cast to `f64` via `as_u64`.
+        // Saturate to guard against snapshot races where balance has decreased
+        // but the matching owedReward reset isn't visible yet.
         let obligations = fermah_owed.saturating_add(lagrange_owed);
         let free = balance.saturating_sub(obligations);
 
-        // Matches the precision/casting convention used by `submitter_balance`
-        // above. USDC has 6 decimals so realistic balances fit comfortably in
-        // u64 even for fully-funded contracts.
         Ok(free.as_u64() as f64)
     }
 }
 
-/// Reads `ProvingNetworkInfo.owedReward` for the given proving-network enum
-/// value (1 = Fermah, 2 = Lagrange — matches the `ProvingNetwork` enum in
-/// `IProofManager`). Returns the raw token amount in USDC's smallest unit.
-///
-/// We decode manually rather than via `CallFunctionArgs::call::<_>()` because
-/// the function returns a single struct-typed output, which arrives from
-/// `ethabi` as one `Token::Tuple` rather than as flat fields. The web3
-/// `Detokenize` impls don't unwrap that nesting for us.
+/// Reads `ProvingNetworkInfo.owedReward`. Decoded manually because the function
+/// returns a single struct, which ethabi yields as one `Token::Tuple`.
 async fn read_owed_reward(
     eth_interface: &dyn EthInterface,
     proof_manager_abi: &ethabi::Contract,
@@ -563,7 +539,7 @@ async fn read_owed_reward(
         }
     })?;
 
-    // Expected shape: `[Token::Tuple([status: uint8, addr: address, owedReward: uint256])]`.
+    // Expected: [Tuple([status, addr, owedReward])].
     match output_tokens.as_slice() {
         [Token::Tuple(fields)] => match fields.as_slice() {
             [Token::Uint(_status), Token::Address(_addr), Token::Uint(owed)] => Ok(*owed),
