@@ -878,7 +878,15 @@ export class WithdrawalHandler {
 
         await waitForL2ToL1LogProof(l2Wallet, receipt.blockNumber, this.txHash);
 
-        await (await l2Wallet.finalizeWithdrawal(this.txHash)).wait();
+        // `finalize-token-balance-migration --to-gateway false` may finalize pending
+        // withdrawals as a side effect, so by the time we get here the L1 finalize
+        // call can revert with `WithdrawalAlreadyFinalized()`. Treat that as success:
+        // the on-chain effect we wanted has already happened.
+        if (await l2Wallet.isWithdrawalFinalized(this.txHash)) {
+            console.log(`Withdrawal ${this.txHash} is already finalized; skipping L1 finalize call.`);
+        } else {
+            await (await l2Wallet.finalizeWithdrawal(this.txHash)).wait();
+        }
 
         const tokenBalanceMapping = this.resolveTokenBalanceMapping();
         tokenBalanceMapping[this.assetId] = (tokenBalanceMapping[this.assetId] ?? 0n) - this.amount;
