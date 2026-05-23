@@ -176,7 +176,7 @@ fn init_global_config_inner(shell: &Shell, zkstack_args: &ZkStackGlobalArgs) -> 
             let chains = config.list_of_chains();
             if !chains.contains(name) {
                 anyhow::bail!(
-                    "Chain with name {} doesnt exist, please choose one of {:?}",
+                    "Chain with name {} doesn't exist, please choose one of {:?}",
                     name,
                     &chains
                 );
