@@ -23,6 +23,24 @@ pub enum SubmitAirbenderProofResponse {
     Error(String),
 }
 
+/// SNARK input poll response (server -> prover). The `fri_proof` is the
+/// hex-encoded bincode payload the FRI prover originally submitted. The
+/// wrapper VK is resolved out-of-band at prover startup, so it isn't carried
+/// here.
+#[serde_as]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AirbenderSnarkInputsResponse {
+    pub l1_batch_number: u32,
+    #[serde_as(as = "Hex")]
+    pub fri_proof: Vec<u8>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SubmitAirbenderSnarkProofResponse {
+    Success,
+    Error(String),
+}
+
 // Structs to hold data necessary for making HTTP requests
 
 #[serde_as]
@@ -32,4 +50,15 @@ pub struct SubmitAirbenderProofRequest {
     pub prover_id: String,
     #[serde_as(as = "Hex")]
     pub proof: Vec<u8>,
+}
+
+/// SNARK submission payload. The wrapper VK is resolved at prover startup and
+/// is not transmitted per proof.
+#[serde_as]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct SubmitAirbenderSnarkProofRequest {
+    pub l1_batch_number: u32,
+    pub prover_id: String,
+    #[serde_as(as = "Hex")]
+    pub snark_proof: Vec<u8>,
 }
