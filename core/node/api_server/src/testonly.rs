@@ -219,19 +219,23 @@ impl StateBuilder {
     /// Initializes minimal L2 asset-tracker state required for L1 `to_mint` processing.
     pub fn with_l1_base_token_minting(self, base_token_asset_id: H256) -> Self {
         let base_token_holder_balance_key = storage_key_for_eth_balance(&BASE_TOKEN_HOLDER_ADDRESS);
+        // L2AssetTracker slots mirror `forge inspect ...:L2AssetTracker storageLayout`.
         self.with_storage_slot(
             L2_ASSET_TRACKER_ADDRESS,
-            H256::from_low_u64_be(154),
+            // L2AssetTracker.L1_CHAIN_ID (slot 204)
+            H256::from_low_u64_be(204),
             H256::from_low_u64_be(1),
         )
         .with_storage_slot(
             L2_ASSET_TRACKER_ADDRESS,
-            H256::from_low_u64_be(155),
+            // L2AssetTracker.BASE_TOKEN_ASSET_ID (slot 205)
+            H256::from_low_u64_be(205),
             base_token_asset_id,
         )
         .with_storage_slot(
             L2_ASSET_TRACKER_ADDRESS,
-            h256_mapping_slot_key(base_token_asset_id, 153),
+            // L2AssetTracker.isAssetRegistered[base_token_asset_id] (mapping at slot 203)
+            h256_mapping_slot_key(base_token_asset_id, 203),
             H256::from_low_u64_be(1),
         )
         .with_storage_slot(

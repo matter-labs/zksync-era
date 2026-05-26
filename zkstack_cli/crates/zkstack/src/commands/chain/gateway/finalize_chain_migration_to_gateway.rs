@@ -216,6 +216,7 @@ pub async fn run_inner(
         .get_gateway_config()
         .context("Gateway config not present")?;
     let gateway_diamond_cut = gateway_gateway_config.diamond_cut_data.0.clone();
+
     finish_migrate_chain_to_gateway(
         shell,
         args.forge_args.clone(),
@@ -333,21 +334,24 @@ pub(crate) async fn finish_migrate_chain_to_gateway(
     tx_status: bool,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
+    let l2_tx_number_in_batch = u16::try_from(params.l2_tx_number_in_block.as_u64())
+        .context("L2 transaction number in batch does not fit into uint16")?;
+
     let data = GATEWAY_UTILS_INTERFACE
         .encode(
-            "finishMigrateChainToGateway",
-            (
+            "finishMigrateChainToGatewayWithCutData",
+            ((
                 l1_bridgehub_addr,
-                gateway_diamond_cut_data,
+                l2_tx_number_in_batch,
+                tx_status as u8,
+                l2_tx_hash,
                 U256::from(l2_chain_id),
                 U256::from(gateway_chain_id),
-                l2_tx_hash,
                 U256::from(params.l2_batch_number.0[0]),
                 U256::from(params.l2_message_index.0[0]),
-                U256::from(params.l2_tx_number_in_block.0[0]),
+                gateway_diamond_cut_data,
                 params.proof.proof,
-                tx_status as u8,
-            ),
+            ),),
         )
         .unwrap();
 

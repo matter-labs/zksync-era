@@ -185,6 +185,7 @@ pub async fn governance_execute_calls(
         .with_calldata(&calldata);
 
     let description = "executing governance calls";
+    let is_broadcast = matches!(mode, AdminScriptMode::Broadcast(_));
     let (forge, spinner_text) = match mode {
         AdminScriptMode::OnlySave => (forge, format!("Preparing calldata for {description}")),
         AdminScriptMode::Broadcast(wallet) => {
@@ -198,6 +199,12 @@ pub async fn governance_execute_calls(
     let spinner = Spinner::new(&spinner_text);
     forge.run(shell)?;
     spinner.finish();
+
+    // AdminFunction's `governanceExecuteCalls` does not call `saveAndSendAdminTx`, so it never writes the output file.
+    // There is nothing to read back after a broadcast, the calls have already been executed on-chain.
+    if is_broadcast {
+        return Ok(AdminScriptOutput::default());
+    }
 
     let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&path_to_foundry_scripts);
     Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
@@ -300,6 +307,10 @@ pub async fn admin_schedule_upgrade(
         .l1
         .access_control_restriction_addr
         .context("no access_control_restriction_addr")?;
+    let bridgehub = chain_contracts_config
+        .ecosystem_contracts
+        .bridgehub_proxy_addr;
+    let chain_id = ecosystem_config.load_current_chain()?.chain_id.as_u64();
 
     let calldata = ADMIN_FUNCTIONS
         .encode(
@@ -307,6 +318,8 @@ pub async fn admin_schedule_upgrade(
             (
                 admin_addr,
                 access_control_restriction,
+                bridgehub,
+                U256::from(chain_id),
                 new_protocol_version,
                 timestamp,
             ),
@@ -802,7 +815,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
 ) -> anyhow::Result<AdminScriptOutput> {
     let calldata = ADMIN_FUNCTIONS
         .encode(
-            "migrateChainToGateway",
+            "migrateChainToGatewayWithCutData",
             (
                 bridgehub,
                 U256::from(l1_gas_price),

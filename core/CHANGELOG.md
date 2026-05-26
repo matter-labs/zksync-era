@@ -1,5 +1,33 @@
 # Changelog
 
+## [29.18.0](https://github.com/matter-labs/zksync-era/compare/core-v29.17.0...core-v29.18.0) (2026-05-21)
+
+
+### Features
+
+* **api:** implement `eth_fillTransaction` ([#4809](https://github.com/matter-labs/zksync-era/issues/4809)) ([c28ee78](https://github.com/matter-labs/zksync-era/commit/c28ee78caaf0bb8ca263c3922d365635cbb577e6))
+
+## [29.17.0](https://github.com/matter-labs/zksync-era/compare/core-v29.16.0...core-v29.17.0) (2026-05-20)
+
+
+### Features
+
+* **airbender:** emit flat V2 with Airbender commitment variant ([#4801](https://github.com/matter-labs/zksync-era/issues/4801)) ([4328d91](https://github.com/matter-labs/zksync-era/commit/4328d9124f74e6d57e1d3e5a4545ffec8ac8a91b))
+* Draft v31 ([#4608](https://github.com/matter-labs/zksync-era/issues/4608)) ([a2d815b](https://github.com/matter-labs/zksync-era/commit/a2d815b7971f3a191e805817ad3d43508f33c831))
+* fix build proof manager contracts step in CI ([#4800](https://github.com/matter-labs/zksync-era/issues/4800)) ([2cc1b0c](https://github.com/matter-labs/zksync-era/commit/2cc1b0cd4a2250408627454a8eaabf3fbef44ab8))
+* Log bytecode hashes in contract verifier ([#4804](https://github.com/matter-labs/zksync-era/issues/4804)) ([51f9b6f](https://github.com/matter-labs/zksync-era/commit/51f9b6f599880c6ed0c03ada905982b87b510f5e))
+* v31 execute changes ([#4769](https://github.com/matter-labs/zksync-era/issues/4769)) ([d6a53ee](https://github.com/matter-labs/zksync-era/commit/d6a53eedbd415fd14a0ca0cf7b3e3a851f3201b1))
+
+
+### Bug Fixes
+
+* automated protocol upgrade for upgrade-circuit-divergency-before-v31 ([#4813](https://github.com/matter-labs/zksync-era/issues/4813)) ([799626f](https://github.com/matter-labs/zksync-era/commit/799626f85920f484624f2aab21852dba5f82d13e))
+* **deny:** Fix cargo deny ([#4803](https://github.com/matter-labs/zksync-era/issues/4803)) ([a419096](https://github.com/matter-labs/zksync-era/commit/a4190968924cf6228619b8cd2b6c7bb6b178e546))
+* skip DA commitment decode before v31 ([#4807](https://github.com/matter-labs/zksync-era/issues/4807)) ([71ff7f9](https://github.com/matter-labs/zksync-era/commit/71ff7f9c961685107ece54bf537d148def0d0fef))
+* **upgrades:** support Era v29→v31 accepted upgrade path ([#4794](https://github.com/matter-labs/zksync-era/issues/4794)) ([b8e4dbd](https://github.com/matter-labs/zksync-era/commit/b8e4dbdc81d740b959f977a7b195d30903e15837))
+* **verifier:** improve logging ([#4808](https://github.com/matter-labs/zksync-era/issues/4808)) ([3f99eb0](https://github.com/matter-labs/zksync-era/commit/3f99eb0d62eb7dba159b78b7e842b9c73f5cf3d0))
+* **verifier:** zksolc output selection gating ([#4799](https://github.com/matter-labs/zksync-era/issues/4799)) ([9c65f8f](https://github.com/matter-labs/zksync-era/commit/9c65f8fc184f5c50cec8c673f1c3d2d04329db0a))
+
 ## [29.16.0](https://github.com/matter-labs/zksync-era/compare/core-v29.15.2...core-v29.16.0) (2026-04-23)
 
 
