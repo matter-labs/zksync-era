@@ -31,3 +31,32 @@ impl StoredObject for L1BatchAirbenderProofForL1 {
 
     serialize_using_bincode!();
 }
+
+/// A SNARK-wrapped Airbender proof, suitable for L1 submission. The wrapper
+/// VK is resolved at prover startup and known to the verifier out of band, so
+/// it isn't stored alongside the proof.
+#[serde_as]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct L1BatchAirbenderSnarkProofForL1 {
+    #[serde_as(as = "Hex")]
+    pub snark_proof: Vec<u8>,
+}
+
+impl fmt::Debug for L1BatchAirbenderSnarkProofForL1 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("L1BatchAirbenderSnarkProofForL1")
+            .finish_non_exhaustive()
+    }
+}
+
+impl StoredObject for L1BatchAirbenderSnarkProofForL1 {
+    const BUCKET: Bucket = Bucket::ProofsAirbender;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("l1_batch_airbender_snark_proof_{key}.bin")
+    }
+
+    serialize_using_bincode!();
+}
