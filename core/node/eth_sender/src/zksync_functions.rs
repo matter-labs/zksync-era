@@ -85,7 +85,7 @@ impl Default for ZkSyncFunctions {
         let get_l2_default_account_bytecode_hash =
             get_function(&zksync_contract, "getL2DefaultAccountBytecodeHash");
         let get_evm_emulator_bytecode_hash =
-            get_optional_function(&zksync_contract, "getL2EvmSimulatorBytecodeHash");
+            get_optional_function(&zksync_contract, "getL2EvmEmulatorBytecodeHash");
         let get_da_validator_pair = get_function(&getters_contract, "getDAValidatorPair");
         let get_verifier = get_function(&zksync_contract, "getVerifier");
         let get_verifier_params = get_function(&zksync_contract, "getVerifierParams");

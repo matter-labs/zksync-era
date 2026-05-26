@@ -52,6 +52,28 @@ runs:
         mkdir -p ./hardhat-nodejs
         ci_localnet_up
 
+    - name: (TEMPORARY) Update Node in ci_run container
+      shell: bash
+      run: |
+        ci_run bash -lc "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -"
+        ci_run apt-get install -y nodejs
+        echo "Node version after update:"
+        ci_run node -v
+        ci_run npm -v
+        (ci_run yarn -v || ci_run npm install -g yarn) && ci_run yarn -v
+
+    - name: (TEMPORARY) Update foundry in ci_run container
+      shell: bash
+      run: |
+        ci_run curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.1.5/foundry_zksync_v0.1.5_linux_amd64.tar.gz
+        ci_run mkdir ./foundry-temp
+        ci_run tar zxf foundry_zksync_v0.1.5_linux_amd64.tar.gz -C ./foundry-temp
+        ci_run cp ./foundry-temp/forge /usr/local/cargo/bin/forge
+        ci_run cp ./foundry-temp/cast /usr/local/cargo/bin/cast
+        echo "Foundry version after update:"
+        ci_run forge --version
+        ci_run rm -rf ./foundry-temp foundry_zksync_v0.1.5_linux_amd64.tar.gz
+
     - name: Start sccache servers
       shell: bash
       run: |
@@ -71,7 +93,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: zkstack
-        key: zkstack-${{ runner.os }}-${{ hashFiles('zkstack_cli/**') }}
+        key: zkstack-${{ runner.os }}-${{ hashFiles('zkstack_cli/**', 'contracts/l1-contracts/zkstack-out/**/*.json') }}
 
     - name: Copy cached zkstack binary to inside docker (on cache hit)
       if: steps.zkstack_cache.outputs.cache-hit == 'true'

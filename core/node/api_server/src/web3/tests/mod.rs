@@ -214,7 +214,7 @@ impl StorageInitialization {
                 .unwrap();
 
                 if storage.blocks_dal().is_genesis_needed().await? {
-                    insert_genesis_batch(storage, &params).await?;
+                    insert_genesis_batch(storage, &params.into()).await?;
                 }
                 if evm_emulator {
                     // Enable EVM contract deployment in `ContractDeployer` storage.

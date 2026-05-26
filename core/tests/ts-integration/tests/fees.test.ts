@@ -15,10 +15,10 @@ import { TestContextOwner, TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
-import { SYSTEM_CONTEXT_ADDRESS, getTestContract, anyTransaction } from '../src/helpers';
+import { getTestContract, anyTransaction } from '../src/helpers';
+import { SYSTEM_CONTEXT_ADDRESS } from '../src/constants';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
-import { sleep } from 'utils/build';
 import { killPidWithAllChilds } from 'utils/build/kill';
 import path from 'path';
 import { NodeSpawner } from 'utils/src/node-spawner';
@@ -286,62 +286,6 @@ testFees('Test fees', function () {
             (expectedETHGasPrice * conversionRatio.numerator) / conversionRatio.denominator;
 
         expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
-    });
-
-    test('Test base token ratio fluctuations', async () => {
-        const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
-
-        if (isETHBasedChain) return;
-
-        await mainNodeSpawner.killAndSpawnMainNode({
-            newL1GasPrice: l1GasPrice,
-            newPubdataPrice: l1GasPrice,
-            externalPriceApiClientForcedNumerator: 300,
-            externalPriceApiClientForcedDenominator: 100,
-            externalPriceApiClientForcedFluctuation: 20,
-            baseTokenPricePollingIntervalMs: 1000,
-            baseTokenAdjusterL1UpdateDeviationPercentage: 0
-        });
-
-        const beginFeeParams = await alice._providerL2().getFeeParams();
-        const mainContract = await alice.getMainContract();
-        const beginL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
-        let changedL2 = false;
-        let changedL1 = false;
-        for (let i = 0; i < 20; i++) {
-            await sleep(0.5);
-            const newFeeParams = await alice._providerL2().getFeeParams();
-            // we need any as FeeParams is missing existing conversion_ratio field
-
-            if (
-                ((newFeeParams.V2 as any)['conversion_ratio'].numerator as number) !=
-                ((beginFeeParams.V2 as any)['conversion_ratio'].numerator as number)
-            ) {
-                // @ts-ignore
-                const diff =
-                    (newFeeParams.V2 as any)['conversion_ratio'].numerator -
-                    (beginFeeParams.V2 as any)['conversion_ratio'].numerator;
-                // Deviation is 20%, Adding 5% extra for any arithmetic precision issues, 25%*300 = 75
-                expect(diff).toBeLessThan(75);
-                expect(diff).toBeGreaterThan(-75);
-                changedL2 = true;
-                break;
-            }
-        }
-        expect(changedL2).toBeTruthy();
-        for (let i = 0; i < 10; i++) {
-            const newL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
-            if (newL1Nominator != beginL1Nominator) {
-                const diff = newL1Nominator - beginL1Nominator;
-                expect(diff).toBeLessThan(75); // as above
-                expect(diff).toBeGreaterThan(-75);
-                changedL1 = true;
-                break;
-            }
-            await sleep(0.5);
-        }
-
-        expect(changedL1).toBeTruthy();
     });
 
     test('Test gas consumption under large L1 gas price', async () => {

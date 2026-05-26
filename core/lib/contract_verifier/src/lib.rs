@@ -330,8 +330,8 @@ impl ContractVerifier {
             Match::Partial => {
                 tracing::info!(
                     request_id = request.id,
-                    deployed = hex::encode(deployed_bytecode),
-                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    deployed_keccak256 = ?deployed_identifier.bytecode_keccak256,
+                    compiled_keccak256 = ?compiled_identifier.bytecode_keccak256,
                     "Partial bytecode match",
                 );
                 verification_problems.push(VerificationProblem::IncorrectMetadata);
@@ -339,8 +339,8 @@ impl ContractVerifier {
             Match::None => {
                 tracing::info!(
                     request_id = request.id,
-                    deployed = hex::encode(deployed_bytecode),
-                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    deployed_keccak256 = ?deployed_identifier.bytecode_keccak256,
+                    compiled_keccak256 = ?compiled_identifier.bytecode_keccak256,
                     "Deployed (runtime) bytecode mismatch",
                 );
                 return Err(ContractVerifierError::BytecodeMismatch);
@@ -483,7 +483,7 @@ impl ContractVerifier {
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let zksolc = self.compiler_resolver.resolve_zksolc(version).await?;
         tracing::debug!(?zksolc, ?version, "resolved compiler");
-        let input = ZkSolc::build_input(req)?;
+        let input = ZkSolc::build_input(req, &version.zk)?;
 
         time::timeout(self.compilation_timeout, zksolc.compile(input))
             .await
@@ -795,7 +795,7 @@ impl ContractVerifier {
                 let error_message = match &error {
                     ContractVerifierError::Internal(err) => {
                         // Do not expose the error externally, but log it.
-                        tracing::warn!(request_id, "internal error processing request: {err}");
+                        tracing::warn!(request_id, "internal error processing request: {err:#}");
                         "internal error".to_owned()
                     }
                     _ => error.to_string(),

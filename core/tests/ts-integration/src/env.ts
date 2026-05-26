@@ -1,10 +1,8 @@
 import * as path from 'path';
-import * as fs from 'fs';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
-import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
 import {
     FileConfig,
@@ -14,6 +12,7 @@ import {
     getSecondChainConfig
 } from 'utils/build/file-configs';
 import { NodeSpawner } from 'utils/src/node-spawner';
+import { getToken } from 'utils/src/tokens';
 import { logsTestPath } from 'utils/build/logs';
 import * as nodefs from 'node:fs/promises';
 import { exec } from 'utils';
@@ -157,25 +156,7 @@ async function loadTestEnvironmentFromFile(
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
     const contractVerificationUrl = `http://127.0.0.1:${generalConfig.contract_verifier.port}`;
 
-    const tokens = getTokensNew(pathToHome);
-    // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
-    // Using this token will help us to detect decimals-related errors.
-    // but if it's not available, we'll use the first token from the list.
-    let token = tokens.tokens['WBTC'];
-    if (token === undefined) {
-        token = Object.values(tokens.tokens)[0];
-        if (token.symbol == 'WETH') {
-            token = Object.values(tokens.tokens)[1];
-        }
-    }
-    let baseToken;
-
-    for (const key in tokens.tokens) {
-        const token = tokens.tokens[key];
-        if (zksync.utils.isAddressEq(token.address, baseTokenAddress)) {
-            baseToken = token;
-        }
-    }
+    const { token, baseToken } = getToken(pathToHome, baseTokenAddress);
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
 
     const l2TokenAddress = await new zksync.Wallet(
@@ -189,6 +170,23 @@ async function loadTestEnvironmentFromFile(
     const l2ChainIdSecondChain = genesisConfigSecondChain ? BigInt(genesisConfigSecondChain.l2_chain_id) : undefined;
     const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
     const minimalL2GasPrice = BigInt(generalConfig.state_keeper.minimal_l2_gas_price);
+
+    let baseTokenSecondChain;
+    if (secondChainFileConfig) {
+        const l2ProviderSecondChain = new zksync.Provider(l2NodeUrlSecondChain);
+        const baseTokenAddressSecondChain = await l2ProviderSecondChain.getBaseTokenContractAddress();
+        const { token: _tokenSecondChain, baseToken: _baseTokenSecondChain } = getToken(
+            pathToHome,
+            baseTokenAddressSecondChain
+        );
+        baseTokenSecondChain = {
+            name: _baseTokenSecondChain?.name || _tokenSecondChain.name,
+            symbol: _baseTokenSecondChain?.symbol || _tokenSecondChain.symbol,
+            decimals: _baseTokenSecondChain?.decimals || _tokenSecondChain.decimals,
+            l1Address: _baseTokenSecondChain?.address || _tokenSecondChain.address,
+            l2Address: baseTokenAddressL2
+        };
+    }
 
     const validationComputationalGasLimit = parseInt(generalConfig.state_keeper.validation_computational_gas_limit);
     // TODO set it properly
@@ -233,6 +231,7 @@ async function loadTestEnvironmentFromFile(
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
         },
+        baseTokenSecondChain,
         timestampAsserterAddress,
         timestampAsserterMinTimeTillEndSec,
         l2WETHAddress
@@ -248,53 +247,4 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
     const secondChainFileConfig = getSecondChainConfig();
     const testEnvironment = await loadTestEnvironmentFromFile(fileConfig, secondChainFileConfig);
     return testEnvironment;
-}
-
-interface TokensDict {
-    [key: string]: L1Token;
-}
-
-type Tokens = {
-    tokens: TokensDict;
-};
-
-type L1Token = {
-    name: string;
-    symbol: string;
-    decimals: bigint;
-    address: string;
-};
-
-function getTokensNew(pathToHome: string): Tokens {
-    const configPath = path.join(pathToHome, '/configs/erc20.yaml');
-    if (!fs.existsSync(configPath)) {
-        throw Error('Tokens config not found');
-    }
-
-    const parsedObject = yaml.parse(
-        fs.readFileSync(configPath, {
-            encoding: 'utf-8'
-        }),
-        {
-            customTags
-        }
-    );
-
-    for (const key in parsedObject.tokens) {
-        parsedObject.tokens[key].decimals = BigInt(parsedObject.tokens[key].decimals);
-    }
-    return parsedObject;
-}
-
-function customTags(tags: yaml.Tags): yaml.Tags {
-    for (const tag of tags) {
-        // @ts-ignore
-        if (tag.format === 'HEX') {
-            // @ts-ignore
-            tag.resolve = (str, _onError, _opt) => {
-                return str;
-            };
-        }
-    }
-    return tags;
 }

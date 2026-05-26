@@ -10,6 +10,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::{DynClient, MockSettlementLayer, L1},
+    web3_decl::node::SettlementModeResource,
     BaseFees,
 };
 use zksync_multivm::{
@@ -33,7 +34,7 @@ use zksync_types::{
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
-    settlement::SettlementLayer,
+    settlement::WorkingSettlementLayer,
     system_contracts::get_system_smart_contracts,
     L1ChainId, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
     TransactionTimeRangeConstraint, H256, U256,
@@ -129,6 +130,15 @@ impl Tester {
         &self,
         pool: ConnectionPool<Core>,
     ) -> (MempoolIO, MempoolGuard) {
+        self.create_test_mempool_io_with_settlement_mode(pool, WorkingSettlementLayer::for_tests())
+            .await
+    }
+
+    pub(super) async fn create_test_mempool_io_with_settlement_mode(
+        &self,
+        pool: ConnectionPool<Core>,
+        settlement_mode: WorkingSettlementLayer,
+    ) -> (MempoolIO, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
@@ -162,7 +172,7 @@ impl Tester {
             Some(Default::default()),
             Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
             Default::default(),
-            SettlementLayer::for_tests(),
+            SettlementModeResource::new(settlement_mode),
         )
         .unwrap();
 

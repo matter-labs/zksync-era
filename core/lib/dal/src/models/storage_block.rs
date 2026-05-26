@@ -9,7 +9,8 @@ use zksync_types::{
     api,
     block::{CommonL1BatchHeader, L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{
-        L1BatchMetaParameters, L1BatchMetadata, L2DACommitmentScheme, PubdataParams, PubdataType,
+        L1BatchMetaParameters, L1BatchMetadata, L2DACommitmentScheme,
+        PrevBatchAirbenderCommitmentInput, PubdataParams, PubdataType,
     },
     eth_sender::EthTxFinalityStatus,
     fee_model::BatchFeeInput,
@@ -747,6 +748,33 @@ impl ResolvedL1BatchForL2Block {
     /// that the node will operate correctly).
     pub fn expected_l1_batch(&self) -> L1BatchNumber {
         self.block_l1_batch.unwrap_or(self.pending_l1_batch)
+    }
+}
+
+pub(crate) struct StoragePrevBatchAirbenderCommitmentInput {
+    pub meta_parameters_hash: Option<Vec<u8>>,
+    pub airbender_commitment: Option<Vec<u8>>,
+    pub airbender_aux_data_hash: Option<Vec<u8>>,
+}
+
+impl TryFrom<StoragePrevBatchAirbenderCommitmentInput> for PrevBatchAirbenderCommitmentInput {
+    type Error = L1BatchMetadataError;
+
+    fn try_from(row: StoragePrevBatchAirbenderCommitmentInput) -> Result<Self, Self::Error> {
+        Ok(Self {
+            meta_parameters_hash: H256::from_slice(
+                &row.meta_parameters_hash
+                    .ok_or(L1BatchMetadataError::Incomplete("meta_parameters_hash"))?,
+            ),
+            prev_batch_commitment: H256::from_slice(
+                &row.airbender_commitment
+                    .ok_or(L1BatchMetadataError::Incomplete("airbender.commitment"))?,
+            ),
+            prev_aux_hash: H256::from_slice(
+                &row.airbender_aux_data_hash
+                    .ok_or(L1BatchMetadataError::Incomplete("airbender.aux_data_hash"))?,
+            ),
+        })
     }
 }
 

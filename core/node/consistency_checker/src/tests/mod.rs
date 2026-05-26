@@ -10,7 +10,9 @@ use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockSettlementLayer, EthInterface, Options};
 use zksync_l1_contract_interface::{i_executor::methods::CommitBatches, Tokenizable, Tokenize};
-use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_genesis::{
+    insert_genesis_batch, mock_genesis_config, GenesisParams, GenesisParamsInitials,
+};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block,
     l1_batch_metadata_to_commitment_artifacts,
@@ -512,7 +514,7 @@ async fn normal_checker_function(
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -610,7 +612,7 @@ async fn checker_processes_pre_boojum_batches(
         ..mock_genesis_config()
     })
     .unwrap();
-    insert_genesis_batch(&mut storage, &genesis_params)
+    insert_genesis_batch(&mut storage, &genesis_params.clone().into())
         .await
         .unwrap();
     storage
@@ -926,7 +928,7 @@ async fn checker_detects_incorrect_tx_data(
             .await
             .unwrap();
     } else {
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
     }

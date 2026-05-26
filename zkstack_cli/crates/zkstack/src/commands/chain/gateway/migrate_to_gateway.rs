@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use anyhow::Context;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -7,12 +9,16 @@ use zkstack_cli_common::{
 };
 use zkstack_cli_config::{ChainConfig, GatewayChainConfigPatch, ZkStackConfig, ZkStackConfigTrait};
 use zkstack_cli_types::L1BatchCommitmentMode;
-use zksync_basic_types::U256;
+use zksync_basic_types::{Address, U256};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
     constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-    gateway_common::extract_and_wait_for_priority_ops,
+    gateway_common::{
+        extract_and_wait_for_priority_ops, get_gateway_migration_state,
+        GatewayMigrationProgressState, MigrationDirection,
+    },
+    messages::message_for_gateway_migration_progress_state,
     migrate_to_gateway_calldata::{get_migrate_to_gateway_calls, MigrateToGatewayConfig},
 };
 use crate::{
@@ -33,7 +39,18 @@ pub struct MigrateToGatewayArgs {
 
     #[clap(long)]
     pub gateway_chain_name: String,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// Gateway RPC URL. If not provided, will be read from gateway chain's general config.
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
 }
+
+const LOOK_WAITING_TIME_MS: u64 = 2000;
+const MIGRATION_READY_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
@@ -51,8 +68,45 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .context("Gateway config not present")?;
 
     logger::info("Migrating the chain to the Gateway...");
-    let context =
-        get_migrate_to_gateway_context(&chain_config, &gateway_chain_config, false).await?;
+
+    let l1_rpc_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
+
+    let gateway_rpc_url = match args.gateway_rpc_url {
+        Some(url) => url,
+        None => {
+            let general_config = gateway_chain_config.get_general_config().await?;
+            general_config.l2_http_url()?
+        }
+    };
+    let l2_rpc_url = chain_config
+        .get_general_config()
+        .await?
+        .l2_http_url()
+        .context("L2 RPC URL must be provided for cross checking")?;
+    let chain_contracts_config = chain_config.get_contracts_config()?;
+
+    wait_for_migration_to_gateway_ready(
+        l1_rpc_url.clone(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        chain_config.chain_id.as_u64(),
+        l2_rpc_url,
+        gateway_rpc_url.clone(),
+    )
+    .await?;
+
+    let context = get_migrate_to_gateway_context(
+        &chain_config,
+        &gateway_chain_config,
+        false,
+        l1_rpc_url,
+        gateway_rpc_url,
+    )
+    .await?;
     let (chain_admin, calls) = get_migrate_to_gateway_calls(
         shell,
         &args.forge_args,
@@ -113,23 +167,102 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     Ok(())
 }
 
+async fn wait_for_migration_to_gateway_ready(
+    l1_rpc_url: String,
+    l1_bridgehub_addr: Address,
+    l2_chain_id: u64,
+    l2_rpc_url: String,
+    gw_rpc_url: String,
+) -> anyhow::Result<()> {
+    let started_at = Instant::now();
+
+    loop {
+        let state = match get_gateway_migration_state(
+            l1_rpc_url.clone(),
+            l1_bridgehub_addr,
+            l2_chain_id,
+            l2_rpc_url.clone(),
+            gw_rpc_url.clone(),
+            MigrationDirection::ToGateway,
+        )
+        .await
+        {
+            Ok(state) => state,
+            Err(err) if is_server_cross_check_unavailable(&err) => {
+                logger::warn(format!(
+                    "Could not query migration readiness from chain server ({err:#}); proceeding without server-side readiness wait"
+                ));
+                return Ok(());
+            }
+            Err(err) => return Err(err),
+        };
+
+        match state {
+            GatewayMigrationProgressState::ServerReady => {
+                logger::info("The server is ready for migration to Gateway");
+                return Ok(());
+            }
+            GatewayMigrationProgressState::Finished => {
+                logger::info(message_for_gateway_migration_progress_state(
+                    state,
+                    MigrationDirection::ToGateway,
+                ));
+                return Ok(());
+            }
+            GatewayMigrationProgressState::NotificationSent
+            | GatewayMigrationProgressState::NotificationReceived(_) => {
+                if started_at.elapsed() > MIGRATION_READY_TIMEOUT {
+                    anyhow::bail!(
+                        "Timed out waiting for migration readiness: {}",
+                        message_for_gateway_migration_progress_state(
+                            state,
+                            MigrationDirection::ToGateway,
+                        )
+                    );
+                }
+
+                logger::info(message_for_gateway_migration_progress_state(
+                    state,
+                    MigrationDirection::ToGateway,
+                ));
+                tokio::time::sleep(Duration::from_millis(LOOK_WAITING_TIME_MS)).await;
+            }
+            GatewayMigrationProgressState::NotStarted
+            | GatewayMigrationProgressState::AwaitingFinalization
+            | GatewayMigrationProgressState::PendingManualFinalization => {
+                anyhow::bail!(message_for_gateway_migration_progress_state(
+                    state,
+                    MigrationDirection::ToGateway,
+                ));
+            }
+        }
+    }
+}
+
+fn is_server_cross_check_unavailable(err: &anyhow::Error) -> bool {
+    let error_text = format!("{err:#}").to_lowercase();
+    error_text.contains("failed to retrieve gateway migration status from the server")
+        && (error_text.contains("connection refused")
+            || error_text.contains("tcp connect error")
+            || error_text.contains("connecterror")
+            || error_text.contains("transport(")
+            || error_text.contains("timed out"))
+}
+
 pub(crate) async fn get_migrate_to_gateway_context(
     chain_config: &ChainConfig,
     gateway_chain_config: &ChainConfig,
     skip_pre_migration_checks: bool,
+    l1_rpc_url: String,
+    gateway_rpc_url: String,
 ) -> anyhow::Result<MigrateToGatewayContext> {
     let gateway_gateway_config = gateway_chain_config
         .get_gateway_config()
         .context("Gateway config not present")?;
 
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
-
     let genesis_config = chain_config.get_genesis_config().await?;
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
-
-    let general_config = gateway_chain_config.get_general_config().await?;
-    let gw_rpc_url = general_config.l2_http_url()?;
 
     let is_rollup = matches!(
         genesis_config.l1_batch_commitment_mode()?,
@@ -144,7 +277,7 @@ pub(crate) async fn get_migrate_to_gateway_context(
     let chain_secrets_config = chain_config.get_wallets_config().unwrap();
 
     let config = MigrateToGatewayConfig {
-        l1_rpc_url: l1_url.clone(),
+        l1_rpc_url,
         l1_bridgehub_addr: chain_contracts_config
             .ecosystem_contracts
             .bridgehub_proxy_addr,
@@ -152,7 +285,7 @@ pub(crate) async fn get_migrate_to_gateway_context(
         l2_chain_id: chain_config.chain_id.as_u64(),
         gateway_chain_id: gateway_chain_config.chain_id.as_u64(),
         gateway_diamond_cut: gateway_gateway_config.diamond_cut_data.0.clone(),
-        gateway_rpc_url: gw_rpc_url.clone(),
+        gateway_rpc_url,
         new_sl_da_validator: gateway_da_validator_address,
         validator: chain_secrets_config.operator.address,
         min_validator_balance: U256::from(10).pow(19.into()),

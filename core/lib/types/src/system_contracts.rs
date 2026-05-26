@@ -3,13 +3,16 @@ use std::path::PathBuf;
 use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
-    BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, EVM_HASHES_STORAGE_ADDRESS,
-    EVM_PREDEPLOYS_MANAGER_ADDRESS, IDENTITY_ADDRESS, L2_ASSET_ROUTER_ADDRESS,
-    L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
-    L2_INTEROP_ROOT_STORAGE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_VERIFICATION_ADDRESS,
-    L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS,
+    BASE_TOKEN_HOLDER_ADDRESS, BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS,
+    COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS, EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS,
+    EVM_HASHES_STORAGE_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, GW_ASSET_TRACKER_ADDRESS,
+    IDENTITY_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_ASSET_TRACKER_ADDRESS, L2_BRIDGEHUB_ADDRESS,
+    L2_CHAIN_ASSET_HANDLER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS, L2_INTEROP_CENTER_ADDRESS,
+    L2_INTEROP_HANDLER_ADDRESS, L2_INTEROP_ROOT_STORAGE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
+    L2_MESSAGE_VERIFICATION_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    L2_SYSTEM_CONTRACT_PROXY_ADMIN_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS,
     PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS,
+    UPGRADEABLE_BEACON_DEPLOYER_ADDRESS,
 };
 
 use crate::{
@@ -29,7 +32,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 47] = [
     (
         "",
         "AccountCodeStorage",
@@ -73,8 +76,8 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
         ContractLanguage::Sol,
     ),
     (
-        "",
-        "L2BaseToken",
+        "../../l1-contracts/zkout/",
+        "L2BaseTokenEra",
         L2_BASE_TOKEN_ADDRESS,
         ContractLanguage::Sol,
     ),
@@ -158,8 +161,8 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
     ),
     ("", "Compressor", COMPRESSOR_ADDRESS, ContractLanguage::Sol),
     (
-        "",
-        "ComplexUpgrader",
+        "../../l1-contracts/zkout/",
+        "L2ComplexUpgrader",
         COMPLEX_UPGRADER_ADDRESS,
         ContractLanguage::Sol,
     ),
@@ -203,20 +206,20 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
         ContractLanguage::Sol,
     ),
     (
-        "",
+        "../../l1-contracts/zkout/",
         "L2GenesisUpgrade",
         L2_GENESIS_UPGRADE_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
         "../../l1-contracts/zkout/",
-        "Bridgehub",
+        "L2Bridgehub",
         L2_BRIDGEHUB_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
         "../../l1-contracts/zkout/",
-        "MessageRoot",
+        "L2MessageRoot",
         L2_MESSAGE_ROOT_ADDRESS,
         ContractLanguage::Sol,
     ),
@@ -245,7 +248,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
         ContractLanguage::Sol,
     ),
     (
-        "",
+        "../../l1-contracts/zkout/",
         "L2InteropRootStorage",
         L2_INTEROP_ROOT_STORAGE_ADDRESS,
         ContractLanguage::Sol,
@@ -258,8 +261,74 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 40] = [
     ),
     (
         "../../l1-contracts/zkout/",
-        "ChainAssetHandler",
+        "L2ChainAssetHandler",
         L2_CHAIN_ASSET_HANDLER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "UpgradeableBeaconDeployer",
+        UPGRADEABLE_BEACON_DEPLOYER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "InteropCenter",
+        L2_INTEROP_CENTER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "InteropHandler",
+        L2_INTEROP_HANDLER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "L2AssetTracker",
+        L2_ASSET_TRACKER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "SystemContractProxyAdmin",
+        L2_SYSTEM_CONTRACT_PROXY_ADMIN_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "GWAssetTracker",
+        GW_ASSET_TRACKER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "BaseTokenHolder",
+        BASE_TOKEN_HOLDER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+];
+
+// Bytecodes that must be known at genesis for the protocol upgrade transaction
+static GENESIS_ADDITIONAL_FACTORY_DEPS: [(&str, &str, ContractLanguage); 4] = [
+    (
+        "../../l1-contracts/zkout/",
+        "TransparentUpgradeableProxy",
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "BridgedStandardERC20",
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "UpgradeableBeacon",
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../l1-contracts/zkout/",
+        "BeaconProxy",
         ContractLanguage::Sol,
     ),
 ];
@@ -285,4 +354,14 @@ pub fn get_system_smart_contracts_from_dir(path: PathBuf) -> Vec<DeployedContrac
             bytecode: repo.read_sys_contract_bytecode(path, name, None, contract_lang.clone()),
         })
         .collect::<Vec<_>>()
+}
+
+/// Bytecodes required during genesis protocol upgrade execution that will be marked as known code.
+pub fn get_genesis_additional_factory_deps() -> Vec<Vec<u8>> {
+    GENESIS_ADDITIONAL_FACTORY_DEPS
+        .iter()
+        .map(|(path, name, contract_lang)| {
+            read_sys_contract_bytecode(path, name, contract_lang.clone())
+        })
+        .collect()
 }

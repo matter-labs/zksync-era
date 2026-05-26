@@ -14,6 +14,10 @@ pub struct AirbenderProofDataHandlerConfig {
     /// expected proving time to avoid duplicate work.
     #[config(default_t = 60 * TimeUnit::Minutes)]
     pub proof_generation_timeout: Duration,
+    /// Timeout for retrying SNARK wrapping if it previously failed or if it was picked by a SNARK
+    /// prover but the proof was not submitted within that time.
+    #[config(default_t = 60 * TimeUnit::Minutes)]
+    pub snark_generation_timeout: Duration,
     /// Maximum number of attempts to find a batch with available GCS data before giving up.
     #[config(default_t = 5)]
     pub max_attempts: usize,
@@ -30,6 +34,7 @@ mod tests {
             http_port: 4320,
             first_processed_batch: L1BatchNumber(123),
             proof_generation_timeout: Duration::from_secs(90),
+            snark_generation_timeout: Duration::from_secs(120),
             max_attempts: 5,
         }
     }
@@ -40,6 +45,7 @@ mod tests {
           http_port: 4320
           first_processed_batch: 123
           proof_generation_timeout_in_secs: 90
+          snark_generation_timeout_in_secs: 120
           max_attempts: 5
         "#;
         let yaml = serde_yaml::from_str(yaml).unwrap();
@@ -55,6 +61,7 @@ mod tests {
           http_port: 4320
           first_processed_batch: 123
           proof_generation_timeout: 90s
+          snark_generation_timeout: 120s
           max_attempts: 5
         "#;
         let yaml = serde_yaml::from_str(yaml).unwrap();

@@ -2,11 +2,11 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use itertools::Itertools;
-use zksync_contracts::chain_admin_contract;
+use zksync_contracts::server_notifier_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
     api::Log, h256_to_u256, protocol_upgrade::ProtocolUpgradePreimageOracle,
-    protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, H256, U256,
+    protocol_version::ProtocolSemanticVersion, Address, L2ChainId, ProtocolUpgrade, H256, U256,
 };
 
 use crate::{
@@ -20,9 +20,10 @@ use crate::{
 pub struct DecentralizedUpgradesEventProcessor {
     /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_protocol_version: ProtocolSemanticVersion,
-    update_upgrade_timestamp_signature: H256,
+    upgrade_timestamp_updated_signature: H256,
     sl_client: Arc<dyn EthClient>,
     l1_client: Arc<dyn EthClient>,
+    l2_chain_id: L2ChainId,
 }
 
 impl DecentralizedUpgradesEventProcessor {
@@ -30,16 +31,18 @@ impl DecentralizedUpgradesEventProcessor {
         last_seen_protocol_version: ProtocolSemanticVersion,
         sl_client: Arc<dyn EthClient>,
         l1_client: Arc<dyn EthClient>,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             last_seen_protocol_version,
-            update_upgrade_timestamp_signature: chain_admin_contract()
-                .event("UpdateUpgradeTimestamp")
-                .context("UpdateUpgradeTimestamp event is missing in ABI")
+            upgrade_timestamp_updated_signature: server_notifier_contract()
+                .event("UpgradeTimestampUpdated")
+                .context("UpgradeTimestampUpdated event is missing in ABI")
                 .unwrap()
                 .signature(),
             sl_client,
             l1_client,
+            l2_chain_id,
         }
     }
 }
@@ -65,6 +68,16 @@ impl ProtocolUpgradePreimageOracle for &dyn EthClient {
 
         Ok(result)
     }
+
+    async fn prepare_l2_upgrade_tx_data(
+        &self,
+        init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> anyhow::Result<Vec<u8>> {
+        self.get_l2_upgrade_tx_data(init_address, existing_tx_data)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 #[async_trait::async_trait]
@@ -78,9 +91,9 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         for event in &events {
             let version = event
                 .topics
-                .get(1)
+                .get(2)
                 .copied()
-                .context("missing topic 1")
+                .context("missing topic 2")
                 .map_err(EventProcessorError::internal)?;
             let timestamp: u64 = U256::from_big_endian(&event.data.0)
                 .try_into()
@@ -88,91 +101,99 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 .context("upgrade timestamp is too big")
                 .map_err(EventProcessorError::internal)?;
 
-            let diamond_cuts = self
-                .sl_client
-                .diamond_cuts_since_version(self.last_seen_protocol_version)
-                .await
-                .map_err(EventProcessorError::client)?;
-
-            let latest_protocol_version =
+            let old_protocol_version =
                 ProtocolSemanticVersion::try_from_packed(h256_to_u256(version))
                     .map_err(|err| EventProcessorError::internal(anyhow::anyhow!(err)))?;
-            if latest_protocol_version <= self.last_seen_protocol_version {
+            // In normal operation, `old_protocol_version` should equal `last_seen_protocol_version` exactly:
+            // ServerNotifier validates that cut data exists for the current on-chain version before emitting
+            // the event, so we should only ever see one pending upgrade at a time.
+            if old_protocol_version < self.last_seen_protocol_version {
                 // This version has been already processed, skip it.
                 continue;
             }
-            if diamond_cuts.is_empty() {
+
+            let diamond_cut = self
+                .sl_client
+                .diamond_cut_for_version(old_protocol_version)
+                .await
+                .map_err(EventProcessorError::client)?
+                .with_context(|| {
+                    format!("No diamond cuts found for protocol version {old_protocol_version}")
+                })
+                .map_err(EventProcessorError::internal)?;
+
+            let upgrade = ProtocolUpgrade {
+                timestamp,
+                ..ProtocolUpgrade::try_from_diamond_cut(
+                    &diamond_cut,
+                    self.l1_client.as_ref(),
+                    self.l1_client
+                        .get_chain_gateway_upgrade_info()
+                        .await
+                        .map_err(EventProcessorError::contract_call)?,
+                )
+                .await
+                .map_err(EventProcessorError::internal)?
+            };
+
+            if upgrade.version <= old_protocol_version {
                 return Err(EventProcessorError::internal(anyhow::anyhow!(
-                    "No diamond cuts found for protocol version {latest_protocol_version}"
+                    "Upgrade from protocol version {old_protocol_version} points to non-newer version {}",
+                    upgrade.version
                 )));
             }
 
-            for diamond_cut in diamond_cuts {
-                let upgrade = ProtocolUpgrade {
-                    timestamp,
-                    ..ProtocolUpgrade::try_from_diamond_cut(
-                        &diamond_cut,
-                        self.l1_client.as_ref(),
-                        self.l1_client
-                            .get_chain_gateway_upgrade_info()
-                            .await
-                            .map_err(EventProcessorError::contract_call)?,
-                    )
-                    .await
-                    .map_err(EventProcessorError::internal)?
-                };
-
-                if upgrade.version > latest_protocol_version {
-                    continue;
-                }
-
-                // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
-                let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
-                    Some(
-                        self.sl_client
-                            .scheduler_vk_hash(address)
-                            .await
-                            .map_err(EventProcessorError::contract_call)?,
-                    )
-                } else {
-                    None
-                };
-
-                // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
-                let fflonk_scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+            // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
+            let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+                Some(
                     self.sl_client
-                        .fflonk_scheduler_vk_hash(address)
+                        .scheduler_vk_hash(address)
                         .await
-                        .map_err(EventProcessorError::contract_call)?
-                } else {
-                    None
-                };
-                upgrades.insert(
-                    upgrade.version,
-                    (upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash),
-                );
-            }
+                        .map_err(EventProcessorError::contract_call)?,
+                )
+            } else {
+                None
+            };
+
+            // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
+            let fflonk_scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+                self.sl_client
+                    .fflonk_scheduler_vk_hash(address)
+                    .await
+                    .map_err(EventProcessorError::contract_call)?
+            } else {
+                None
+            };
+            upgrades.insert(
+                old_protocol_version,
+                (
+                    old_protocol_version,
+                    upgrade,
+                    scheduler_vk_hash,
+                    fflonk_scheduler_vk_hash,
+                ),
+            );
         }
 
         let new_upgrades: Vec<_> = upgrades
-            .values()
-            .cloned()
-            .skip_while(|(v, _, _)| v.version <= self.last_seen_protocol_version)
-            .sorted_by(|(a, _, _), (b, _, _)| a.version.cmp(&b.version))
+            .into_values()
+            .sorted_by_key(|(old_protocol_version, _, _, _)| *old_protocol_version)
             .collect();
 
-        let Some((last_upgrade, _, _)) = new_upgrades.last() else {
+        let Some((_, last_upgrade, _, _)) = new_upgrades.last() else {
             return Ok(events.len());
         };
         let versions: Vec<_> = new_upgrades
             .iter()
-            .map(|(u, _, _)| u.version.to_string())
+            .map(|(_, u, _, _)| u.version.to_string())
             .collect();
         tracing::debug!("Received upgrades with versions: {versions:?}");
 
         let last_version = last_upgrade.version;
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
-        for (upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash) in new_upgrades {
+        for (old_protocol_version, upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash) in
+            new_upgrades
+        {
             let latest_semantic_version = storage
                 .protocol_versions_dal()
                 .latest_semantic_version()
@@ -181,6 +202,12 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 .map_err(EventProcessorError::internal)?
                 .context("expected some version to be present in DB")
                 .map_err(EventProcessorError::internal)?;
+
+            if old_protocol_version != latest_semantic_version {
+                return Err(EventProcessorError::internal(anyhow::anyhow!(
+                    "Received upgrade event for old_version={old_protocol_version}, but DB is at {latest_semantic_version}; missing prerequisite upgrade"
+                )));
+            }
 
             if upgrade.version > latest_semantic_version {
                 let latest_version = storage
@@ -225,7 +252,11 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
     }
 
     fn topic1(&self) -> Option<H256> {
-        Some(self.update_upgrade_timestamp_signature)
+        Some(self.upgrade_timestamp_updated_signature)
+    }
+
+    fn topic2(&self) -> Option<H256> {
+        Some(H256::from_low_u64_be(self.l2_chain_id.as_u64()))
     }
 
     fn event_source(&self) -> EventsSource {
