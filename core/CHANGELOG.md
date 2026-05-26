@@ -1,5 +1,12 @@
 # Changelog
 
+## [29.18.0](https://github.com/matter-labs/zksync-era/compare/core-v29.17.0...core-v29.18.0) (2026-05-21)
+
+
+### Features
+
+* **api:** implement `eth_fillTransaction` ([#4809](https://github.com/matter-labs/zksync-era/issues/4809)) ([c28ee78](https://github.com/matter-labs/zksync-era/commit/c28ee78caaf0bb8ca263c3922d365635cbb577e6))
+
 ## [29.17.0](https://github.com/matter-labs/zksync-era/compare/core-v29.16.0...core-v29.17.0) (2026-05-20)
 
 
