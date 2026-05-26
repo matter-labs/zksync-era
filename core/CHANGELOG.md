@@ -1,5 +1,17 @@
 # Changelog
 
+## [29.19.0](https://github.com/matter-labs/zksync-era/compare/core-v29.18.0...core-v29.19.0) (2026-05-26)
+
+
+### Features
+
+* **airbender:** Add snark proofs ([#4811](https://github.com/matter-labs/zksync-era/issues/4811)) ([fd3cc4c](https://github.com/matter-labs/zksync-era/commit/fd3cc4c551ea9587733169fbb3afbfd1a59dc166))
+
+
+### Bug Fixes
+
+* **api:** return missing call traces in debug_traceBlockByNumber ([#4816](https://github.com/matter-labs/zksync-era/issues/4816)) ([f42b206](https://github.com/matter-labs/zksync-era/commit/f42b206705d1981550caea9d6318b48f95e60f63))
+
 ## [29.18.0](https://github.com/matter-labs/zksync-era/compare/core-v29.17.0...core-v29.18.0) (2026-05-21)
 
 
