@@ -2,536 +2,283 @@
 
 ## Context
 
-A ZK chain upgrade today is a multi-contract, multi-chain choreography: implementations get deployed on L1 and on every
-settlement layer, proxies are pointed at them, diamonds get new facets, L2 system contracts are swapped via
-genesis-style upgrades, and a long list of init calls follows. Reviewing whether the on-chain state actually matches the
-audited intent is a manual, error-prone diff between deployment scripts, the governance proposal, and what is finally
-sitting at each address.
+A ZK chain upgrade today is a multi-contract, multi-chain choreography: L1 implementations get deployed, proxies are
+pointed at them, diamonds get new facets, L2 system contracts are force-deployed, and a long list of init/wiring
+calls follows. The governance proposal that performs all of this is dozens of calls of mostly-mechanical wiring
+with opaque calldata — diamond cuts, force-deployment arrays, init payloads, priority-tx bytes — all hand-built
+off-chain and reviewed by re-decoding the proposal's calldata.
 
-This document proposes mechanical steps that compress that review surface. The first step — and the focus of v1 of this
-doc — is **on-chain verification of deployed bytecode through a registry**. Later sections sketch the steps that build
-on top.
+### Goal: shift the audit unit from calldata to contracts
 
-## v1: On-chain Deployment Registry
+The streamlining replaces **calldata verification** with **contract verification**:
 
-### Goal
+- **Today**: auditors inspect every call's calldata in the proposal. The audit unit is a hex blob per call;
+  reviewers compare it against an off-chain manifest. N calls → N calldata diffs.
+- **With the model**: the upgrade's structured input lives in a small set of *contracts* (the registries).
+  Auditors read those contracts' source. An on-chain orchestrator composes all the calldata at execution time
+  from the registries' constants. Calldata never appears in the proposal as a hand-built artifact.
 
-After an upgrade is deployed but before governance executes it, anyone (a watcher bot, an auditor, a governance signer)
-should be able to call a single view function and learn whether **every** address involved in the upgrade holds the
-bytecode it was supposed to hold.
+The proposal becomes "approve this set of registry contracts; run these orchestrator calls." The audit work is
+reading the registry source files. Everything downstream is mechanical.
 
-Today this requires fetching each address, comparing bytecode against artifacts off-chain, and trusting the tool that
-does it. With a registry, the comparison happens on-chain against values that were themselves committed on-chain, so it
-is auditable from a block explorer alone.
+## The Registry Hierarchy
 
-### Mechanism
+The streamlining is built on a small hierarchy of **registry contracts**. Each one holds the upgrade's structured
+input as `constant`s in its own source — addresses, L2 bytecode hashes, facet addresses, genesis VM-state values.
+The on-chain orchestrator that performs the upgrade reads from the registries to compose every payload at execution
+time: proxy upgrade calls, diamond cuts, `setChainCreationParams`, `ProposedUpgrade.l2ProtocolUpgradeTx`, and the
+Gateway-side configuration priority txs.
 
-The EVM exposes `EXTCODEHASH`, which returns `keccak256(deployedCode)` for any address. On Era VM the analogous
-primitive is `AccountCodeStorage.getRawCodeHash(addr)`, which returns the versioned bytecode hash that is also used as
-the identity in `create2` and `factoryDeps`. In both cases the hash is:
+No opaque calldata in the governance proposal. The proposal's only meaningful argument is the address of the
+top-level registry.
 
-- **deterministic** for a given deployed contract,
-- **cheap** to read (one opcode / one system-contract call),
-- **sensitive to immutables**, because immutables are baked into the deployed code. Two deployments of the same source
-  with different immutables produce different hashes. This is exactly the property we want: the hash binds source _and_
-  constructor-set parameters.
+### Constants in bytecode
 
-The registry is a small contract holding a mapping from address to expected hash, plus a `verify` / `verifyAll` view. A
-separate registry exists per side (one on L1, one per L2). The L1 registry is the primary verification target during the
-voting window for upgrades that originate on L1.
+`constant`s in source, not storage. Deploying the registry IS the commitment — no `setManifest(...)` follow-up.
+Every getter (`reg.impl(Bridgehub, V31)`, `reg.l2BytecodeHash(L2AssetRouter, V31)`) is `pure` with no SLOAD. Changing
+any value requires redeploying the registry to a new address, which becomes the upgrade-version identifier
+governance signs off on. Old registries stay queryable as historical artifacts.
 
-### Sketch
+### Three registries
 
-```solidity
-contract DeploymentRegistry {
-    struct Entry {
-        bytes32 expectedCodeHash;   // keccak256(runtime bytecode) on L1, raw code hash on L2
-        EntryKind kind;             // Plain | TUP | UUPS | Beacon | Diamond
-        bytes32 extra;              // proxy: expected impl hash; diamond: facet-set commitment
-    }
-
-    mapping(address => Entry) public entries;
-    address[] public addresses;     // for enumeration in verifyAll()
-
-    function verify(address a) external view returns (bool);
-    function verifyAll() external view returns (bool);
-}
-```
-
-The registry is owned by governance and written **once per upgrade**, as part of the same proposal that deploys the new
-implementations. After execution, the registry is the canonical answer to "what is supposed to be at this address right
-now?"
-
-### Proxies
-
-`EXTCODEHASH` of a proxy address returns the proxy's own (small, generic) bytecode — not useful on its own, because
-every TUP shares the same code. The registry handles proxies by storing **two** hashes per proxy entry:
-
-1. the expected proxy-shell hash (catches the case where a proxy address was replaced by an attacker contract with the
-   same `implementation()` view),
-2. the expected implementation hash, with the implementation address read on-chain from the EIP-1967 slot
-   (`0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc`).
-
-So `verify(proxyAddr)` does: read slot 1967, hash that address's code, compare against `entry.extra`. Beacon proxies
-follow the same shape with one extra hop through `IBeacon.implementation()`.
-
-### Diamonds
-
-Diamond proxies (Bridgehub, ChainTypeManager, the chain Diamond itself) have no single implementation. `Getters.sol`
-already exposes `facetAddresses()` and `facetAddress(bytes4)`. The registry pins:
-
-- the expected `keccak256(abi.encodePacked(sortedFacetAddrs))` so the set of facets is fixed,
-- a code hash per facet address.
-
-`verify(diamondAddr)` enumerates `facetAddresses()`, recomputes the set commitment, then for each facet checks code hash
-against the registered value. The selector → facet map is implicitly covered by the facet-set commitment as long as
-facets are themselves immutable; if a facet were to be replaced one-for-one with a malicious one keeping the same
-selectors, the per-facet codehash check catches it.
-
-### What the registry does _not_ cover
-
-A pinned code hash is not a pinned contract. The registry deliberately stops at "the bytecode at this address matches
-what we approved." It does **not** verify:
-
-- storage state (initializer was called, with the right arguments, exactly once),
-- ownership (proxy admin, `Ownable` owner, diamond `owner`, governance roles),
-- configuration in mappings (asset handlers, allowlists, validator sets),
-- L2 system-contract state that lives outside normal storage (e.g. `factoryDeps` content the bootloader uses).
-
-These need their own checks. The registry's job is to make the _bytecode_ layer a single boolean instead of N artifact
-comparisons — so the harder state checks can be the only thing reviewers spend attention on.
-
-### Where it plugs into the upgrade flow
-
-The registry-write step is added to the same governance proposal that performs the upgrade:
-
-1. Deployer publishes implementations and proxies in the preparation stage (see
-   [`upgrade_process_no_gateway_chain.md`](../upgrade_history/gateway_upgrade/upgrade_process_no_gateway_chain.md) for
-   the existing flow).
-2. Deployer also writes the expected-hash table into the registry (the values come from `forge build` artifacts pinned
-   to the audited commit).
-3. The proposal that governance votes on includes a precondition call to `registry.verifyAll()`; voting members and
-   watcher bots can call `verifyAll()` independently at any time during the window.
-4. The same call is re-executed at the start of `executeUpgrade` as a guard. If anything was swapped between vote-start
-   and execute, it reverts.
-
-This collapses the "did the deployer publish what they claimed?" check from an off-chain audit of dozens of addresses to
-a single on-chain boolean, computed against values that are themselves on-chain and signed by governance.
-
-### Cross-chain coordination
-
-The registry is per-execution-environment. A single upgrade typically writes:
-
-- one registry entry set on L1 (implementations, proxies, facets, the Bridgehub / CTM diamond facets),
-- one registry entry set on each settlement layer the upgrade touches (L2 system contracts, L2 asset router/NTV
-  implementations, etc).
-
-A single off-chain "upgrade manifest" file (commit hash, address → expected hash) is the source of truth and gets sliced
-into the per-side registry writes. The manifest is what auditors review; the registries are what the chain enforces.
-
-## Compressing Hash Verification
-
-Storing one slot per `(address, expectedCodeHash)` is wasteful and makes the audit surface N values. There's a sharper
-compression: **put the expected hashes in the registry's own source code as `constant`s and verify the registry's
-`EXTCODEHASH`.** Verifying the registry transitively verifies every assertion it makes, because changing any expected
-hash changes the registry's deployed bytecode.
-
-### Mechanism
-
-The registry becomes a config-as-code contract with zero storage. Each upgrade ships its own registry contracts,
-generated from the audited manifest.
-
-We split into three registries that mirror the actual authority + code-path boundaries of the system:
+The hierarchy splits along the actual authority + code-path boundaries:
 
 - **`CoreRegistry`** — ecosystem-wide L1 contracts shared by every CTM: `Bridgehub`, `L1Nullifier`, `L1AssetRouter`,
   `L1NativeTokenVault`, `MessageRoot`, `CTMDeploymentTracker`, `ChainAssetHandler`, `L1AssetTracker`,
-  `ProtocolUpgradeHandler`, `Guardians`, the ecosystem `ProxyAdmin`, the `GovernanceUpgradeTimer`s. Also references — by
-  address + expected codehash — the two CTM registries below.
-- **`EraCTMRegistry`** — Era (EraVM) `ChainTypeManager` proxy + impl, `ValidatorTimelock`, Era CTM `ProxyAdmin`, Era
-  chain-creation-params commitment, Era diamond facet-set commitment, Era L2 system contract bytecode hashes (EraVM
-  versioned).
-- **`AtlasCTMRegistry`** — same shape as Era but for the Atlas (ZKsync OS) CTM. Atlas chain-creation params, Atlas
-  diamond facet-set commitment, Atlas L2 system contract bytecode hashes (ZKsync OS versioned). Atlas L2 system
-  contracts are a different bytecode set from EraVM, so they live here, not in Core.
+  `ProtocolUpgradeHandler`, `Guardians`, ecosystem `ProxyAdmin`, `GovernanceUpgradeTimer`s. Holds pointers to the
+  two CTM registries below.
+- **`EraCTMRegistry`** — Era (EraVM) `ChainTypeManager` proxy + impl, `ValidatorTimelock`, Era CTM `ProxyAdmin`,
+  Era facet addresses, Era genesis VM-state values, Era L2 system contract bytecode hashes.
+- **`AtlasCTMRegistry`** — same shape for Atlas (ZKsync OS). Different VM, different bytecode set, different chain
+  creation params.
+
+The split mirrors authority (ecosystem PUH vs per-CTM PA), upgrade cadence (CTMs can upgrade independently of core),
+VM divergence (EraVM vs ZKsync OS bytecode sets), and audit isolation (one focused file per scope).
+
+### Keying by enum + protocol version
+
+The deployment scripts already enumerate every contract that participates in an upgrade. Reuse those enums as the
+registry's keys instead of inventing per-contract constant names:
+
+- **`CoreContract`** (`contracts/l1-contracts/deploy-scripts/ecosystem/CoreContract.sol`) — every L2 system contract
+  the ecosystem deploys: `L2Bridgehub`, `L2AssetRouter`, `L2NativeTokenVault`, `L2MessageRoot`, `InteropCenter`,
+  `L2ChainAssetHandler`, etc. VM-neutral; the resolver picks the Era or ZKsyncOS variant.
+- **`CTMContract`** (`contracts/l1-contracts/deploy-scripts/ctm/DeployCTML1OrGateway.sol`) — every CTM-scoped
+  state-transition contract: `AdminFacet`, `MailboxFacet`, `ExecutorFacet`, `MigratorFacet`, `CommitterFacet`,
+  `DiamondInit`, `ValidatorTimelock`, `ChainTypeManager`, `VerifierFflonk`, `VerifierPlonk`, `DualVerifier`,
+  `GatewayCTMDeployerCTM`, `BlobsL1DAValidatorZKsyncOS`.
+- **L1 ecosystem contracts** are organized as structs in
+  `contracts/l1-contracts/deploy-scripts/utils/Types.sol` (`BridgehubContracts`, `BridgeContracts`, etc.). Either
+  promote those to an enum (`EcosystemContract`) or thread the existing struct fields into the registry — same
+  effect.
+
+The registry then exposes typed getters keyed by `(enum, protocolVersion)` rather than per-variant constant names.
+Constants under the hood are still per-variant; the enum is the type-safe lookup surface.
 
 ```solidity
+// Versions reuse SemVer packing already used by the CTM.
+uint256 constant V30 = 30 << 32 | ...;
+uint256 constant V31 = 31 << 32 | ...;
+
 contract CoreRegistryV31 {
-    // ── Ecosystem-wide L1 contracts ──────────────────────────────────────
-    address constant BRIDGEHUB         = 0x236d1c3f...;
-    bytes32 constant BRIDGEHUB_HASH    = 0x8f4a...;
-    address constant L1_NULLIFIER      = 0x6f03861d...;
-    bytes32 constant L1_NULLIFIER_HASH = 0x71b3...;
-    address constant L1_ASSET_ROUTER   = 0xfd3130ea...;
-    bytes32 constant L1_AR_HASH        = 0x2c9d...;
-    // ... etc
-
-    // ── Pointers to per-CTM registries ───────────────────────────────────
-    address constant ERA_CTM_REGISTRY        = 0xerareg...;
-    bytes32 constant ERA_CTM_REGISTRY_HASH   = 0x...;
-    address constant ATLAS_CTM_REGISTRY      = 0xatlasreg...;
-    bytes32 constant ATLAS_CTM_REGISTRY_HASH = 0x...;
-
-    function verifyAll() external view returns (bool) {
-        // ecosystem L1 hashes
-        if (BRIDGEHUB.codehash       != BRIDGEHUB_HASH)        return false;
-        if (L1_NULLIFIER.codehash    != L1_NULLIFIER_HASH)     return false;
-        // ... etc
-
-        // delegate into per-CTM registries
-        if (ERA_CTM_REGISTRY.codehash   != ERA_CTM_REGISTRY_HASH)   return false;
-        if (ATLAS_CTM_REGISTRY.codehash != ATLAS_CTM_REGISTRY_HASH) return false;
-        if (!IRegistry(ERA_CTM_REGISTRY).verifyAll())   return false;
-        if (!IRegistry(ATLAS_CTM_REGISTRY).verifyAll()) return false;
-
-        return true;
-    }
+    // Implementation address for an L1 ecosystem contract at a given version.
+    function impl(EcosystemContract c, uint256 ver) external pure returns (address);
+    // Proxy address (version-independent).
+    function proxy(EcosystemContract c) external pure returns (address);
+    // Pointer to per-CTM registry.
+    function ctmRegistry(bool isZKsyncOS) external pure returns (address);
 }
 
 contract EraCTMRegistryV31 {
-    address constant ERA_CTM_PROXY      = 0x8b448ac7...;
-    bytes32 constant ERA_CTM_IMPL_HASH  = 0x...;
-    address constant ERA_CTM_PA         = 0x...;
-    address constant ERA_VAL_TIMELOCK   = 0x7e38a259...;
-    bytes32 constant ERA_VT_HASH        = 0x...;
-    bytes32 constant ERA_FACETS_COMMIT  = 0x...;  // keccak256(sortedFacetAddrs, [facetHashes])
-    bytes32 constant ERA_CHAIN_PARAMS   = 0x...;  // hash of (bootloader, defaultAA, genesis, evmEmulator)
+    // CTM-scoped impls / facets / verifiers, keyed by enum + version.
+    function ctmAddress(CTMContract c, uint256 ver) external pure returns (address);
 
-    // EraVM L2 system contract bytecode hashes — fixed predeploy addresses on every Era chain.
-    bytes32 constant L2_BRIDGEHUB_HASH    = 0x0100...;
-    bytes32 constant L2_ASSET_ROUTER_HASH = 0x0100...;
-    bytes32 constant L2_NTV_HASH          = 0x0100...;
-    // ...
+    // L2 system-contract bytecode hashes, keyed by enum + version.
+    function l2BytecodeHash(CoreContract c, uint256 ver) external pure returns (bytes32);
 
-    function verifyAll() external view returns (bool) { /* ... */ }
-}
+    // Genesis VM-state values for a given protocol version (output of running the genesis VM).
+    function genesisParams(uint256 ver) external pure returns (
+        address genesisUpgrade, bytes32 batchHash, bytes32 batchCommitment, uint64 idxRepeated
+    );
 
-// AtlasCTMRegistryV31 follows the same shape with Atlas/ZKsync OS addresses and hashes.
-```
-
-To verify the whole ecosystem, anyone computes `keccak256(deployedRuntimeCode)` off-chain for the `CoreRegistry` and
-compares against the live `CoreRegistry.codehash`. **One EXTCODEHASH call on Core** transitively pins:
-
-- every ecosystem L1 hash (via Core's own constants),
-- both CTM registries (via Core's `*_CTM_REGISTRY_HASH` constants),
-- every CTM-scoped L1 impl + L2 bytecode hash + facet commitment + chain-params commitment (via the CTM registries'
-  constants, themselves pinned by Core).
-
-The audit chain becomes:
-
-1. Off-chain: `keccak256(coreRegistry_runtime_code) == EXPECTED_CORE_HASH`. One hash to sign off on.
-2. On-chain: `CORE_REGISTRY.codehash == EXPECTED_CORE_HASH`. Anyone can call this view.
-3. On-chain: `CORE_REGISTRY.verifyAll() == true`. Recursively verifies Core, both CTM registries, and every embedded
-   constant against live EXTCODEHASH.
-
-If any expected hash anywhere in the hierarchy is wrong, step 1 fails. If any deployed contract was swapped, step 3
-fails.
-
-### Why three registries
-
-- **Authority boundary**. CoreRegistry corresponds to ecosystem-wide ProtocolUpgradeHandler scope. The CTM registries
-  correspond to each CTM's own ProxyAdmin scope (Atlas CTM PA, Era CTM PA). Reading the registry hierarchy follows the
-  exact authority hierarchy of the upgrade.
-- **Upgrade cadence**. CTMs can upgrade independently of each other and of the core. Splitting registries lets a "Era
-  CTM only" upgrade ship a new `EraCTMRegistry` without touching `CoreRegistry` or `AtlasCTMRegistry`.
-- **VM divergence**. EraVM and ZKsync OS have different L2 system contract bytecode sets. Putting them in one
-  mega-registry obscures the distinction; splitting makes each CTM registry the source of truth for its own VM's
-  contracts.
-- **Audit isolation**. A reviewer studying the Atlas CTM upgrade reads one focused file; ecosystem-wide changes are in
-  Core. Cross-references are explicit (`CoreRegistry` imports CTM-registry addresses).
-
-### Per-upgrade deployment
-
-Each upgrade deploys a fresh registry contract. The previous upgrade's registry stays on-chain as a historical artifact
-— anyone can still call `verifyAll()` on it years later and confirm the chain still matches that upgrade's manifest
-(modulo subsequent upgrades that intentionally moved things).
-
-Governance proposals point at the new registry by address. The address is what gets signed; everything the registry
-asserts is downstream of that.
-
-### What this collapses vs storage-based
-
-|                        | Storage-based                        | Constants in bytecode                           |
-| ---------------------- | ------------------------------------ | ----------------------------------------------- |
-| Storage slots used     | N (one per address + one per hash)   | 0                                               |
-| Setup tx after deploy  | `setManifest(...)`                   | None — deploying the registry IS the commitment |
-| Audit surface          | N hashes (or one root + N addresses) | 1 hash: the registry's own `EXTCODEHASH`        |
-| `verifyAll()` cost     | O(n) SLOAD + O(n) EXTCODEHASH        | O(n) EXTCODEHASH only                           |
-| Modifying after deploy | Possible via setter                  | Impossible — must redeploy the registry         |
-| Versioning             | Mutable; latest values overwrite old | Per-upgrade; old registries remain queryable    |
-
-The "must redeploy to change anything" property is a feature, not a cost: the registry's address is the upgrade version
-identifier. Re-running `forge build` and observing the same registry-runtime hash is what auditors actually want — it's
-a proof that nothing changed between vote and execute.
-
-### Diamonds nest the same way
-
-A diamond's "expected hash" can be embedded as a sub-commitment in the registry:
-
-```solidity
-// keccak256(abi.encode(sortedFacetAddrs, [facet.codehash, ...]))
-bytes32 constant ERA_CTM_DIAMOND_COMMIT = 0xc4f1...;
-
-function verifyEraCtm() internal view returns (bool) {
-    address[] memory facets = IGetters(ERA_CTM).facetAddresses();
-    bytes32[] memory hashes = new bytes32[](facets.length);
-    for (uint256 i; i < facets.length; ++i) {
-        hashes[i] = facets[i].codehash;
-    }
-    return keccak256(abi.encode(facets, hashes)) == ERA_CTM_DIAMOND_COMMIT;
+    uint256 constant OLD_PROTOCOL_VERSION = V30;
+    uint256 constant NEW_PROTOCOL_VERSION = V31;
 }
 ```
 
-The diamond's facet set is enumerated at verify time via the loupe, and the per-facet codehashes are re-rolled into the
-commitment. A single bytes32 constant in the registry covers the whole diamond + every facet inside it.
+The generator (`forge gen-registry`) emits a `switch` body per getter, one branch per enum variant per pinned
+version. Constants under the hood, enum-keyed on the outside.
 
-### Ad-hoc / single-entry checks
+The orchestrator gets clean pre/post conditions: assert `reg.proxy(Bridgehub)`'s EIP-1967 slot currently points to
+`reg.impl(Bridgehub, V30)`; run `TPA.upgrade(reg.proxy(Bridgehub), reg.impl(Bridgehub, V31))`; the slot now reads
+`reg.impl(Bridgehub, V31)`. Reading registries backwards (`CoreRegistryV31`, `CoreRegistryV30`, ...) reconstructs
+the full version history.
 
-The registry can expose per-address views without per-address storage:
+Two payoffs from sharing enums with the deploy scripts:
 
-```solidity
-function bridgehubHash() external pure returns (bytes32) { return BRIDGEHUB_HASH; }
-function verifyBridgehub() external view returns (bool) {
-    return BRIDGEHUB.codehash == BRIDGEHUB_HASH;
-}
-```
-
-A watcher bot calls `verifyBridgehub()` directly without an off-chain manifest copy — the expected hash is baked in. The
-registry contract itself is the manifest.
+- **Single source of truth.** Adding a new contract means adding one enum variant; the deploy script, the
+  registry generator, and the orchestrator all pick it up. No drift between "what we deployed" and "what the
+  registry knows about."
+- **Type safety.** `reg.impl(Bridgehub, V31)` is a compile-time-checked call; a typo on the variant name fails to
+  compile, and an unknown variant returns from the switch's default branch (revert).
 
 ### Generation
 
-The registry source is generated from the audited manifest as part of the upgrade preparation step:
+The registry source is generated deterministically from the audited manifest:
 
+```text
+manifest.json (audited) → forge gen-registry → CoreRegistryV31.sol + per-CTM .sol → forge build
 ```
-manifest.json (audited)  →  forge gen-registry  →  DeploymentRegistryV31.sol  →  forge build
-```
 
-The generator is deterministic; reproducing the same registry source from the same manifest is what auditors verify. No
-human ever hand-writes a hash constant in this file.
+No human hand-writes a constant in these files. Reproducing the same source from the same manifest is what auditors
+verify.
 
-## Pulling L2 Hashes Into the CTM Registries
+## L2 system contracts and the L2 registry
 
-So far the registries only attest to L1 deployments. But an upgrade typically touches L2 system contracts too —
-`L2AssetRouter`, `L2NativeTokenVault`, the InteropCenter, Bridgehub, base-token contract, and so on. Today those are
-uploaded separately as part of the L2 genesis-upgrade payload, with their hashes baked into the L1 governance proposal
-as opaque bytes.
+L2 system contracts are CTM-scoped, so their bytecode hashes live in the per-CTM registries: `EraCTMRegistry` pins
+EraVM hashes, `AtlasCTMRegistry` pins ZKsync OS hashes. Same predeploy addresses (from `Constants.sol`), different
+bytecode per VM.
 
-L2 system contracts are CTM-scoped (EraVM bytecode for Era chains, ZKsync OS bytecode for Atlas chains), so they live
-naturally in the **per-CTM registries**: each `EraCTMRegistry` and `AtlasCTMRegistry` pins its own VM's L2 system
-contract bytecode hashes. The `CoreRegistry`'s pointer-plus-codehash to each CTM registry transitively pins those L2
-hashes too — verifying Core verifies the whole cross-chain manifest.
+### Composing the L2 upgrade on L1
 
-### What it looks like
+The L2 force-deploys ride inside the **normal upgrade transaction**, not a separate priority tx. The path
+(`BaseZkSyncUpgrade.upgrade` → `_setL2SystemContractUpgrade`):
+
+1. `CTM.setNewVersionUpgrade(diamondCut, ...)` stores `upgradeCutHash[oldVer]`. The `diamondCut.initCalldata` is
+   `abi.encodeCall(IDefaultUpgrade.upgrade, (proposedUpgrade))`.
+2. `proposedUpgrade.l2ProtocolUpgradeTx` is an `L2CanonicalTransaction` whose `data` calls
+   `IContractDeployer.forceDeployOnAddresses(ForceDeployment[])` and whose `factoryDeps` lists the new bytecode
+   hashes.
+3. `chain.executeUpgrade(diamondCut)` → delegate-call `DefaultUpgrade.upgrade(proposedUpgrade)` →
+   `_setL2SystemContractUpgrade` records `keccak256(l2ProtocolUpgradeTx)` as `s.l2SystemContractsUpgradeTxHash`.
+   L2 picks it up as the protocol upgrade tx on its next batch.
+
+The orchestrator reads `L2_*_HASH_V31` constants from the CTM registry and composes the `ForceDeployment[]`,
+`L2CanonicalTransaction`, and `ProposedUpgrade` on L1:
 
 ```solidity
-contract EraCTMRegistryV31 {
-    // ── Era L1 contracts ──────────────────────────────────────────────────
-    address constant ERA_CTM_PROXY     = 0x8b448ac7...;
-    bytes32 constant ERA_CTM_IMPL_HASH = 0x...;
-    // ... etc
+function buildEraL2UpgradeTx(IEraCTMRegistry reg) internal view returns (L2CanonicalTransaction memory) {
+    // Iterate the CoreContract enum; the registry returns 0 for variants not deployed on this CTM/version.
+    IContractDeployer.ForceDeployment[] memory fds = new IContractDeployer.ForceDeployment[](N);
+    fds[0] = IContractDeployer.ForceDeployment({
+        bytecodeHash: reg.l2BytecodeHash(CoreContract.L2AssetRouter, V31),
+        newAddress:   L2_ASSET_ROUTER_ADDR,           // predeploy constant
+        callConstructor: false, value: 0, input: ""
+    });
+    // ... one entry per CoreContract variant, all hashes from registry getters
 
-    // ── Era L2 system contracts (EraVM versioned bytecode hashes) ────────
-    // Addresses are fixed predeploy slots (L2ContractAddresses.sol) — same on every Era chain,
-    // so we only need the hash constants here.
-    bytes32 constant L2_BRIDGEHUB_HASH    = 0x0100...;
-    bytes32 constant L2_ASSET_ROUTER_HASH = 0x0100...;
-    bytes32 constant L2_NTV_HASH          = 0x0100...;
-    bytes32 constant L2_INTEROP_CENTER_HASH = 0x0100...;
-    // ...
-}
-
-contract AtlasCTMRegistryV31 {
-    // Same shape but with Atlas (ZKsync OS) bytecode hashes — different VM, different bytecode,
-    // same predeploy address slots.
-    bytes32 constant L2_BRIDGEHUB_HASH    = 0x0100...;  // ZKsync OS bytecode, not EraVM
-    bytes32 constant L2_ASSET_ROUTER_HASH = 0x0100...;
-    bytes32 constant L2_NTV_HASH          = 0x0100...;
-    // ...
+    return _buildL2UpgradeTx({
+        to: L2_FORCE_DEPLOYER_ADDR,
+        data: abi.encodeCall(IContractDeployer.forceDeployOnAddresses, (fds)),
+        factoryDeps: _factoryDepsFromRegistry(reg),
+        nonce: NEW_PROTOCOL_VERSION_MINOR
+    });
 }
 ```
 
-For per-chain L2 contracts (each chain's Diamond), the registry stores the L2 ADDRESS via on-L1 query of the Bridgehub's
-`getZKChain`, plus a hash that's expected across all chains running the same protocol version under that CTM.
+The same `ForceDeployment[]` payload also goes into `chainCreationParams.forceDeploymentsData` for newly registered
+chains — see [Composing `chainCreationParams`](#composing-chaincreationparams-on-chain).
 
-### Constructing L2 upgrade calldata on L1
+### The L2-side registry
 
-This is where the per-CTM registries pay off. The L1 orchestrator picks the correct CTM registry for the target chain
-(Era or Atlas), reads the L2 implementation hashes from it, and composes the `ForceDeployment[]` array that the L2
-ContractDeployer expects, all on L1, no off-chain step:
+Each CTM ships a matching L2-side registry deployed by the same protocol upgrade transaction (`EraL2RegistryV31`,
+`AtlasL2RegistryV31`). It sits at a fixed predeploy address so every L2 system contract can hard-code the lookup
+target.
+
+L2 **system** contract *addresses* are already fixed predeploys (`Constants.sol`), so the L2 registry doesn't
+replace those. What it adds is a runtime lookup for things whose addresses aren't predeploys:
+
+- **L1 addresses that L2 contracts reference** (L1 Bridgehub, Nullifier, AR, NTV, PUH). Today these are compiled
+  into L2 bytecode as per-ecosystem immutables, forcing a new L2 bytecode per ecosystem. Reading them from the L2
+  registry at runtime gives **one audited L2 bytecode per VM**, ecosystem-independent.
+- **Per-chain L2 deployments** that don't sit at predeploy slots.
+- **Protocol-version metadata** (`protocolVersion()`, `eraChainId()`, `settlementLayer()`) for branching.
 
 ```solidity
-function buildEraL2UpgradePriorityTx() internal view returns (bytes memory l2Calldata) {
-    IEraCTMRegistry reg = IEraCTMRegistry(CORE.ERA_CTM_REGISTRY());
-    IContractDeployer.ForceDeployment[] memory deployments =
-        new IContractDeployer.ForceDeployment[](N);
+contract EraL2RegistryV31 {
+    address constant L1_BRIDGEHUB    = 0x...;
+    address constant L1_NULLIFIER    = 0x...;
+    address constant L1_ASSET_ROUTER = 0x...;
+    address constant L1_NTV          = 0x...;
 
-    deployments[0] = IContractDeployer.ForceDeployment({
-        bytecodeHash: reg.L2_ASSET_ROUTER_HASH(),
-        newAddress:   L2_ASSET_ROUTER_ADDR,         // predeploy constant
-        callConstructor: false,
-        value: 0,
-        input: ""
-    });
-    deployments[1] = IContractDeployer.ForceDeployment({
-        bytecodeHash: reg.L2_NTV_HASH(),
-        newAddress:   L2_NATIVE_TOKEN_VAULT_ADDR,
-        callConstructor: false,
-        value: 0,
-        input: ""
-    });
-    // ... etc
-
-    l2Calldata = abi.encodeCall(
-        IContractDeployer.forceDeployOnAddresses,
-        (deployments)
-    );
+    function l1Bridgehub()    external pure returns (address) { return L1_BRIDGEHUB; }
+    function l1Nullifier()    external pure returns (address) { return L1_NULLIFIER; }
+    function l1AssetRouter()  external pure returns (address) { return L1_ASSET_ROUTER; }
 }
 ```
 
-An equivalent `buildAtlasL2UpgradePriorityTx()` reads from `CORE.ATLAS_CTM_REGISTRY()`. Same orchestrator logic,
-different CTM registry → different L2 bytecode hashes for the same predeploy addresses.
+### Force-deploy ordering
 
-The governance proposal becomes one priority tx per affected CTM: `Bridgehub.requestL2TransactionDirect` with the L2
-ContractDeployer as the target and the `forceDeployOnAddresses` payload computed on the fly. No hand-baked calldata; no
-off-chain ForceDeployment array compiled into the proposal.
+Everything below is encoded in the single `L2CanonicalTransaction` of `l2ProtocolUpgradeTx`. Ordering within the
+`ForceDeployment[]` array:
 
-### Verifying L2 hashes match
+1. **L2 registry first** — makes the new ecosystem-wide pointers available before any system contract reads them.
+2. **L2 system contracts next** — Bridgehub, AssetRouter, NTV, InteropCenter, MessageRoot, etc. They read from
+   the L2 registry deployed in step 1.
+3. **Post-deploy init calls** — run via `postUpgradeCalldata` (handled by `BaseZkSyncUpgrade._postUpgrade`) or by
+   the `GenesisUpgrade`-style contract delegate-called as part of the upgrade init.
 
-The L1 registry asserts what the L2 SHOULD have. Confirming what the L2 ACTUALLY has needs cross-chain proof. Three
-options, listed by strictness:
-
-1. **Trust-but-record.** L1 stores the expected hashes. After the L2 upgrade lands, anyone can call the matching
-   `L2DeploymentRegistry.verifyAll()` (deployed on L2 alongside the upgrade) and observe the boolean off-chain. No
-   cross-chain enforcement; relies on social verification. Today's effective model.
-2. **L2→L1 attestation.** The L2 registry's `verifyAll()` emits its boolean as an L2→L1 message. `MessageVerification`
-   on L1 lets the next governance step refuse to finalize unless the message lands with `true`. Requires async two-phase
-   upgrade execution (send priority tx, wait, then finalize).
-3. **Storage proof.** A storage-root commitment from the L2 settlement layer is verified against the expected hashes
-   inline during the L1 upgrade tx. Strictest, most complex; useful once.
-
-For v1, option 1 is enough — the L2 registry is itself constant-bytecode, so its on-L1-recorded codehash constant
-transitively pins the L2-side expected hashes. The cross-chain "does L2 reality match?" check becomes a public view
-anyone runs, with no governance-time enforcement.
-
-### L2 registry as the trusted L2-side companion
-
-Each CTM ships a matching L2-side registry alongside its L1-side one:
-
-- `EraCTMRegistryV31` on L1, plus `EraL2RegistryV31` deployed on every Era chain (via the same priority tx that runs the
-  L2 upgrade), holding the same EraVM bytecode hashes and exposing `verifyAll()` callable from L2.
-- `AtlasCTMRegistryV31` on L1, plus `AtlasL2RegistryV31` deployed on every Atlas chain.
-
-Both halves of each pair are content-pinned by their own `EXTCODEHASH`. The L1 CTM registry stores its matching
-`L2_REGISTRY_HASH` as one of its constants, so verifying the L1 CTM registry transitively pins its L2 companion by
-codehash.
-
-### What this collapses
-
-|                          | Before                                                            | With CTM registries holding L2 hashes                               |
-| ------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
-| L2 upgrade calldata      | Hand-built `ForceDeployment[]` baked into the governance proposal | Generated on L1 at execution time from CTM-registry constants       |
-| L2 hash audit surface    | Per-deployment in proposal calldata                               | One `L2_REGISTRY_HASH` constant per CTM registry                    |
-| Cross-chain audit        | Read off-chain artifacts                                          | One on-L1 view + (optionally) per-CTM on-L2 view; all deterministic |
-| Manifest source of truth | Off-chain JSON                                                    | The `CoreRegistry` contract address (which pins everything below)   |
-
-The whole upgrade — ecosystem L1 contracts, per-CTM L1 contracts, per-CTM L2 system contracts, diamond cuts on every
-diamond — is captured by one address: the `CoreRegistry`. That address, plus its expected `EXTCODEHASH`, is the only
-thing the governance proposal needs to commit to.
+All three steps live in the same upgrade transaction; the L2 side never sees an off-chain calldata blob.
 
 ## Deployment Plan
 
-The registries split into two roles, and the upgrade follows their order:
+Each of `CoreRegistry` / `EraCTMRegistry` / `AtlasCTMRegistry` lives **behind a proxy at a well-known address**.
+The proxy address is what implementations compile against as a `constant`; the impl behind the proxy is what gets
+swapped on every upgrade.
 
-- **AddressRegistry** (a long-lived proxy at a well-known address, like `Bridgehub` is today): provides `bridgehub()`,
-  `l1Nullifier()`, `l1AssetRouter()`, etc. Implementations read from it in their constructors. Updated on each upgrade
-  to point at the new implementations.
-- **CoreRegistry / EraCTMRegistry / AtlasCTMRegistry** (immutable, per-upgrade): hold the codehash manifest. Deployed
-  once per upgrade. Used for verification and on-chain calldata composition.
+Two read patterns from the same contract:
+
+- **L1 impl constructors** read the proxy to set their immutables (`reg.proxy(Bridgehub)`, etc.). They only care
+  about the current ecosystem state, not history.
+- **The orchestrator** reads from a *specific* registry impl during the upgrade to compose calldata (it dereferences
+  the new impl directly by address — that address is what's in the governance proposal). After execution, the proxy
+  points at that same impl.
+
+Each impl is a constants-in-bytecode contract holding `(v(N-1), v(N))` values. The next upgrade deploys an impl
+holding `(v(N), v(N+1))` and swaps. Old impls remain at their CREATE2 addresses as historical artifacts — anyone can
+still read v28 → v29 from the v29 registry impl.
 
 ### Order of operations
 
-For each upgrade:
-
-1. **Generate the new registry sources** from the audited manifest. Each address constant is computed via CREATE2
-   prediction from the deterministic factory + per-upgrade salt + creation bytecode. Codehash constants are filled in
-   step 6 (when impls have been deployed).
-
-2. **Compile everything** at the audited commit. Creation bytecodes for all implementations, facets, and registries are
-   now known.
-
-3. **Deploy new implementations and facets via CREATE2.** Each contract has an _argless_ constructor; inside, it reads
-   the addresses it depends on from the existing `AddressRegistry` proxy at the well-known address:
+1. **Generate registry sources** from the audited manifest. All addresses are CREATE2-predicted.
+2. **Compile everything** at the audited commit.
+3. **Deploy new contract impls and facets via CREATE2**, each with an _argless_ constructor that reads its
+   dependencies from the currently-installed CoreRegistry / CTM registry impl through the proxy:
 
    ```solidity
    contract NewBridgehubImpl {
        address public immutable L1_NULLIFIER;
-       address public immutable L1_ASSET_ROUTER;
        address public immutable NTV;
-
        constructor() {
-           IAddressRegistry reg = IAddressRegistry(ADDRESS_REGISTRY);  // constant
-           L1_NULLIFIER    = reg.l1Nullifier();
-           L1_ASSET_ROUTER = reg.l1AssetRouter();
-           NTV             = reg.nativeTokenVault();
+           ICoreRegistry reg = ICoreRegistry(CORE_REGISTRY_PROXY);  // constant
+           L1_NULLIFIER = reg.proxy(EcosystemContract.L1Nullifier);
+           NTV          = reg.proxy(EcosystemContract.NativeTokenVault);
        }
    }
    ```
 
-   No constructor args ⇒ CREATE2 address depends only on creation bytecode + salt, identical across all ecosystems /
-   chains that compile the same source.
-
-4. **Verify all impl CREATE2 addresses match the predictions** from step 1. If anything diverges, the manifest is wrong;
-   abort.
-
-5. **Update the AddressRegistry proxy** to point at the new impl addresses. This is the actual hand-over: subsequent
-   calls to `reg.bridgehub()` etc. return the new impls. (Done via the standard ProxyAdmin upgrade pattern; the call is
-   composed by an orchestrator that reads the new addresses from the manifest registries below.)
-
-6. **Compute final runtime codehashes** for each deployed impl. Because constructors only read addresses (which were
-   known in step 1), the immutables baked in are deterministic and the runtime codehash is predictable from
-   `(creation bytecode, AddressRegistry contents at the moment the constructor ran)`. Fill these into the registry
-   sources from step 1.
-
-7. **Deploy the three code-hash registries** (`CoreRegistry`, `EraCTMRegistry`, `AtlasCTMRegistry`) via CREATE2 with the
-   salts predicted in step 1. They land at the same predicted addresses; their constants now contain the final
-   codehashes.
-
-8. **Verify.** Anyone — auditor, watcher bot, governance signer — calls `CoreRegistry.verifyAll()`. The precondition on
-   `executeUpgrade` calls it as well; the proposal won't finalize if any expected hash diverges from live `EXTCODEHASH`.
-
-9. **Compose the upgrade calldata on-chain** from the registries — proxy upgrade calls, diamond cuts,
-   `ForceDeployment[]` arrays for each CTM's L2 — and execute as governance.
-
-### Breaking the codehash-vs-address circularity
-
-The naive concern: registry contains codehashes, impls read from registry → registry address depends on codehashes →
-codehashes depend on impl construction → impl construction depends on registry → circular.
-
-It's not circular because the two registries serve different roles. Impls read **addresses** from `AddressRegistry` (a
-stable proxy, address known at compile time as a `constant`). Codehashes live in the per-upgrade `CoreRegistry` family
-and are read only by auditors / `verifyAll()` — never by an impl in its constructor. Address graph is fully resolvable
-before any impl is deployed.
+   At this point the proxy still points at the previous (v30) registry impl. New impls only depend on proxy
+   addresses, which are version-independent, so reading from the old impl is fine.
+4. **Verify CREATE2 addresses match predictions**; abort otherwise.
+5. **Deploy the new registry impls** (`CoreRegistryV31`, `EraCTMRegistryV31`, `AtlasCTMRegistryV31`) via CREATE2.
+6. **Swap the registry proxies** to point at the new impls. This is the actual hand-over: from now on, reads via
+   the proxies see v31's values (with v30 still accessible by passing `V30` as the version argument).
+7. **Compose the upgrade calldata on-chain** from the new registry impls and execute as governance.
 
 ### One-impl, many-ecosystems
 
-Because impl constructors take no args and only read from a registry at a constant address, the same impl source
-deployed against different AddressRegistry instances produces identical CREATE2 addresses (same creation bytecode → same
-hash → same address) but different runtime codehashes (different immutables baked in from the different registries'
-contents). Ecosystems get isolation "for free": different AddressRegistry → different live state → different
-per-ecosystem CoreRegistry → different per-ecosystem audit hashes, all from the same audited source.
+Impls take no constructor args and only read from a registry at a constant proxy address. The same impl source
+deployed to different ecosystems (each with its own CoreRegistry proxy at the same well-known address, but
+different impls behind it) produces identical CREATE2 addresses (same creation bytecode) and different runtime
+immutables (different registries). Ecosystems get isolation for free: same source, same audit, different live state
+per ecosystem.
 
 ## Composing Diamond Cuts On-Chain
 
-Diamond upgrades today require the deployer to hand-author the `DiamondCutData` struct — listing every selector to add,
-replace, and remove across every facet. The selector lists come from off-chain artifacts and are baked into the
-governance proposal as opaque bytes. Reviewing whether the cut matches intent means re-decoding the calldata and
-cross-checking selectors against ABI files.
+Diamond upgrades today require hand-authored `DiamondCutData` listing every selector to add/replace/remove. The
+selector lists come from off-chain artifacts; reviewing the cut means re-decoding calldata against ABIs.
 
-Once we standardize self-describing facets, composition becomes mechanical: the diamond itself knows the current facet →
-selector mapping (via `IGetters.facetFunctionSelectors`), and the new facet's selector list comes from a `selectors()`
-view exposed by the facet itself. A small on-chain helper computes the cut.
-
-**Self-describing facets.** Each facet implements:
+**Self-describing facets** make composition mechanical. Each facet implements:
 
 ```solidity
 abstract contract SelfDescribingFacet {
@@ -539,129 +286,264 @@ abstract contract SelfDescribingFacet {
 }
 ```
 
-The list is generated from the audited source (e.g., via `forge inspect <Facet> methodIdentifiers`) and hard-coded into
-the facet's own bytecode. Two big wins:
-
-- **No registry duplication.** The selector list lives in the facet, not in a separate mapping. The registry's per-facet
-  codehash check already covers it.
-- **Audit isolation.** Reviewing a facet means reading the facet — the selector list and the implementation sit next to
-  each other in source.
+The list is generated from the audited source (`forge inspect <Facet> methodIdentifiers`) and hard-coded into the
+facet's bytecode. The diamond itself knows the current facet→selector mapping via `IGetters.facetFunctionSelectors`.
+A small helper computes the diff.
 
 ### Algorithm
 
 Given `(diamond, oldFacet, newFacet)`:
 
-1. Read `oldSelectors = IGetters(diamond).facetFunctionSelectors(oldFacet)` — the selectors currently routed to
-   `oldFacet`.
-2. Read `newSelectors = ISelfDescribingFacet(newFacet).selectors()` — the selectors the new facet implements (queried
-   directly from the facet's own bytecode).
-3. Bucket each selector into one of three sets:
-   - **in both** → `Replace` (selector stays, new code serves it),
-   - **old only** → `Remove` (selector retired),
-   - **new only** → `Add` (selector newly introduced).
-4. Produce up to three `FacetCut` entries:
-   - `{facet: newFacet, action: Add,     selectors: newOnly}`,
-   - `{facet: newFacet, action: Replace, selectors: bothSets}`,
-   - `{facet: address(0), action: Remove, selectors: oldOnly}` (Remove cuts use the zero address per ZKsync's
-     `Diamond.sol` convention).
+1. `oldSelectors = IGetters(diamond).facetFunctionSelectors(oldFacet)`
+2. `newSelectors = ISelfDescribingFacet(newFacet).selectors()`
+3. Bucket each selector: in both → `Replace`; old only → `Remove`; new only → `Add`.
+4. Emit up to three `FacetCut` entries per swap (zero-address facet for `Remove`, per ZKsync's `Diamond.sol`).
 
 For multi-facet upgrades, repeat per `(oldFacet, newFacet)` pair and concatenate.
 
-### Sketch
+### The diamond builds its own cut
+
+The sharpest variant: put the builder *inside the diamond itself*. Extend `AdminFacet` (which already exposes
+`executeUpgrade(DiamondCutData)` and is CTM-gated) with a sibling entrypoint:
 
 ```solidity
-library DiamondCutBuilder {
-    function buildFacetReplace(
-        IGetters diamond,
-        address oldFacet,
-        address newFacet,
-        bool isFreezable
-    ) internal view returns (Diamond.FacetCut[] memory cuts) {
-        bytes4[] memory oldSels = diamond.facetFunctionSelectors(oldFacet);
-        bytes4[] memory newSels = ISelfDescribingFacet(newFacet).selectors();
-        (bytes4[] memory added, bytes4[] memory replaced, bytes4[] memory removed) =
-            _diff(oldSels, newSels);
-        cuts = _packCuts(newFacet, oldFacet, isFreezable, added, replaced, removed);
+function executeUpgradeBySwaps(
+    FacetSwap[] calldata _swaps,
+    address _initAddress,
+    bytes calldata _initCalldata
+) external onlyChainTypeManager {
+    Diamond.FacetCut[] memory cuts;
+    for (uint256 i; i < _swaps.length; ++i) {
+        FacetSwap calldata s = _swaps[i];
+        bytes4[] memory oldSels = _facetFunctionSelectorsFromStorage(s.oldFacet);
+        bytes4[] memory newSels = s.newFacet == address(0)
+            ? new bytes4[](0)
+            : ISelfDescribingFacet(s.newFacet).selectors();
+        cuts = _appendDiff(cuts, oldSels, newSels, s.oldFacet, s.newFacet, s.isFreezable);
     }
-
-    function buildDiamondCut(
-        IGetters diamond,
-        FacetSwap[] memory swaps,
-        address initAddress,
-        bytes memory initCalldata
-    ) internal view returns (Diamond.DiamondCutData memory) {
-        // call buildFacetReplace per swap, flatten cuts[], attach init.
-    }
+    Diamond.diamondCut(Diamond.DiamondCutData({
+        facetCuts: cuts,
+        initAddress: _initAddress,
+        initCalldata: _initCalldata
+    }));
 }
 ```
 
-Where `FacetSwap { address oldFacet; address newFacet; bool isFreezable; }` is the per-facet input from the upgrade
-orchestrator, and `initAddress` / `initCalldata` are the post-cut delegate call (typically the upgrade-specific
-initializer).
+The diff is computed in the diamond's own storage context — no external loupe call, no stale view. Reusing
+`AdminFacet` adds no new authority surface and no new persistent facet.
 
-### What the registry needs to expose
+(A `DiamondInit`-based variant works mechanically — delegate-call into the diamond, build the cut, call
+`Diamond.diamondCut` recursively — but is awkward: the outer cut is empty, the entrypoint stays opaque-bytes-shaped,
+and reviewers can't tell from the proposal that a cut will run. Prefer `AdminFacet`.)
 
-Nothing extra for the cut path — the facet itself is the source of truth for its selectors via the self-describing
-pattern above. The registry's existing per-facet code-hash entry implicitly covers the selector list, since changing the
-list would change the deployed bytecode.
+### What it collapses on the CTM side
 
-### Bulk / ecosystem-wide cuts
-
-A typical upgrade swaps many facets across many diamonds (Era CTM, Atlas CTM, the per-chain Diamond, Bridgehub if it
-remains a diamond). The orchestrator pattern handles this cleanly:
+The CTM's stored `cutHash` becomes a stored `swapsHash`:
 
 ```solidity
-PUHStage1Orchestrator(registry).upgradeFacets(FacetSwap[] swaps, InitCall init);
+mapping(uint256 protocolVersion => bytes32 swapsHash) public upgradeSwapsHash;
+
+function upgradeChainFromVersion(
+    uint256 _chainId, uint256 _oldVer,
+    FacetSwap[] calldata _swaps,
+    address _initAddress, bytes calldata _initCalldata
+) external onlyOwner {
+    require(keccak256(abi.encode(_swaps)) == upgradeSwapsHash[currentVer + 1]);
+    IAdminFacet(getZKChain(_chainId)).executeUpgradeBySwaps(_swaps, _initAddress, _initCalldata);
+}
 ```
 
-The orchestrator calls `DiamondCutBuilder.buildDiamondCut(...)` and then `executeUpgrade(cutData)` on the target. All
-addresses come from the registry; selector lists come from the facets themselves; the only inputs the orchestrator takes
-are the high-level intent ("replace these old facets with these new ones").
+`keccak256(swaps)` is short and semantic; the bytes commitment is rebuilt by the diamond at execution time. If
+the CTM registry pins the post-upgrade facet set, even `swapsHash` is redundant — the registry IS the intent
+commitment.
 
-### What this collapses in the v31 example
+End-to-end:
 
-Looking at `2026-05-20-v31-interopB-stage.json`, the diamond-cut work is the Era CTM
-`setNewVersionUpgrade( diamondCut, ...)` and Atlas CTM equivalent, both currently taking a hand-built `DiamondCutData`.
-With the helper above, the orchestrator call shrinks to roughly:
+```text
+Governance → orchestrator.upgradeEra(coreRegistry)
+   reads FacetSwap[] from EraCTMRegistry constants
+   calls CTM.upgradeChainFromVersion(chainId, oldVer, swaps, init...)
+        CTM calls chain.AdminFacet.executeUpgradeBySwaps(swaps, init...)
+             diamond builds FacetCut[] from its own state + new facets' selectors
+             calls Diamond.diamondCut(cuts, init)
+```
+
+No `DiamondCutData` ever flows through the L1 proposal.
+
+## Composing `chainCreationParams` On-Chain
+
+`setNewVersionUpgrade` and `setChainCreationParams` are two separate governance calls today, and they have to agree:
+the diamond cut a brand-new chain receives at registration must match the post-cut state of an existing chain on
+the same protocol version. Nothing on-chain prevents drift.
+
+`ChainCreationParams` carries: `genesisUpgrade`, `genesisBatchHash`, `genesisIndexRepeatedStorageChanges`,
+`genesisBatchCommitment`, `diamondCut`, `forceDeploymentsData`. Every field except the genesis VM-state values
+is already a CTM-registry constant. The orchestrator builds it on L1:
 
 ```solidity
-DiamondCutData memory cut = DiamondCutBuilder.buildDiamondCut(
-    IGetters(eraCtm),
-    eraFacetSwaps,          // small struct array — old/new facet addresses + freezability
-    upgradeInitAddr,
-    upgradeInitCalldata
-);
-ICTM(eraCtm).setNewVersionUpgrade(cut, oldVer, oldEnd, newVer);
+function buildEraChainCreationParams(IEraCTMRegistry reg)
+    internal view returns (ChainCreationParams memory)
+{
+    (address genesisUpgrade, bytes32 batchHash, bytes32 batchCommit, uint64 idxRepeated)
+        = reg.genesisParams(V31);
+
+    // Diamond cut for new chains: same FacetSwap[] as the upgrade cut, but "empty old"
+    // so every newFacet is an Add. Swap addresses come from reg.ctmAddress(CTMContract.*Facet, V31).
+    Diamond.DiamondCutData memory cut = DiamondCutBuilder.buildEmptyDiff(
+        _facetSwapsFromRegistry(reg),
+        genesisUpgrade,
+        abi.encodeCall(IGenesisUpgrade.genesisUpgrade, ())
+    );
+
+    // forceDeploymentsData: same hashes the upgrade tx uses
+    IContractDeployer.ForceDeployment[] memory fds = _forceDeploymentsFromRegistry(reg);
+
+    return ChainCreationParams({
+        genesisUpgrade:                     genesisUpgrade,
+        genesisBatchHash:                   batchHash,
+        genesisIndexRepeatedStorageChanges: idxRepeated,
+        genesisBatchCommitment:             batchCommit,
+        diamondCut:                         cut,
+        forceDeploymentsData:               abi.encode(fds)
+    });
+}
 ```
 
-The selector lists, the action buckets, and the cut packing all happen inside the helper at execution time. Governance
-signs off on the high-level intent (the `FacetSwap[]` list + init) instead of opaque selector arrays.
+### One orchestrator call, no drift
 
-### Notes
+The upgrade proposal becomes one call per CTM that updates both `setNewVersionUpgrade` (for existing chains) and
+`setChainCreationParams` (for newly registered chains) from the same registry. By construction the two cannot
+disagree: same `FacetSwap[]`, same L2 force-deploys, same registry source. The helper consumes the swap set two
+ways — `buildDiamondCut(diamond, swaps, ...)` for the upgrade-time diff against an existing diamond, and
+`buildEmptyDiff(swaps, ...)` for the new-chain initial cut. Both produce the same target facet set.
 
-- **Selector-set commitment.** The v1 deployment registry already pins `keccak256(sortedFacetAddrs)` for each diamond.
-  After the cut runs, the same `verifyAll()` call confirms the diamond's new facet set matches the registered
-  post-upgrade commitment. So the same registry that fed the orchestrator is what proves the orchestrator did the right
-  thing.
-- **Freezability.** ZKsync's `FacetCut` carries an `isFreezable` bool. Pass it through from the swap input; every
-  selector inside a cut shares the same freezability.
-- **Empty diffs.** If `oldSelectors == newSelectors`, the helper produces a single `Replace` cut with no `Add` or
-  `Remove` entries — the standard "swap impl, keep selectors" case.
-- **First-time facets.** If `oldFacet == address(0)`, treat all `newSelectors` as `Add`. The helper handles this as a
-  degenerate diff.
-- **Removed facets entirely.** If `newFacet == address(0)`, treat all `oldSelectors` as `Remove`. Useful for retiring
-  functionality.
+### Genesis VM-state caveat
+
+`genesisBatchHash`, `genesisBatchCommitment`, and `genesisIndexRepeatedStorageChanges` are outputs of actually
+running the genesis VM with the chosen L2 system-contract set. They can't be derived on-chain; they're computed
+off-chain and embedded as registry constants. The audit task is reproducing the genesis VM run on the audited L2
+source set and confirming the values match — a mechanical step, not a judgment call.
+
+### Patch upgrades
+
+`createNewPatchUpgrade` (`ChainTypeManagerBase.sol:374`) carries forward the previous protocol version's
+chainCreationParams. The registry model handles this naturally: a patch-upgrade registry inherits all
+L2/facet/genesis constants by pointing at the parent registry and only adds a new `VERIFIER` constant. One-line
+audit surface for a patch upgrade.
+
+## Applying the model to v31
+
+The v31 stage proposal at `transaction-simulator/decoded-calldata/2026-05-20-v31-interopB-stage.json` has **61
+governance calls**. The model collapses them to **8**, with deploy-time choices eliminating one group entirely:
+
+| Calls today | Phase | With the model |
+| --- | --- | --- |
+| 0-1 (2) | Atlas CTM PA handover via Legacy Governor | **Eliminated** — deploy PA with PUH-owner via CREATE2 from inception |
+| 2-3 (2) | Era + Atlas ChainAdmin multicalls | 2 calls — one `chainAdminOrchestrator.apply(reg)` each (per-chain-admin scope) |
+| 4-9 (6) | PUH stage 0: pause/timers/PUH self-upgrade/guardians/acceptOwnership | 1 — `orchestrator.beginUpgrade(reg)` |
+| 10-20 (11) | Stage 1 ecosystem L1: 7×TPA.upgrade + reinit + 2×acceptOwnership + 2 setters | 1 — `orchestrator.applyL1Upgrade(reg)`; setters and acceptOwnership eliminated by deploy-time choices |
+| 21-32 (12) | Stage 1 per-CTM: gates + CTM impl + setChainCreationParams + setNewVersionUpgrade + VT, ×2 CTMs | 2 — `orchestrator.applyCTMUpgrade(reg, ctm)` per CTM |
+| 33-46 (14) | Stage 2 gates + legacy GW decommission + check* | 1 — `orchestrator.finalizeUpgrade(reg)` |
+| 47-60 (14) | Stage 2 GW configuration: approve+priority-tx pairs registering new GW CTM | 1 — `orchestrator.configureGW(reg)` (priority-tx channel preserved) |
+| **61** | | **8** (87% reduction) |
+
+Each orchestrator call takes a `CoreRegistry` address as its only meaningful argument. The 88% reduction comes from
+three reuses of mechanisms earlier in this doc:
+
+1. `setChainCreationParams` and `setNewVersionUpgrade` composed from CTM-registry constants (calls 24, 25, 30, 31
+   become orchestrator-internal).
+2. `ProposedUpgrade.l2ProtocolUpgradeTx` composed from registry constants and embedded in the diamond-cut init
+   payload (no separate L2 priority tx for force-deploys).
+3. `CoreRegistry`-behind-proxy makes new impl constructors self-wiring → calls 19-20 (`setAssetTracker`,
+   `setAddresses`) and the `acceptOwnership` calls (17-18) disappear.
+
+### Three independently auditable scope domains
+
+The orchestrator split preserves the upgrade's actual scope boundaries:
+
+- **Protocol upgrade (per-CTM)**: `applyCTMUpgrade` + embedded `l2ProtocolUpgradeTx`. Targets every chain on the
+  CTM; force-deploys L2 system contracts.
+- **Ecosystem L1 wiring**: `applyL1Upgrade` + `finalizeUpgrade`. Targets ecosystem-wide L1 contracts.
+- **Gateway configuration**: `configureGW`. Targets only the Gateway chain via priority txs, registering the new
+  GW CTM on Gateway-side L2 contracts. Same `Bridgehub.requestL2TransactionDirect`/`TwoBridges` mechanism as
+  today — just composed from registry constants.
+
+### What can't be collapsed further
+
+- **Per-chain-admin work** (calls 2-3): chain admins are intentionally not under PUH authority. Two calls minimum.
+- **`Ownable2Step` handovers** on already-deployed contracts (one-shot `acceptOwnership` calls).
+- **Per-chain `setHistoricalMigrationInterval`**: irreducibly per-chain, just batched inside `finalizeUpgrade`.
+
+## Optional: Deployment Verification
+
+The streamlining works without any on-chain verification — the audit surface is the registry source files. This
+section is a bonus property of the constants-in-bytecode design: the registry's own `EXTCODEHASH` is a single
+commitment to the whole manifest, and a `verifyAll()` view can confirm deployed bytecode matches the registry's
+expectations.
+
+### Primitives
+
+`EXTCODEHASH` returns `keccak256(deployedCode)` on the EVM; `AccountCodeStorage.getRawCodeHash(addr)` returns the
+versioned bytecode hash on Era VM (same hash used as identity in `create2`/`factoryDeps`). Both are deterministic,
+cheap, and sensitive to immutables (which are baked into deployed code).
+
+### Registry-as-manifest
+
+Because each registry holds expected values as `constant`s in its own bytecode, **the registry's `EXTCODEHASH`
+commits to the whole manifest**. Computing `keccak256(coreRegistry_runtime_code)` off-chain and matching against
+the live `CORE_REGISTRY.codehash` is one hash to audit; changing any constant anywhere in the hierarchy diverges
+the parent's codehash.
+
+Audit chain:
+
+1. Off-chain: `keccak256(coreRegistry_runtime_code) == EXPECTED_CORE_HASH`. One hash to sign off on.
+2. On-chain: `CORE_REGISTRY.codehash == EXPECTED_CORE_HASH`. Anyone can call this from L1.
+
+### Optional: `verifyAll()`
+
+Extend each registry with per-entry `*_HASH` constants and a `verifyAll()` view that walks every pinned address:
+
+```solidity
+function verifyAll() external view returns (bool) {
+    if (BRIDGEHUB.codehash    != BRIDGEHUB_HASH)    return false;
+    if (L1_NULLIFIER.codehash != L1_NULLIFIER_HASH) return false;
+    // ... etc
+    if (ERA_CTM_REGISTRY.codehash != ERA_CTM_REGISTRY_HASH)   return false;
+    if (!IRegistry(ERA_CTM_REGISTRY).verifyAll())   return false;
+    if (!IRegistry(ATLAS_CTM_REGISTRY).verifyAll()) return false;
+    return true;
+}
+```
+
+**Proxies**: `EXTCODEHASH` of a proxy is the proxy's small generic shell — pin two hashes (shell + impl), read the
+implementation from the EIP-1967 slot, hash that. Beacon proxies add one hop through `IBeacon.implementation()`.
+
+**Diamonds**: pin a facet-set commitment `keccak256(abi.encode(sortedFacetAddrs, [facet.codehash, ...]))` and
+enumerate via `Getters.facetAddresses()` at verify time. A single `bytes32` constant covers the diamond's facet set
+and every facet's bytecode.
+
+**Cross-chain**: after the upgrade lands on L2, anyone can call `IL2Registry(L2_REGISTRY_ADDR).verifyAll()` from
+L2 — its codehash is pinned by the L1 CTM registry's `L2_REGISTRY_HASH` constant, so verifying L1 transitively
+verifies L2. Optional stricter modes (L2→L1 attestation via `MessageVerification`, or a storage proof inline on
+L1) are available but not required.
+
+### What this does not cover
+
+The verification layer stops at "bytecode matches what we approved." It does **not** check storage state
+(initializer arguments), ownership (proxy admin, `Ownable` owner, diamond owner), configuration mappings (asset
+handlers, allowlists), or L2 state outside normal storage (`factoryDeps`, bootloader-managed values). Those need
+separate checks — see [v2 and beyond](#v2-and-beyond-sketch).
 
 ## v2 and beyond (sketch)
 
 Once the bytecode layer is mechanical, the next bottlenecks are state and configuration:
 
-- **Init-call witnesses**: emit a single canonical event from every `initialize` containing the abi-encoded init args,
-  so the registry (or a sibling contract) can record `initHash[addr]` and reviewers can match against the manifest.
+- **Init-call witnesses**: emit a canonical event from every `initialize` containing the abi-encoded init args, so
+  the registry can record `initHash[addr]` for reviewers to match against the manifest.
 - **Role registry**: a parallel mapping of `(addr, role) → expectedHolder` covering proxy admin, `Ownable` owner,
   diamond owner, and named `AccessControl` roles. Same `verifyAll()` shape.
 - **L2 system-contract verification via L1**: settle the L2 registry's `verifyAll()` result back to L1 inside the
-  upgrade transaction, so L1 governance can refuse to finalize until L2 deployments match the manifest.
+  upgrade transaction; L1 governance refuses to finalize until L2 deployments match the manifest.
 
-These build on the same primitive: commit the expected value on-chain in advance, then let anyone compare it against
-reality with a view call.
+All three build on the same primitive: commit the expected value on-chain in advance, then let anyone compare it
+against reality with a view call.
