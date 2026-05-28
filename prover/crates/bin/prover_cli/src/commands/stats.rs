@@ -1,5 +1,5 @@
 use anyhow::Context;
-use chrono::{self, NaiveTime};
+use chrono::NaiveTime;
 use clap::{Args, ValueEnum};
 use zksync_basic_types::prover_dal::ProofGenerationTime;
 use zksync_db_connection::connection_pool::ConnectionPool;
