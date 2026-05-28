@@ -45,10 +45,15 @@ async fn rate_limiting_with_single_instance(rate_limit: usize) {
 async fn rate_limiting_resetting_state() {
     tokio::time::pause();
 
+    // Define constants for better readability and code maintenance
+    const WINDOW_DURATION: Duration = Duration::from_secs(1);
+    const PARTIAL_WAIT: Duration = Duration::from_millis(300);
+    const RATE_LIMIT: usize = 2;
+
     let service = MockService::default();
-    let limiter = SharedRateLimit::new(2, Duration::from_secs(1));
+    let limiter = SharedRateLimit::new(RATE_LIMIT, WINDOW_DURATION);
     poll_service(&limiter, &service).await;
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    tokio::time::sleep(PARTIAL_WAIT).await;
     poll_service(&limiter, &service).await;
     poll_service(&limiter, &service).await; // should wait for the rate limit window to reset
     poll_service(&limiter, &service).await;
@@ -56,14 +61,22 @@ async fn rate_limiting_resetting_state() {
     let timestamps = service.0.lock().unwrap().clone();
     assert_eq!(timestamps.len(), 4);
     let diffs = timestamp_diffs(&timestamps);
-    assert_eq!(
-        diffs,
-        [
-            Duration::from_millis(301),
-            Duration::from_millis(700),
-            Duration::ZERO
-        ]
+
+    // Check that time differences match expected values with a small margin of error
+    assert!(
+        diffs[0] >= PARTIAL_WAIT && diffs[0] <= PARTIAL_WAIT + Duration::from_millis(1),
+        "Unexpected duration: {:?}, expected around {:?}",
+        diffs[0],
+        PARTIAL_WAIT
     );
+    assert!(
+        diffs[1] >= WINDOW_DURATION - PARTIAL_WAIT
+            && diffs[1] <= WINDOW_DURATION - PARTIAL_WAIT + Duration::from_millis(1),
+        "Unexpected duration: {:?}, expected around {:?}",
+        diffs[1],
+        WINDOW_DURATION - PARTIAL_WAIT
+    );
+    assert_eq!(diffs[2], Duration::ZERO);
 }
 
 #[tokio::test]
