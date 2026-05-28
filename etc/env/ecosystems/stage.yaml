@@ -16,7 +16,7 @@ bridges:
   weth:
     l1_address: 0x7b79995e5f793a07bc00c21412e50ecae098e7f9
   shared:
-    l1_address: 0x6F03861D12E6401623854E494beACd66BC46e6F0
+    l1_address: 0xfd3130ea0e8b7dd61ac3663328a66d97eb02f84b
   l1_nullifier_addr: 0x6f03861d12e6401623854e494beacd66bc46e6f0
 l1:
   default_upgrade_addr: 0xfED91a1CE7e334EbeE5b39722a5f859801CaAf50

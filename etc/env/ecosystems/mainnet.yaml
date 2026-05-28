@@ -14,7 +14,7 @@ bridges:
   erc20:
     l1_address: 0x57891966931Eb4Bb6FB81430E6cE0A03AAbDe063
   shared:
-    l1_address: 0xD7f9f54194C633F36CCD5F3da84ad4a1c38cB2cB
+    l1_address: 0x8829ad80e425c646dab305381ff105169feece56
   l1_nullifier_addr: 0xD7f9f54194C633F36CCD5F3da84ad4a1c38cB2cB
 l1:
   default_upgrade_addr: 0xbe8Fc6a6fAEbC8b1fddCdc7e8F60905C63B46Cf8
