@@ -2,7 +2,7 @@
 
 ## Introduction
 
-InteropCenter is used to start transactions between chains. There are three different messaging scenarios, [L1->L2 priority](../../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md) transactions, [L2->L1](../../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md) and [interop](./overview.md) (note interop is both L2->L2 and L1->L2). All of these have different underlying message delivery systems and different security assumptions. However they can all be triggered on the InteropCenter using a similar interface for ease of use, these are the `requestInteropSingleCall`, `requestInteropSingleDirectCall`, `requestL2TransactionDirect` and `requestL2TransactionTwoBridges` functions. We also have additional features for interop txs which can be used with the `requestInterop` function, and we also allow lower level functions. 
+InteropCenter is used to start transactions between chains. There are three different messaging scenarios, [L1->L2 priority](../../settlement_contracts/priority_queue/l1_l2_communication/l1_to_l2.md) transactions, [L2->L1](../../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md) and [interop](./overview.md) (note interop is both L2->L2 and L1->L2). All of these have different underlying message delivery systems and different security assumptions. However they can all be triggered on the InteropCenter using a similar interface for ease of use, these are the `requestInteropSingleCall`, `requestInteropSingleDirectCall`, `requestL2TransactionDirect` and `requestL2TransactionTwoBridges` functions. We also have additional features for interop txs which can be used with the `requestInterop` function, and we also allow lower level functions. 
 
 # Single Calls shared functions
 
@@ -173,7 +173,7 @@ struct GasFields {
 </tr>
 </table>
 
-The `requestInterop` allows multiple calls to be started, with versatility for paying for gas. The `_feePaymentCallStarters` and `_executionCallStarters` will be used to create bundles to pay for gas and for execution. The `InteropCallStarter` specifies the call, specifically if the `directCall` field is true, then the call is generated as in the `requestInteropSingleCallDirect` interface, if it is false then indirectly similarly to the `requestL2TransactionTwoBridges` interface. The `GasFields` struct is provided so that the tx can be executed automatically.
+The `requestInterop` allows multiple calls to be started, with versatility for paying for gas. The `_feePaymentCallStarters` and `_executionCallStarters` will be used to create bundles to pay for gas and for execution. The `InteropCallStarter` specifies the call, specifically if the `directCall` field is true, then the call is generated as in the `requestInteropSingleDirectCall` interface, if it is false then indirectly similarly to the `requestL2TransactionTwoBridges` interface. The `GasFields` struct is provided so that the tx can be executed automatically.
 
 > Note:  
     The `requestedInteropCallValue` is the value that is requested for the interop call.

@@ -23,7 +23,7 @@ destination chain, with options to choose from various cross-chain Paymaster sol
 Here’s a simple example of calling a contract on a destination chain:
 
 ```solidity
-cast send source-chain-rpc.com INTEROP_CENTER_ADDRESS sendInteropWithSingleCall(
+cast send source-chain-rpc.com INTEROP_CENTER_ADDRESS requestInteropSingleDirectCall(
  0x1fa72e78 // destination_chain_id,
  0xb4AB2FF34fa... // destination_contract,
  0x29723511000000... // destination_calldata,
@@ -63,40 +63,16 @@ The call is auto-executed on the destination chain. As a user, you don’t need 
 
 #### 4. What if it runs out of gas or the gasPrice is set too low
 
-In either scenario, you can retry the transaction using the `retryInteropTransaction` method:
+This page does not define a dedicated retry API. If automatic execution parameters are wrong, the exact recovery flow
+depends on the application and the contracts involved on the source and destination chains.
 
-```solidity
-   cast send source-chain.com INTEROP_CENTER_ADDRESS retryInteropTransaction(
-     0x2654.. // previous interop transaction hash from above
-     200_000, // new gasLimit
-     300_000_000 // new gasPrice
-    )
-```
-
-**Important** : Depending on your use case, it’s crucial to retry the transaction rather than creating a new one with
-`sendInteropWithSingleCall`.
-
-For example, if your call involves transferring a large amount of assets, initiating a new `sendInteropWithSingleCall`
-could result in freezing or burning those assets again.
+For asset-moving flows, treat resubmission carefully: creating a second request can duplicate the source-chain side
+effects if the first request already burned or escrowed funds.
 
 #### 5. What if my assets were burned during the transaction, but it failed on the destination chain? How do I get them back
 
-If your transaction fails on the destination chain, you can either:
-
-1. Retry the transaction with more gas or a higher gas limit (refer to the retry method above).
-
-2. Cancel the transaction using the following method:
-
-```solidity
-cast send source-chain INTEROP_CENTER_ADDRESS cancelInteropTransaction(
-    0x2654.., // previous interop transaction
-    100_000, // gasLimit (cancellation also requires gas, but only to mark it as cancelled)
-    300_000_000 // gasPrice
-)
-```
-
-After cancellation, call the claimFailedDeposit method on the source chain contracts to recover the burned assets. Note
-that the details for this step may vary depending on the contract specifics.
+There is no single generic cancellation path documented for all interop flows. Recovery depends on the application-level
+contracts that initiated the transfer and on how they account for failed execution on the destination chain.
 
 ## Complex Scenario
 

@@ -10,7 +10,7 @@ This document describes a standard asset bridging scenario using proof-based int
 
 1. **Initiating the Transaction on the Sending Chain**
 
-   - The user's EOA calls the InteropCenter contract. In the standard asset bridging scenario, they will call `requestL2TransactionSingleCall`. See the [InteropCenter](./interop_center/overview.md) documentation for additional options.
+   - The user's EOA calls the InteropCenter contract. In the standard asset bridging scenario, they will call `requestL2TransactionDirect`. See the [InteropCenter](./interop_center/overview.md) documentation for additional options.
    - The InteropCenter emits two `InteropBundleSent` events and a single `InteropTriggerSent` event. Together, these events specify the interop transaction. One bundle is used to pay for gas fees, while the other is the main execution bundle used to bridge the asset. The trigger specifies the interop transaction parameters so that the transaction can be executed automatically on the destination chain.
    - For each event, an L2→L1 message is created that contains the event data. Each L2→L1 message is included in the chain's Merkle tree of emitted transactions in the `L2toL1Logs` Merkle tree (see [here](../settlement_contracts/priority_queue/l1_l2_communication/l2_to_l1.md)). This inclusion makes the messages verifiable using Merkle proofs.
 
