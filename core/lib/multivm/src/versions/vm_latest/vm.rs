@@ -54,7 +54,7 @@ pub(crate) enum MultiVmSubversion {
 #[cfg(test)]
 impl MultiVmSubversion {
     pub(crate) fn latest() -> Self {
-        Self::Interop // TODO: Switch to `Self::MediumInterop` after contracts are finalized
+        Self::MediumInterop
     }
 }
 

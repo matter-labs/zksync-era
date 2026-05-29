@@ -34,7 +34,7 @@ impl ProofGenDataSubmitter {
             panic!("Gateway API URL should be set if running in prover cluster mode");
         };
 
-        let client = HttpClient::new(api_url);
+        let client = HttpClient::new(api_url, config.gateway_api_request_timeout);
         Self {
             processor,
             config,
@@ -59,6 +59,10 @@ impl ProofGenDataSubmitter {
                 .await
                 .map_err(|e| anyhow::anyhow!(e))?
             {
+                tracing::info!(
+                    "Sending proof generation data to gateway for batch {}",
+                    data.l1_batch_number
+                );
                 match self.client.send_proof_generation_data(data.clone()).await {
                     Ok(_) => {
                         tracing::info!(

@@ -74,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut tasks = vec![];
 
-    let http_client = HttpClient::default();
+    let http_client = HttpClient::new(general_config.http_client_timeout);
 
     match opt.job {
         AutoscalerType::Agent => {

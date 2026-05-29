@@ -1,21 +1,28 @@
+use std::collections::HashMap;
+
 use anyhow::Context as _;
 use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
-        Transaction, TransactionId, TransactionReceipt, TransactionVariant,
+        state_override::{OverrideAccount, StateOverride},
+        BlockId, BlockNumber, FeeHistory, GetLogsFilter, Transaction, TransactionId,
+        TransactionReceipt, TransactionVariant,
     },
     bytecode::{trim_padded_evm_bytecode, BytecodeHash, BytecodeMarker},
     l2::{L2Tx, TransactionType},
-    transaction_request::CallRequest,
+    transaction_request::{CallRequest, Eip712Meta, TransactionRequest},
     u256_to_h256,
     web3::{self, Bytes, SyncInfo, SyncState},
-    AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, L2BlockNumber, PackedEthSignature, StorageKey, EIP_1559_TX_TYPE,
+    EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H256, L2_BASE_TOKEN_ADDRESS, LEGACY_TX_TYPE, U256, U64,
 };
 use zksync_web3_decl::{
     error::Web3Error,
-    types::{Address, Block, Filter, FilterChanges, Log, U64},
+    types::{
+        Address, Block, FillTransaction, FillTransactionRequest, FilledTransactionRequest, Filter,
+        FilterChanges, Log,
+    },
 };
 
 use crate::{
@@ -142,7 +149,11 @@ impl EthNamespace {
             .eip712_meta
             .is_some();
         let mut connection = self.state.acquire_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.settlement_layer(),
+        )
+        .await?;
         drop(connection);
         let mut tx: L2Tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
@@ -182,6 +193,269 @@ impl EthNamespace {
             .await
             .map_err(|err| self.current_method().map_submit_err(err))?;
         Ok(fee.gas_limit)
+    }
+
+    pub async fn fill_transaction_impl(
+        &self,
+        request: FillTransactionRequest,
+    ) -> Result<FillTransaction, Web3Error> {
+        Self::reject_unsupported_fill_request_fields(&request)?;
+
+        let mut request: CallRequest = request.into();
+        if request.gas_price.is_some()
+            && (request.max_fee_per_gas.is_some() || request.max_priority_fee_per_gas.is_some())
+        {
+            return Err(Web3Error::InvalidTransactionRequest(
+                "both gasPrice and EIP-1559 fee fields were specified".to_owned(),
+            ));
+        }
+        let is_explicit_legacy = request.transaction_type == Some(LEGACY_TX_TYPE.into());
+        let is_explicit_dynamic = matches!(
+            request.transaction_type,
+            Some(tx_type) if tx_type == U64::from(EIP_1559_TX_TYPE) || tx_type == U64::from(EIP_712_TX_TYPE)
+        ) || request.eip712_meta.is_some();
+
+        if request.nonce.is_none() {
+            request.nonce = Some(
+                self.get_transaction_count_impl(
+                    request.from.unwrap_or_default(),
+                    Some(BlockId::Number(BlockNumber::Pending)),
+                )
+                .await?,
+            );
+        }
+        if request.value.is_none() {
+            request.value = Some(U256::zero());
+        }
+
+        if Self::is_eip712_request(&request) {
+            request.transaction_type = Some(EIP_712_TX_TYPE.into());
+            let meta = request.eip712_meta.get_or_insert_with(Eip712Meta::default);
+            if meta.gas_per_pubdata == U256::zero() {
+                meta.gas_per_pubdata = DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into();
+            }
+        }
+
+        if is_explicit_legacy && request.max_priority_fee_per_gas.is_some() {
+            return Err(Web3Error::InvalidTransactionRequest(
+                "maxPriorityFeePerGas is not valid for legacy transactions".to_owned(),
+            ));
+        }
+
+        if request.gas.is_none() {
+            let state_override = self.state_override_for_fill_estimate(&request).await?;
+            request.gas = Some(
+                self.estimate_gas_impl(request.clone(), None, state_override)
+                    .await?,
+            );
+        }
+
+        if is_explicit_legacy {
+            if request.gas_price.is_none() {
+                request.gas_price = Some(match request.max_fee_per_gas.take() {
+                    Some(max_fee_per_gas) => max_fee_per_gas,
+                    None => self.gas_price_impl().await?,
+                });
+            }
+        } else if is_explicit_dynamic && request.gas_price.is_some() {
+            request.max_fee_per_gas = request.gas_price.take();
+            request
+                .max_priority_fee_per_gas
+                .get_or_insert_with(U256::zero);
+        }
+
+        if !is_explicit_legacy && request.gas_price.is_none() {
+            let tip = request.max_priority_fee_per_gas.unwrap_or_else(U256::zero);
+            request.max_priority_fee_per_gas.get_or_insert(tip);
+
+            if request.max_fee_per_gas.is_none() {
+                let fill_gas_price = self.gas_price_impl().await?;
+                let max_fee_per_gas = fill_gas_price.checked_add(tip).ok_or_else(|| {
+                    Web3Error::InvalidTransactionRequest("priority fee is too high".to_owned())
+                })?;
+                request.max_fee_per_gas = Some(max_fee_per_gas);
+            }
+
+            if request.max_fee_per_gas.unwrap_or_default() < tip {
+                return Err(Web3Error::InvalidTransactionRequest(
+                    "maxPriorityFeePerGas is higher than maxFeePerGas".to_owned(),
+                ));
+            }
+
+            if request.transaction_type.is_none() {
+                request.transaction_type = Some(EIP_1559_TX_TYPE.into());
+            }
+        }
+
+        let chain_id = self.state.api_config.l2_chain_id.as_u64();
+        let filled = Self::filled_transaction_request(request, chain_id)?;
+        let raw = Self::encode_filled_transaction(&filled)?;
+
+        Ok(FillTransaction {
+            raw: Bytes(raw),
+            tx: filled,
+        })
+    }
+
+    fn reject_unsupported_fill_request_fields(
+        request: &FillTransactionRequest,
+    ) -> Result<(), Web3Error> {
+        let has_blob_fields = request.max_fee_per_blob_gas.is_some()
+            || request.blob_versioned_hashes.is_some()
+            || request.blobs.is_some()
+            || request.commitments.is_some()
+            || request.proofs.is_some()
+            || request.sidecar.is_some();
+        if has_blob_fields {
+            return Err(Web3Error::InvalidTransactionRequest(
+                "EIP-4844 blob transaction fields are not supported".to_owned(),
+            ));
+        }
+        if request.authorization_list.is_some() {
+            return Err(Web3Error::InvalidTransactionRequest(
+                "EIP-7702 authorization lists are not supported".to_owned(),
+            ));
+        }
+        if let Some(tx_type) = request.transaction_type {
+            if tx_type == EIP_2930_TX_TYPE.into() {
+                return Err(Web3Error::SerializationError(
+                    zksync_types::api::SerializationTransactionError::AccessListsNotSupported,
+                ));
+            }
+            if tx_type != LEGACY_TX_TYPE.into()
+                && tx_type != EIP_1559_TX_TYPE.into()
+                && tx_type != EIP_712_TX_TYPE.into()
+            {
+                return Err(Web3Error::InvalidTransactionRequest(format!(
+                    "unsupported transaction type: {:#x}",
+                    tx_type.as_u64()
+                )));
+            }
+        }
+        if request
+            .access_list
+            .as_ref()
+            .is_some_and(|access_list| !access_list.is_empty())
+        {
+            return Err(Web3Error::SerializationError(
+                zksync_types::api::SerializationTransactionError::AccessListsNotSupported,
+            ));
+        }
+        Ok(())
+    }
+
+    async fn state_override_for_fill_estimate(
+        &self,
+        request: &CallRequest,
+    ) -> Result<Option<StateOverride>, Web3Error> {
+        let has_nonzero_effective_fee = request.gas_price.is_some_and(|price| price > U256::zero())
+            || request
+                .max_fee_per_gas
+                .is_some_and(|max_fee| max_fee > U256::zero());
+        if has_nonzero_effective_fee {
+            return Ok(None);
+        }
+
+        let Some(from) = request.from else {
+            return Ok(None);
+        };
+        let value = request.value.unwrap_or_default();
+        if value.is_zero() {
+            return Ok(None);
+        }
+
+        let balance = self
+            .get_balance_impl(from, Some(BlockId::Number(BlockNumber::Pending)))
+            .await?;
+        if balance >= value {
+            return Ok(None);
+        }
+
+        Ok(Some(StateOverride::new(HashMap::from([(
+            from,
+            OverrideAccount {
+                balance: Some(value),
+                ..OverrideAccount::default()
+            },
+        )]))))
+    }
+
+    fn is_eip712_request(request: &CallRequest) -> bool {
+        request.transaction_type == Some(EIP_712_TX_TYPE.into()) || request.eip712_meta.is_some()
+    }
+
+    fn filled_transaction_request(
+        request: CallRequest,
+        chain_id: u64,
+    ) -> Result<FilledTransactionRequest, Web3Error> {
+        let is_dynamic_fee = request.gas_price.is_none();
+        let input = request.input.or(request.data).unwrap_or_default();
+        let transaction_type = request
+            .transaction_type
+            .or_else(|| is_dynamic_fee.then(|| U64::from(EIP_1559_TX_TYPE)));
+
+        Ok(FilledTransactionRequest {
+            from: request.from,
+            to: request.to,
+            gas: request.gas.ok_or_else(|| {
+                Web3Error::InvalidTransactionRequest("gas was not filled".to_owned())
+            })?,
+            gas_price: request.gas_price,
+            max_fee_per_gas: if is_dynamic_fee {
+                request.max_fee_per_gas
+            } else {
+                None
+            },
+            max_priority_fee_per_gas: if is_dynamic_fee {
+                request.max_priority_fee_per_gas
+            } else {
+                None
+            },
+            value: request.value.unwrap_or_default(),
+            input,
+            nonce: request.nonce.ok_or_else(|| {
+                Web3Error::InvalidTransactionRequest("nonce was not filled".to_owned())
+            })?,
+            transaction_type,
+            access_list: request.access_list,
+            eip712_meta: request.eip712_meta,
+            chain_id: U256::from(chain_id),
+        })
+    }
+
+    fn encode_filled_transaction(request: &FilledTransactionRequest) -> Result<Vec<u8>, Web3Error> {
+        let transaction_type = request.transaction_type;
+        let mut tx_request = TransactionRequest {
+            nonce: request.nonce,
+            from: request.from,
+            to: request.to,
+            value: request.value,
+            gas_price: request
+                .max_fee_per_gas
+                .or(request.gas_price)
+                .unwrap_or_default(),
+            gas: request.gas,
+            max_priority_fee_per_gas: request.max_priority_fee_per_gas,
+            input: request.input.clone(),
+            transaction_type,
+            access_list: request.access_list.clone(),
+            eip712_meta: request.eip712_meta.clone(),
+            chain_id: Some(request.chain_id.as_u64()),
+            ..Default::default()
+        };
+
+        if tx_request.is_eip712_tx() && tx_request.eip712_meta.is_none() {
+            tx_request.eip712_meta = Some(Eip712Meta {
+                gas_per_pubdata: DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into(),
+                ..Default::default()
+            });
+        }
+        if tx_request.transaction_type == Some(LEGACY_TX_TYPE.into()) {
+            tx_request.transaction_type = None;
+        }
+
+        let mock_signature = PackedEthSignature::from_rsv(&H256::zero(), &H256::zero(), 0);
+        Ok(tx_request.get_signed_bytes(&mock_signature)?)
     }
 
     pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
@@ -686,7 +960,11 @@ impl EthNamespace {
 
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.settlement_layer(),
+        )
+        .await?;
         drop(connection);
         let (mut tx, hash) = self
             .state

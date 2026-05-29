@@ -4,7 +4,7 @@ use zksync_types::settlement::{SettlementLayer, WorkingSettlementLayer};
 use crate::client::{DynClient, L1, L2};
 
 #[derive(Debug, Clone)]
-pub struct SettlementModeResource(WorkingSettlementLayer);
+pub struct SettlementModeResource(pub WorkingSettlementLayer);
 
 impl Resource for SettlementModeResource {
     fn name() -> String {
@@ -25,6 +25,11 @@ impl SettlementModeResource {
     /// Method returns the settlement layer, where we really should send the transactions, it could be None during the migration. Please use this method only if you know how to handle unknown settlement layer
     pub fn settlement_layer_for_sending_txs(&self) -> Option<SettlementLayer> {
         self.0.settlement_layer_for_sending_txs()
+    }
+
+    // Returns the target settlement layer for construction of new batches after migration has started
+    pub fn target_settlement_layer(&self) -> SettlementLayer {
+        self.0.target_settlement_layer()
     }
 }
 

@@ -146,6 +146,44 @@ async fn mock_evm_deployment(
     deployed_bytecode: &[u8],
     constructor_args: &[Token],
 ) {
+    let stored_bytecode = pad_evm_bytecode(deployed_bytecode);
+    mock_evm_deployment_with_stored_bytecode(
+        storage,
+        address,
+        creation_bytecode,
+        deployed_bytecode,
+        constructor_args,
+        stored_bytecode,
+    )
+    .await;
+}
+
+async fn mock_raw_evm_deployment(
+    storage: &mut Connection<'_, Core>,
+    address: Address,
+    creation_bytecode: Vec<u8>,
+    deployed_bytecode: &[u8],
+    constructor_args: &[Token],
+) {
+    mock_evm_deployment_with_stored_bytecode(
+        storage,
+        address,
+        creation_bytecode,
+        deployed_bytecode,
+        constructor_args,
+        deployed_bytecode.to_vec(),
+    )
+    .await;
+}
+
+async fn mock_evm_deployment_with_stored_bytecode(
+    storage: &mut Connection<'_, Core>,
+    address: Address,
+    creation_bytecode: Vec<u8>,
+    deployed_bytecode: &[u8],
+    constructor_args: &[Token],
+    stored_bytecode: Vec<u8>,
+) {
     let mut calldata = creation_bytecode;
     calldata.extend_from_slice(&ethabi::encode(constructor_args));
     let deployment = Execute {
@@ -154,9 +192,8 @@ async fn mock_evm_deployment(
         value: 0.into(),
         factory_deps: vec![],
     };
-    let bytecode = pad_evm_bytecode(deployed_bytecode);
-    let bytecode_hash = BytecodeHash::for_evm_bytecode(deployed_bytecode.len(), &bytecode).value();
-    mock_deployment_inner(storage, address, bytecode_hash, bytecode, deployment).await;
+    let bytecode_hash = BytecodeHash::for_raw_evm_bytecode(deployed_bytecode).value();
+    mock_deployment_inner(storage, address, bytecode_hash, stored_bytecode, deployment).await;
 }
 
 async fn mock_deployment_inner(
@@ -556,6 +593,56 @@ async fn verifying_evm_bytecode(contract: TestContract) {
 
         artifacts.clone()
     });
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(mock_resolver),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    assert_request_success(&mut storage, request_id, address, &creation_bytecode, &[]).await;
+}
+
+#[tokio::test]
+async fn verifying_evm_with_raw_stored_bytecode() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let creation_bytecode = vec![3_u8; 20];
+    let deployed_bytecode = vec![5_u8; 10];
+
+    prepare_storage(&mut storage).await;
+    let address = Address::repeat_byte(1);
+    mock_raw_evm_deployment(
+        &mut storage,
+        address,
+        creation_bytecode.clone(),
+        &deployed_bytecode,
+        &[],
+    )
+    .await;
+    let mut req = test_request(address, COUNTER_CONTRACT);
+    req.compiler_versions = CompilerVersions::Solc {
+        compiler_solc_version: SOLC_VERSION.to_owned(),
+        compiler_zksolc_version: None,
+    };
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(&req)
+        .await
+        .unwrap();
+
+    let artifacts = CompilationArtifacts {
+        bytecode: creation_bytecode.clone(),
+        deployed_bytecode: Some(deployed_bytecode),
+        abi: counter_contract_abi(),
+        immutable_refs: Default::default(),
+    };
+    let mock_resolver = MockCompilerResolver::solc(move |_| artifacts.clone());
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
         pool.clone(),

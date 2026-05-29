@@ -1,6 +1,6 @@
 use zksync_dal::DalError;
 use zksync_eth_client::{ContractCallError, EnrichedClientError};
-use zksync_types::web3::contract;
+use zksync_types::{web3::contract, L1BatchNumber};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EthSenderError {
@@ -14,6 +14,8 @@ pub enum EthSenderError {
     ExceedMaxBaseFee,
     #[error("Dal error: {0}")]
     Dal(#[from] DalError),
+    #[error("Missing aggregation root for L1 batch #{0}")]
+    MissingAggregationRoot(L1BatchNumber),
 }
 
 impl EthSenderError {

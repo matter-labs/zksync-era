@@ -266,14 +266,26 @@ export class TestContextOwner {
         const wallets = this.createTestWallets(suites);
         const bridgehubContract = await this.mainSyncWallet.getBridgehubContract();
         const baseTokenAddress = await bridgehubContract.baseToken(this.env.l2ChainId);
-        await this.distributeL1BaseToken(wallets, l2ERC20AmountToDeposit, baseTokenAddress);
+        const secondChainBaseTokenAddress = this.env.l2ChainIdSecondChain
+            ? await bridgehubContract.baseToken(this.env.l2ChainIdSecondChain)
+            : undefined;
+        await this.distributeL1BaseToken(this.mainSyncWallet, wallets, l2ERC20AmountToDeposit, baseTokenAddress);
+        if (this.env.l2ChainIdSecondChain) {
+            await this.distributeL1BaseToken(
+                this.secondChainMainSyncWallet!,
+                wallets,
+                l2ERC20AmountToDeposit,
+                secondChainBaseTokenAddress!
+            );
+        }
         await this.cancelAllowances();
         await this.distributeL1Tokens(
             wallets,
             l2ETHAmountToDeposit,
             l2ETHAmountToDepositSecondChain,
             l2ERC20AmountToDeposit,
-            baseTokenAddress
+            baseTokenAddress,
+            secondChainBaseTokenAddress
         );
         await this.distributeL2Tokens(wallets);
 
@@ -349,6 +361,7 @@ export class TestContextOwner {
      * Additionally, deposits L1 tokens to the main account for further distribution on L2 (if required).
      */
     private async distributeL1BaseToken(
+        mainSyncWallet: zksync.Wallet,
         wallets: TestWallets,
         l2erc20DepositAmount: bigint,
         baseTokenAddress: zksync.types.Address
@@ -372,7 +385,7 @@ export class TestContextOwner {
             const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
             const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, this.mainEthersWallet);
             const baseMintPromise = l1Erc20Contract
-                .mint(this.mainSyncWallet.address, baseMintAmount, {
+                .mint(mainSyncWallet.address, baseMintAmount, {
                     nonce: nonce++,
                     gasPrice
                 })
@@ -385,7 +398,7 @@ export class TestContextOwner {
 
             // Deposit base token if needed
             const baseIsTransferred = true;
-            const baseDepositPromise = this.mainSyncWallet
+            const baseDepositPromise = mainSyncWallet
                 .deposit({
                     token: baseTokenAddress,
                     amount: l2erc20DepositAmount,
@@ -418,7 +431,7 @@ export class TestContextOwner {
             // Send base token on L1.
             const baseTokenTransfers = await sendTransfers(
                 baseTokenAddress,
-                this.mainEthersWallet,
+                mainSyncWallet.ethWallet(),
                 wallets,
                 ERC20_PER_ACCOUNT,
                 nonce,
@@ -444,9 +457,11 @@ export class TestContextOwner {
         l2ETHAmountToDeposit: bigint,
         l2ETHAmountToDepositSecondChain: bigint,
         l2erc20DepositAmount: bigint,
-        baseTokenAddress: zksync.types.Address
+        baseTokenAddress: zksync.types.Address,
+        secondChainBaseTokenAddress: zksync.types.Address | undefined
     ) {
         const ethIsBaseToken = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
+        const secondChainEthIsBaseToken = secondChainBaseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
         this.reporter.startAction(`Distributing tokens on L1`);
         const l1startNonce = await this.mainEthersWallet.getNonce();
         this.reporter.debug(`Start nonce is ${l1startNonce}`);
@@ -494,20 +509,28 @@ export class TestContextOwner {
             // we have to correctly send nonce.
             const depositHandle = this.secondChainMainSyncWallet!.deposit({
                 token: zksync.utils.ETH_ADDRESS,
+                approveBaseERC20: true,
+                approveERC20: true,
                 amount: l2ETHAmountToDepositSecondChain as BigNumberish,
+                approveBaseOverrides: {
+                    nonce: nonce,
+                    gasPrice
+                },
                 overrides: {
-                    nonce,
+                    nonce: nonce + (secondChainEthIsBaseToken ? 0 : 1), // if eth is base token the approve tx does not happen
                     gasPrice
                 }
             }).then((tx) => {
-                const amount = ethers.formatEther(l2ETHAmountToDeposit);
+                const amount = ethers.formatEther(l2ETHAmountToDepositSecondChain);
                 this.reporter.debug(
                     `Sent ETH deposit on second chain. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`
                 );
                 return tx.wait();
             });
-            nonce = nonce + 1;
-            this.reporter.debug(`Nonce changed by 1 for ETH deposit on second chain, new nonce: ${nonce}`);
+            nonce = nonce + 1 + (secondChainEthIsBaseToken ? 0 : 1);
+            this.reporter.debug(
+                `Nonce changed by ${1 + (secondChainEthIsBaseToken ? 0 : 1)} for ETH deposit on second chain, new nonce: ${nonce}`
+            );
             await depositHandle;
         }
 

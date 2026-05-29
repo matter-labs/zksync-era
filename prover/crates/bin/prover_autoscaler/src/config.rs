@@ -32,6 +32,10 @@ pub struct ProverAutoscalerConfig {
     /// Amount of time ProverJobMonitor will wait all it's tasks to finish.
     #[config(default_t = Duration::from_secs(5))]
     pub graceful_shutdown_timeout: Duration,
+    /// Total request timeout for the shared HTTP client used to talk to Agents
+    /// and the prover job monitor.
+    #[config(default_t = Duration::from_secs(60))]
+    pub http_client_timeout: Duration,
     #[config(nest)]
     pub agent_config: Option<ProverAutoscalerAgentConfig>,
     #[config(nest)]
@@ -216,6 +220,7 @@ mod tests {
     fn deserializing_config() {
         let yaml = r#"
             graceful_shutdown_timeout: 10s
+            http_client_timeout: 90s
             agent_config:
               prometheus_port: 8080
               http_port: 8081

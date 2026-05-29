@@ -18,7 +18,7 @@ use zksync_dal::{
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, recovery::PersistenceThreadHandle, TreeInstruction};
 use zksync_node_genesis::{
-    insert_genesis_batch, insert_genesis_batch_with_custom_state, GenesisParams,
+    insert_genesis_batch, insert_genesis_batch_with_custom_state, GenesisParamsInitials,
 };
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_storage::RocksDB;
@@ -102,7 +102,7 @@ async fn basic_recovery_workflow() {
 
 async fn prepare_storage_logs(pool: ConnectionPool<Core>, temp_dir: &TempDir) -> H256 {
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     let logs = gen_storage_logs(100..300, 1).pop().unwrap();
@@ -565,7 +565,7 @@ async fn pruning_during_recovery_is_detected() {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     let logs = gen_storage_logs(200..400, 5);
@@ -622,9 +622,13 @@ async fn insert_large_genesis(storage: &mut Connection<'_, Core>) -> Vec<Storage
             .collect(),
         factory_deps: vec![], // Not necessary for tests
     };
-    insert_genesis_batch_with_custom_state(storage, &GenesisParams::mock(), Some(genesis_state))
-        .await
-        .unwrap();
+    insert_genesis_batch_with_custom_state(
+        storage,
+        &GenesisParamsInitials::mock(),
+        Some(genesis_state),
+    )
+    .await
+    .unwrap();
     genesis_logs
 }
 

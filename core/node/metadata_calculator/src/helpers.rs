@@ -856,7 +856,7 @@ mod tests {
 
     use tempfile::TempDir;
     use zksync_dal::{ConnectionPool, Core};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_prover_interface::inputs::WitnessInputMerklePaths;
     use zksync_types::{writes::TreeWrite, StorageKey, StorageLog, U256};
 
@@ -943,7 +943,7 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         insert_genesis_batch(
             &mut pool.connection().await.unwrap(),
-            &GenesisParams::mock(),
+            &GenesisParamsInitials::mock(),
         )
         .await
         .unwrap();
@@ -1022,7 +1022,7 @@ mod tests {
     async fn loaded_logs_equivalence_with_zero_no_op_logs() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
 
@@ -1116,7 +1116,7 @@ mod tests {
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
 
@@ -1163,7 +1163,7 @@ mod tests {
     async fn loaded_logs_equivalence_with_protective_reads() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
 

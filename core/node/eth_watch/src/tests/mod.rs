@@ -230,6 +230,90 @@ async fn test_gap_in_upgrade_timestamp() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_upgrade_timestamp_wrong_chain_ignored() {
+    // Events emitted for a different chain ID must be filtered out by the topic2 chain filter.
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    setup_db(&connection_pool).await;
+    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
+
+    // Emit upgrade timestamp for a chain that is NOT the watcher's chain (default).
+    let wrong_chain_id = L2ChainId::from(999);
+    client
+        .add_upgrade_timestamp_for_chain(
+            wrong_chain_id,
+            &[(
+                ProtocolUpgrade {
+                    version: ProtocolSemanticVersion {
+                        minor: ProtocolVersionId::latest(),
+                        patch: 0.into(),
+                    },
+                    tx: None,
+                    ..Default::default()
+                },
+                10,
+            )],
+        )
+        .await;
+    client.set_last_finalized_block_number(15).await;
+    let mut storage = connection_pool.connection().await.unwrap();
+    watcher.loop_iteration(&mut storage).await.unwrap();
+
+    // Only the genesis version should be present; the event was for the wrong chain.
+    let db_versions = storage.protocol_versions_dal().all_versions().await;
+    assert_eq!(db_versions.len(), 1);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_rewritten_upgrade_cut_is_used() {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    setup_db(&connection_pool).await;
+    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
+
+    let old_protocol_version = ProtocolSemanticVersion {
+        minor: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
+        patch: 0.into(),
+    };
+    let replacement_version = ProtocolSemanticVersion {
+        minor: ProtocolVersionId::next(),
+        patch: 0.into(),
+    };
+
+    let mut storage = connection_pool.connection().await.unwrap();
+    client
+        .add_upgrade_timestamp(&[(
+            ProtocolUpgrade {
+                version: ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::latest(),
+                    patch: 0.into(),
+                },
+                tx: None,
+                ..Default::default()
+            },
+            10,
+        )])
+        .await;
+
+    // The governance re-submits the cut at a later block: the server must pick this one.
+    client
+        .add_diamond_cut(
+            old_protocol_version,
+            ProtocolUpgrade {
+                version: replacement_version,
+                tx: None,
+                ..Default::default()
+            },
+            15,
+        )
+        .await;
+    client.set_last_finalized_block_number(20).await;
+    watcher.loop_iteration(&mut storage).await.unwrap();
+
+    let db_versions = storage.protocol_versions_dal().all_versions().await;
+    assert_eq!(db_versions.len(), 2);
+    assert_eq!(db_versions[1], replacement_version);
+}
+
+#[test_log::test(tokio::test)]
 async fn test_normal_operation_upgrade_timestamp() {
     zksync_concurrency::testonly::abort_on_panic();
     let connection_pool = ConnectionPool::<Core>::test_pool().await;

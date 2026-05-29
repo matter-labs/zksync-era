@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
+use ethers::{contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -17,6 +17,7 @@ use zkstack_cli_config::{
 use zksync_basic_types::Address;
 
 use crate::{
+    abi::ADMINFUNCTIONSABI_ABI,
     messages::{
         MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
         MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
@@ -25,12 +26,8 @@ use crate::{
 };
 
 lazy_static! {
-    static ref SET_TOKEN_MULTIPLIER_SETTER: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function chainSetTokenMultiplierSetter(address chainAdmin, address accessControlRestriction, address diamondProxyAddress, address setter) public"
-        ])
-        .unwrap(),
-    );
+    static ref SET_TOKEN_MULTIPLIER_SETTER: BaseContract =
+        BaseContract::from(ADMINFUNCTIONSABI_ABI.clone());
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {

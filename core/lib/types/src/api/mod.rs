@@ -203,7 +203,7 @@ pub enum InteropMode {
     // Proof-based interop on Gateway, meaning the Merkle proof hashes to Gateway's MessageRoot
     ProofBasedGateway,
     // Proof-based interop on L1, meaning the Merkle proof hashes to L1's MessageRoot
-    // ProofBasedL1, // todo: v30
+    // ProofBasedL1, // todo: v32
 }
 
 impl Serialize for InteropMode {
@@ -1038,6 +1038,8 @@ pub struct Proof {
 pub enum AirbenderProofStatus {
     PickedByProver,
     Generated,
+    PickedForSnark,
+    SnarkGenerated,
     Failed,
 }
 
@@ -1048,6 +1050,8 @@ impl TryFrom<String> for AirbenderProofStatus {
         match s.as_str() {
             "picked_by_prover" => Ok(Self::PickedByProver),
             "generated" => Ok(Self::Generated),
+            "picked_for_snark" => Ok(Self::PickedForSnark),
+            "snark_generated" => Ok(Self::SnarkGenerated),
             "failed" => Ok(Self::Failed),
             other => Err(format!("Unknown airbender proof status: {other}")),
         }

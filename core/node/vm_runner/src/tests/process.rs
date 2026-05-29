@@ -19,7 +19,7 @@ async fn process_batches((batch_count, window): (u32, u32)) -> anyhow::Result<()
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut conn = connection_pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut conn, &genesis_params)
+    insert_genesis_batch(&mut conn, &genesis_params.clone().into())
         .await
         .unwrap();
     let mut accounts = vec![Account::random(), Account::random()];

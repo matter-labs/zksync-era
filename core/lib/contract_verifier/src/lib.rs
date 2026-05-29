@@ -122,14 +122,40 @@ pub struct ContractVerifier {
 }
 
 impl ContractVerifier {
+    fn deployed_evm_bytecode(
+        deployed_contract: &DeployedContractData,
+    ) -> Result<&[u8], ContractVerifierError> {
+        let bytecode_hash = BytecodeHash::try_from(deployed_contract.bytecode_hash)
+            .context("Invalid bytecode hash")?;
+
+        match trim_padded_evm_bytecode(bytecode_hash, &deployed_contract.bytecode) {
+            Ok(bytecode) => Ok(bytecode),
+            Err(err) => {
+                if BytecodeHash::for_raw_evm_bytecode(&deployed_contract.bytecode).value()
+                    == deployed_contract.bytecode_hash
+                {
+                    tracing::warn!(
+                        contract_address = ?deployed_contract.contract_address,
+                        bytecode_hash = ?deployed_contract.bytecode_hash,
+                        "raw EVM bytecode found in factory_deps; using compatibility fallback"
+                    );
+                    Ok(deployed_contract.bytecode.as_slice())
+                } else {
+                    Err(anyhow::format_err!("invalid stored EVM bytecode: {err:#}").into())
+                }
+            }
+        }
+    }
+
     /// Creates a new verifier instance.
     pub async fn new(
         compilation_timeout: Duration,
+        compiler_download_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
         etherscan_verifier_enabled: bool,
     ) -> anyhow::Result<Self> {
         let env_resolver = Arc::<EnvCompilerResolver>::default();
-        let gh_resolver = Arc::new(GitHubCompilerResolver::new().await?);
+        let gh_resolver = Arc::new(GitHubCompilerResolver::new(compiler_download_timeout).await?);
         let mut resolver = ResolverMultiplexer::new(env_resolver);
 
         // Killer switch: if anything goes wrong with GH resolver, we can disable it without having to rollback.
@@ -260,12 +286,7 @@ impl ContractVerifier {
             .context("unknown bytecode kind")?;
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
-            BytecodeMarker::Evm => trim_padded_evm_bytecode(
-                BytecodeHash::try_from(deployed_contract.bytecode_hash)
-                    .context("Invalid bytecode hash")?,
-                &deployed_contract.bytecode,
-            )
-            .context("invalid stored EVM bytecode")?,
+            BytecodeMarker::Evm => Self::deployed_evm_bytecode(&deployed_contract)?,
         };
         let mut deployed_code = deployed_bytecode.to_vec();
         let deployed_identifier =
@@ -309,8 +330,8 @@ impl ContractVerifier {
             Match::Partial => {
                 tracing::info!(
                     request_id = request.id,
-                    deployed = hex::encode(deployed_bytecode),
-                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    deployed_keccak256 = ?deployed_identifier.bytecode_keccak256,
+                    compiled_keccak256 = ?compiled_identifier.bytecode_keccak256,
                     "Partial bytecode match",
                 );
                 verification_problems.push(VerificationProblem::IncorrectMetadata);
@@ -318,8 +339,8 @@ impl ContractVerifier {
             Match::None => {
                 tracing::info!(
                     request_id = request.id,
-                    deployed = hex::encode(deployed_bytecode),
-                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    deployed_keccak256 = ?deployed_identifier.bytecode_keccak256,
+                    compiled_keccak256 = ?compiled_identifier.bytecode_keccak256,
                     "Deployed (runtime) bytecode mismatch",
                 );
                 return Err(ContractVerifierError::BytecodeMismatch);
@@ -462,7 +483,7 @@ impl ContractVerifier {
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let zksolc = self.compiler_resolver.resolve_zksolc(version).await?;
         tracing::debug!(?zksolc, ?version, "resolved compiler");
-        let input = ZkSolc::build_input(req)?;
+        let input = ZkSolc::build_input(req, &version.zk)?;
 
         time::timeout(self.compilation_timeout, zksolc.compile(input))
             .await
@@ -774,7 +795,7 @@ impl ContractVerifier {
                 let error_message = match &error {
                     ContractVerifierError::Internal(err) => {
                         // Do not expose the error externally, but log it.
-                        tracing::warn!(request_id, "internal error processing request: {err}");
+                        tracing::warn!(request_id, "internal error processing request: {err:#}");
                         "internal error".to_owned()
                     }
                     _ => error.to_string(),

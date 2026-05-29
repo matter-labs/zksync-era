@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use ethers::{
-    abi::{parse_abi, Token},
+    abi::Token,
     contract::BaseContract,
     types::{Address, Bytes},
     utils::hex,
@@ -21,42 +21,17 @@ use zkstack_cli_config::{
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use zkstack_cli_types::VMOption;
-use zksync_basic_types::U256;
+use zksync_basic_types::{commitment::L2DACommitmentScheme, U256};
 
 use crate::{
+    abi::ADMINFUNCTIONSABI_ABI,
     commands::chain::admin_call_builder::{decode_admin_calls, AdminCall},
     messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
 lazy_static! {
-    static ref ADMIN_FUNCTIONS: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function governanceAcceptOwner(address governor, address target) public",
-            "function governanceAcceptOwnerAggregated(address governor, address target) public",
-            "function chainAdminAcceptAdmin(address admin, address target) public",
-            "function setDAValidatorPair(address _bridgehub, uint256 _chainId, address _l1DaValidator, address _l2DaValidator, bool _shouldSend) public",
-            "function setDAValidatorPairWithGateway(address bridgehub, uint256 l1GasPrice, uint256 l2ChainId, uint256 gatewayChainId, address l1DAValidator, address l2DAValidator, address chainDiamondProxyOnGateway, address refundRecipient, bool _shouldSend)",
-            "function makePermanentRollup(address chainAdmin, address target) public",
-            "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
-            "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
-            "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)",
-            "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public",
-            "function setTransactionFilterer(address _bridgehubAddr, uint256 _chainId, address _transactionFiltererAddress, bool _shouldSend) external",
-            "function grantGatewayWhitelist(address _bridgehubAddr, uint256 _chainId, address[] calldata _grantee, bool _shouldSend)",
-            "function migrateChainToGateway(address bridgehub, uint256 l1GasPrice, uint256 l2GhainId, uint256 gatewayChainId, bytes _gatewayDiamondCutData, address refundRecipient, bool _shouldSend) public view",
-            "function revokeGatewayWhitelist(address _bridgehub, uint256 _chainId, address _address, bool _shouldSend) public",
-            "function enableValidatorViaGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,address validatorAddress,address gatewayValidatorTimelock, address refundRecipient,bool shouldSend) public",
-            "function adminL1L2Tx(address bridgehub,uint256 l1GasPrice,uint256 chainId,address to,uint256 value,bytes calldata data,address refundRecipient,bool _shouldSend) public",
-            "function notifyServerMigrationFromGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
-            "function notifyServerMigrationToGateway(address _bridgehub, uint256 _chainId, bool _shouldSend) public",
-            "function startMigrateChainFromGateway(address bridgehub,uint256 l1GasPrice,uint256 l2ChainId,uint256 gatewayChainId,bytes memory l1DiamondCutData,address refundRecipient,bool _shouldSend)",
-            "function prepareUpgradeZKChainOnGateway(uint256 l1GasPrice, uint256 oldProtocolVersion, bytes memory upgradeCutData, address chainDiamondProxyOnGateway, uint256 gatewayChainId, uint256 chainId, address bridgehub, address l1AssetRouterProxy, address refundRecipient, bool shouldSend)",
-            "function enableValidator(address bridgehub,uint256 l2ChainId,address validatorAddress,address validatorTimelock,bool _shouldSend) public",
-            "function ecosystemAdminExecuteCalls(bytes memory callsToExecute, address ecosystemAdminAddr)"
-        ])
-        .unwrap(),
-    );
+    static ref ADMIN_FUNCTIONS: BaseContract = BaseContract::from(ADMINFUNCTIONSABI_ABI.clone());
 }
 
 pub async fn accept_admin(
@@ -210,6 +185,7 @@ pub async fn governance_execute_calls(
         .with_calldata(&calldata);
 
     let description = "executing governance calls";
+    let is_broadcast = matches!(mode, AdminScriptMode::Broadcast(_));
     let (forge, spinner_text) = match mode {
         AdminScriptMode::OnlySave => (forge, format!("Preparing calldata for {description}")),
         AdminScriptMode::Broadcast(wallet) => {
@@ -223,6 +199,12 @@ pub async fn governance_execute_calls(
     let spinner = Spinner::new(&spinner_text);
     forge.run(shell)?;
     spinner.finish();
+
+    // AdminFunction's `governanceExecuteCalls` does not call `saveAndSendAdminTx`, so it never writes the output file.
+    // There is nothing to read back after a broadcast, the calls have already been executed on-chain.
+    if is_broadcast {
+        return Ok(AdminScriptOutput::default());
+    }
 
     let output_path = ACCEPT_GOVERNANCE_SCRIPT_PARAMS.output(&path_to_foundry_scripts);
     Ok(AdminScriptOutputInner::read(shell, output_path)?.into())
@@ -325,6 +307,10 @@ pub async fn admin_schedule_upgrade(
         .l1
         .access_control_restriction_addr
         .context("no access_control_restriction_addr")?;
+    let bridgehub = chain_contracts_config
+        .ecosystem_contracts
+        .bridgehub_proxy_addr;
+    let chain_id = ecosystem_config.load_current_chain()?.chain_id.as_u64();
 
     let calldata = ADMIN_FUNCTIONS
         .encode(
@@ -332,6 +318,8 @@ pub async fn admin_schedule_upgrade(
             (
                 admin_addr,
                 access_control_restriction,
+                bridgehub,
+                U256::from(chain_id),
                 new_protocol_version,
                 timestamp,
             ),
@@ -522,6 +510,65 @@ pub(crate) async fn set_transaction_filterer(
     .await
 }
 
+pub(crate) async fn pause_deposits_before_initiating_migration(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    bridgehub: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "pauseDepositsBeforeInitiatingMigration",
+            (bridgehub, U256::from(chain_id), mode.should_send()),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+        &format!(
+            "pausing deposits before initiating migration for chain {}",
+            chain_id
+        ),
+    )
+    .await
+}
+
+pub(crate) async fn unpause_deposits(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    bridgehub: Address,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "unpauseDeposits",
+            (bridgehub, U256::from(chain_id), mode.should_send()),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+        &format!("unpausing deposits for chain {}", chain_id),
+    )
+    .await
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn set_da_validator_pair(
     shell: &Shell,
@@ -531,7 +578,7 @@ pub async fn set_da_validator_pair(
     chain_id: u64,
     bridgehub: Address,
     l1_da_validator_address: Address,
-    l2_da_validator_address: Address,
+    l2_da_commitment_scheme: L2DACommitmentScheme,
     l1_rpc_url: String,
 ) -> anyhow::Result<AdminScriptOutput> {
     let calldata = ADMIN_FUNCTIONS
@@ -541,7 +588,7 @@ pub async fn set_da_validator_pair(
                 bridgehub,
                 U256::from(chain_id),
                 l1_da_validator_address,
-                l2_da_validator_address,
+                l2_da_commitment_scheme as u8,
                 mode.should_send(),
             ),
         )
@@ -556,7 +603,7 @@ pub async fn set_da_validator_pair(
         l1_rpc_url,
         &format!(
             "setting data availability validator pair ({:#?}, {:#?}) for chain {}",
-            l1_da_validator_address, l2_da_validator_address, chain_id
+            l1_da_validator_address, l2_da_commitment_scheme, chain_id
         ),
     )
     .await
@@ -643,7 +690,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
     l2_chain_id: u64,
     gateway_chain_id: u64,
     l1_da_validator: Address,
-    l2_da_validator: Address,
+    l2_da_validator_commitment_scheme: L2DACommitmentScheme,
     chain_diamond_proxy_on_gateway: Address,
     refund_recipient: Address,
     l1_rpc_url: String,
@@ -657,7 +704,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
                 U256::from(l2_chain_id),
                 U256::from(gateway_chain_id),
                 l1_da_validator,
-                l2_da_validator,
+                l2_da_validator_commitment_scheme as u8,
                 chain_diamond_proxy_on_gateway,
                 refund_recipient,
                 mode.should_send(),
@@ -674,7 +721,7 @@ pub(crate) async fn set_da_validator_pair_via_gateway(
         l1_rpc_url,
         &format!(
             "setting DA validator pair (SL = {:#?}, L2 = {:#?}) via gateway",
-            l1_da_validator, l2_da_validator
+            l1_da_validator, l2_da_validator_commitment_scheme
         ),
     )
     .await
@@ -706,43 +753,6 @@ pub(crate) async fn enable_validator_via_gateway(
                 validator_address,
                 gateway_validator_timelock,
                 refund_recipient,
-                mode.should_send(),
-            ),
-        )
-        .unwrap();
-
-    call_script(
-        shell,
-        forge_args,
-        foundry_contracts_path,
-        mode,
-        calldata,
-        l1_rpc_url,
-        &format!("enabling validator {:#?} via gateway", validator_address),
-    )
-    .await
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn enable_validator(
-    shell: &Shell,
-    forge_args: &ForgeScriptArgs,
-    foundry_contracts_path: &Path,
-    mode: AdminScriptMode,
-    l1_bridgehub: Address,
-    l2_chain_id: u64,
-    validator_address: Address,
-    validator_timelock: Address,
-    l1_rpc_url: String,
-) -> anyhow::Result<AdminScriptOutput> {
-    let calldata = ADMIN_FUNCTIONS
-        .encode(
-            "enableValidator",
-            (
-                l1_bridgehub,
-                U256::from(l2_chain_id),
-                validator_address,
-                validator_timelock,
                 mode.should_send(),
             ),
         )
@@ -805,7 +815,7 @@ pub(crate) async fn finalize_migrate_to_gateway(
 ) -> anyhow::Result<AdminScriptOutput> {
     let calldata = ADMIN_FUNCTIONS
         .encode(
-            "migrateChainToGateway",
+            "migrateChainToGatewayWithCutData",
             (
                 bridgehub,
                 U256::from(l1_gas_price),

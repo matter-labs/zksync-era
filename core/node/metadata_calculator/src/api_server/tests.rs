@@ -34,7 +34,10 @@ async fn merkle_tree_api() {
         .unwrap();
     let local_addr = *api_server.local_addr();
     let api_server_task = tokio::spawn(api_server.run());
-    let api_client = TreeApiHttpClient::new(&format!("http://{local_addr}"));
+    let api_client = TreeApiHttpClient::new(
+        &format!("http://{local_addr}"),
+        std::time::Duration::from_secs(60),
+    );
 
     // Wait until the calculator processes initial L1 batches.
     calculator_task.await.unwrap();
@@ -185,7 +188,10 @@ async fn api_client_unparesable_response_error() {
         }
     });
 
-    let api_client = TreeApiHttpClient::new(&format!("http://{local_addr}"));
+    let api_client = TreeApiHttpClient::new(
+        &format!("http://{local_addr}"),
+        std::time::Duration::from_secs(60),
+    );
     let err = api_client.get_info().await.unwrap_err();
     assert_matches!(err, TreeApiError::Internal(_));
 }

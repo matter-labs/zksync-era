@@ -15,6 +15,7 @@ chrono.workspace = true
 vise.workspace = true
 zksync_config.workspace = true
 zksync_dal = { workspace = true, features = ["node_framework"] }
+zksync_l1_contract_interface.workspace = true
 zksync_node_framework.workspace = true
 zksync_object_store = { workspace = true, features = ["node_framework"] }
 zksync_prover_interface.workspace = true

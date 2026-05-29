@@ -160,6 +160,7 @@ impl UpdatesManager {
                 prev_l2_block_timestamp: last.timestamp(),
                 l1_batch: self.l1_batch_number,
                 prev_l1_batch_timestamp: self.previous_batch_timestamp(),
+                settlement_layer: self.settlement_layer,
             }
         } else {
             IoCursor {
@@ -168,6 +169,7 @@ impl UpdatesManager {
                 prev_l2_block_timestamp: self.last_committed_l2_block_timestamp.unwrap(),
                 l1_batch: self.l1_batch_number,
                 prev_l1_batch_timestamp: self.previous_batch_timestamp(),
+                settlement_layer: self.settlement_layer,
             }
         }
     }

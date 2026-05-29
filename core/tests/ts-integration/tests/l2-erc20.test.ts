@@ -9,9 +9,53 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Provider, Wallet } from 'ethers';
-import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof } from '../src/helpers';
+import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof, waitForPriorityOp } from '../src/helpers';
 import { encodeNTVAssetId } from 'zksync-ethers/build/utils';
-import { ARTIFACTS_PATH } from '../src/constants';
+import { ARTIFACTS_PATH, L2_ASSET_TRACKER_ADDRESS } from '../src/constants';
+
+async function migrateTokenBalanceFromL1ToGateway(
+    alice: zksync.Wallet,
+    assetId: string,
+    l1NativeTokenVault: ethers.Contract
+) {
+    const l2AssetTracker = new zksync.Contract(
+        L2_ASSET_TRACKER_ADDRESS,
+        (await readContract(`${ARTIFACTS_PATH}`, 'L2AssetTracker')).abi,
+        alice
+    );
+    const l1AssetTracker = new ethers.Contract(
+        await l1NativeTokenVault.l1AssetTracker(),
+        (await readContract(`${ARTIFACTS_PATH}`, 'L1AssetTracker')).abi,
+        alice.ethWallet()
+    );
+
+    const initiatingTx = await l2AssetTracker.initiateL1ToGatewayMigrationOnL2(assetId);
+    await initiatingTx.wait();
+
+    // Now we need to wait for the L2 to L1 message to be processed.
+    const l2TxReceipt = await alice.provider.getTransactionReceipt(initiatingTx.hash);
+    await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, initiatingTx.hash);
+
+    const finalizeWithdrawalParams = await alice.finalizeWithdrawalParams(initiatingTx.hash);
+
+    const finalizeDepositParams = {
+        chainId: (await alice.provider.getNetwork()).chainId,
+        l2BatchNumber: finalizeWithdrawalParams.l1BatchNumber,
+        l2MessageIndex: finalizeWithdrawalParams.l2MessageIndex,
+        l2Sender: finalizeWithdrawalParams.sender,
+        l2TxNumberInBatch: finalizeWithdrawalParams.l2TxNumberInBlock,
+        message: finalizeWithdrawalParams.message,
+        merkleProof: finalizeWithdrawalParams.proof
+    };
+
+    // Finalize the migration on L1.
+    const l1ReceiveTx = await l1AssetTracker.receiveL1ToGatewayMigrationOnL1(finalizeDepositParams);
+    await expect(l1ReceiveTx).toBeAccepted();
+    const l1Receipt = await l1ReceiveTx.wait();
+
+    // Wait for priority ops created by the migration to execute.
+    await waitForPriorityOp(alice, l1Receipt);
+}
 
 describe('L2 native ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -118,9 +162,34 @@ describe('L2 native ERC20 contract checks', () => {
         await expect(aliceErc20.balanceOf(alice.address)).resolves.toBeGreaterThan(0n); // 'Alice should have non-zero balance'
     });
 
+    test('Migrate token balance to Gateway', async () => {
+        if (process.env.USE_GATEWAY_CHAIN !== 'WITH_GATEWAY') {
+            return;
+        }
+
+        // Ensure that the token has not yet been registered on L1
+        const tokenAddressOnL1 = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
+        expect(tokenAddressOnL1).toEqual(ethers.ZeroAddress);
+
+        // Register the token on L2.
+        const registerTx = await l2NativeTokenVault.registerToken(await aliceErc20.getAddress());
+        await registerTx.wait();
+
+        // Migrate the balance to the Gateway
+        await migrateTokenBalanceFromL1ToGateway(alice, zkTokenAssetId, l1NativeTokenVault);
+    });
+
     test('Can perform a withdrawal', async () => {
         if (testMaster.isFastMode()) {
             return;
+        }
+
+        if (process.env.USE_GATEWAY_CHAIN !== 'WITH_GATEWAY') {
+            const tokenAddressOnL1 = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
+            if (tokenAddressOnL1 === ethers.ZeroAddress) {
+                const registerTx = await l2NativeTokenVault.registerToken(await aliceErc20.getAddress());
+                await registerTx.wait();
+            }
         }
         const amount = 10n;
 
@@ -204,8 +273,8 @@ describe('L2 native ERC20 contract checks', () => {
         // `waitFinalize` is not used because it doesn't work as expected for failed transactions.
         // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
-        const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
-        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, l2Hash);
+        const l2TxReceipt = await waitForPriorityOp(alice, l1Receipt);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt.blockNumber, l2Hash);
 
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
