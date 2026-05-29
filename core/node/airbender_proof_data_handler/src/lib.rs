@@ -130,4 +130,5 @@ fn create_proof_processing_router(
         .with_state(processor)
         .layer(tower_http::compression::CompressionLayer::new())
         .layer(tower_http::decompression::RequestDecompressionLayer::new().zstd(true))
+        .layer(axum::extract::DefaultBodyLimit::max(512 * 1024 * 1024))
 }
