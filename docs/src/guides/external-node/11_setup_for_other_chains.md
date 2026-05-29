@@ -29,9 +29,17 @@ where `0x144` is the chain ID (324 in decimal)
 
 ## 2. Update `EN_MAIN_NODE_URL`
 
-The `EN_MAIN_NODE_URL` The EN_MAIN_NODE_URL environment variable should point to the main node URL of the target chain
+The `EN_MAIN_NODE_URL` environment variable should point to the main node URL of the target chain.
 
-## 3. Update snapshots recovery settings
+## 3. Configure `EN_GATEWAY_URL` only when your chain actually settles to Gateway
+
+Set `EN_GATEWAY_URL` only if the chain operator gave you a reachable Gateway RPC endpoint for that chain.
+
+For ZKsync Era mainnet, the default external-node setup does not need an explicit `EN_GATEWAY_URL`.
+
+If your chain settles to Gateway and you do not have a provider-supplied Gateway RPC URL yet, ask the company hosting the chain for the correct endpoint before enabling the setting.
+
+## 4. Update snapshots recovery settings
 
 Snapshots recovery is a feature that allows faster Node startup at the cost of no transaction history. By default the
 ZKsync Era docker-compose file has this feature enabled, but it's only recommended to use if the Node first startup time
