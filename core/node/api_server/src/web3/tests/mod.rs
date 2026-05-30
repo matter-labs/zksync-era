@@ -27,7 +27,7 @@ use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     api,
-    api::{BlockNumber, BlockStatus, InteropMode, TransactionStatus},
+    api::{BlockNumber, BlockStatus, TransactionStatus},
     block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
     bytecode::{
         testonly::{PADDED_EVM_BYTECODE, PROCESSED_EVM_BYTECODE},
@@ -1489,6 +1489,10 @@ impl HttpTest for L2ToL1LogProofWithoutAggregationRootTest {
             .events_dal()
             .save_user_l2_to_l1_logs(l2_block_number, &logs)
             .await?;
+        storage
+            .transactions_dal()
+            .mark_txs_as_executed_in_l1_batch(l1_batch_number, &[tx_hash])
+            .await?;
 
         sqlx::query(
             r#"
@@ -1503,7 +1507,7 @@ impl HttpTest for L2ToL1LogProofWithoutAggregationRootTest {
         drop(storage);
 
         let err = client
-            .get_l2_to_l1_log_proof(tx_hash, Some(0), Some(InteropMode::ProofBasedGateway))
+            .get_l2_to_l1_log_proof(tx_hash, Some(0), None)
             .await
             .unwrap_err();
         assert_matches!(
