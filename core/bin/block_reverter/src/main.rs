@@ -206,7 +206,7 @@ async fn main() -> anyhow::Result<()> {
     let sl_validator_timelock = contracts
         .ecosystem_contracts
         .validator_timelock_addr
-        .expect("Should be presented");
+        .context("validator_timelock_addr not present in settlement-layer contracts")?;
 
     let config = BlockReverterEthConfig::new(
         &eth_sender,
