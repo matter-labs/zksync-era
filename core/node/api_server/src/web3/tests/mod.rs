@@ -21,12 +21,13 @@ use zksync_node_test_utils::{
     l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
 };
 use zksync_system_constants::{
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    L1_MESSENGER_ADDRESS, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
+use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     api,
-    api::{BlockNumber, BlockStatus, TransactionStatus},
+    api::{BlockNumber, BlockStatus, InteropMode, TransactionStatus},
     block::{pack_block_info, L2BlockHasher, L2BlockHeader, UnsealedL1BatchHeader},
     bytecode::{
         testonly::{PADDED_EVM_BYTECODE, PROCESSED_EVM_BYTECODE},
@@ -1447,6 +1448,77 @@ impl HttpTest for HttpServerBatchStatusTest {
 #[tokio::test]
 async fn http_server_batch_statuses() {
     test_http_server(HttpServerBatchStatusTest).await;
+}
+
+#[derive(Debug)]
+struct L2ToL1LogProofWithoutAggregationRootTest;
+
+#[async_trait]
+impl HttpTest for L2ToL1LogProofWithoutAggregationRootTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        let l1_batch_number = L1BatchNumber(1);
+        let l2_block_number = L2BlockNumber(1);
+        let tx = create_l2_transaction(10, 200);
+        let tx_hash = tx.hash();
+        let tx_results = vec![mock_execute_transaction(tx.into())];
+
+        store_l2_block(&mut storage, l2_block_number, &tx_results).await?;
+        seal_l1_batch(&mut storage, l1_batch_number).await?;
+
+        let log = UserL2ToL1Log(L2ToL1Log {
+            shard_id: 0,
+            is_service: false,
+            tx_number_in_block: 0,
+            sender: L1_MESSENGER_ADDRESS,
+            key: H256::from_low_u64_be(11),
+            value: H256::from_low_u64_be(19),
+        });
+        let logs = vec![(
+            IncludedTxLocation {
+                tx_hash,
+                tx_index_in_l2_block: 0,
+            },
+            vec![&log],
+        )];
+        storage
+            .events_dal()
+            .save_user_l2_to_l1_logs(l2_block_number, &logs)
+            .await?;
+
+        sqlx::query(
+            r#"
+            UPDATE l1_batches
+            SET aggregation_root = NULL
+            WHERE number = $1
+            "#,
+        )
+        .bind(i64::from(l1_batch_number.0))
+        .execute(storage.conn())
+        .await?;
+        drop(storage);
+
+        let err = client
+            .get_l2_to_l1_log_proof(tx_hash, Some(0), Some(InteropMode::ProofBasedGateway))
+            .await
+            .unwrap_err();
+        assert_matches!(
+            err,
+            ClientError::Call(err)
+                if err.code() == ErrorCode::InternalError.code()
+                    && err.message().contains("Internal error")
+        );
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn getting_l2_to_l1_log_proof_without_aggregation_root() {
+    test_http_server(L2ToL1LogProofWithoutAggregationRootTest).await;
 }
 
 #[derive(Debug)]

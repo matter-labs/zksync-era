@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -231,7 +232,7 @@ impl ZksNamespace {
         let aggregated_root = batch_with_metadata
             .metadata
             .aggregation_root
-            .expect("`aggregation_root` must be present for post-gateway branch");
+            .context("missing `aggregation_root` for post-gateway L2->L1 log proof")?;
         let root = KeccakHasher.compress(&local_root, &aggregated_root);
 
         let mut log_leaf_proof = proof;
