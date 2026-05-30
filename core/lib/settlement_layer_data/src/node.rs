@@ -271,6 +271,21 @@ impl SettlementLayerData<ENConfig> {
     pub const LAYER_NAME: &'static str = "settlement_layer_en";
 }
 
+fn require_en_bridgehub_proxy_addr(
+    bridgehub_proxy_addr: Option<Address>,
+) -> anyhow::Result<Address> {
+    bridgehub_proxy_addr.context(
+        "remote EN config is missing `l1_bridgehub_proxy_addr`; refresh the main node config or clear the cached EN remote config",
+    )
+}
+
+fn require_en_gateway_client<'a>(
+    gateway_client: Option<&'a Box<DynClient<L2>>>,
+    context: &'static str,
+) -> anyhow::Result<&'a Box<DynClient<L2>>> {
+    gateway_client.context(context)
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for SettlementLayerData<ENConfig> {
     type Input = Input;
@@ -341,22 +356,26 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
             .context("Error occured while getting current SL mode")?
         };
 
+        let bridgehub_proxy_addr =
+            require_en_bridgehub_proxy_addr(remote_config.l1_bridgehub_proxy_addr)?;
+
         let l2_eth_client = get_l2_client(
             &input.eth_client,
-            remote_config.l1_bridgehub_proxy_addr.unwrap(),
+            bridgehub_proxy_addr,
             self.config.chain_id,
             self.config.gateway_rpc_url,
         )
         .await?;
 
         let (client, bridgehub): (&dyn EthInterface, Address) = match initial_sl_mode {
-            SettlementLayer::L1(_) => (
-                &input.eth_client,
-                remote_config.l1_bridgehub_proxy_addr.context(
-                    "missing `bridgehub_proxy_addr` in `l1_chain_contracts.ecosystem_contracts`",
-                )?,
+            SettlementLayer::L1(_) => (&input.eth_client, bridgehub_proxy_addr),
+            SettlementLayer::Gateway(_) => (
+                require_en_gateway_client(
+                    l2_eth_client.as_ref(),
+                    "Gateway settlement is selected for EN, but no reachable Gateway RPC client is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.",
+                )? as &dyn EthInterface,
+                L2_BRIDGEHUB_ADDRESS,
             ),
-            SettlementLayer::Gateway(_) => (l2_eth_client.as_ref().unwrap(), L2_BRIDGEHUB_ADDRESS),
         };
 
         // There is no need to specify multicall3 for external node
@@ -375,15 +394,13 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
         let sl = WorkingSettlementLayer::new(initial_sl_mode, initial_sl_mode);
         let sl_client = match sl.settlement_layer() {
             SettlementLayer::L1(_) => SettlementLayerClient::L1(input.eth_client),
-            SettlementLayer::Gateway(_) => {
-                // `unwrap()` is safe: `l2_eth_client` is always initialized when `config.gateway_rpc_url` is set,
-                // which is required for `SettlementLayer::Gateway`.
-                SettlementLayerClient::Gateway(
-                    l2_eth_client
-                        .clone()
-                        .expect("Gateway rpc url is not presented"),
-                )
-            }
+            SettlementLayer::Gateway(_) => SettlementLayerClient::Gateway(
+                require_en_gateway_client(
+                    l2_eth_client.as_ref(),
+                    "Gateway settlement is selected for EN, but no reachable Gateway RPC client is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.",
+                )?
+                .clone(),
+            ),
         };
 
         Ok(Output {
@@ -404,5 +421,47 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
                 remote_config.l1_batch_commit_data_generator_mode,
             ),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_basic_types::Address;
+    use zksync_web3_decl::client::{DynClient, MockClient, L2};
+
+    use super::{require_en_bridgehub_proxy_addr, require_en_gateway_client};
+
+    #[test]
+    fn en_requires_bridgehub_proxy_addr_in_remote_config() {
+        let err = require_en_bridgehub_proxy_addr(None).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("remote EN config is missing `l1_bridgehub_proxy_addr`"));
+    }
+
+    #[test]
+    fn en_accepts_present_bridgehub_proxy_addr() {
+        let bridgehub = Address::repeat_byte(0x11);
+        assert_eq!(
+            require_en_bridgehub_proxy_addr(Some(bridgehub)).unwrap(),
+            bridgehub
+        );
+    }
+
+    #[test]
+    fn en_requires_gateway_client_for_gateway_settlement() {
+        let err = require_en_gateway_client(None, "missing gateway client").unwrap_err();
+        assert_eq!(err.to_string(), "missing gateway client");
+    }
+
+    #[test]
+    fn en_accepts_present_gateway_client() {
+        let client = Box::new(MockClient::builder(L2::default()).build()) as Box<DynClient<L2>>;
+
+        let gateway_client =
+            require_en_gateway_client(Some(&client), "missing gateway client").unwrap();
+        let cloned_client = gateway_client.clone();
+
+        assert_eq!(cloned_client.component(), "unnamed");
     }
 }
