@@ -76,6 +76,14 @@ async fn get_l2_client_unchecked(
         } else {
             None
         }
+    } else if l1_bridgehub_address == *gateway_urls::MAINNET_BRIDGEHUB_ADDR {
+        tracing::warn!(
+            "No Gateway RPC URL was configured for the Era mainnet bridgehub. \
+             The built-in mainnet Gateway fallback was removed because the public \
+             endpoint is unavailable. Configure `gateway_rpc_url` / `EN_GATEWAY_URL` \
+             explicitly before using Gateway settlement."
+        );
+        None
     } else {
         tracing::warn!(
             "No client was found for gateway, you are working in none \
@@ -83,6 +91,13 @@ async fn get_l2_client_unchecked(
         );
         None
     })
+}
+
+fn require_gateway_client<'a>(
+    gateway_client: Option<&'a dyn EthInterface>,
+    context: &'static str,
+) -> anyhow::Result<&'a dyn EthInterface> {
+    gateway_client.context(context)
 }
 
 // Gateway has different rules for pubdata and gas space.
@@ -149,6 +164,15 @@ pub async fn current_settlement_layer(
     )
     .await?;
 
+    let gateway_client = match settlement_mode_from_l1 {
+        SettlementLayer::Gateway(_) => Some(require_gateway_client(
+            gateway_client,
+            "Gateway settlement is active, but no reachable Gateway RPC client is configured. \
+             Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.",
+        )?),
+        SettlementLayer::L1(_) => gateway_client,
+    };
+
     let (sl_client, bridge_hub_address) = match settlement_mode_from_l1 {
         SettlementLayer::L1(_) => (
             l1_client,
@@ -157,10 +181,7 @@ pub async fn current_settlement_layer(
                 .bridgehub_proxy_addr
                 .expect("Bridgehub address should always be presented"),
         ),
-        SettlementLayer::Gateway(_) => (
-            gateway_client.expect("No gateway url was provided"),
-            L2_BRIDGEHUB_ADDRESS,
-        ),
+        SettlementLayer::Gateway(_) => (gateway_client.unwrap(), L2_BRIDGEHUB_ADDRESS),
     };
 
     // Load chain contracts from sl
@@ -193,8 +214,12 @@ pub async fn current_settlement_layer(
         // If it's impossible to use settlement_mode_from_l1 server have to use the opposite settlement_layer
         match settlement_mode_from_l1 {
             SettlementLayer::L1(_) => {
+                let gateway_client = require_gateway_client(
+                    gateway_client,
+                    "Gateway settlement is required to finish migration, but no reachable \
+                     Gateway RPC client is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.",
+                )?;
                 let chain_id = gateway_client
-                    .expect("No gateway url was provided")
                     .fetch_chain_id()
                     .await
                     .map_err(ContractCallError::from)?;
@@ -212,8 +237,12 @@ pub async fn current_settlement_layer(
 
     let target_settlement_mode = match latest_gateway_migration_notification {
         Some(GatewayMigrationNotification::ToGateway) => {
+            let gateway_client = require_gateway_client(
+                gateway_client,
+                "Gateway migration notification requires a reachable Gateway RPC client, \
+                 but none is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.",
+            )?;
             let chain_id = gateway_client
-                .expect("No gateway url was provided")
                 .fetch_chain_id()
                 .await
                 .map_err(ContractCallError::from)?;
