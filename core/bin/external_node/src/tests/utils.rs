@@ -309,7 +309,7 @@ pub(super) fn mock_l2_client(env: &TestEnvironment) -> MockClient<L2> {
         .method("en_whitelistedTokensForAA", || Ok([] as [Address; 0]))
         .method("en_getEcosystemContracts", move || {
             Ok(EcosystemContractsDto {
-                bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr.unwrap(),
+                bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
                 state_transition_proxy_addr: contracts
                     .ecosystem_contracts
                     .state_transition_proxy_addr,
