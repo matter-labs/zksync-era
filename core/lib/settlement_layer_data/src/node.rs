@@ -271,19 +271,21 @@ impl SettlementLayerData<ENConfig> {
     pub const LAYER_NAME: &'static str = "settlement_layer_en";
 }
 
+const EN_REMOTE_CONFIG_MISSING_BRIDGEHUB_PROXY_ADDR: &str =
+    "remote EN config is missing `l1_bridgehub_proxy_addr`; refresh the main node config or clear the cached EN remote config";
+const EN_GATEWAY_CLIENT_REQUIRED: &str =
+    "Gateway settlement is selected for EN, but no reachable Gateway RPC client is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.";
+
 fn require_en_bridgehub_proxy_addr(
     bridgehub_proxy_addr: Option<Address>,
 ) -> anyhow::Result<Address> {
-    bridgehub_proxy_addr.context(
-        "remote EN config is missing `l1_bridgehub_proxy_addr`; refresh the main node config or clear the cached EN remote config",
-    )
+    bridgehub_proxy_addr.context(EN_REMOTE_CONFIG_MISSING_BRIDGEHUB_PROXY_ADDR)
 }
 
 fn require_en_gateway_client<'a>(
     gateway_client: Option<&'a Box<DynClient<L2>>>,
-    context: &'static str,
 ) -> anyhow::Result<&'a Box<DynClient<L2>>> {
-    gateway_client.context(context)
+    gateway_client.context(EN_GATEWAY_CLIENT_REQUIRED)
 }
 
 #[async_trait::async_trait]
@@ -370,10 +372,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
         let (client, bridgehub): (&dyn EthInterface, Address) = match initial_sl_mode {
             SettlementLayer::L1(_) => (&input.eth_client, bridgehub_proxy_addr),
             SettlementLayer::Gateway(_) => (
-                require_en_gateway_client(
-                    l2_eth_client.as_ref(),
-                    "Gateway settlement is selected for EN, but no reachable Gateway RPC client is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.",
-                )? as &dyn EthInterface,
+                require_en_gateway_client(l2_eth_client.as_ref())? as &dyn EthInterface,
                 L2_BRIDGEHUB_ADDRESS,
             ),
         };
@@ -395,11 +394,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
         let sl_client = match sl.settlement_layer() {
             SettlementLayer::L1(_) => SettlementLayerClient::L1(input.eth_client),
             SettlementLayer::Gateway(_) => SettlementLayerClient::Gateway(
-                require_en_gateway_client(
-                    l2_eth_client.as_ref(),
-                    "Gateway settlement is selected for EN, but no reachable Gateway RPC client is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.",
-                )?
-                .clone(),
+                require_en_gateway_client(l2_eth_client.as_ref())?.clone(),
             ),
         };
 
@@ -429,14 +424,18 @@ mod tests {
     use zksync_basic_types::Address;
     use zksync_web3_decl::client::{DynClient, MockClient, L2};
 
-    use super::{require_en_bridgehub_proxy_addr, require_en_gateway_client};
+    use super::{
+        require_en_bridgehub_proxy_addr, require_en_gateway_client, EN_GATEWAY_CLIENT_REQUIRED,
+        EN_REMOTE_CONFIG_MISSING_BRIDGEHUB_PROXY_ADDR,
+    };
 
     #[test]
     fn en_requires_bridgehub_proxy_addr_in_remote_config() {
         let err = require_en_bridgehub_proxy_addr(None).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("remote EN config is missing `l1_bridgehub_proxy_addr`"));
+        assert_eq!(
+            err.to_string(),
+            EN_REMOTE_CONFIG_MISSING_BRIDGEHUB_PROXY_ADDR
+        );
     }
 
     #[test]
@@ -450,18 +449,17 @@ mod tests {
 
     #[test]
     fn en_requires_gateway_client_for_gateway_settlement() {
-        let err = require_en_gateway_client(None, "missing gateway client").unwrap_err();
-        assert_eq!(err.to_string(), "missing gateway client");
+        let err = require_en_gateway_client(None).unwrap_err();
+        assert_eq!(err.to_string(), EN_GATEWAY_CLIENT_REQUIRED);
     }
 
     #[test]
     fn en_accepts_present_gateway_client() {
         let client = Box::new(MockClient::builder(L2::default()).build()) as Box<DynClient<L2>>;
 
-        let gateway_client =
-            require_en_gateway_client(Some(&client), "missing gateway client").unwrap();
+        let gateway_client = require_en_gateway_client(Some(&client)).unwrap();
         let cloned_client = gateway_client.clone();
 
-        assert_eq!(cloned_client.component(), "unnamed");
+        assert_eq!(cloned_client.component(), client.component());
     }
 }
