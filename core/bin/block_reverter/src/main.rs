@@ -114,6 +114,13 @@ enum Command {
     ClearFailedL1Transactions,
 }
 
+fn require_validator_timelock_addr(
+    validator_timelock_addr: Option<Address>,
+) -> anyhow::Result<Address> {
+    validator_timelock_addr
+        .context("validator_timelock_addr not present in settlement-layer contracts")
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opts = Cli::parse();
@@ -203,10 +210,8 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let sl_diamond_proxy = contracts.chain_contracts_config.diamond_proxy_addr;
-    let sl_validator_timelock = contracts
-        .ecosystem_contracts
-        .validator_timelock_addr
-        .context("validator_timelock_addr not present in settlement-layer contracts")?;
+    let sl_validator_timelock =
+        require_validator_timelock_addr(contracts.ecosystem_contracts.validator_timelock_addr)?;
 
     let config = BlockReverterEthConfig::new(
         &eth_sender,
@@ -398,4 +403,25 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::require_validator_timelock_addr;
+    use zksync_types::Address;
+
+    #[test]
+    fn require_validator_timelock_addr_rejects_missing_value() {
+        let err = require_validator_timelock_addr(None).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "validator_timelock_addr not present in settlement-layer contracts"
+        );
+    }
+
+    #[test]
+    fn require_validator_timelock_addr_accepts_present_value() {
+        let addr = Address::repeat_byte(0x11);
+        assert_eq!(require_validator_timelock_addr(Some(addr)).unwrap(), addr);
+    }
 }
