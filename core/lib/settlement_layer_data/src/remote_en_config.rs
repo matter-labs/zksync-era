@@ -135,15 +135,14 @@ where
 #[cfg(test)]
 mod tests {
     use zksync_basic_types::{
-        commitment::L1BatchCommitmentMode,
-        protocol_version::ProtocolSemanticVersion,
-        Address, L1ChainId, L2ChainId, H256,
+        commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion, Address,
+        L1ChainId, L2ChainId, H256,
     };
+    use zksync_types::api::BridgeAddresses;
     use zksync_web3_decl::{
         client::{DynClient, MockClient, L2},
         types::{EcosystemContractsDto, GenesisConfigDto},
     };
-    use zksync_types::api::BridgeAddresses;
 
     use super::fetch_remote_en_config;
 
@@ -211,6 +210,30 @@ mod tests {
         assert_eq!(
             remote_config.l1_state_transition_proxy_addr,
             Some(Address::repeat_byte(11))
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_remote_en_config_preserves_present_bridgehub_addr() {
+        let remote_config = fetch_remote_en_config(mock_main_node_client(EcosystemContractsDto {
+            bridgehub_proxy_addr: Some(Address::repeat_byte(21)),
+            state_transition_proxy_addr: Some(Address::repeat_byte(11)),
+            message_root_proxy_addr: Some(Address::repeat_byte(12)),
+            transparent_proxy_admin_addr: Address::zero(),
+            l1_bytecodes_supplier_addr: Some(Address::repeat_byte(13)),
+            l1_wrapped_base_token_store: Some(Address::repeat_byte(14)),
+            server_notifier_addr: Some(Address::repeat_byte(15)),
+        }))
+        .await
+        .unwrap();
+
+        assert_eq!(
+            remote_config.l1_bridgehub_proxy_addr,
+            Some(Address::repeat_byte(21))
+        );
+        assert_eq!(
+            remote_config.l1_message_root_proxy_addr,
+            Some(Address::repeat_byte(12))
         );
     }
 }
