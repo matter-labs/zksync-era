@@ -410,6 +410,8 @@ pub enum PubSubResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EcosystemContractsDto {
+    /// Optional because some EN-backed chains do not expose a bridgehub
+    /// contract on the ecosystem-contracts path.
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub message_root_proxy_addr: Option<Address>,
