@@ -37,6 +37,7 @@
     "utils": "yarn workspace utils",
     "fmt:check": "prettier --check \"**.{js,jsx,ts,tsx,vue,md}\" --cache",
     "fmt": "prettier --write \"**.{js,jsx,ts,tsx,vue,md}\" --cache",
+    "test:docs:external-node-mainnet-gateway": "node docs/js/check-external-node-mainnet-gateway-docs.js",
     "highlevel-test-tools": "yarn workspace highlevel-test-tools"
   },
   "devDependencies": {
