@@ -276,12 +276,16 @@ const EN_REMOTE_CONFIG_MISSING_BRIDGEHUB_PROXY_ADDR: &str =
 const EN_GATEWAY_CLIENT_REQUIRED: &str =
     "Gateway settlement is selected for EN, but no reachable Gateway RPC client is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.";
 
+/// Validates that cached EN remote config still carries the bridgehub address
+/// required to build settlement-layer clients.
 fn require_en_bridgehub_proxy_addr(
     bridgehub_proxy_addr: Option<Address>,
 ) -> anyhow::Result<Address> {
     bridgehub_proxy_addr.context(EN_REMOTE_CONFIG_MISSING_BRIDGEHUB_PROXY_ADDR)
 }
 
+/// Validates that Gateway settlement wiring has an initialized Gateway RPC
+/// client before reusing it across EN contract-loading paths.
 fn require_en_gateway_client<'a>(
     gateway_client: Option<&'a Box<DynClient<L2>>>,
 ) -> anyhow::Result<&'a Box<DynClient<L2>>> {
