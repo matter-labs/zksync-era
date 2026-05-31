@@ -286,9 +286,9 @@ fn require_en_bridgehub_proxy_addr(
 
 /// Validates that Gateway settlement wiring has an initialized Gateway RPC
 /// client before reusing it across EN contract-loading paths.
-fn require_en_gateway_client<'a>(
-    gateway_client: Option<&'a Box<DynClient<L2>>>,
-) -> anyhow::Result<&'a Box<DynClient<L2>>> {
+fn require_en_gateway_client(
+    gateway_client: Option<&DynClient<L2>>,
+) -> anyhow::Result<&DynClient<L2>> {
     gateway_client.context(EN_GATEWAY_CLIENT_REQUIRED)
 }
 
