@@ -1,7 +1,6 @@
 # Steps to modify the docker-compose files to support Other Chains
 
-Below are the steps for adjusting ZKsync Era docker-compose files from [here](00_quick_start.md) to support chains other
-than ZKsync Era.
+Below are the steps for adjusting ZKsync Era docker-compose files from [here](00_quick_start.md) to support chains other than ZKsync Era.
 
 ```admonish note
 If you want to run Node for a given chain, you can first ask the company hosting the chains for the Dockerfiles.
