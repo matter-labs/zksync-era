@@ -376,11 +376,13 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
 
         let (client, bridgehub): (&dyn EthInterface, Address) = match initial_sl_mode {
             SettlementLayer::L1(_) => (&input.eth_client, bridgehub_proxy_addr),
-            SettlementLayer::Gateway(_) => (
+            SettlementLayer::Gateway(_) => {
                 require_en_gateway_client(l2_eth_client.as_ref())?;
-                l2_eth_client.as_ref().unwrap().as_ref() as &dyn EthInterface,
-                L2_BRIDGEHUB_ADDRESS,
-            ),
+                (
+                    l2_eth_client.as_ref().unwrap().as_ref() as &dyn EthInterface,
+                    L2_BRIDGEHUB_ADDRESS,
+                )
+            }
         };
 
         // There is no need to specify multicall3 for external node
