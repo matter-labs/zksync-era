@@ -1,6 +1,7 @@
 # Steps to modify the docker-compose files to support Other Chains
 
-Below are the steps for adjusting ZKsync Era docker-compose files from [here](00_quick_start.md) to support chains other than ZKsync Era.
+Below are the steps for adjusting ZKsync Era docker-compose files from [here](00_quick_start.md) to support chains other
+than ZKsync Era.
 
 ```admonish note
 If you want to run Node for a given chain, you can first ask the company hosting the chains for the Dockerfiles.
@@ -36,7 +37,8 @@ Set `EN_GATEWAY_URL` only if the chain operator gave you a reachable Gateway RPC
 
 For ZKsync Era mainnet, the default external-node setup does not need an explicit `EN_GATEWAY_URL`.
 
-If your chain settles to Gateway and you do not have a provider-supplied Gateway RPC URL yet, ask the company hosting the chain for the correct endpoint before enabling the setting.
+If your chain settles to Gateway and you do not have a provider-supplied Gateway RPC URL yet, ask the company hosting
+the chain for the correct endpoint before enabling the setting.
 
 ## 4. Update snapshots recovery settings
 
