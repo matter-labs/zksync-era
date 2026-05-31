@@ -178,6 +178,9 @@ impl ZksNamespace {
         U64::from(*self.state.api_config.l1_chain_id)
     }
 
+    /// Builds an L2->L1 log proof for a sealed batch and upgrades the local
+    /// Merkle proof with post-gateway metadata when the batch was executed
+    /// through Gateway.
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         storage: &mut Connection<'_, Core>,
