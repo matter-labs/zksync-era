@@ -40,6 +40,8 @@ struct MainNodeFeeState {
     interop_fee: U256,
 }
 
+/// Returns whether `en_getInteropFee` failed because the upstream endpoint does
+/// not expose that optional capability for EN.
 fn is_unavailable_interop_fee_error(err: &jsonrpsee::core::client::Error) -> bool {
     match err {
         jsonrpsee::core::client::Error::Call(error)
