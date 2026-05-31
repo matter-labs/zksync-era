@@ -43,10 +43,14 @@ assert(
     "mainnet prepared config should not set EN_GATEWAY_URL"
 );
 assert(
-    otherChainsGuide.includes("Set `EN_GATEWAY_URL` only if the chain operator gave you a reachable Gateway RPC endpoint for that chain."),
+    otherChainsGuide.includes(
+        "Set `EN_GATEWAY_URL` only if the chain operator gave you a reachable Gateway RPC endpoint for that chain."
+    ),
     "other-chains guide should explain when EN_GATEWAY_URL is actually required"
 );
 assert(
-    otherChainsGuide.includes("For ZKsync Era mainnet, the default external-node setup does not need an explicit `EN_GATEWAY_URL`."),
+    otherChainsGuide.includes(
+        "For ZKsync Era mainnet, the default external-node setup does not need an explicit `EN_GATEWAY_URL`."
+    ),
     "other-chains guide should state that Era mainnet does not need an explicit EN_GATEWAY_URL"
 );
