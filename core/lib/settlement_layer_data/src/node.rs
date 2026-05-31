@@ -287,9 +287,10 @@ fn require_en_bridgehub_proxy_addr(
 /// Validates that Gateway settlement wiring has an initialized Gateway RPC
 /// client before reusing it across EN contract-loading paths.
 fn require_en_gateway_client(
-    gateway_client: Option<&DynClient<L2>>,
-) -> anyhow::Result<&DynClient<L2>> {
+    gateway_client: Option<&Box<DynClient<L2>>>,
+) -> anyhow::Result<()> {
     gateway_client.context(EN_GATEWAY_CLIENT_REQUIRED)
+        .map(|_| ())
 }
 
 #[async_trait::async_trait]
@@ -376,7 +377,8 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
         let (client, bridgehub): (&dyn EthInterface, Address) = match initial_sl_mode {
             SettlementLayer::L1(_) => (&input.eth_client, bridgehub_proxy_addr),
             SettlementLayer::Gateway(_) => (
-                require_en_gateway_client(l2_eth_client.as_ref())? as &dyn EthInterface,
+                require_en_gateway_client(l2_eth_client.as_ref())?;
+                l2_eth_client.as_ref().unwrap().as_ref() as &dyn EthInterface,
                 L2_BRIDGEHUB_ADDRESS,
             ),
         };
@@ -397,9 +399,10 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
         let sl = WorkingSettlementLayer::new(initial_sl_mode, initial_sl_mode);
         let sl_client = match sl.settlement_layer() {
             SettlementLayer::L1(_) => SettlementLayerClient::L1(input.eth_client),
-            SettlementLayer::Gateway(_) => SettlementLayerClient::Gateway(
-                require_en_gateway_client(l2_eth_client.as_ref())?.clone(),
-            ),
+            SettlementLayer::Gateway(_) => {
+                require_en_gateway_client(l2_eth_client.as_ref())?;
+                SettlementLayerClient::Gateway(l2_eth_client.clone().unwrap())
+            }
         };
 
         Ok(Output {
@@ -461,8 +464,8 @@ mod tests {
     fn en_accepts_present_gateway_client() {
         let client = Box::new(MockClient::builder(L2::default()).build()) as Box<DynClient<L2>>;
 
-        let gateway_client = require_en_gateway_client(Some(&client)).unwrap();
-        let cloned_client = gateway_client.clone();
+        require_en_gateway_client(Some(&client)).unwrap();
+        let cloned_client = client.clone();
 
         assert_eq!(cloned_client.component(), client.component());
     }
