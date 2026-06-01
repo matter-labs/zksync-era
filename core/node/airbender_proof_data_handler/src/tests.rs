@@ -17,13 +17,28 @@ use zksync_airbender_prover_interface::{
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::MockObjectStore;
+use zksync_object_store::{MockObjectStore, StoredObject};
+use zksync_prover_interface::outputs::{L1BatchProofForL1, PlonkL1BatchProofForL1};
 use zksync_types::{
-    block::L1BatchHeader, settlement::SettlementLayer, L1BatchNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, H256,
+    block::L1BatchHeader, protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer,
+    L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use crate::create_proof_processing_router;
+
+/// A valid SNARK proof payload: a CBOR-encoded `L1BatchProofForL1`. The data handler decodes it to
+/// derive the protocol version used in the blob store key (mirroring Boojum proofs).
+fn encoded_snark_proof() -> Vec<u8> {
+    let proof = L1BatchProofForL1::new_plonk(PlonkL1BatchProofForL1 {
+        aggregation_result_coords: [[0; 32]; 4],
+        scheduler_proof: bellman::plonk::better_better_cs::proof::Proof::empty(),
+        protocol_version: ProtocolSemanticVersion {
+            minor: ProtocolVersionId::latest(),
+            patch: 0.into(),
+        },
+    });
+    <L1BatchProofForL1 as StoredObject>::serialize(&proof).unwrap()
+}
 
 fn test_config() -> AirbenderProofDataHandlerConfig {
     AirbenderProofDataHandlerConfig {
@@ -176,6 +191,17 @@ async fn submit_airbender_proof() {
     let batch_number = L1BatchNumber::from(1);
     let db_conn_pool = ConnectionPool::test_pool().await;
 
+    // The proof is keyed by the batch's semantic version, so the batch and its protocol version
+    // must exist in the DB.
+    save_default_protocol_version(&db_conn_pool).await;
+    db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
     mock_airbender_batch_status(db_conn_pool.clone(), batch_number).await;
 
     let airbender_proof_request = SubmitAirbenderProofRequest {
@@ -209,7 +235,7 @@ async fn submit_airbender_proof() {
 
     let proof = proof_db_conn
         .airbender_proof_generation_dal()
-        .get_airbender_proof(batch_number)
+        .get_airbender_fri_proof(batch_number)
         .await
         .unwrap()
         .expect("proof should exist");
@@ -222,7 +248,17 @@ async fn submit_airbender_proof_rejects_when_not_picked() {
     let batch_number = L1BatchNumber::from(1);
     let db_conn_pool = ConnectionPool::test_pool().await;
 
-    // Do NOT insert an airbender_proof_generation_job — the batch has no row at all
+    // Seed the batch + protocol version (needed to key the proof), but do NOT insert an
+    // airbender_proof_generation_job — so the submit is rejected at the status check.
+    save_default_protocol_version(&db_conn_pool).await;
+    db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
     let airbender_proof_request = SubmitAirbenderProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-prover".to_string(),
@@ -292,9 +328,10 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
 
     let fri_payload = vec![0xAA, 0xBB, 0xCC, 0xDD];
     let object_store = MockObjectStore::arc();
+    let proof_version = batch_proof_version(&db_conn_pool, batch_number).await;
     object_store
         .put(
-            batch_number,
+            (batch_number, proof_version),
             &L1BatchAirbenderProofForL1 {
                 proof: fri_payload.clone(),
             },
@@ -331,7 +368,7 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
     let mut conn = db_conn_pool.connection().await.unwrap();
     let row = conn
         .airbender_proof_generation_dal()
-        .get_airbender_proof(batch_number)
+        .get_airbender_fri_proof(batch_number)
         .await
         .unwrap()
         .expect("row should exist");
@@ -386,7 +423,7 @@ async fn snark_inputs_rolls_back_lock_when_fri_proof_missing_in_gcs() {
     let mut conn = db_conn_pool.connection().await.unwrap();
     let row = conn
         .airbender_proof_generation_dal()
-        .get_airbender_proof(batch_number)
+        .get_airbender_fri_proof(batch_number)
         .await
         .unwrap()
         .expect("row should exist");
@@ -403,7 +440,7 @@ async fn submit_snark_proof_succeeds_when_picked_for_snark() {
     let request = SubmitAirbenderSnarkProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
-        snark_proof: vec![0x01, 0x02, 0x03, 0x04],
+        snark_proof: encoded_snark_proof(),
     };
 
     let app = create_proof_processing_router(
@@ -433,11 +470,11 @@ async fn submit_snark_proof_rejects_when_not_picked_for_snark() {
     let batch_number = L1BatchNumber(1);
     let db_conn_pool = ConnectionPool::test_pool().await;
 
-    // No airbender row at all — submit should fail.
+    // No airbender row at all — submit should fail when saving metadata.
     let request = SubmitAirbenderSnarkProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
-        snark_proof: vec![0x01, 0x02],
+        snark_proof: encoded_snark_proof(),
     };
 
     let app = create_proof_processing_router(
@@ -520,6 +557,28 @@ async fn save_default_protocol_version(pool: &ConnectionPool<Core>) {
         .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
+}
+
+/// Computes the same `(minor, first patch)` semantic version the request processor uses to key a
+/// batch's Airbender proofs in the object store.
+async fn batch_proof_version(
+    pool: &ConnectionPool<Core>,
+    batch_number: L1BatchNumber,
+) -> ProtocolSemanticVersion {
+    let mut connection = pool.connection().await.unwrap();
+    let minor = connection
+        .blocks_dal()
+        .get_batch_protocol_version_id(batch_number)
+        .await
+        .unwrap()
+        .unwrap();
+    let patch = connection
+        .protocol_versions_dal()
+        .first_patch_for_version(minor)
+        .await
+        .unwrap()
+        .unwrap();
+    ProtocolSemanticVersion { minor, patch }
 }
 
 async fn insert_batch_for_airbender_inputs(

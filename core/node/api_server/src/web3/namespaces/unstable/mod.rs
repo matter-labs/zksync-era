@@ -63,7 +63,7 @@ impl UnstableNamespace {
         let mut storage = self.state.acquire_connection().await?;
         let stored = storage
             .airbender_proof_generation_dal()
-            .get_airbender_proof(l1_batch_number)
+            .get_airbender_fri_proof(l1_batch_number)
             .await
             .map_err(DalError::generalize)?;
 
