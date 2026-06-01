@@ -1,12 +1,15 @@
 use std::{sync::Arc, time::Duration};
 
 use chrono::Utc;
-use zksync_config::configs::eth_sender::{PrecommitParams, ProofSendingMode, SenderConfig};
+use zksync_airbender_prover_interface::outputs::L1BatchAirbenderSnarkProofForL1;
+use zksync_config::configs::eth_sender::{
+    PrecommitParams, ProofSendingMode, ProverType, SenderConfig,
+};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{blocks_dal::TxForPrecommit, Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_object_store::{ObjectStore, ObjectStoreError, StoredObject};
 use zksync_prover_interface::outputs::{L1BatchProofForL1, L1BatchProofForL1Key};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
@@ -577,7 +580,7 @@ impl Aggregator {
             .await
             .unwrap()?;
 
-        let ready_for_commit_l1_batches = if protocol_version_id.is_pre_boojum() {
+        let mut ready_for_commit_l1_batches = if protocol_version_id.is_pre_boojum() {
             blocks_dal
                 .pre_boojum_get_ready_for_commit_l1_batches(
                     limit,
@@ -600,6 +603,14 @@ impl Aggregator {
                 .await
                 .unwrap()
         };
+
+        // When the Airbender prover is active, a batch can only be committed once its
+        // Airbender FRI proof has been produced (`proof_blob_url IS NOT NULL`). Keep
+        // only the leading prefix of batches that satisfy this, preserving sequentiality.
+        if self.config.prover == ProverType::Airbender {
+            ready_for_commit_l1_batches =
+                Self::filter_airbender_fri_proven(storage, ready_for_commit_l1_batches).await;
+        }
 
         // Check that the L1 batches that are selected are sequential
         ready_for_commit_l1_batches
@@ -727,6 +738,7 @@ impl Aggregator {
         l1_verifier_config: L1VerifierConfig,
         blob_store: &dyn ObjectStore,
         is_4844_mode: bool,
+        prover: ProverType,
     ) -> Option<ProveBatches> {
         let previous_proven_batch_number = storage
             .blocks_dal()
@@ -784,8 +796,15 @@ impl Aggregator {
             })
             .collect();
 
-        let proof =
-            load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, &allowed_versions).await;
+        let proof = match prover {
+            ProverType::Boojum => {
+                load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, &allowed_versions)
+                    .await
+            }
+            ProverType::Airbender => {
+                Self::load_airbender_snark_proof(storage, batch_to_prove, blob_store).await
+            }
+        };
         let Some(proof) = proof else {
             // The proof for the next L1 batch is not generated yet
             return None;
@@ -820,6 +839,70 @@ impl Aggregator {
             proofs: vec![proof],
             should_verify: true,
         })
+    }
+
+    /// Truncates `batches` to the leading prefix whose Airbender FRI proof has been
+    /// produced (`airbender_proof_generation_details.proof_blob_url IS NOT NULL`).
+    /// Batches are sequential, so the first one without a proof stops the range.
+    async fn filter_airbender_fri_proven(
+        storage: &mut Connection<'_, Core>,
+        batches: Vec<L1BatchWithMetadata>,
+    ) -> Vec<L1BatchWithMetadata> {
+        let mut proven = Vec::with_capacity(batches.len());
+        for batch in batches {
+            let fri_proof_present = storage
+                .airbender_proof_generation_dal()
+                .get_airbender_proof(batch.header.number)
+                .await
+                .unwrap()
+                .and_then(|proof| proof.proof_blob_url)
+                .is_some();
+            if !fri_proof_present {
+                break;
+            }
+            proven.push(batch);
+        }
+        proven
+    }
+
+    /// Loads the SNARK-wrapped Airbender proof for `l1_batch_number` and decodes it into the
+    /// same `L1BatchProofForL1` used for Boojum plonk/fflonk proofs, so the prove transaction is
+    /// serialized identically. Returns `None` when the SNARK proof has not been produced yet
+    /// (`snark_proof_blob_url IS NULL`) or its blob is not yet available.
+    async fn load_airbender_snark_proof(
+        storage: &mut Connection<'_, Core>,
+        l1_batch_number: L1BatchNumber,
+        blob_store: &dyn ObjectStore,
+    ) -> Option<L1BatchProofForL1> {
+        // Gate on the DB marker first: a non-null `snark_proof_blob_url` means the SNARK
+        // proof has been submitted and uploaded to the object store.
+        storage
+            .airbender_proof_generation_dal()
+            .get_airbender_snark_proof(l1_batch_number)
+            .await
+            .unwrap()?
+            .snark_proof_blob_url?;
+
+        let snark_proof: L1BatchAirbenderSnarkProofForL1 =
+            match blob_store.get(l1_batch_number).await {
+                Ok(proof) => proof,
+                Err(ObjectStoreError::KeyNotFound(_)) => return None,
+                Err(err) => panic!(
+                    "Failed to load Airbender SNARK proof for batch {}: {}",
+                    l1_batch_number.0, err
+                ),
+            };
+
+        // The SNARK prover stores a CBOR-encoded `L1BatchProofForL1` (plonk/fflonk), so it can be
+        // submitted through the same path as Boojum proofs.
+        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(snark_proof.snark_proof)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "Failed to deserialize Airbender SNARK proof for batch {}: {}",
+                    l1_batch_number.0, err
+                )
+            });
+        Some(proof)
     }
 
     async fn prepare_dummy_proof_operation(
@@ -865,6 +948,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &*self.blob_store,
                     self.operate_4844_mode,
+                    self.config.prover,
                 )
                 .await
             }
@@ -887,6 +971,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &*self.blob_store,
                     self.operate_4844_mode,
+                    self.config.prover,
                 )
                 .await
                 {
