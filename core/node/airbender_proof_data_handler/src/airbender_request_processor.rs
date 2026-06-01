@@ -27,7 +27,10 @@ use zksync_types::{
 };
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
-use crate::{errors::AirbenderProcessorError, metrics::METRICS};
+use crate::{
+    errors::AirbenderProcessorError,
+    metrics::{ProcessorErrorKind, ProofStage, METRICS},
+};
 
 #[derive(Clone)]
 pub(crate) struct AirbenderRequestProcessor {
@@ -84,7 +87,11 @@ impl AirbenderRequestProcessor {
                 .await
             {
                 Ok(input) => {
+                    let protocol_version =
+                        batch_protocol_semantic_version(&mut transaction, batch_number).await?;
                     transaction.commit().await?;
+                    METRICS.airbender_jobs_picked[&(ProofStage::Fri, protocol_version.to_string())]
+                        .inc();
                     return Ok(Some(input));
                 }
                 Err(AirbenderProcessorError::ObjectStore {
@@ -93,6 +100,8 @@ impl AirbenderRequestProcessor {
                 }) => {
                     // Dropping the tx rolls the lock back so the batch is retryable.
                     drop(transaction);
+                    METRICS.airbender_processor_errors[&ProcessorErrorKind::ObjectStoreKeyNotFound]
+                        .inc();
                     tracing::warn!(
                         "Data not available on GCS for batch {} created at {} (attempt {}/{}): {context}",
                         batch_number,
@@ -108,6 +117,7 @@ impl AirbenderRequestProcessor {
             }
         }
 
+        METRICS.airbender_processor_errors[&ProcessorErrorKind::AttemptsExhausted].inc();
         tracing::warn!("Exhausted {max_attempts} attempts to find a batch with available GCS data");
         Ok(None)
     }
@@ -372,6 +382,8 @@ impl AirbenderRequestProcessor {
             f64::NAN
         };
 
+        METRICS.airbender_proofs_received[&(ProofStage::Fri, protocol_version.to_string())].inc();
+
         tracing::info!(
             l1_batch_number = %l1_batch_number,
             prover_id = %prover_id,
@@ -419,6 +431,9 @@ impl AirbenderRequestProcessor {
                     Err(ObjectStoreError::KeyNotFound(err)) => {
                         // Dropping the tx rolls the lock back to `generated`.
                         drop(transaction);
+                        METRICS.airbender_processor_errors
+                            [&ProcessorErrorKind::ObjectStoreKeyNotFound]
+                            .inc();
                         tracing::warn!(
                             "FRI proof not available on GCS for batch {} (attempt {}/{}): {err}",
                             batch_number,
@@ -437,12 +452,15 @@ impl AirbenderRequestProcessor {
 
             transaction.commit().await?;
 
+            METRICS.airbender_jobs_picked[&(ProofStage::Snark, protocol_version.to_string())].inc();
+
             return Ok(Some(AirbenderSnarkInputsResponse {
                 l1_batch_number: batch_number.0,
                 fri_proof: proof.proof,
             }));
         }
 
+        METRICS.airbender_processor_errors[&ProcessorErrorKind::AttemptsExhausted].inc();
         tracing::warn!(
             "Exhausted {max_attempts} attempts to find a batch with available FRI proof"
         );
@@ -480,16 +498,36 @@ impl AirbenderRequestProcessor {
                 context: "Failed to upload SNARK proof to GCS".into(),
             })?;
 
-        self.pool
+        let mut connection = self
+            .pool
             .connection_tagged("airbender_request_processor")
-            .await?
+            .await?;
+
+        connection
             .airbender_proof_generation_dal()
             .save_snark_proof_artifacts_metadata(l1_batch_number, &snark_proof_blob_url, &prover_id)
             .await?;
 
+        let sealed_at = connection
+            .blocks_dal()
+            .get_batch_sealed_at(l1_batch_number)
+            .await?;
+
+        let duration = sealed_at.and_then(|sealed_at| (Utc::now() - sealed_at).to_std().ok());
+
+        let duration_secs_f64 = if let Some(duration) = duration {
+            METRICS.airbender_snark_roundtrip_time.observe(duration);
+            duration.as_secs_f64()
+        } else {
+            f64::NAN
+        };
+
+        METRICS.airbender_proofs_received[&(ProofStage::Snark, protocol_version.to_string())].inc();
+
         tracing::info!(
             l1_batch_number = %l1_batch_number,
             prover_id = %prover_id,
+            sealed_to_proven_in_secs = duration_secs_f64,
             "Received SNARK proof for batch {}",
             l1_batch_number
         );
