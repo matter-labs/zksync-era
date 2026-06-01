@@ -346,7 +346,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
         Ok(proof)
     }
 
-    pub async fn get_airbender_proof(
+    pub async fn get_airbender_fri_proof(
         &mut self,
         batch_number: L1BatchNumber,
     ) -> DalResult<Option<StorageAirbenderProof>> {
@@ -364,7 +364,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
             "#,
             i64::from(batch_number.0)
         )
-        .instrument("get_airbender_proof")
+        .instrument("get_airbender_fri_proof")
         .with_arg("l1_batch_number", &batch_number)
         .fetch_optional(self.storage)
         .await?;

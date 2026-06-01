@@ -13452,6 +13452,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_airbender_prover_interface",
+ "zksync_bellman",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
