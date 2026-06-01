@@ -291,13 +291,11 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $4
-                AND status = $5
             "#,
             AirbenderProofGenerationJobStatus::SnarkGenerated.to_string(),
             snark_proof_blob_url,
             snark_prover_id,
             batch_number,
-            AirbenderProofGenerationJobStatus::PickedForSnark.to_string(),
         );
         let instrumentation = Instrumented::new("save_snark_proof_artifacts_metadata")
             .with_arg("snark_proof_blob_url", &snark_proof_blob_url)
@@ -310,9 +308,10 @@ impl AirbenderProofGenerationDal<'_, '_> {
             .await?;
         if result.rows_affected() == 0 {
             let err = instrumentation.constraint_error(anyhow::anyhow!(
-                "Cannot save SNARK proof for batch {}: batch is not in '{}' status (it may have timed out and been reassigned)",
+                "Cannot save SNARK proof for batch {}: batch is not in '{}' or '{}' status (it may have timed out and been reassigned)",
                 batch_number,
                 AirbenderProofGenerationJobStatus::PickedForSnark,
+                AirbenderProofGenerationJobStatus::Generated,
             ));
             return Err(err);
         }
