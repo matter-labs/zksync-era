@@ -39,3 +39,4 @@ zksync_multivm.workspace = true
 serde_json.workspace = true
 tower = { workspace = true, features = ["util"] }
 zksync_contracts.workspace = true
+bellman.workspace = true
