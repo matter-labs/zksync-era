@@ -18,6 +18,7 @@ use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::MockObjectStore;
+use zksync_prover_interface::outputs::SnarkWrapperProof;
 use zksync_types::{
     block::L1BatchHeader, protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer,
     L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
@@ -25,12 +26,11 @@ use zksync_types::{
 
 use crate::create_proof_processing_router;
 
-/// A valid SNARK proof payload: a real `SnarkWrapperProof` (bellman PLONK proof) JSON-encoded
-/// exactly as the verifier submits it. The data handler flattens it into the CBOR `L1BatchProofForL1`
-/// the eth_sender submits, deriving the protocol version from the batch number (mirroring Boojum
-/// proofs).
-fn snark_wrapper_proof_json() -> Vec<u8> {
-    include_bytes!("test_data/snark_wrapper_proof.json").to_vec()
+/// A real `SnarkWrapperProof` (bellman PLONK proof), exactly as the verifier submits it. The data
+/// handler flattens it into the CBOR `L1BatchProofForL1` the eth_sender submits, deriving the
+/// protocol version from the batch number (mirroring Boojum proofs).
+fn snark_wrapper_proof() -> SnarkWrapperProof {
+    serde_json::from_slice(include_bytes!("test_data/snark_wrapper_proof.json")).unwrap()
 }
 
 fn test_config() -> AirbenderProofDataHandlerConfig {
@@ -310,13 +310,24 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
             .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
             .await
             .unwrap();
+        let protocol_version = conn
+            .protocol_versions_dal()
+            .latest_semantic_version()
+            .await
+            .unwrap()
+            .unwrap();
         let mut dal = conn.airbender_proof_generation_dal();
         dal.insert_airbender_proof_generation_job(batch_number)
             .await
             .unwrap();
-        dal.save_proof_artifacts_metadata(batch_number, "fri-blob-url", "fri-prover")
-            .await
-            .unwrap();
+        dal.save_proof_artifacts_metadata(
+            batch_number,
+            "fri-blob-url",
+            "fri-prover",
+            protocol_version,
+        )
+        .await
+        .unwrap();
     }
 
     let fri_payload = vec![0xAA, 0xBB, 0xCC, 0xDD];
@@ -380,13 +391,24 @@ async fn snark_inputs_rolls_back_lock_when_fri_proof_missing_in_gcs() {
             .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
             .await
             .unwrap();
+        let protocol_version = conn
+            .protocol_versions_dal()
+            .latest_semantic_version()
+            .await
+            .unwrap()
+            .unwrap();
         let mut dal = conn.airbender_proof_generation_dal();
         dal.insert_airbender_proof_generation_job(batch_number)
             .await
             .unwrap();
-        dal.save_proof_artifacts_metadata(batch_number, "fri-blob-url", "fri-prover")
-            .await
-            .unwrap();
+        dal.save_proof_artifacts_metadata(
+            batch_number,
+            "fri-blob-url",
+            "fri-prover",
+            protocol_version,
+        )
+        .await
+        .unwrap();
     }
 
     // No FRI proof in the mock object store — handler should exhaust retries.
@@ -433,7 +455,7 @@ async fn submit_snark_proof_succeeds_when_picked_for_snark() {
     let request = SubmitAirbenderSnarkProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
-        snark_proof: snark_wrapper_proof_json(),
+        snark_proof: snark_wrapper_proof(),
     };
 
     let app = create_proof_processing_router(
@@ -478,7 +500,7 @@ async fn submit_snark_proof_rejects_when_not_picked_for_snark() {
     let request = SubmitAirbenderSnarkProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
-        snark_proof: snark_wrapper_proof_json(),
+        snark_proof: snark_wrapper_proof(),
     };
 
     let app = create_proof_processing_router(
@@ -535,14 +557,25 @@ async fn mock_airbender_picked_for_snark(
         .unwrap();
 
     let mut conn = db_conn_pool.connection().await.unwrap();
+    let protocol_version = conn
+        .protocol_versions_dal()
+        .latest_semantic_version()
+        .await
+        .unwrap()
+        .unwrap();
     let mut dal = conn.airbender_proof_generation_dal();
 
     dal.insert_airbender_proof_generation_job(batch_number)
         .await
         .expect("Failed to insert airbender_proof_generation_job");
-    dal.save_proof_artifacts_metadata(batch_number, "fri-blob-url", "fri-prover")
-        .await
-        .expect("Failed to save FRI proof artifacts");
+    dal.save_proof_artifacts_metadata(
+        batch_number,
+        "fri-blob-url",
+        "fri-prover",
+        protocol_version,
+    )
+    .await
+    .expect("Failed to save FRI proof artifacts");
 
     let locked = dal
         .lock_batch_for_snark(Duration::from_secs(600), L1BatchNumber(0))
@@ -575,26 +608,19 @@ async fn save_default_protocol_version(pool: &ConnectionPool<Core>) {
         .unwrap();
 }
 
-/// Computes the same `(minor, first patch)` semantic version the request processor uses to key a
-/// batch's Airbender proofs in the object store.
+/// The semantic version the request processor records for a batch's Airbender proofs and uses to
+/// key them in the object store — the latest protocol version known to the node.
 async fn batch_proof_version(
     pool: &ConnectionPool<Core>,
-    batch_number: L1BatchNumber,
+    _batch_number: L1BatchNumber,
 ) -> ProtocolSemanticVersion {
     let mut connection = pool.connection().await.unwrap();
-    let minor = connection
-        .blocks_dal()
-        .get_batch_protocol_version_id(batch_number)
-        .await
-        .unwrap()
-        .unwrap();
-    let patch = connection
+    connection
         .protocol_versions_dal()
-        .first_patch_for_version(minor)
+        .latest_semantic_version()
         .await
         .unwrap()
-        .unwrap();
-    ProtocolSemanticVersion { minor, patch }
+        .unwrap()
 }
 
 async fn insert_batch_for_airbender_inputs(

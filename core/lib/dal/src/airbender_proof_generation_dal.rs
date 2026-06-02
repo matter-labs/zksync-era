@@ -9,11 +9,14 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
-use zksync_types::L1BatchNumber;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
 
 use crate::{
-    models::storage_airbender_proof::{
-        StorageAirbenderProof, StorageAirbenderSnarkProof, StorageLockedBatch,
+    models::{
+        parse_protocol_version,
+        storage_airbender_proof::{
+            StorageAirbenderProof, StorageAirbenderSnarkProof, StorageLockedBatch,
+        },
     },
     Core,
 };
@@ -180,6 +183,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
         batch_number: L1BatchNumber,
         proof_blob_url: &str,
         prover_id: &str,
+        protocol_version: ProtocolSemanticVersion,
     ) -> DalResult<()> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
@@ -189,20 +193,25 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 status = $1,
                 proof_blob_url = $2,
                 prover_id = $3,
+                protocol_version = $4,
+                protocol_version_patch = $5,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $4
-                AND status = $5
+                l1_batch_number = $6
+                AND status = $7
             "#,
             AirbenderProofGenerationJobStatus::Generated.to_string(),
             proof_blob_url,
             prover_id,
+            protocol_version.minor as i32,
+            protocol_version.patch.0 as i32,
             batch_number,
             AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
         );
         let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
             .with_arg("proof_blob_url", &proof_blob_url)
             .with_arg("prover_id", &prover_id)
+            .with_arg("protocol_version", &protocol_version)
             .with_arg("l1_batch_number", &batch_number);
         let result = instrumentation
             .clone()
@@ -370,6 +379,42 @@ impl AirbenderProofGenerationDal<'_, '_> {
         .await?;
 
         Ok(proof)
+    }
+
+    /// Returns the protocol semantic version the batch's FRI proof was generated under, as persisted
+    /// by [`Self::save_proof_artifacts_metadata`]. `None` if the batch is unknown or its FRI proof
+    /// has not been submitted yet (so the version has not been recorded).
+    pub async fn get_batch_protocol_version(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<ProtocolSemanticVersion>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                protocol_version,
+                protocol_version_patch
+            FROM
+                airbender_proof_generation_details
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::from(batch_number.0)
+        )
+        .try_map(|row| {
+            row.protocol_version
+                .map(|minor| {
+                    parse_protocol_version(minor).map(|minor| ProtocolSemanticVersion {
+                        minor,
+                        patch: (row.protocol_version_patch as u32).into(),
+                    })
+                })
+                .transpose()
+        })
+        .instrument("get_batch_protocol_version")
+        .with_arg("l1_batch_number", &batch_number)
+        .fetch_optional(self.storage)
+        .await
+        .map(Option::flatten)
     }
 
     /// For testing purposes only.

@@ -23,10 +23,10 @@ bellman.workspace = true
 
 serde.workspace = true
 serde_with = { workspace = true, features = ["base64", "hex"] }
-serde_json.workspace = true
 ciborium.workspace = true
 chrono.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 bincode.workspace = true
+serde_json.workspace = true

@@ -10656,7 +10656,6 @@ dependencies = [
  "circuit_definitions",
  "fflonk",
  "serde",
- "serde_json",
  "serde_with 1.14.0",
  "zksync_bellman",
  "zksync_object_store",
