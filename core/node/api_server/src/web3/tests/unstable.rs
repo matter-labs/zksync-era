@@ -32,12 +32,8 @@ impl HttpTest for GetAirbenderProofTest {
             .await?;
 
         let proof_blob_url = "l1_batch_airbender_proof_1337.bin";
-        let protocol_version = zksync_types::protocol_version::ProtocolSemanticVersion {
-            minor: zksync_types::ProtocolVersionId::latest(),
-            patch: 0.into(),
-        };
         airbender_proof_generation_dal
-            .save_proof_artifacts_metadata(batch_no, proof_blob_url, "test-prover", protocol_version)
+            .save_proof_artifacts_metadata(batch_no, proof_blob_url, "test-prover")
             .await?;
 
         let proof = client.airbender_proof(batch_no).await?;

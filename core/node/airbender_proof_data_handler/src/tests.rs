@@ -310,24 +310,13 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
             .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
             .await
             .unwrap();
-        let protocol_version = conn
-            .protocol_versions_dal()
-            .latest_semantic_version()
-            .await
-            .unwrap()
-            .unwrap();
         let mut dal = conn.airbender_proof_generation_dal();
         dal.insert_airbender_proof_generation_job(batch_number)
             .await
             .unwrap();
-        dal.save_proof_artifacts_metadata(
-            batch_number,
-            "fri-blob-url",
-            "fri-prover",
-            protocol_version,
-        )
-        .await
-        .unwrap();
+        dal.save_proof_artifacts_metadata(batch_number, "fri-blob-url", "fri-prover")
+            .await
+            .unwrap();
     }
 
     let fri_payload = vec![0xAA, 0xBB, 0xCC, 0xDD];
@@ -391,24 +380,13 @@ async fn snark_inputs_rolls_back_lock_when_fri_proof_missing_in_gcs() {
             .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
             .await
             .unwrap();
-        let protocol_version = conn
-            .protocol_versions_dal()
-            .latest_semantic_version()
-            .await
-            .unwrap()
-            .unwrap();
         let mut dal = conn.airbender_proof_generation_dal();
         dal.insert_airbender_proof_generation_job(batch_number)
             .await
             .unwrap();
-        dal.save_proof_artifacts_metadata(
-            batch_number,
-            "fri-blob-url",
-            "fri-prover",
-            protocol_version,
-        )
-        .await
-        .unwrap();
+        dal.save_proof_artifacts_metadata(batch_number, "fri-blob-url", "fri-prover")
+            .await
+            .unwrap();
     }
 
     // No FRI proof in the mock object store — handler should exhaust retries.
@@ -557,25 +535,14 @@ async fn mock_airbender_picked_for_snark(
         .unwrap();
 
     let mut conn = db_conn_pool.connection().await.unwrap();
-    let protocol_version = conn
-        .protocol_versions_dal()
-        .latest_semantic_version()
-        .await
-        .unwrap()
-        .unwrap();
     let mut dal = conn.airbender_proof_generation_dal();
 
     dal.insert_airbender_proof_generation_job(batch_number)
         .await
         .expect("Failed to insert airbender_proof_generation_job");
-    dal.save_proof_artifacts_metadata(
-        batch_number,
-        "fri-blob-url",
-        "fri-prover",
-        protocol_version,
-    )
-    .await
-    .expect("Failed to save FRI proof artifacts");
+    dal.save_proof_artifacts_metadata(batch_number, "fri-blob-url", "fri-prover")
+        .await
+        .expect("Failed to save FRI proof artifacts");
 
     let locked = dal
         .lock_batch_for_snark(Duration::from_secs(600), L1BatchNumber(0))

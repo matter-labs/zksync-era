@@ -808,8 +808,7 @@ impl Aggregator {
                     .await
             }
             ProverType::Airbender => {
-                load_airbender_snark_proof(storage, batch_to_prove, blob_store, &allowed_versions)
-                    .await
+                load_airbender_snark_proof(storage, batch_to_prove, blob_store).await
             }
         };
         let Some(proof) = proof else {
@@ -1221,8 +1220,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            let loaded =
-                load_airbender_snark_proof(&mut storage, batch, &*blob_store, &[version]).await;
+            let loaded = load_airbender_snark_proof(&mut storage, batch, &*blob_store).await;
 
             let proof = loaded.expect("proof should be loaded");
             assert_eq!(proof.protocol_version(), version);
@@ -1239,9 +1237,7 @@ mod tests {
             // Only the FRI proof exists; the SNARK proof hasn't been produced.
             seed_fri_proof(&mut storage, batch).await;
 
-            let loaded =
-                load_airbender_snark_proof(&mut storage, batch, &*blob_store, &[test_version()])
-                    .await;
+            let loaded = load_airbender_snark_proof(&mut storage, batch, &*blob_store).await;
             assert!(loaded.is_none());
         }
 
@@ -1265,9 +1261,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            let loaded =
-                load_airbender_snark_proof(&mut storage, batch, &*blob_store, &[allowed_version])
-                    .await;
+            let loaded = load_airbender_snark_proof(&mut storage, batch, &*blob_store).await;
             assert!(loaded.is_none());
         }
     }
@@ -1278,11 +1272,10 @@ async fn load_airbender_snark_proof(
     storage: &mut Connection<'_, Core>,
     l1_batch_number: L1BatchNumber,
     blob_store: &dyn ObjectStore,
-    allowed_versions: &[ProtocolSemanticVersion],
 ) -> Option<L1BatchProofForL1> {
     // Gate on the DB marker first: a non-null `snark_proof_blob_url` means the SNARK
     // proof has been submitted and uploaded to the object store.
-    storage
+    let blob_url = storage
         .airbender_proof_generation_dal()
         .get_airbender_snark_proof(l1_batch_number)
         .await
@@ -1291,28 +1284,24 @@ async fn load_airbender_snark_proof(
 
     // Try each protocol version whose verification key matches the one on L1, mirroring
     // `load_wrapped_fri_proofs_for_range`.
-    for version in allowed_versions {
-        let snark_proof: L1BatchAirbenderSnarkProofForL1 =
-            match blob_store.get((l1_batch_number, *version)).await {
-                Ok(proof) => proof,
-                Err(ObjectStoreError::KeyNotFound(_)) => continue,
-                Err(err) => panic!(
-                    "Failed to load Airbender SNARK proof for batch {}: {}",
-                    l1_batch_number.0, err
-                ),
-            };
+    let snark_proof: L1BatchAirbenderSnarkProofForL1 =
+        match blob_store.get_by_encoded_key(blob_url).await {
+            Ok(proof) => proof,
+            Err(ObjectStoreError::KeyNotFound(_)) => return None,
+            Err(err) => panic!(
+                "Failed to load Airbender SNARK proof for batch {}: {}",
+                l1_batch_number.0, err
+            ),
+        };
 
-        // The SNARK prover stores a CBOR-encoded `L1BatchProofForL1` (plonk/fflonk), so it can be
-        // submitted through the same path as Boojum proofs.
-        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(snark_proof.snark_proof)
-            .unwrap_or_else(|err| {
-                panic!(
-                    "Failed to deserialize Airbender SNARK proof for batch {}: {}",
-                    l1_batch_number.0, err
-                )
-            });
-        return Some(proof);
-    }
-
-    None
+    // The SNARK prover stores a CBOR-encoded `L1BatchProofForL1` (plonk/fflonk), so it can be
+    // submitted through the same path as Boojum proofs.
+    let proof = <L1BatchProofForL1 as StoredObject>::deserialize(snark_proof.snark_proof)
+        .unwrap_or_else(|err| {
+            panic!(
+                "Failed to deserialize Airbender SNARK proof for batch {}: {}",
+                l1_batch_number.0, err
+            )
+        });
+    return Some(proof);
 }

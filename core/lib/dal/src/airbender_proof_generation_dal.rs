@@ -55,6 +55,8 @@ pub enum AirbenderProofGenerationJobStatus {
 pub struct LockedBatch {
     /// Locked batch number.
     pub l1_batch_number: L1BatchNumber,
+    /// The protocol version of the batch.
+    pub protocol_version: ProtocolSemanticVersion,
     /// The creation time of the job for this batch. It is used to determine if the batch should
     /// transition to [AirbenderProofGenerationJobStatus::Failed].
     pub created_at: DateTime<Utc>,
@@ -65,6 +67,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
         &mut self,
         processing_timeout: Duration,
         min_batch_number: L1BatchNumber,
+        protocol_version: ProtocolSemanticVersion,
     ) -> DalResult<Option<LockedBatch>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
@@ -77,7 +80,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
             StorageLockedBatch,
             r#"
             UPDATE airbender_proof_generation_details
-            SET status = $1, updated_at = NOW(), prover_taken_at = NOW()
+            SET
+                status = $1, updated_at = NOW(), prover_taken_at = NOW(),
+                protocol_version = $5, protocol_version_patch = $6
             WHERE
                 l1_batch_number = (
                     SELECT apgd.l1_batch_number
@@ -99,16 +104,22 @@ impl AirbenderProofGenerationDal<'_, '_> {
                     LIMIT 1
                     FOR UPDATE OF apgd SKIP LOCKED
                 )
-            RETURNING l1_batch_number, created_at
+            RETURNING l1_batch_number,
+            created_at,
+            protocol_version AS "protocol_version!",
+            protocol_version_patch
             "#,
             picked,
             failed,
             min_batch_number,
             processing_timeout,
+            protocol_version.minor as i32,
+            protocol_version.patch.0 as i32,
         )
         .instrument("lock_batch_for_proving#reclaim")
         .with_arg("processing_timeout", &processing_timeout)
         .with_arg("min_batch_number", &min_batch_number)
+        .with_arg("protocol_version", &protocol_version)
         .fetch_optional(self.storage)
         .await?
         .map(Into::into);
@@ -123,9 +134,10 @@ impl AirbenderProofGenerationDal<'_, '_> {
             StorageLockedBatch,
             r#"
             INSERT INTO airbender_proof_generation_details (
-                l1_batch_number, status, created_at, updated_at, prover_taken_at
+                l1_batch_number, status, created_at, updated_at, prover_taken_at,
+                protocol_version, protocol_version_patch
             )
-            SELECT p.l1_batch_number, $1, NOW(), NOW(), NOW()
+            SELECT p.l1_batch_number, $1, NOW(), NOW(), NOW(), $3, $4
             FROM proof_generation_details p
             WHERE
                 p.l1_batch_number >= $2
@@ -138,13 +150,19 @@ impl AirbenderProofGenerationDal<'_, '_> {
             ORDER BY p.l1_batch_number ASC
             LIMIT 1
             ON CONFLICT (l1_batch_number) DO NOTHING
-            RETURNING l1_batch_number, created_at
+            RETURNING l1_batch_number,
+            created_at,
+            protocol_version AS "protocol_version!",
+            protocol_version_patch
             "#,
             picked,
             min_batch_number,
+            protocol_version.minor as i32,
+            protocol_version.patch.0 as i32,
         )
         .instrument("lock_batch_for_proving#new")
         .with_arg("min_batch_number", &min_batch_number)
+        .with_arg("protocol_version", &protocol_version)
         .fetch_optional(self.storage)
         .await?
         .map(Into::into);
@@ -183,7 +201,6 @@ impl AirbenderProofGenerationDal<'_, '_> {
         batch_number: L1BatchNumber,
         proof_blob_url: &str,
         prover_id: &str,
-        protocol_version: ProtocolSemanticVersion,
     ) -> DalResult<()> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
@@ -193,25 +210,20 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 status = $1,
                 proof_blob_url = $2,
                 prover_id = $3,
-                protocol_version = $4,
-                protocol_version_patch = $5,
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $6
-                AND status = $7
+                l1_batch_number = $4
+                AND status = $5
             "#,
             AirbenderProofGenerationJobStatus::Generated.to_string(),
             proof_blob_url,
             prover_id,
-            protocol_version.minor as i32,
-            protocol_version.patch.0 as i32,
             batch_number,
             AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
         );
         let instrumentation = Instrumented::new("save_proof_artifacts_metadata")
             .with_arg("proof_blob_url", &proof_blob_url)
             .with_arg("prover_id", &prover_id)
-            .with_arg("protocol_version", &protocol_version)
             .with_arg("l1_batch_number", &batch_number);
         let result = instrumentation
             .clone()
@@ -266,7 +278,10 @@ impl AirbenderProofGenerationDal<'_, '_> {
                     LIMIT 1
                     FOR UPDATE OF apgd SKIP LOCKED
                 )
-            RETURNING l1_batch_number, created_at
+            RETURNING l1_batch_number,
+            protocol_version AS "protocol_version!",
+            protocol_version_patch,
+            created_at
             "#,
             picked_for_snark,
             generated,
@@ -381,9 +396,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
         Ok(proof)
     }
 
-    /// Returns the protocol semantic version the batch's FRI proof was generated under, as persisted
-    /// by [`Self::save_proof_artifacts_metadata`]. `None` if the batch is unknown or its FRI proof
-    /// has not been submitted yet (so the version has not been recorded).
+    /// Returns the protocol semantic version the batch is being proved under, as persisted by
+    /// [`Self::lock_batch_for_proving`] when the batch was locked. `None` if the batch is unknown or
+    /// has no recorded version.
     pub async fn get_batch_protocol_version(
         &mut self,
         batch_number: L1BatchNumber,
@@ -418,6 +433,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
     }
 
     /// For testing purposes only.
+    #[cfg(test)]
     pub async fn insert_airbender_proof_generation_job(
         &mut self,
         batch_number: L1BatchNumber,
@@ -427,10 +443,27 @@ impl AirbenderProofGenerationDal<'_, '_> {
             r#"
             INSERT INTO
             airbender_proof_generation_details (
-                l1_batch_number, status, created_at, updated_at
+                l1_batch_number, status, protocol_version, protocol_version_patch,
+                created_at, updated_at
             )
             VALUES
-            ($1, $2, NOW(), NOW())
+            (
+                $1,
+                $2,
+                (SELECT minor FROM protocol_patches ORDER BY minor DESC, patch DESC LIMIT 1
+                ),
+                COALESCE(
+                    (
+                        SELECT patch
+                        FROM protocol_patches
+                        ORDER BY minor DESC, patch DESC
+                        LIMIT 1
+                    ),
+                    0
+                ),
+                NOW(),
+                NOW()
+            )
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             batch_number,

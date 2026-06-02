@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use axum::{extract::Path, Json};
 use chrono::Utc;
 use zksync_airbender_prover_interface::{
@@ -22,8 +23,7 @@ use zksync_prover_interface::{
     outputs::L1BatchProofForL1,
 };
 use zksync_types::{
-    blob::num_blobs_required, commitment::L1BatchCommitmentMode,
-    protocol_version::ProtocolSemanticVersion, L1BatchNumber, L2ChainId,
+    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId,
 };
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
@@ -70,9 +70,24 @@ impl AirbenderRequestProcessor {
                 .await?;
             let mut transaction = connection.start_transaction().await?;
 
+            // Record the protocol version the batch is proved under at lock time, so `submit_proof`
+            // and the SNARK step reuse the exact same version (and blob key) instead of recomputing
+            // it. We pick the latest known version; if none is configured yet, nothing can be proven.
+            let Some(protocol_version) = transaction
+                .protocol_versions_dal()
+                .latest_semantic_version()
+                .await?
+            else {
+                return Ok(None);
+            };
+
             let Some(locked_batch) = transaction
                 .airbender_proof_generation_dal()
-                .lock_batch_for_proving(self.config.proof_generation_timeout, min_batch_number)
+                .lock_batch_for_proving(
+                    self.config.proof_generation_timeout,
+                    min_batch_number,
+                    protocol_version,
+                )
                 .await?
             else {
                 return Ok(None); // no job available
@@ -339,16 +354,15 @@ impl AirbenderRequestProcessor {
             .connection_tagged("airbender_request_processor")
             .await?;
 
-        // Key the FRI proof by `(batch number, semantic version)` so it doesn't collide across
-        // protocol versions. We pick the latest known version here and persist it alongside the
-        // proof, so the SNARK step reuses the exact same version instead of recomputing it.
+        // The version was recorded when the batch was locked for proving. If it's missing, the batch
+        // was never picked, so reject the submission instead of guessing a key.
         let protocol_version = connection
-            .protocol_versions_dal()
-            .latest_semantic_version()
+            .airbender_proof_generation_dal()
+            .get_batch_protocol_version(l1_batch_number)
             .await?
             .ok_or_else(|| {
                 AirbenderProcessorError::GeneralError(anyhow::anyhow!(
-                    "no protocol semantic version found (batch {l1_batch_number})"
+                    "protocol version not recorded for batch {l1_batch_number}; was it picked for proving?"
                 ))
             })?;
 
@@ -363,13 +377,8 @@ impl AirbenderRequestProcessor {
             })?;
 
         let mut dal = connection.airbender_proof_generation_dal();
-        dal.save_proof_artifacts_metadata(
-            l1_batch_number,
-            &proof_blob_url,
-            &prover_id,
-            protocol_version,
-        )
-        .await?;
+        dal.save_proof_artifacts_metadata(l1_batch_number, &proof_blob_url, &prover_id)
+            .await?;
 
         let sealed_at = connection
             .blocks_dal()
@@ -422,9 +431,7 @@ impl AirbenderRequestProcessor {
                 return Ok(None);
             };
             let batch_number = locked_batch.l1_batch_number;
-
-            let protocol_version =
-                stored_protocol_version(&mut transaction, batch_number).await?;
+            let protocol_version = locked_batch.protocol_version;
 
             let proof: L1BatchAirbenderProofForL1 =
                 match self.blob_store.get((batch_number, protocol_version)).await {
@@ -477,13 +484,19 @@ impl AirbenderRequestProcessor {
                 .pool
                 .connection_tagged("airbender_request_processor")
                 .await?;
-            stored_protocol_version(&mut connection, l1_batch_number).await?
+            connection
+                .airbender_proof_generation_dal()
+                .get_batch_protocol_version(l1_batch_number)
+                .await?
+                .context("must exist")?
         };
 
         // Flatten the wrapper proof into the CBOR `L1BatchProofForL1` the eth_sender submits through
         // `proveBatches`, so the rest of the SNARK path mirrors Boojum proofs byte-for-byte.
-        let l1_proof =
-            L1BatchProofForL1::new_airbender_from_snark_wrapper(&proof.snark_proof, protocol_version);
+        let l1_proof = L1BatchProofForL1::new_airbender_from_snark_wrapper(
+            &proof.snark_proof,
+            protocol_version,
+        );
         let snark_proof =
             <L1BatchProofForL1 as StoredObject>::serialize(&l1_proof).map_err(|err| {
                 AirbenderProcessorError::GeneralError(anyhow::anyhow!(
@@ -517,22 +530,4 @@ impl AirbenderRequestProcessor {
 
         Ok(Json(SubmitAirbenderSnarkProofResponse::Success))
     }
-}
-
-/// Reads the protocol semantic version a batch's FRI proof was generated under, persisted by
-/// `submit_proof`. The SNARK path reuses it so the SNARK blob key matches the FRI proof's and the
-/// L1 proof reports the version the proof was actually produced with.
-async fn stored_protocol_version(
-    connection: &mut Connection<'_, Core>,
-    l1_batch_number: L1BatchNumber,
-) -> Result<ProtocolSemanticVersion, AirbenderProcessorError> {
-    connection
-        .airbender_proof_generation_dal()
-        .get_batch_protocol_version(l1_batch_number)
-        .await?
-        .ok_or_else(|| {
-            AirbenderProcessorError::GeneralError(anyhow::anyhow!(
-                "protocol version not recorded for batch {l1_batch_number}; was its FRI proof submitted?"
-            ))
-        })
 }

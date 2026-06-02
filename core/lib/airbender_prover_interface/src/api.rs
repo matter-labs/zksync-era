@@ -55,11 +55,6 @@ pub struct SubmitAirbenderProofRequest {
 
 /// SNARK submission payload. The wrapper VK is resolved at prover startup and
 /// is not transmitted per proof.
-///
-/// `snark_proof` is the `SnarkWrapperProof` (a bellman PLONK proof) produced by the verifier,
-/// carried as a nested JSON object. The server flattens it into a CBOR-encoded `L1BatchProofForL1`
-/// (Airbender variant) before storing, so the eth_sender can submit it through the same
-/// `proveBatches` path as Boojum proofs.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SubmitAirbenderSnarkProofRequest {
     pub l1_batch_number: u32,
