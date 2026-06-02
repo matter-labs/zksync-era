@@ -4438,10 +4438,7 @@ mod tests {
         // Without an Airbender row, the Boojum-shape commitment from `l1_batches` is returned.
         let boojum = conn
             .blocks_dal()
-            .get_l1_batch_metadata_with_prover(
-                L1BatchNumber(1),
-                ProverType::Boojum,
-            )
+            .get_l1_batch_metadata_with_prover(L1BatchNumber(1), ProverType::Boojum)
             .await
             .unwrap()
             .expect("metadata should be complete");
@@ -4461,10 +4458,7 @@ mod tests {
         // The Boojum source is unaffected by the presence of the Airbender row.
         let boojum = conn
             .blocks_dal()
-            .get_l1_batch_metadata_with_prover(
-                L1BatchNumber(1),
-                ProverType::Boojum,
-            )
+            .get_l1_batch_metadata_with_prover(L1BatchNumber(1), ProverType::Boojum)
             .await
             .unwrap()
             .unwrap();
@@ -4473,10 +4467,7 @@ mod tests {
         // The Airbender source swaps in the Airbender-shape commitment fields.
         let airbender = conn
             .blocks_dal()
-            .get_l1_batch_metadata_with_prover(
-                L1BatchNumber(1),
-                ProverType::Airbender,
-            )
+            .get_l1_batch_metadata_with_prover(L1BatchNumber(1), ProverType::Airbender)
             .await
             .unwrap()
             .unwrap();

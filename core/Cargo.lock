@@ -15047,6 +15047,7 @@ dependencies = [
  "tokio",
  "zksync_bellman",
  "zksync_object_store",
+ "zksync_solidity_vk_codegen",
  "zksync_types",
  "zksync_vm_interface",
 ]

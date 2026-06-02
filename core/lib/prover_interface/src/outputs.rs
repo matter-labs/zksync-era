@@ -7,6 +7,7 @@ use circuit_definitions::{
         ZkSyncSnarkWrapperCircuit, ZkSyncSnarkWrapperCircuitNoLookupCustomGate,
     },
 };
+use crypto_codegen::serialize_proof;
 use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
 use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
@@ -81,6 +82,35 @@ impl L1BatchProofForL1 {
         Self {
             inner: TypedL1BatchProofForL1::Airbender(proof),
         }
+    }
+
+    /// Builds an Airbender (ZKsync OS) proof for L1 from the JSON-encoded `SnarkWrapperProof`
+    /// the verifier submits. `SnarkWrapperProof` is a bellman PLONK proof; we flatten it into the
+    /// big-endian 32-byte word layout the ZKsync OS L1 verifier expects (the same `serialize_proof`
+    /// layout the Boojum Plonk path uses), so the eth_sender can submit it through `proveBatches`
+    /// as verification type 2. `protocol_version` is supplied by the caller (derived from the batch
+    /// number) since the wrapper proof does not carry it.
+    pub fn new_airbender_from_snark_wrapper_json(
+        snark_proof_json: &[u8],
+        protocol_version: ProtocolSemanticVersion,
+    ) -> Result<Self, BoxedError> {
+        let plonk_proof: PlonkProof<Bn256, ZkSyncSnarkWrapperCircuit> =
+            serde_json::from_slice(snark_proof_json).map_err(|e| {
+                BoxedError::from(format!("Failed to JSON-decode SnarkWrapperProof: {e}"))
+            })?;
+
+        let (_inputs, words) = serialize_proof(&plonk_proof);
+        let mut proof = Vec::with_capacity(words.len() * 32);
+        for word in words {
+            let mut buf = [0u8; 32];
+            word.to_big_endian(&mut buf);
+            proof.extend_from_slice(&buf);
+        }
+
+        Ok(Self::new_airbender(AirbenderL1BatchProofForL1 {
+            proof,
+            protocol_version,
+        }))
     }
 
     pub fn inner(&self) -> TypedL1BatchProofForL1 {

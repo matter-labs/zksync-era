@@ -13,9 +13,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreError, StoredObject};
 use zksync_prover_interface::outputs::{L1BatchProofForL1, L1BatchProofForL1Key};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
-    commitment::{
-        L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof,
-    },
+    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
     l1::L1Tx,

@@ -16,7 +16,6 @@ use zksync_types::{
         TransactionExecutionInfo,
     },
     eth_sender::EthTxFinalityStatus,
-    protocol_version::ProtocolSemanticVersion,
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
     web3::{self, Bytes},
     L1BatchNumber, L2BlockNumber, L2ChainId,
@@ -72,34 +71,13 @@ impl UnstableNamespace {
             return Ok(None);
         };
 
-        let proof_data = if stored.proof_blob_url.is_some() {
+        let proof_data = if let Some(proof_blob_url) = stored.proof_blob_url.clone() {
             if let Some(object_store) = &self.state.object_store {
-                // The FRI proof is keyed by `(batch number, semantic version)`. Resolve the version
-                // the same way the proof data handler does: the batch's minor version plus that
-                // minor's first (lowest, stable) patch.
-                let minor = storage
-                    .blocks_dal()
-                    .get_batch_protocol_version_id(l1_batch_number)
-                    .await
-                    .map_err(DalError::generalize)?
-                    .ok_or_else(|| {
-                        Web3Error::InternalError(anyhow::anyhow!(
-                            "protocol version missing for batch {l1_batch_number}"
-                        ))
-                    })?;
-                let patch = storage
-                    .protocol_versions_dal()
-                    .first_patch_for_version(minor)
-                    .await
-                    .map_err(DalError::generalize)?
-                    .ok_or_else(|| {
-                        Web3Error::InternalError(anyhow::anyhow!(
-                            "no protocol patch found for minor version {minor:?} (batch {l1_batch_number})"
-                        ))
-                    })?;
-                let protocol_version = ProtocolSemanticVersion { minor, patch };
+                // Use the blob key persisted when the proof was uploaded instead of recomputing it
+                // from the protocol version. The key is the source of truth and avoids drifting out
+                // of sync with the proof data handler's keying logic.
                 let proof_for_l1: L1BatchAirbenderProofForL1 = object_store
-                    .get((l1_batch_number, protocol_version))
+                    .get_by_encoded_key(proof_blob_url)
                     .await
                     .map_err(|e| {
                         Web3Error::InternalError(anyhow::anyhow!(

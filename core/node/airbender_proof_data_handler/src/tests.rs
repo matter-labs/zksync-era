@@ -17,8 +17,7 @@ use zksync_airbender_prover_interface::{
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::{MockObjectStore, StoredObject};
-use zksync_prover_interface::outputs::{AirbenderL1BatchProofForL1, L1BatchProofForL1};
+use zksync_object_store::MockObjectStore;
 use zksync_types::{
     block::L1BatchHeader, protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer,
     L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
@@ -26,17 +25,12 @@ use zksync_types::{
 
 use crate::create_proof_processing_router;
 
-/// A valid SNARK proof payload: a CBOR-encoded `L1BatchProofForL1`. The data handler decodes it to
-/// derive the protocol version used in the blob store key (mirroring Boojum proofs).
-fn encoded_snark_proof() -> Vec<u8> {
-    let proof = L1BatchProofForL1::new_airbender(AirbenderL1BatchProofForL1 {
-        proof: vec![0x01, 0x02, 0x03, 0x04],
-        protocol_version: ProtocolSemanticVersion {
-            minor: ProtocolVersionId::latest(),
-            patch: 0.into(),
-        },
-    });
-    <L1BatchProofForL1 as StoredObject>::serialize(&proof).unwrap()
+/// A valid SNARK proof payload: a real `SnarkWrapperProof` (bellman PLONK proof) JSON-encoded
+/// exactly as the verifier submits it. The data handler flattens it into the CBOR `L1BatchProofForL1`
+/// the eth_sender submits, deriving the protocol version from the batch number (mirroring Boojum
+/// proofs).
+fn snark_wrapper_proof_json() -> Vec<u8> {
+    include_bytes!("test_data/snark_wrapper_proof.json").to_vec()
 }
 
 fn test_config() -> AirbenderProofDataHandlerConfig {
@@ -439,7 +433,7 @@ async fn submit_snark_proof_succeeds_when_picked_for_snark() {
     let request = SubmitAirbenderSnarkProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
-        snark_proof: encoded_snark_proof(),
+        snark_proof: snark_wrapper_proof_json(),
     };
 
     let app = create_proof_processing_router(
@@ -469,11 +463,22 @@ async fn submit_snark_proof_rejects_when_not_picked_for_snark() {
     let batch_number = L1BatchNumber(1);
     let db_conn_pool = ConnectionPool::test_pool().await;
 
-    // No airbender row at all — submit should fail when saving metadata.
+    // The batch and its protocol version exist (so version derivation succeeds), but the batch was
+    // never picked for SNARK — submit should fail when saving metadata.
+    save_default_protocol_version(&db_conn_pool).await;
+    db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
+
     let request = SubmitAirbenderSnarkProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
-        snark_proof: encoded_snark_proof(),
+        snark_proof: snark_wrapper_proof_json(),
     };
 
     let app = create_proof_processing_router(
@@ -517,6 +522,18 @@ async fn mock_airbender_picked_for_snark(
     db_conn_pool: ConnectionPool<Core>,
     batch_number: L1BatchNumber,
 ) {
+    // The processor derives the protocol version from the batch, so the batch (and its protocol
+    // version) must exist before a SNARK proof can be submitted.
+    save_default_protocol_version(&db_conn_pool).await;
+    db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
+
     let mut conn = db_conn_pool.connection().await.unwrap();
     let mut dal = conn.airbender_proof_generation_dal();
 
