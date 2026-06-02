@@ -860,11 +860,8 @@ impl Aggregator {
         if prover == ProverType::Airbender {
             Self::override_with_airbender_commitment(storage, &mut previous_proven_batch_metadata)
                 .await;
-            Self::override_with_airbender_commitment(
-                storage,
-                &mut metadata_for_batch_being_proved,
-            )
-            .await;
+            Self::override_with_airbender_commitment(storage, &mut metadata_for_batch_being_proved)
+                .await;
         }
 
         Some(ProveBatches {
