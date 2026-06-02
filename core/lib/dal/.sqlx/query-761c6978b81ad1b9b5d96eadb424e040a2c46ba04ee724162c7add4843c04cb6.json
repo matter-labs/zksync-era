@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO airbender_proof_generation_details (\n                l1_batch_number, status, created_at, updated_at, prover_taken_at,\n                protocol_version, protocol_version_patch\n            )\n            SELECT p.l1_batch_number, $1, NOW(), NOW(), NOW(), $3, $4\n            FROM proof_generation_details p\n            WHERE\n                p.l1_batch_number >= $2\n                AND p.vm_run_data_blob_url IS NOT NULL\n                AND p.proof_gen_data_blob_url IS NOT NULL\n                AND NOT EXISTS (\n                    SELECT 1 FROM airbender_proof_generation_details a\n                    WHERE a.l1_batch_number = p.l1_batch_number\n                )\n            ORDER BY p.l1_batch_number ASC\n            LIMIT 1\n            ON CONFLICT (l1_batch_number) DO NOTHING\n            RETURNING l1_batch_number,\n            created_at,\n            protocol_version AS \"protocol_version!\",\n            protocol_version_patch\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 2,
+        "name": "protocol_version!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "761c6978b81ad1b9b5d96eadb424e040a2c46ba04ee724162c7add4843c04cb6"
+}

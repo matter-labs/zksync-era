@@ -81,8 +81,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
             r#"
             UPDATE airbender_proof_generation_details
             SET
-                status = $1, updated_at = NOW(), prover_taken_at = NOW(),
-                protocol_version = $5, protocol_version_patch = $6
+                status = $1, updated_at = NOW(), prover_taken_at = NOW()
             WHERE
                 l1_batch_number = (
                     SELECT apgd.l1_batch_number
@@ -113,8 +112,6 @@ impl AirbenderProofGenerationDal<'_, '_> {
             failed,
             min_batch_number,
             processing_timeout,
-            protocol_version.minor as i32,
-            protocol_version.patch.0 as i32,
         )
         .instrument("lock_batch_for_proving#reclaim")
         .with_arg("processing_timeout", &processing_timeout)
