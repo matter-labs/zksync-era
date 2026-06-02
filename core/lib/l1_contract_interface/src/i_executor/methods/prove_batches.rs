@@ -59,6 +59,20 @@ impl ProveBatches {
                     let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
                     (U256::from(1), serialized_proof)
                 }
+                TypedL1BatchProofForL1::Airbender(proof) => {
+                    // Airbender (ZKsync OS) proof. `proof.proof` is the prover's serialized proof
+                    // payload (everything the ZKsync OS verifier reads after the leading type
+                    // selector), packed as 32-byte big-endian words. We split it back into words
+                    // and tag it with the ZKsync OS Plonk verification type so the dual verifier
+                    // routes it to the right verifier.
+                    const ZKSYNC_OS_PLONK_VERIFICATION_TYPE: u64 = 2;
+                    let serialized_proof =
+                        proof.proof.chunks(32).map(U256::from_big_endian).collect();
+                    (
+                        U256::from(ZKSYNC_OS_PLONK_VERIFICATION_TYPE),
+                        serialized_proof,
+                    )
+                }
             };
 
             let should_use_fflonk = !is_verifier_pre_fflonk || !protocol_version.is_pre_fflonk();

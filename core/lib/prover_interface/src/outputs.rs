@@ -41,6 +41,7 @@ impl From<JsonL1BatchProofForL1> for L1BatchProofForL1 {
 pub enum UntaggedTypedL1BatchProofForL1 {
     Fflonk(FflonkL1BatchProofForL1),
     Plonk(PlonkL1BatchProofForL1),
+    Airbender(AirbenderL1BatchProofForL1),
 }
 
 impl From<UntaggedTypedL1BatchProofForL1> for TypedL1BatchProofForL1 {
@@ -48,6 +49,7 @@ impl From<UntaggedTypedL1BatchProofForL1> for TypedL1BatchProofForL1 {
         match value {
             UntaggedTypedL1BatchProofForL1::Fflonk(proof) => Self::Fflonk(proof),
             UntaggedTypedL1BatchProofForL1::Plonk(proof) => Self::Plonk(proof),
+            UntaggedTypedL1BatchProofForL1::Airbender(proof) => Self::Airbender(proof),
         }
     }
 }
@@ -57,6 +59,7 @@ impl From<TypedL1BatchProofForL1> for UntaggedTypedL1BatchProofForL1 {
         match value {
             TypedL1BatchProofForL1::Fflonk(proof) => Self::Fflonk(proof),
             TypedL1BatchProofForL1::Plonk(proof) => Self::Plonk(proof),
+            TypedL1BatchProofForL1::Airbender(proof) => Self::Airbender(proof),
         }
     }
 }
@@ -74,6 +77,12 @@ impl L1BatchProofForL1 {
         }
     }
 
+    pub fn new_airbender(proof: AirbenderL1BatchProofForL1) -> Self {
+        Self {
+            inner: TypedL1BatchProofForL1::Airbender(proof),
+        }
+    }
+
     pub fn inner(&self) -> TypedL1BatchProofForL1 {
         self.inner.clone()
     }
@@ -85,6 +94,7 @@ impl L1BatchProofForL1 {
 pub enum TypedL1BatchProofForL1 {
     Fflonk(FflonkL1BatchProofForL1),
     Plonk(PlonkL1BatchProofForL1),
+    Airbender(AirbenderL1BatchProofForL1),
 }
 
 impl L1BatchProofForL1 {
@@ -92,6 +102,7 @@ impl L1BatchProofForL1 {
         match &self.inner {
             TypedL1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
             TypedL1BatchProofForL1::Plonk(proof) => proof.protocol_version,
+            TypedL1BatchProofForL1::Airbender(proof) => proof.protocol_version,
         }
     }
 
@@ -99,6 +110,9 @@ impl L1BatchProofForL1 {
         match &self.inner {
             TypedL1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
             TypedL1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
+            // Airbender (ZKsync OS) proofs do not carry Boojum scheduler aggregation coords; the
+            // Airbender commitment chain is computed separately and this accessor is unused for them.
+            TypedL1BatchProofForL1::Airbender(_) => [[0u8; 32]; 4],
         }
     }
 }
@@ -137,6 +151,23 @@ impl From<PlonkL1BatchProofForL1> for L1BatchProofForL1 {
     }
 }
 
+/// A SNARK-wrapped Airbender (ZKsync OS) proof, ready for L1 submission. The proof is opaque to
+/// the server: it's the byte payload the prover produced, serialized into the word layout the
+/// ZKsync OS verifier expects.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct AirbenderL1BatchProofForL1 {
+    pub proof: Vec<u8>,
+    pub protocol_version: ProtocolSemanticVersion,
+}
+
+impl From<AirbenderL1BatchProofForL1> for L1BatchProofForL1 {
+    fn from(proof: AirbenderL1BatchProofForL1) -> Self {
+        Self {
+            inner: TypedL1BatchProofForL1::Airbender(proof),
+        }
+    }
+}
+
 impl fmt::Debug for L1BatchProofForL1 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -167,6 +198,15 @@ impl fmt::Debug for FflonkL1BatchProofForL1 {
         formatter
             .debug_struct("FflonkL1BatchProofForL1")
             .field("aggregation_result_coords", &self.aggregation_result_coords)
+            .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for AirbenderL1BatchProofForL1 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AirbenderL1BatchProofForL1")
+            .field("protocol_version", &self.protocol_version)
             .finish_non_exhaustive()
     }
 }
