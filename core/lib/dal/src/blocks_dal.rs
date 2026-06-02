@@ -8,6 +8,7 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use sqlx::types::chrono::{DateTime, Utc};
+use zksync_config::configs::eth_sender::ProverType;
 use zksync_db_connection::{
     connection::Connection,
     error::{DalResult, SqlxContext},
@@ -23,8 +24,8 @@ use zksync_types::{
         StorageOracleInfo, UnsealedL1BatchHeader,
     },
     commitment::{
-        AirbenderBatchCommitment, L1BatchCommitmentArtifacts, L1BatchCommitmentSource,
-        L1BatchMetadata, L1BatchWithMetadata, PrevBatchAirbenderCommitmentInput, PubdataParams,
+        AirbenderBatchCommitment, L1BatchCommitmentArtifacts, L1BatchMetadata, L1BatchWithMetadata,
+        PrevBatchAirbenderCommitmentInput, PubdataParams,
     },
     l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     settlement::SettlementLayer,
@@ -1810,7 +1811,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_last_committed_to_eth_l1_batch(
         &mut self,
-        commitment_source: L1BatchCommitmentSource,
+        prover: ProverType,
     ) -> DalResult<Option<L1BatchWithMetadata>> {
         // We can get 0 batch for the first transaction
         let batch = sqlx::query_as!(
@@ -1883,7 +1884,7 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         }
 
-        self.map_storage_l1_batch(batch, commitment_source).await
+        self.map_storage_l1_batch(batch, prover).await
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum commit tx was sent and confirmed.
@@ -2076,7 +2077,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_ready_for_dummy_proof_l1_batches(
         &mut self,
         limit: usize,
-        commitment_source: L1BatchCommitmentSource,
+        prover: ProverType,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
@@ -2142,7 +2143,7 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        self.map_l1_batches(raw_batches, commitment_source)
+        self.map_l1_batches(raw_batches, prover)
             .await
             .context("map_l1_batches()")
     }
@@ -2150,12 +2151,12 @@ impl BlocksDal<'_, '_> {
     async fn map_l1_batches(
         &mut self,
         raw_batches: Vec<StorageL1Batch>,
-        commitment_source: L1BatchCommitmentSource,
+        prover: ProverType,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let mut l1_batches_with_metadata = Vec::with_capacity(raw_batches.len());
         for raw_batch in raw_batches {
             let batch = self
-                .map_storage_l1_batch(raw_batch, commitment_source)
+                .map_storage_l1_batch(raw_batch, prover)
                 .await
                 .context("map_storage_l1_batch()")?
                 .context("Batch should be complete")?;
@@ -2168,7 +2169,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_skipped_for_proof_l1_batches(
         &mut self,
         limit: usize,
-        commitment_source: L1BatchCommitmentSource,
+        prover: ProverType,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let last_proved_batch_number = self
             .get_last_l1_batch_with_prove_tx()
@@ -2251,7 +2252,7 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        self.map_l1_batches(raw_batches, commitment_source)
+        self.map_l1_batches(raw_batches, prover)
             .await
             .context("map_l1_batches()")
     }
@@ -2260,7 +2261,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         limit: usize,
         max_l1_batch_timestamp_millis: Option<u64>,
-        commitment_source: L1BatchCommitmentSource,
+        prover: ProverType,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = match max_l1_batch_timestamp_millis {
             None => {
@@ -2339,7 +2340,7 @@ impl BlocksDal<'_, '_> {
             }
         };
 
-        self.map_l1_batches(raw_batches, commitment_source)
+        self.map_l1_batches(raw_batches, prover)
             .await
             .context("map_l1_batches()")
     }
@@ -2632,7 +2633,7 @@ impl BlocksDal<'_, '_> {
         .await?;
 
         // Pre-Boojum batches predate the Airbender commitment, so they always use the Boojum one.
-        self.map_l1_batches(raw_batches, L1BatchCommitmentSource::Boojum)
+        self.map_l1_batches(raw_batches, ProverType::Boojum)
             .await
             .context("map_l1_batches()")
     }
@@ -2648,7 +2649,7 @@ impl BlocksDal<'_, '_> {
         protocol_version_id: ProtocolVersionId,
         with_da_inclusion_info: bool,
         send_precommit_txs: bool,
-        commitment_source: L1BatchCommitmentSource,
+        prover: ProverType,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
@@ -2741,7 +2742,7 @@ impl BlocksDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        self.map_l1_batches(raw_batches, commitment_source)
+        self.map_l1_batches(raw_batches, prover)
             .await
             .context("map_l1_batches()")
     }
@@ -3031,22 +3032,22 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> DalResult<Option<L1BatchWithMetadata>> {
-        self.get_l1_batch_metadata_with_commitment_source(number, L1BatchCommitmentSource::Boojum)
+        self.get_l1_batch_metadata_with_prover(number, ProverType::Boojum)
             .await
     }
 
     /// Same as [`Self::get_l1_batch_metadata`], but lets the caller pick which commitment the
-    /// returned batch exposes. The eth_sender uses [`L1BatchCommitmentSource::Airbender`] so the
+    /// returned batch exposes. The eth_sender uses [`ProverType::Airbender`] so the
     /// `StoredBatchInfo` it submits matches the commitment the L1 contract stored at commit time.
-    pub async fn get_l1_batch_metadata_with_commitment_source(
+    pub async fn get_l1_batch_metadata_with_prover(
         &mut self,
         number: L1BatchNumber,
-        commitment_source: L1BatchCommitmentSource,
+        prover: ProverType,
     ) -> DalResult<Option<L1BatchWithMetadata>> {
         let Some(l1_batch) = self.get_storage_l1_batch(number).await? else {
             return Ok(None);
         };
-        self.map_storage_l1_batch(l1_batch, commitment_source).await
+        self.map_storage_l1_batch(l1_batch, prover).await
     }
 
     /// Returns the header and optional metadata for an L1 batch with the specified number. If a batch exists
@@ -3247,7 +3248,7 @@ impl BlocksDal<'_, '_> {
     async fn map_storage_l1_batch(
         &mut self,
         storage_batch: StorageL1Batch,
-        commitment_source: L1BatchCommitmentSource,
+        prover: ProverType,
     ) -> DalResult<Option<L1BatchWithMetadata>> {
         let l1_batch_number = L1BatchNumber(storage_batch.number as u32);
         let instrumentation =
@@ -3266,10 +3267,10 @@ impl BlocksDal<'_, '_> {
         // Airbender `aux_commitments`, so swap the Boojum-shape commitment fields for the
         // Airbender-shape values persisted in `airbender_batch_commitments`. The genesis
         // batch (#0) has no such row and is never committed/proven, so it is left as is.
-        let metadata = match commitment_source {
-            L1BatchCommitmentSource::Boojum => metadata,
-            L1BatchCommitmentSource::Airbender if l1_batch_number == L1BatchNumber(0) => metadata,
-            L1BatchCommitmentSource::Airbender => {
+        let metadata = match prover {
+            ProverType::Boojum => metadata,
+            ProverType::Airbender if l1_batch_number == L1BatchNumber(0) => metadata,
+            ProverType::Airbender => {
                 let airbender = self
                     .get_airbender_batch_commitment(l1_batch_number)
                     .await?
@@ -4404,7 +4405,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn loading_l1_batch_metadata_with_commitment_source() {
+    async fn loading_l1_batch_metadata_with_prover() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
 
@@ -4437,9 +4438,9 @@ mod tests {
         // Without an Airbender row, the Boojum-shape commitment from `l1_batches` is returned.
         let boojum = conn
             .blocks_dal()
-            .get_l1_batch_metadata_with_commitment_source(
+            .get_l1_batch_metadata_with_prover(
                 L1BatchNumber(1),
-                L1BatchCommitmentSource::Boojum,
+                ProverType::Boojum,
             )
             .await
             .unwrap()
@@ -4460,9 +4461,9 @@ mod tests {
         // The Boojum source is unaffected by the presence of the Airbender row.
         let boojum = conn
             .blocks_dal()
-            .get_l1_batch_metadata_with_commitment_source(
+            .get_l1_batch_metadata_with_prover(
                 L1BatchNumber(1),
-                L1BatchCommitmentSource::Boojum,
+                ProverType::Boojum,
             )
             .await
             .unwrap()
@@ -4472,9 +4473,9 @@ mod tests {
         // The Airbender source swaps in the Airbender-shape commitment fields.
         let airbender = conn
             .blocks_dal()
-            .get_l1_batch_metadata_with_commitment_source(
+            .get_l1_batch_metadata_with_prover(
                 L1BatchNumber(1),
-                L1BatchCommitmentSource::Airbender,
+                ProverType::Airbender,
             )
             .await
             .unwrap()

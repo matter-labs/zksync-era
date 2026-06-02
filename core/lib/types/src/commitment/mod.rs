@@ -328,18 +328,6 @@ pub struct BlobHash {
     pub linear_hash: H256,
 }
 
-/// Selects which commitment a batch loaded from the DB should expose: the default
-/// Boojum-shape commitment stored on `l1_batches`, or the Airbender-shape commitment
-/// stored in the parallel `airbender_batch_commitments` row. Used by loaders that feed
-/// the eth_sender so that, with the Airbender prover, every batch carries the commitment
-/// the L1 contract derives and stores at commit time.
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
-pub enum L1BatchCommitmentSource {
-    #[default]
-    Boojum,
-    Airbender,
-}
-
 /// Airbender-shape commitment for a single L1 batch. Persisted in
 /// `airbender_batch_commitments`, parallel to the Boojum-shape row in
 /// `l1_batches`. The two variants differ only in `aux_commitments`; the change

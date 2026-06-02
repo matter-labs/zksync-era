@@ -707,7 +707,7 @@ async fn correct_order_for_confirmations(
         .get_ready_for_execute_l1_batches(
             45,
             None,
-            zksync_types::commitment::L1BatchCommitmentSource::Boojum,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
         )
         .await
         .unwrap();
@@ -722,7 +722,7 @@ async fn correct_order_for_confirmations(
         .get_ready_for_execute_l1_batches(
             45,
             None,
-            zksync_types::commitment::L1BatchCommitmentSource::Boojum,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
         )
         .await
         .unwrap();
@@ -776,7 +776,7 @@ async fn skipped_l1_batch_at_the_start(
         .get_ready_for_execute_l1_batches(
             45,
             Some(unix_timestamp_ms()),
-            zksync_types::commitment::L1BatchCommitmentSource::Boojum,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
         )
         .await
         .unwrap();
@@ -790,7 +790,7 @@ async fn skipped_l1_batch_at_the_start(
         .get_ready_for_execute_l1_batches(
             45,
             Some(unix_timestamp_ms()),
-            zksync_types::commitment::L1BatchCommitmentSource::Boojum,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
         )
         .await
         .unwrap();
@@ -840,7 +840,7 @@ async fn skipped_l1_batch_in_the_middle(
         .get_ready_for_execute_l1_batches(
             45,
             None,
-            zksync_types::commitment::L1BatchCommitmentSource::Boojum,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
         )
         .await
         .unwrap();
@@ -856,7 +856,7 @@ async fn skipped_l1_batch_in_the_middle(
         .get_ready_for_execute_l1_batches(
             45,
             None,
-            zksync_types::commitment::L1BatchCommitmentSource::Boojum,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
         )
         .await
         .unwrap();

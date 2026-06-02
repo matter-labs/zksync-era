@@ -14,7 +14,7 @@ use zksync_prover_interface::outputs::{L1BatchProofForL1, L1BatchProofForL1Key};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     commitment::{
-        L1BatchCommitmentMode, L1BatchCommitmentSource, L1BatchWithMetadata, PriorityOpsMerkleProof,
+        L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof,
     },
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
@@ -441,7 +441,7 @@ impl Aggregator {
             .get_ready_for_execute_l1_batches(
                 limit,
                 max_l1_batch_timestamp_millis,
-                commitment_source(self.config.prover),
+                self.config.prover,
             )
             .await
             .unwrap();
@@ -580,10 +580,9 @@ impl Aggregator {
             return None;
         }
 
-        let commitment_source = commitment_source(self.config.prover);
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
-            .get_last_committed_to_eth_l1_batch(commitment_source)
+            .get_last_committed_to_eth_l1_batch(self.config.prover)
             .await
             .unwrap()?;
 
@@ -606,7 +605,7 @@ impl Aggregator {
                     protocol_version_id,
                     self.commitment_mode != L1BatchCommitmentMode::Rollup,
                     send_precommit_tx,
-                    commitment_source,
+                    self.config.prover,
                 )
                 .await
                 .unwrap()
@@ -615,12 +614,9 @@ impl Aggregator {
         // When the Airbender prover is active, a batch can only be committed once its
         // Airbender FRI proof has been produced (`proof_blob_url IS NOT NULL`). Keep
         // only the leading prefix of batches that satisfy this, preserving sequentiality.
-        match self.config.prover {
-            ProverType::Boojum => {}
-            ProverType::Airbender => {
-                ready_for_commit_l1_batches =
-                    Self::filter_airbender_fri_proven(storage, ready_for_commit_l1_batches).await;
-            }
+        if self.config.prover == ProverType::Airbender {
+            ready_for_commit_l1_batches =
+                Self::filter_airbender_fri_proven(storage, ready_for_commit_l1_batches).await;
         }
 
         // Check that the L1 batches that are selected are sequential
@@ -704,11 +700,11 @@ impl Aggregator {
     async fn load_dummy_proof_operations(
         storage: &mut Connection<'_, Core>,
         is_4844_mode: bool,
-        commitment_source: L1BatchCommitmentSource,
+        prover: ProverType,
     ) -> Vec<L1BatchWithMetadata> {
         let mut ready_for_proof_l1_batches = storage
             .blocks_dal()
-            .get_ready_for_dummy_proof_l1_batches(1, commitment_source)
+            .get_ready_for_dummy_proof_l1_batches(1, prover)
             .await
             .unwrap();
 
@@ -826,13 +822,9 @@ impl Aggregator {
         // The `StoredBatchInfo` of both the previous and the proven batch must match what the
         // L1 contract stored at commit time, which for the Airbender prover is the
         // Airbender-shape commitment.
-        let commitment_source = commitment_source(prover);
         let previous_proven_batch_metadata = storage
             .blocks_dal()
-            .get_l1_batch_metadata_with_commitment_source(
-                previous_proven_batch_number,
-                commitment_source,
-            )
+            .get_l1_batch_metadata_with_prover(previous_proven_batch_number, prover)
             .await
             .unwrap()
             .unwrap_or_else(|| {
@@ -843,10 +835,7 @@ impl Aggregator {
             });
         let metadata_for_batch_being_proved = storage
             .blocks_dal()
-            .get_l1_batch_metadata_with_commitment_source(
-                previous_proven_batch_number + 1,
-                commitment_source,
-            )
+            .get_l1_batch_metadata_with_prover(previous_proven_batch_number + 1, prover)
             .await
             .unwrap()
             .unwrap_or_else(|| {
@@ -906,10 +895,7 @@ impl Aggregator {
         let prev_l1_batch_number = batches.first().map(|batch| batch.header.number - 1)?;
         let prev_batch = storage
             .blocks_dal()
-            .get_l1_batch_metadata_with_commitment_source(
-                prev_l1_batch_number,
-                commitment_source(self.config.prover),
-            )
+            .get_l1_batch_metadata_with_prover(prev_l1_batch_number, self.config.prover)
             .await
             .unwrap()?;
 
@@ -943,7 +929,7 @@ impl Aggregator {
                 let ready_for_proof_l1_batches = Self::load_dummy_proof_operations(
                     storage,
                     self.operate_4844_mode,
-                    commitment_source(self.config.prover),
+                    self.config.prover,
                 )
                 .await;
                 self.prepare_dummy_proof_operation(
@@ -969,7 +955,7 @@ impl Aggregator {
                 } else {
                     let ready_for_proof_batches = storage
                         .blocks_dal()
-                        .get_skipped_for_proof_l1_batches(1, commitment_source(self.config.prover))
+                        .get_skipped_for_proof_l1_batches(1, self.config.prover)
                         .await
                         .unwrap();
                     self.prepare_dummy_proof_operation(
@@ -981,15 +967,6 @@ impl Aggregator {
                 }
             }
         }
-    }
-}
-
-/// Which commitment the batches loaded for L1 submission should carry. The Airbender prover
-/// commits the Airbender-shape commitment on L1, so all of commit/prove/execute must reference it.
-fn commitment_source(prover: ProverType) -> L1BatchCommitmentSource {
-    match prover {
-        ProverType::Boojum => L1BatchCommitmentSource::Boojum,
-        ProverType::Airbender => L1BatchCommitmentSource::Airbender,
     }
 }
 
