@@ -14190,6 +14190,7 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_airbender_prover_interface",
+ "zksync_bellman",
  "zksync_circuit_breaker",
  "zksync_config",
  "zksync_contracts",
