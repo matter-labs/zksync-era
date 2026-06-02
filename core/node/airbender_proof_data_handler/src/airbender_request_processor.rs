@@ -476,20 +476,19 @@ impl AirbenderRequestProcessor {
         let l1_batch_number = L1BatchNumber(proof.l1_batch_number);
         let prover_id = proof.prover_id;
 
+        let mut connection = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?;
+
         // The verifier submits the wrapper proof as a `SnarkWrapperProof`, which doesn't carry the
         // protocol version. Reuse the version recorded when the FRI proof was submitted so the SNARK
         // blob key matches and the L1 proof reports the correct version.
-        let protocol_version = {
-            let mut connection = self
-                .pool
-                .connection_tagged("airbender_request_processor")
-                .await?;
-            connection
-                .airbender_proof_generation_dal()
-                .get_batch_protocol_version(l1_batch_number)
-                .await?
-                .context("must exist")?
-        };
+        let protocol_version = connection
+            .airbender_proof_generation_dal()
+            .get_batch_protocol_version(l1_batch_number)
+            .await?
+            .context("must exist")?;
 
         // Flatten the wrapper proof into the CBOR `L1BatchProofForL1` the eth_sender submits through
         // `proveBatches`, so the rest of the SNARK path mirrors Boojum proofs byte-for-byte.
@@ -514,9 +513,7 @@ impl AirbenderRequestProcessor {
                 context: "Failed to upload SNARK proof to GCS".into(),
             })?;
 
-        self.pool
-            .connection_tagged("airbender_request_processor")
-            .await?
+        connection
             .airbender_proof_generation_dal()
             .save_snark_proof_artifacts_metadata(l1_batch_number, &snark_proof_blob_url, &prover_id)
             .await?;

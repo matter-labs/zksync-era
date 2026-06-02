@@ -71,13 +71,10 @@ impl UnstableNamespace {
             return Ok(None);
         };
 
-        let proof_data = if let Some(proof_blob_url) = stored.proof_blob_url.clone() {
+        let proof_data = if let Some(blob_url) = stored.proof_blob_url {
             if let Some(object_store) = &self.state.object_store {
-                // Use the blob key persisted when the proof was uploaded instead of recomputing it
-                // from the protocol version. The key is the source of truth and avoids drifting out
-                // of sync with the proof data handler's keying logic.
                 let proof_for_l1: L1BatchAirbenderProofForL1 = object_store
-                    .get_by_encoded_key(proof_blob_url)
+                    .get_by_encoded_key(blob_url)
                     .await
                     .map_err(|e| {
                         Web3Error::InternalError(anyhow::anyhow!(

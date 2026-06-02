@@ -20,8 +20,8 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::outputs::SnarkWrapperProof;
 use zksync_types::{
-    block::L1BatchHeader, protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer,
-    L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
+    block::L1BatchHeader, settlement::SettlementLayer, L1BatchNumber, L2ChainId, ProtocolVersion,
+    ProtocolVersionId, H256,
 };
 
 use crate::create_proof_processing_router;
@@ -321,7 +321,13 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
 
     let fri_payload = vec![0xAA, 0xBB, 0xCC, 0xDD];
     let object_store = MockObjectStore::arc();
-    let proof_version = batch_proof_version(&db_conn_pool, batch_number).await;
+    let mut connection = db_conn_pool.connection().await.unwrap();
+    let proof_version = connection
+        .protocol_versions_dal()
+        .latest_semantic_version()
+        .await
+        .unwrap()
+        .unwrap();
     object_store
         .put(
             (batch_number, proof_version),
@@ -573,21 +579,6 @@ async fn save_default_protocol_version(pool: &ConnectionPool<Core>) {
         .save_protocol_version_with_tx(&ProtocolVersion::default())
         .await
         .unwrap();
-}
-
-/// The semantic version the request processor records for a batch's Airbender proofs and uses to
-/// key them in the object store — the latest protocol version known to the node.
-async fn batch_proof_version(
-    pool: &ConnectionPool<Core>,
-    _batch_number: L1BatchNumber,
-) -> ProtocolSemanticVersion {
-    let mut connection = pool.connection().await.unwrap();
-    connection
-        .protocol_versions_dal()
-        .latest_semantic_version()
-        .await
-        .unwrap()
-        .unwrap()
 }
 
 async fn insert_batch_for_airbender_inputs(

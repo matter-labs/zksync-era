@@ -1,5 +1,5 @@
 #![doc = include_str!("../doc/AirbenderProofGenerationDal.md")]
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use chrono::{DateTime, Utc};
 use strum::{Display, EnumString};
@@ -429,8 +429,37 @@ impl AirbenderProofGenerationDal<'_, '_> {
         .map(Option::flatten)
     }
 
+    /// Returns, out of `batch_numbers`, the subset whose Airbender FRI proof has already been
+    /// produced (`proof_blob_url IS NOT NULL`). Used by the eth_sender to gate commits on the FRI
+    /// proof being present in a single query rather than one lookup per batch.
+    pub async fn get_airbender_fri_proven_batches(
+        &mut self,
+        batch_numbers: &[L1BatchNumber],
+    ) -> DalResult<HashSet<L1BatchNumber>> {
+        let numbers: Vec<i64> = batch_numbers.iter().map(|n| i64::from(n.0)).collect();
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                l1_batch_number
+            FROM
+                airbender_proof_generation_details
+            WHERE
+                l1_batch_number = ANY($1)
+                AND proof_blob_url IS NOT NULL
+            "#,
+            &numbers
+        )
+        .instrument("get_airbender_fri_proven_batches")
+        .fetch_all(self.storage)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+            .collect())
+    }
+
     /// For testing purposes only.
-    #[cfg(test)]
     pub async fn insert_airbender_proof_generation_job(
         &mut self,
         batch_number: L1BatchNumber,

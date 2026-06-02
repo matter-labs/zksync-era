@@ -808,7 +808,7 @@ impl Aggregator {
                     .await
             }
             ProverType::Airbender => {
-                load_airbender_snark_proof(storage, batch_to_prove, blob_store).await
+                load_airbender_snark_proof(batch_to_prove, blob_store, &allowed_versions).await
             }
         };
         let Some(proof) = proof else {
@@ -832,14 +832,11 @@ impl Aggregator {
             });
         let metadata_for_batch_being_proved = storage
             .blocks_dal()
-            .get_l1_batch_metadata_with_prover(previous_proven_batch_number + 1, prover)
+            .get_l1_batch_metadata_with_prover(batch_to_prove, prover)
             .await
             .unwrap()
             .unwrap_or_else(|| {
-                panic!(
-                    "L1 batch #{} with generated proof is not complete in the DB",
-                    previous_proven_batch_number + 1
-                );
+                panic!("L1 batch #{batch_to_prove} with generated proof is not complete in the DB");
             });
 
         Some(ProveBatches {
@@ -857,21 +854,21 @@ impl Aggregator {
         storage: &mut Connection<'_, Core>,
         batches: Vec<L1BatchWithMetadata>,
     ) -> Vec<L1BatchWithMetadata> {
-        let mut proven = Vec::with_capacity(batches.len());
+        let batch_numbers: Vec<_> = batches.iter().map(|batch| batch.header.number).collect();
+        let proven = storage
+            .airbender_proof_generation_dal()
+            .get_airbender_fri_proven_batches(&batch_numbers)
+            .await
+            .unwrap();
+
+        let mut result = Vec::with_capacity(batches.len());
         for batch in batches {
-            let fri_proof_present = storage
-                .airbender_proof_generation_dal()
-                .get_airbender_fri_proof(batch.header.number)
-                .await
-                .unwrap()
-                .and_then(|proof| proof.proof_blob_url)
-                .is_some();
-            if !fri_proof_present {
+            if !proven.contains(&batch.header.number) {
                 break;
             }
-            proven.push(batch);
+            result.push(batch);
         }
-        proven
+        result
     }
 
     async fn prepare_dummy_proof_operation(
@@ -1033,6 +1030,38 @@ fn ready_to_create_precommit_operation(
             >= precommit_params.l2_blocks_to_aggregate
 }
 
+/// Loads the SNARK-wrapped Airbender proof for `l1_batch_number` and decodes it.
+async fn load_airbender_snark_proof(
+    l1_batch_number: L1BatchNumber,
+    blob_store: &dyn ObjectStore,
+    allowed_versions: &[ProtocolSemanticVersion],
+) -> Option<L1BatchProofForL1> {
+    for version in allowed_versions {
+        let snark_proof: L1BatchAirbenderSnarkProofForL1 =
+            match blob_store.get((l1_batch_number, *version)).await {
+                Ok(proof) => proof,
+                Err(ObjectStoreError::KeyNotFound(_)) => continue,
+                Err(err) => panic!(
+                    "Failed to load Airbender SNARK proof for batch {}: {}",
+                    l1_batch_number.0, err
+                ),
+            };
+
+        // The SNARK prover stores a CBOR-encoded `L1BatchProofForL1` (plonk/fflonk), so it can be
+        // submitted through the same path as Boojum proofs.
+        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(snark_proof.snark_proof)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "Failed to deserialize Airbender SNARK proof for batch {}: {}",
+                    l1_batch_number.0, err
+                )
+            });
+        return Some(proof);
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_types::L2BlockNumber;
@@ -1155,18 +1184,6 @@ mod tests {
                 .unwrap();
         }
 
-        async fn seed_snark_proof(storage: &mut Connection<'_, Core>, batch: L1BatchNumber) {
-            seed_fri_proof(storage, batch).await;
-            let mut dal = storage.airbender_proof_generation_dal();
-            dal.lock_batch_for_snark(Duration::from_secs(600), L1BatchNumber(0))
-                .await
-                .unwrap()
-                .expect("batch should be lockable for SNARK");
-            dal.save_snark_proof_artifacts_metadata(batch, "snark-blob-url", "snark-prover")
-                .await
-                .unwrap();
-        }
-
         // Commit gating: only the leading prefix of batches with a FRI proof is kept.
         #[tokio::test]
         async fn filter_airbender_fri_proven_keeps_proven_prefix() {
@@ -1205,48 +1222,39 @@ mod tests {
             assert!(filtered.is_empty());
         }
 
-        // Prove path: the SNARK proof stored under `(batch, version)` is loaded and decoded.
+        // Prove path: the SNARK proof stored under `(batch, version)` is loaded and decoded when
+        // its version is allowed by L1.
         #[tokio::test]
         async fn load_airbender_snark_proof_returns_versioned_proof() {
-            let pool = ConnectionPool::<Core>::test_pool().await;
-            let mut storage = pool.connection().await.unwrap();
             let blob_store = MockObjectStore::arc();
             let batch = L1BatchNumber(1);
             let version = test_version();
 
-            seed_snark_proof(&mut storage, batch).await;
             blob_store
                 .put((batch, version), &snark_blob(version))
                 .await
                 .unwrap();
 
-            let loaded = load_airbender_snark_proof(&mut storage, batch, &*blob_store).await;
+            let loaded = load_airbender_snark_proof(batch, &*blob_store, &[version]).await;
 
             let proof = loaded.expect("proof should be loaded");
             assert_eq!(proof.protocol_version(), version);
         }
 
-        // No SNARK proof submitted yet (`snark_proof_blob_url IS NULL`) => nothing to prove.
+        // No SNARK proof uploaded yet => nothing to prove.
         #[tokio::test]
         async fn load_airbender_snark_proof_returns_none_without_snark() {
-            let pool = ConnectionPool::<Core>::test_pool().await;
-            let mut storage = pool.connection().await.unwrap();
             let blob_store = MockObjectStore::arc();
             let batch = L1BatchNumber(1);
 
-            // Only the FRI proof exists; the SNARK proof hasn't been produced.
-            seed_fri_proof(&mut storage, batch).await;
-
-            let loaded = load_airbender_snark_proof(&mut storage, batch, &*blob_store).await;
+            let loaded = load_airbender_snark_proof(batch, &*blob_store, &[test_version()]).await;
             assert!(loaded.is_none());
         }
 
-        // The DB marks the SNARK proof present, but its blob is under a version that isn't in the
-        // L1-allowed set => not loaded (mirrors the Boojum VK-disambiguation behaviour).
+        // The proof blob exists, but under a version that isn't in the L1-allowed set => not
+        // loaded, mirroring the Boojum VK-disambiguation behaviour.
         #[tokio::test]
         async fn load_airbender_snark_proof_returns_none_for_disallowed_version() {
-            let pool = ConnectionPool::<Core>::test_pool().await;
-            let mut storage = pool.connection().await.unwrap();
             let blob_store = MockObjectStore::arc();
             let batch = L1BatchNumber(1);
             let stored_version = test_version();
@@ -1255,53 +1263,13 @@ mod tests {
                 patch: 1.into(),
             };
 
-            seed_snark_proof(&mut storage, batch).await;
             blob_store
                 .put((batch, stored_version), &snark_blob(stored_version))
                 .await
                 .unwrap();
 
-            let loaded = load_airbender_snark_proof(&mut storage, batch, &*blob_store).await;
+            let loaded = load_airbender_snark_proof(batch, &*blob_store, &[allowed_version]).await;
             assert!(loaded.is_none());
         }
     }
-}
-
-/// Loads the SNARK-wrapped Airbender proof for `l1_batch_number` and decodes it
-async fn load_airbender_snark_proof(
-    storage: &mut Connection<'_, Core>,
-    l1_batch_number: L1BatchNumber,
-    blob_store: &dyn ObjectStore,
-) -> Option<L1BatchProofForL1> {
-    // Gate on the DB marker first: a non-null `snark_proof_blob_url` means the SNARK
-    // proof has been submitted and uploaded to the object store.
-    let blob_url = storage
-        .airbender_proof_generation_dal()
-        .get_airbender_snark_proof(l1_batch_number)
-        .await
-        .unwrap()?
-        .snark_proof_blob_url?;
-
-    // Try each protocol version whose verification key matches the one on L1, mirroring
-    // `load_wrapped_fri_proofs_for_range`.
-    let snark_proof: L1BatchAirbenderSnarkProofForL1 =
-        match blob_store.get_by_encoded_key(blob_url).await {
-            Ok(proof) => proof,
-            Err(ObjectStoreError::KeyNotFound(_)) => return None,
-            Err(err) => panic!(
-                "Failed to load Airbender SNARK proof for batch {}: {}",
-                l1_batch_number.0, err
-            ),
-        };
-
-    // The SNARK prover stores a CBOR-encoded `L1BatchProofForL1` (plonk/fflonk), so it can be
-    // submitted through the same path as Boojum proofs.
-    let proof = <L1BatchProofForL1 as StoredObject>::deserialize(snark_proof.snark_proof)
-        .unwrap_or_else(|err| {
-            panic!(
-                "Failed to deserialize Airbender SNARK proof for batch {}: {}",
-                l1_batch_number.0, err
-            )
-        });
-    return Some(proof);
 }
