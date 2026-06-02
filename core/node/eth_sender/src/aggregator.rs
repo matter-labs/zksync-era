@@ -1103,7 +1103,7 @@ mod tests {
     mod airbender {
         use zksync_node_test_utils::{create_l1_batch, create_l1_batch_metadata};
         use zksync_object_store::MockObjectStore;
-        use zksync_prover_interface::outputs::PlonkL1BatchProofForL1;
+        use zksync_prover_interface::outputs::AirbenderL1BatchProofForL1;
 
         use super::*;
 
@@ -1125,9 +1125,8 @@ mod tests {
         /// A SNARK blob whose `snark_proof` bytes are a CBOR-encoded `L1BatchProofForL1`, exactly
         /// what the proof data handler stores and `load_airbender_snark_proof` expects to decode.
         fn snark_blob(version: ProtocolSemanticVersion) -> L1BatchAirbenderSnarkProofForL1 {
-            let proof = L1BatchProofForL1::new_plonk(PlonkL1BatchProofForL1 {
-                aggregation_result_coords: [[0; 32]; 4],
-                scheduler_proof: bellman::plonk::better_better_cs::proof::Proof::empty(),
+            let proof = L1BatchProofForL1::new_airbender(AirbenderL1BatchProofForL1 {
+                proof: vec![0x01, 0x02, 0x03, 0x04],
                 protocol_version: version,
             });
             let snark_proof = <L1BatchProofForL1 as StoredObject>::serialize(&proof).unwrap();

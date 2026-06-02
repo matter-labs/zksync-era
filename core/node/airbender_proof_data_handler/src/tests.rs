@@ -18,7 +18,7 @@ use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{MockObjectStore, StoredObject};
-use zksync_prover_interface::outputs::{L1BatchProofForL1, PlonkL1BatchProofForL1};
+use zksync_prover_interface::outputs::{AirbenderL1BatchProofForL1, L1BatchProofForL1};
 use zksync_types::{
     block::L1BatchHeader, protocol_version::ProtocolSemanticVersion, settlement::SettlementLayer,
     L1BatchNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
@@ -29,9 +29,8 @@ use crate::create_proof_processing_router;
 /// A valid SNARK proof payload: a CBOR-encoded `L1BatchProofForL1`. The data handler decodes it to
 /// derive the protocol version used in the blob store key (mirroring Boojum proofs).
 fn encoded_snark_proof() -> Vec<u8> {
-    let proof = L1BatchProofForL1::new_plonk(PlonkL1BatchProofForL1 {
-        aggregation_result_coords: [[0; 32]; 4],
-        scheduler_proof: bellman::plonk::better_better_cs::proof::Proof::empty(),
+    let proof = L1BatchProofForL1::new_airbender(AirbenderL1BatchProofForL1 {
+        proof: vec![0x01, 0x02, 0x03, 0x04],
         protocol_version: ProtocolSemanticVersion {
             minor: ProtocolVersionId::latest(),
             patch: 0.into(),
