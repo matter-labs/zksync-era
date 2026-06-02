@@ -13,7 +13,9 @@ use zksync_object_store::{ObjectStore, ObjectStoreError, StoredObject};
 use zksync_prover_interface::outputs::{L1BatchProofForL1, L1BatchProofForL1Key};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
-    commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
+    commitment::{
+        L1BatchCommitmentMode, L1BatchCommitmentSource, L1BatchWithMetadata, PriorityOpsMerkleProof,
+    },
     hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
     l1::L1Tx,
@@ -436,10 +438,14 @@ impl Aggregator {
         }
         let ready_for_execute_batches = storage
             .blocks_dal()
-            .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)
+            .get_ready_for_execute_l1_batches(
+                limit,
+                max_l1_batch_timestamp_millis,
+                commitment_source(self.config.prover),
+            )
             .await
             .unwrap();
-        let Some(mut l1_batches) = extract_ready_subrange(
+        let Some(l1_batches) = extract_ready_subrange(
             storage,
             &mut self.execute_criteria,
             ready_for_execute_batches,
@@ -450,14 +456,6 @@ impl Aggregator {
         else {
             return Ok(None);
         };
-
-        // Executed batches are referenced on L1 via `StoredBatchInfo`, which for the Airbender
-        // prover must carry the Airbender-shape commitment the contract stored at commit time.
-        if self.config.prover == ProverType::Airbender {
-            for batch in &mut l1_batches {
-                Self::override_with_airbender_commitment(storage, batch).await;
-            }
-        }
 
         let mut dependency_roots: Vec<Vec<InteropRoot>> = vec![];
         for batch in &l1_batches {
@@ -582,9 +580,10 @@ impl Aggregator {
             return None;
         }
 
+        let commitment_source = commitment_source(self.config.prover);
         let mut blocks_dal = storage.blocks_dal();
-        let mut last_committed_l1_batch = blocks_dal
-            .get_last_committed_to_eth_l1_batch()
+        let last_committed_l1_batch = blocks_dal
+            .get_last_committed_to_eth_l1_batch(commitment_source)
             .await
             .unwrap()?;
 
@@ -607,6 +606,7 @@ impl Aggregator {
                     protocol_version_id,
                     self.commitment_mode != L1BatchCommitmentMode::Rollup,
                     send_precommit_tx,
+                    commitment_source,
                 )
                 .await
                 .unwrap()
@@ -615,9 +615,12 @@ impl Aggregator {
         // When the Airbender prover is active, a batch can only be committed once its
         // Airbender FRI proof has been produced (`proof_blob_url IS NOT NULL`). Keep
         // only the leading prefix of batches that satisfy this, preserving sequentiality.
-        if self.config.prover == ProverType::Airbender {
-            ready_for_commit_l1_batches =
-                Self::filter_airbender_fri_proven(storage, ready_for_commit_l1_batches).await;
+        match self.config.prover {
+            ProverType::Boojum => {}
+            ProverType::Airbender => {
+                ready_for_commit_l1_batches =
+                    Self::filter_airbender_fri_proven(storage, ready_for_commit_l1_batches).await;
+            }
         }
 
         // Check that the L1 batches that are selected are sequential
@@ -640,19 +643,7 @@ impl Aggregator {
         )
         .await;
 
-        let mut batches = batches?;
-
-        // With the Airbender prover, the L1 contract derives and stores the
-        // Airbender-shape commitment from the committed batches, so the batches being
-        // committed must carry the Airbender-shape aux commitments and the previously
-        // committed batch (referenced via `StoredBatchInfo`) must carry the Airbender
-        // commitment.
-        if self.config.prover == ProverType::Airbender {
-            Self::override_with_airbender_commitment(storage, &mut last_committed_l1_batch).await;
-            for batch in &mut batches {
-                Self::override_with_airbender_commitment(storage, batch).await;
-            }
-        }
+        let batches = batches?;
 
         // Note: the line below only works correctly during rollup <-> validium transitions
         // if the limit of commit operation is set to 1.
@@ -713,10 +704,11 @@ impl Aggregator {
     async fn load_dummy_proof_operations(
         storage: &mut Connection<'_, Core>,
         is_4844_mode: bool,
+        commitment_source: L1BatchCommitmentSource,
     ) -> Vec<L1BatchWithMetadata> {
         let mut ready_for_proof_l1_batches = storage
             .blocks_dal()
-            .get_ready_for_dummy_proof_l1_batches(1)
+            .get_ready_for_dummy_proof_l1_batches(1, commitment_source)
             .await
             .unwrap();
 
@@ -831,9 +823,16 @@ impl Aggregator {
             return None;
         };
 
-        let mut previous_proven_batch_metadata = storage
+        // The `StoredBatchInfo` of both the previous and the proven batch must match what the
+        // L1 contract stored at commit time, which for the Airbender prover is the
+        // Airbender-shape commitment.
+        let commitment_source = commitment_source(prover);
+        let previous_proven_batch_metadata = storage
             .blocks_dal()
-            .get_l1_batch_metadata(previous_proven_batch_number)
+            .get_l1_batch_metadata_with_commitment_source(
+                previous_proven_batch_number,
+                commitment_source,
+            )
             .await
             .unwrap()
             .unwrap_or_else(|| {
@@ -842,9 +841,12 @@ impl Aggregator {
                     previous_proven_batch_number
                 );
             });
-        let mut metadata_for_batch_being_proved = storage
+        let metadata_for_batch_being_proved = storage
             .blocks_dal()
-            .get_l1_batch_metadata(previous_proven_batch_number + 1)
+            .get_l1_batch_metadata_with_commitment_source(
+                previous_proven_batch_number + 1,
+                commitment_source,
+            )
             .await
             .unwrap()
             .unwrap_or_else(|| {
@@ -854,60 +856,12 @@ impl Aggregator {
                 );
             });
 
-        // The `StoredBatchInfo` of both the previous and the proven batch must match what the
-        // L1 contract stored at commit time, which for the Airbender prover is the
-        // Airbender-shape commitment.
-        if prover == ProverType::Airbender {
-            Self::override_with_airbender_commitment(storage, &mut previous_proven_batch_metadata)
-                .await;
-            Self::override_with_airbender_commitment(storage, &mut metadata_for_batch_being_proved)
-                .await;
-        }
-
         Some(ProveBatches {
             prev_l1_batch: previous_proven_batch_metadata,
             l1_batches: vec![metadata_for_batch_being_proved],
             proofs: vec![proof],
             should_verify: true,
         })
-    }
-
-    /// Replaces the Boojum-shape commitment fields of `batch` with the Airbender-shape
-    /// values stored in `airbender_batch_commitments`.
-    ///
-    /// With the Airbender prover, the L1 contract derives the batch commitment from the
-    /// Airbender `aux_commitments`. As a result the batches being committed must expose
-    /// the Airbender `events_queue_commitment` / `bootloader_initial_content_commitment`
-    /// (which feed `CommitBatchInfo`), and every batch later referenced via
-    /// `StoredBatchInfo` (commit's previous batch, prove, execute) must expose the
-    /// Airbender `commitment`, or the on-chain `_hashStoredBatchInfo` check reverts.
-    ///
-    /// The genesis batch (#0) is never proven and has no Airbender commitment row, so it
-    /// is left untouched. A missing row for any other batch is a fatal inconsistency: the
-    /// commit path only selects batches whose Airbender FRI proof exists, which in turn
-    /// requires the commitment generator to have run.
-    async fn override_with_airbender_commitment(
-        storage: &mut Connection<'_, Core>,
-        batch: &mut L1BatchWithMetadata,
-    ) {
-        if batch.header.number == L1BatchNumber(0) {
-            return;
-        }
-        let commitment = storage
-            .blocks_dal()
-            .get_airbender_batch_commitment(batch.header.number)
-            .await
-            .unwrap()
-            .unwrap_or_else(|| {
-                panic!(
-                    "Airbender commitment is missing for L1 batch #{}",
-                    batch.header.number
-                )
-            });
-        batch.metadata.commitment = commitment.commitment;
-        batch.metadata.events_queue_commitment = Some(commitment.events_queue_commitment);
-        batch.metadata.bootloader_initial_content_commitment =
-            Some(commitment.bootloader_initial_content_commitment);
     }
 
     /// Truncates `batches` to the leading prefix whose Airbender FRI proof has been
@@ -950,19 +904,14 @@ impl Aggregator {
         .await?;
 
         let prev_l1_batch_number = batches.first().map(|batch| batch.header.number - 1)?;
-        let mut prev_batch = storage
+        let prev_batch = storage
             .blocks_dal()
-            .get_l1_batch_metadata(prev_l1_batch_number)
+            .get_l1_batch_metadata_with_commitment_source(
+                prev_l1_batch_number,
+                commitment_source(self.config.prover),
+            )
             .await
             .unwrap()?;
-
-        let mut batches = batches;
-        if self.config.prover == ProverType::Airbender {
-            Self::override_with_airbender_commitment(storage, &mut prev_batch).await;
-            for batch in &mut batches {
-                Self::override_with_airbender_commitment(storage, batch).await;
-            }
-        }
 
         Some(ProveBatches {
             prev_l1_batch: prev_batch,
@@ -991,8 +940,12 @@ impl Aggregator {
             }
 
             ProofSendingMode::SkipEveryProof => {
-                let ready_for_proof_l1_batches =
-                    Self::load_dummy_proof_operations(storage, self.operate_4844_mode).await;
+                let ready_for_proof_l1_batches = Self::load_dummy_proof_operations(
+                    storage,
+                    self.operate_4844_mode,
+                    commitment_source(self.config.prover),
+                )
+                .await;
                 self.prepare_dummy_proof_operation(
                     storage,
                     ready_for_proof_l1_batches,
@@ -1016,7 +969,7 @@ impl Aggregator {
                 } else {
                     let ready_for_proof_batches = storage
                         .blocks_dal()
-                        .get_skipped_for_proof_l1_batches(1)
+                        .get_skipped_for_proof_l1_batches(1, commitment_source(self.config.prover))
                         .await
                         .unwrap();
                     self.prepare_dummy_proof_operation(
@@ -1028,6 +981,15 @@ impl Aggregator {
                 }
             }
         }
+    }
+}
+
+/// Which commitment the batches loaded for L1 submission should carry. The Airbender prover
+/// commits the Airbender-shape commitment on L1, so all of commit/prove/execute must reference it.
+fn commitment_source(prover: ProverType) -> L1BatchCommitmentSource {
+    match prover {
+        ProverType::Boojum => L1BatchCommitmentSource::Boojum,
+        ProverType::Airbender => L1BatchCommitmentSource::Airbender,
     }
 }
 
@@ -1180,7 +1142,6 @@ mod tests {
         use zksync_node_test_utils::{create_l1_batch, create_l1_batch_metadata};
         use zksync_object_store::MockObjectStore;
         use zksync_prover_interface::outputs::AirbenderL1BatchProofForL1;
-        use zksync_types::{commitment::AirbenderBatchCommitment, H256};
 
         use super::*;
 
@@ -1333,54 +1294,6 @@ mod tests {
                 load_airbender_snark_proof(&mut storage, batch, &*blob_store, &[allowed_version])
                     .await;
             assert!(loaded.is_none());
-        }
-
-        fn airbender_commitment(seed: u8) -> AirbenderBatchCommitment {
-            AirbenderBatchCommitment {
-                commitment: H256::repeat_byte(seed),
-                aux_data_hash: H256::repeat_byte(seed + 1),
-                events_queue_commitment: H256::repeat_byte(seed + 2),
-                bootloader_initial_content_commitment: H256::repeat_byte(seed + 3),
-            }
-        }
-
-        // The Boojum-shape commitment fields are replaced with the Airbender-shape values.
-        #[tokio::test]
-        async fn override_with_airbender_commitment_replaces_fields() {
-            let pool = ConnectionPool::<Core>::test_pool().await;
-            let mut storage = pool.connection().await.unwrap();
-            let commitment = airbender_commitment(0x10);
-            storage
-                .blocks_dal()
-                .save_airbender_batch_commitment(L1BatchNumber(1), &commitment)
-                .await
-                .unwrap();
-
-            let mut batch = batch_with_metadata(1);
-            Aggregator::override_with_airbender_commitment(&mut storage, &mut batch).await;
-
-            assert_eq!(batch.metadata.commitment, commitment.commitment);
-            assert_eq!(
-                batch.metadata.events_queue_commitment,
-                Some(commitment.events_queue_commitment)
-            );
-            assert_eq!(
-                batch.metadata.bootloader_initial_content_commitment,
-                Some(commitment.bootloader_initial_content_commitment)
-            );
-        }
-
-        // The genesis batch has no Airbender commitment row and must be left untouched.
-        #[tokio::test]
-        async fn override_with_airbender_commitment_skips_genesis() {
-            let pool = ConnectionPool::<Core>::test_pool().await;
-            let mut storage = pool.connection().await.unwrap();
-
-            let mut batch = batch_with_metadata(0);
-            let original = batch.metadata.commitment;
-            Aggregator::override_with_airbender_commitment(&mut storage, &mut batch).await;
-
-            assert_eq!(batch.metadata.commitment, original);
         }
     }
 }
