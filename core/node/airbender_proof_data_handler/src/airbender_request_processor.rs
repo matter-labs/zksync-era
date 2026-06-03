@@ -92,8 +92,7 @@ impl AirbenderRequestProcessor {
                 .await
             {
                 Ok(input) => {
-                    let protocol_version =
-                        batch_protocol_semantic_version(&mut transaction, batch_number).await?;
+                    let protocol_version = locked_batch.protocol_version;
                     transaction.commit().await?;
                     METRICS.airbender_jobs_picked[&(ProofStage::Fri, protocol_version.to_string())]
                         .inc();
