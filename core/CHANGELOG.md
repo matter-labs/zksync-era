@@ -1,5 +1,14 @@
 # Changelog
 
+## [29.19.1](https://github.com/matter-labs/zksync-era/compare/core-v29.19.0...core-v29.19.1) (2026-06-01)
+
+
+### Bug Fixes
+
+* **airbender_prover:** Increase body size limit for proofs  ([#4828](https://github.com/matter-labs/zksync-era/issues/4828)) ([24fbdf3](https://github.com/matter-labs/zksync-era/commit/24fbdf3faec8b8d48fddb64e4bddd1c4951af92a))
+* **api:** handle NULL protocol_version when replaying batch for traces ([#4835](https://github.com/matter-labs/zksync-era/issues/4835)) ([c3f5ddf](https://github.com/matter-labs/zksync-era/commit/c3f5ddf61a1bd52ceddd0cfba90047a4e32fe633))
+* **consensus:** gate settlement_layer/interop_fee on protocol_version &gt;= 31 ([#4824](https://github.com/matter-labs/zksync-era/issues/4824)) ([72a0b7c](https://github.com/matter-labs/zksync-era/commit/72a0b7c519a82b04fd72dd2bfb513f751bbad161))
+
 ## [29.19.0](https://github.com/matter-labs/zksync-era/compare/core-v29.18.0...core-v29.19.0) (2026-05-26)
 
 
