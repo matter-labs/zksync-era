@@ -63,11 +63,18 @@ pub struct LockedBatch {
 }
 
 impl AirbenderProofGenerationDal<'_, '_> {
+    /// Locks the oldest provable batch for Airbender FRI proving.
+    ///
+    /// On the first lock of a batch (Step 2), the protocol version recorded for proving is the
+    /// batch's own minor version (`l1_batches.protocol_version`) combined with the latest patch
+    /// known for that minor in `protocol_patches`. This is deliberately *not* the globally latest
+    /// version: a batch must be proven under the protocol it was executed with, only picking up
+    /// the newest patch (e.g. an updated verification key) for that minor. Reclaimed batches
+    /// (Step 1) keep the version recorded when they were first locked.
     pub async fn lock_batch_for_proving(
         &mut self,
         processing_timeout: Duration,
         min_batch_number: L1BatchNumber,
-        protocol_version: ProtocolSemanticVersion,
     ) -> DalResult<Option<LockedBatch>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
@@ -116,7 +123,6 @@ impl AirbenderProofGenerationDal<'_, '_> {
         .instrument("lock_batch_for_proving#reclaim")
         .with_arg("processing_timeout", &processing_timeout)
         .with_arg("min_batch_number", &min_batch_number)
-        .with_arg("protocol_version", &protocol_version)
         .fetch_optional(self.storage)
         .await?
         .map(Into::into);
@@ -126,6 +132,11 @@ impl AirbenderProofGenerationDal<'_, '_> {
         }
 
         // Step 2: No reclaimable row — try to claim a new batch.
+        // The recorded version is the batch's own minor version with the latest patch known for
+        // that minor, so the batch is proven under the protocol it executed with (newest patch
+        // only). Batches whose minor has no patch in `protocol_patches` are skipped — the proving
+        // version is unknown, and `protocol_version_patch` is NOT NULL so an empty patch can't be
+        // inserted anyway.
         // ON CONFLICT DO NOTHING: if two provers race, one wins and the other gets nothing.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
@@ -134,12 +145,31 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 l1_batch_number, status, created_at, updated_at, prover_taken_at,
                 protocol_version, protocol_version_patch
             )
-            SELECT p.l1_batch_number, $1, NOW(), NOW(), NOW(), $3, $4
+            SELECT
+                p.l1_batch_number,
+                $1,
+                NOW(),
+                NOW(),
+                NOW(),
+                l.protocol_version,
+                (
+                    SELECT pp.patch
+                    FROM protocol_patches pp
+                    WHERE pp.minor = l.protocol_version
+                    ORDER BY pp.patch DESC
+                    LIMIT 1
+                )
             FROM proof_generation_details p
+            JOIN l1_batches l ON l.number = p.l1_batch_number
             WHERE
                 p.l1_batch_number >= $2
                 AND p.vm_run_data_blob_url IS NOT NULL
                 AND p.proof_gen_data_blob_url IS NOT NULL
+                AND l.protocol_version IS NOT NULL
+                AND EXISTS (
+                    SELECT 1 FROM protocol_patches pp
+                    WHERE pp.minor = l.protocol_version
+                )
                 AND NOT EXISTS (
                     SELECT 1 FROM airbender_proof_generation_details a
                     WHERE a.l1_batch_number = p.l1_batch_number
@@ -154,12 +184,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
             "#,
             picked,
             min_batch_number,
-            protocol_version.minor as i32,
-            protocol_version.patch.0 as i32,
         )
         .instrument("lock_batch_for_proving#new")
         .with_arg("min_batch_number", &min_batch_number)
-        .with_arg("protocol_version", &protocol_version)
         .fetch_optional(self.storage)
         .await?
         .map(Into::into);
@@ -564,5 +591,140 @@ impl AirbenderProofGenerationDal<'_, '_> {
         .await?;
 
         Ok(row.count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use zksync_contracts::BaseSystemContractsHashes;
+    use zksync_types::{
+        block::L1BatchHeader,
+        protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, VersionPatch},
+        settlement::SettlementLayer,
+        L1BatchNumber, ProtocolVersionId,
+    };
+
+    use super::*;
+    use crate::{ConnectionPool, CoreDal};
+
+    async fn save_patch(conn: &mut Connection<'_, Core>, minor: ProtocolVersionId, patch: u32) {
+        conn.protocol_versions_dal()
+            .save_protocol_version(
+                ProtocolSemanticVersion {
+                    minor,
+                    patch: VersionPatch(patch),
+                },
+                0,
+                L1VerifierConfig::default(),
+                BaseSystemContractsHashes::default(),
+                None,
+            )
+            .await
+            .unwrap();
+    }
+
+    async fn insert_provable_batch(
+        conn: &mut Connection<'_, Core>,
+        number: L1BatchNumber,
+        minor: ProtocolVersionId,
+    ) {
+        let header = L1BatchHeader::new(
+            number,
+            100,
+            BaseSystemContractsHashes::default(),
+            minor,
+            SettlementLayer::for_tests(),
+        );
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&header)
+            .await
+            .unwrap();
+        conn.proof_generation_dal()
+            .insert_proof_generation_details(number)
+            .await
+            .unwrap();
+        conn.proof_generation_dal()
+            .save_vm_runner_artifacts_metadata(number, "vm_run")
+            .await
+            .unwrap();
+        conn.proof_generation_dal()
+            .save_merkle_paths_artifacts_metadata(number, "merkle_paths")
+            .await
+            .unwrap();
+    }
+
+    /// The first lock must record the batch's own minor version with the latest patch known for
+    /// that minor — *not* the globally latest protocol version.
+    #[tokio::test]
+    async fn lock_records_batch_minor_with_latest_patch() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        // The batch was executed under an older minor (V30) ...
+        let batch_minor = ProtocolVersionId::Version30;
+        save_patch(&mut conn, batch_minor, 0).await;
+        save_patch(&mut conn, batch_minor, 3).await;
+        // ... while a newer minor (the global latest) also has patches registered.
+        let latest_minor = ProtocolVersionId::latest();
+        assert!(latest_minor > batch_minor);
+        save_patch(&mut conn, latest_minor, 0).await;
+        save_patch(&mut conn, latest_minor, 9).await;
+
+        insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
+
+        let locked = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0))
+            .await
+            .unwrap()
+            .expect("batch should be lockable");
+
+        assert_eq!(locked.l1_batch_number, L1BatchNumber(1));
+        // Batch minor, latest patch for that minor — not the global latest (V31/patch 9).
+        assert_eq!(
+            locked.protocol_version,
+            ProtocolSemanticVersion {
+                minor: batch_minor,
+                patch: VersionPatch(3),
+            }
+        );
+    }
+
+    /// Reclaiming a timed-out batch must preserve the version recorded at first lock instead of
+    /// recomputing it.
+    #[tokio::test]
+    async fn reclaim_preserves_recorded_version() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let batch_minor = ProtocolVersionId::Version30;
+        save_patch(&mut conn, batch_minor, 0).await;
+        save_patch(&mut conn, batch_minor, 3).await;
+
+        insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
+
+        let first = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0))
+            .await
+            .unwrap()
+            .expect("batch should be lockable");
+
+        // A newer patch appears after the batch was first locked.
+        save_patch(&mut conn, batch_minor, 7).await;
+
+        // Zero timeout makes the picked batch immediately reclaimable.
+        let reclaimed = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0))
+            .await
+            .unwrap()
+            .expect("batch should be reclaimable");
+
+        assert_eq!(reclaimed.l1_batch_number, L1BatchNumber(1));
+        assert_eq!(reclaimed.protocol_version, first.protocol_version);
+        assert_eq!(reclaimed.protocol_version.patch, VersionPatch(3));
     }
 }

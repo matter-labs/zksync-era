@@ -72,22 +72,12 @@ impl AirbenderRequestProcessor {
 
             // Record the protocol version the batch is proved under at lock time, so `submit_proof`
             // and the SNARK step reuse the exact same version (and blob key) instead of recomputing
-            // it. We pick the latest known version; if none is configured yet, nothing can be proven.
-            let Some(protocol_version) = transaction
-                .protocol_versions_dal()
-                .latest_semantic_version()
-                .await?
-            else {
-                return Ok(None);
-            };
-
+            // it. The version is the batch's own minor version with the latest known patch for that
+            // minor (chosen inside the lock query), so a batch is proven under the protocol it
+            // executed with — not the globally latest version.
             let Some(locked_batch) = transaction
                 .airbender_proof_generation_dal()
-                .lock_batch_for_proving(
-                    self.config.proof_generation_timeout,
-                    min_batch_number,
-                    protocol_version,
-                )
+                .lock_batch_for_proving(self.config.proof_generation_timeout, min_batch_number)
                 .await?
             else {
                 return Ok(None); // no job available
