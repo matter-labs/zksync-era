@@ -111,7 +111,13 @@ impl Task for SyncStateUpdater {
                 .get_sealed_l2_block_number()
                 .await?;
 
-            let main_node_block = self.main_node_client.get_block_number().await?;
+            let main_node_block = match self.main_node_client.get_block_number().await {
+                Ok(block_number) => block_number,
+                Err(e) => {
+                    tracing::warn!("Failed to fetch main node block number: {e}");
+                    continue;
+                }
+            };
 
             if let Some(local_block) = local_block {
                 self.sync_state.set_local_block(local_block);
