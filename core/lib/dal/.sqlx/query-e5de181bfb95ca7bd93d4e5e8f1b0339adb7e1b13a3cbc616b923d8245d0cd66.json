@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                protocol_version,\n                protocol_version_patch\n            FROM\n                airbender_proof_generation_details\n            WHERE\n                l1_batch_number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "e5de181bfb95ca7bd93d4e5e8f1b0339adb7e1b13a3cbc616b923d8245d0cd66"
+}

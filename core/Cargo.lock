@@ -13452,7 +13452,6 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_airbender_prover_interface",
- "zksync_bellman",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
@@ -15048,6 +15047,7 @@ dependencies = [
  "tokio",
  "zksync_bellman",
  "zksync_object_store",
+ "zksync_solidity_vk_codegen",
  "zksync_types",
  "zksync_vm_interface",
 ]
