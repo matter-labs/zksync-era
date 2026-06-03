@@ -1,5 +1,12 @@
 # Changelog
 
+## [29.19.2](https://github.com/matter-labs/zksync-era/compare/core-v29.19.1...core-v29.19.2) (2026-06-03)
+
+
+### Bug Fixes
+
+* **airbender-prover:** fix query for snark prover ([#4838](https://github.com/matter-labs/zksync-era/issues/4838)) ([b29b99e](https://github.com/matter-labs/zksync-era/commit/b29b99ea08bcab5a4c14acb5a701d42194d89895))
+
 ## [29.19.1](https://github.com/matter-labs/zksync-era/compare/core-v29.19.0...core-v29.19.1) (2026-06-01)
 
 
