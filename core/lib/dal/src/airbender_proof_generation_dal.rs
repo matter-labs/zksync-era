@@ -591,6 +591,35 @@ impl AirbenderProofGenerationDal<'_, '_> {
 
         Ok(row.count)
     }
+
+    /// Number of batches whose FRI proof has been submitted (`status = 'generated'`) and are
+    /// waiting to be wrapped into a SNARK proof.
+    pub async fn get_ready_for_snark_count(
+        &mut self,
+        min_batch_number: L1BatchNumber,
+    ) -> DalResult<i64> {
+        let min_batch_number = i64::from(min_batch_number.0);
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*) AS "count!"
+            FROM
+                airbender_proof_generation_details apgd
+            WHERE
+                apgd.l1_batch_number >= $1
+                AND apgd.proof_blob_url IS NOT NULL
+                AND apgd.status = $2
+            "#,
+            min_batch_number,
+            AirbenderProofGenerationJobStatus::Generated.to_string(),
+        )
+        .instrument("get_ready_for_snark_count")
+        .with_arg("min_batch_number", &min_batch_number)
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(row.count)
+    }
 }
 
 #[cfg(test)]
