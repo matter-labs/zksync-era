@@ -251,8 +251,7 @@ pub(crate) async fn run_chain_upgrade(
     ))?;
 
     let server_notifier_calldata = if new_minor_version >= ProtocolVersionId::Version31 {
-        let server_notifier_calls =
-            AdminCallBuilder::new(vec![server_notifier_set_timestamp_call]);
+        let server_notifier_calls = AdminCallBuilder::new(vec![server_notifier_set_timestamp_call]);
         server_notifier_calls.display();
         let (data, value) = server_notifier_calls.compile_full_calldata();
         logger::info(format!(
