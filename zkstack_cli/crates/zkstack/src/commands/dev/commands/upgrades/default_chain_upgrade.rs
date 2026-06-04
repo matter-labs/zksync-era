@@ -12,7 +12,9 @@ use zkstack_cli_config::{
     traits::{FileConfigTrait, ReadConfig},
     ZkStackConfig, ZkStackConfigTrait,
 };
-use zksync_basic_types::{web3::Bytes, Address, L1BatchNumber, U256};
+use zksync_basic_types::{
+    protocol_version::ProtocolVersionId, web3::Bytes, Address, L1BatchNumber, U256,
+};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::ZksNamespaceClient,
@@ -34,6 +36,7 @@ use crate::{
             },
         },
     },
+    utils::protocol_version::get_minor_protocol_version,
 };
 
 #[derive(Debug, Default)]
@@ -240,23 +243,58 @@ pub(crate) async fn run_chain_upgrade(
         };
     }
 
-    let mut admin_calls_finalize = AdminCallBuilder::new(vec![server_notifier_set_timestamp_call]);
+    // ServerNotifier notification (call #2): a v31+ feature, so emitted only for v31+ targets
+    // (the deployed `ServerNotifier` on pre-v31 CTMs lacks the function). Sent as its own decoupled
+    // `ChainAdmin` multicall so it can never roll back the upgrade execution (call #3). The flag
+    // force-skips it for v31+ (e.g. when the CTM's `ServerNotifier` impl isn't upgraded yet).
+    let new_minor_version = get_minor_protocol_version(U256::from(
+        upgrade_info.contracts_config.new_protocol_version,
+    ))?;
+    let include_server_notifier = new_minor_version >= ProtocolVersionId::Version31
+        && !args.skip_server_notifier_notification.unwrap_or_default();
 
-    admin_calls_finalize.append_execute_upgrade(
+    let server_notifier_calldata = if include_server_notifier {
+        let server_notifier_calls =
+            AdminCallBuilder::new(vec![server_notifier_set_timestamp_call]);
+        server_notifier_calls.display();
+        let (data, value) = server_notifier_calls.compile_full_calldata();
+        logger::info(format!(
+            "Calldata to call `ChainAdmin` with for the `ServerNotifier` notification: {}\nTotal value: {}",
+            hex::encode(&data),
+            value,
+        ));
+        Some((data, value))
+    } else {
+        if new_minor_version < ProtocolVersionId::Version31 {
+            logger::info(format!(
+                "Skipping `ServerNotifier` notification: target protocol version {new_minor_version:?} is below v31."
+            ));
+        } else {
+            logger::warn(
+                "Skipping `ServerNotifier` notification (`--skip-server-notifier-notification`). \
+                 The post-upgrade server will NOT be notified via \
+                 `ServerNotifier::UpgradeTimestampUpdated`.",
+            );
+        }
+        None
+    };
+
+    // Upgrade execution (call #3): its own `ChainAdmin` multicall.
+    let mut execute_upgrade_calls = AdminCallBuilder::new(vec![]);
+    execute_upgrade_calls.append_execute_upgrade(
         chain_info.hyperchain_addr,
         upgrade_info.contracts_config.old_protocol_version,
         upgrade_info.chain_upgrade_diamond_cut.clone(),
     );
+    execute_upgrade_calls.display();
 
-    admin_calls_finalize.display();
-
-    let (calldata, total_value) = if admin_calls_finalize.is_empty() {
+    let (calldata, total_value) = if execute_upgrade_calls.is_empty() {
         logger::info("No calls to execute for direct upgrade");
         (vec![], U256::zero())
     } else {
-        let (data, value) = admin_calls_finalize.compile_full_calldata();
+        let (data, value) = execute_upgrade_calls.compile_full_calldata();
         logger::info(format!(
-            "Full calldata to call `ChainAdmin` with : {}\nTotal value: {}",
+            "Full calldata to call `ChainAdmin` with for the upgrade execution: {}\nTotal value: {}",
             hex::encode(&data),
             value,
         ));
@@ -282,6 +320,28 @@ pub(crate) async fn run_chain_upgrade(
         .await?;
         logger::info("Set upgrade timestamp successfully!");
         logger::info(format!("receipt: {:#?}", receipt1));
+
+        // Notify the post-upgrade server via `ServerNotifier` (call #2), unless skipped.
+        if let Some((server_notifier_calldata, server_notifier_value)) = server_notifier_calldata {
+            logger::info("Notifying `ServerNotifier` of the scheduled upgrade");
+            let receipt = send_tx(
+                chain_info.chain_admin_addr,
+                server_notifier_calldata,
+                server_notifier_value,
+                args.l1_rpc_url.clone().unwrap(),
+                chain_config
+                    .get_wallets_config()?
+                    .governor
+                    .private_key_h256()
+                    .unwrap(),
+                "notify server notifier",
+            )
+            .await?;
+            logger::info("Notified `ServerNotifier` successfully!");
+            logger::info(format!("receipt: {:#?}", receipt));
+        } else {
+            logger::info("Skipping `ServerNotifier` notification");
+        }
 
         // Only run migration if there are calls to execute
         if !calldata.is_empty() {
