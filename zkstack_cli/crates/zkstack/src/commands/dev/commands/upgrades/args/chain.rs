@@ -26,11 +26,6 @@ pub struct ChainUpgradeParams {
     pub dangerous_local_default_overrides: Option<bool>,
     #[clap(long, default_missing_value = "true")]
     pub force_display_finalization_params: Option<bool>,
-    /// Force-skip the `ServerNotifier.setUpgradeTimestamp` notification even for v31+ upgrades.
-    /// It is emitted only for v31+ targets by default (omitted below v31); use this for the edge
-    /// case where a v31+ CTM's `ServerNotifier` impl isn't upgraded yet and the call would revert.
-    #[clap(long, default_missing_value = "true")]
-    pub skip_server_notifier_notification: Option<bool>,
     #[clap(long)]
     pub refund_recipient: Option<String>,
 }

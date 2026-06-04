@@ -245,15 +245,12 @@ pub(crate) async fn run_chain_upgrade(
 
     // ServerNotifier notification (call #2): a v31+ feature, so emitted only for v31+ targets
     // (the deployed `ServerNotifier` on pre-v31 CTMs lacks the function). Sent as its own decoupled
-    // `ChainAdmin` multicall so it can never roll back the upgrade execution (call #3). The flag
-    // force-skips it for v31+ (e.g. when the CTM's `ServerNotifier` impl isn't upgraded yet).
+    // `ChainAdmin` multicall so it can never roll back the upgrade execution (call #3).
     let new_minor_version = get_minor_protocol_version(U256::from(
         upgrade_info.contracts_config.new_protocol_version,
     ))?;
-    let include_server_notifier = new_minor_version >= ProtocolVersionId::Version31
-        && !args.skip_server_notifier_notification.unwrap_or_default();
 
-    let server_notifier_calldata = if include_server_notifier {
+    let server_notifier_calldata = if new_minor_version >= ProtocolVersionId::Version31 {
         let server_notifier_calls =
             AdminCallBuilder::new(vec![server_notifier_set_timestamp_call]);
         server_notifier_calls.display();
@@ -265,17 +262,9 @@ pub(crate) async fn run_chain_upgrade(
         ));
         Some((data, value))
     } else {
-        if new_minor_version < ProtocolVersionId::Version31 {
-            logger::info(format!(
-                "Skipping `ServerNotifier` notification: target protocol version {new_minor_version:?} is below v31."
-            ));
-        } else {
-            logger::warn(
-                "Skipping `ServerNotifier` notification (`--skip-server-notifier-notification`). \
-                 The post-upgrade server will NOT be notified via \
-                 `ServerNotifier::UpgradeTimestampUpdated`.",
-            );
-        }
+        logger::info(format!(
+            "Skipping `ServerNotifier` notification: target protocol version {new_minor_version:?} is below v31."
+        ));
         None
     };
 
