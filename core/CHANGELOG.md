@@ -1,5 +1,17 @@
 # Changelog
 
+## [29.20.0](https://github.com/matter-labs/zksync-era/compare/core-v29.19.2...core-v29.20.0) (2026-06-04)
+
+
+### Features
+
+* **prover:** Submit airbender proofs ([#4836](https://github.com/matter-labs/zksync-era/issues/4836)) ([c477e64](https://github.com/matter-labs/zksync-era/commit/c477e642e18043dbc2d5167e04f7256d43349d31))
+
+
+### Bug Fixes
+
+* **en:** Ignore rpc failure for sync_state job ([#4841](https://github.com/matter-labs/zksync-era/issues/4841)) ([dad69a8](https://github.com/matter-labs/zksync-era/commit/dad69a8ce64d955fea2ee01d4a5a1ba791553ff7))
+
 ## [29.19.2](https://github.com/matter-labs/zksync-era/compare/core-v29.19.1...core-v29.19.2) (2026-06-03)
 
 
