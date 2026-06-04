@@ -10659,6 +10659,7 @@ dependencies = [
  "serde_with 1.14.0",
  "zksync_bellman",
  "zksync_object_store",
+ "zksync_solidity_vk_codegen",
  "zksync_types",
  "zksync_vm_interface",
 ]

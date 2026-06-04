@@ -24,6 +24,7 @@ zksync_l1_contract_interface.workspace = true
 zksync_node_framework.workspace = true
 zksync_object_store = { workspace = true, features = ["node_framework"] }
 zksync_prover_interface.workspace = true
+zksync_airbender_prover_interface.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_node_fee_model.workspace = true
 zksync_mini_merkle_tree.workspace = true

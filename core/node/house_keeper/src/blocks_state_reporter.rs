@@ -146,6 +146,14 @@ impl BlockMetricsReporter {
             .airbender_batches_ready_for_proving
             .set(ready_count as u64);
 
+        let ready_for_snark_count = conn
+            .airbender_proof_generation_dal()
+            .get_ready_for_snark_count(self.first_airbender_batch)
+            .await?;
+        FRI_PROVER_METRICS
+            .airbender_batches_ready_for_snark
+            .set(ready_for_snark_count as u64);
+
         Ok(())
     }
 }

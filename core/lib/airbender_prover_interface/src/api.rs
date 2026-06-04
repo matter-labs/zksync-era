@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
+use zksync_prover_interface::outputs::SnarkWrapperProof;
 
 use crate::inputs::AirbenderVerifierInput;
 
@@ -54,11 +55,9 @@ pub struct SubmitAirbenderProofRequest {
 
 /// SNARK submission payload. The wrapper VK is resolved at prover startup and
 /// is not transmitted per proof.
-#[serde_as]
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SubmitAirbenderSnarkProofRequest {
     pub l1_batch_number: u32,
     pub prover_id: String,
-    #[serde_as(as = "Hex")]
-    pub snark_proof: Vec<u8>,
+    pub snark_proof: SnarkWrapperProof,
 }
