@@ -244,7 +244,7 @@ Note that values like `initial_value`, `address`, and `key` are not used in the 
 #### **L1**
 
 1. During block commitment, the standard DA protocol follows and the `L1DAValidator` is responsible for checking that the operator has provided the preimage for the `_totalPubdata`. More on how this is checked can be seen [here](./rollup_da.md).  
-2. The block commitment [includes](https://github.com/matter-labs/era-contracts/blob/b43cf6b3b069c85aec3cd61d33dd3ae2c462c896/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L550) _the hash of the `stateDiffs`_. Thus, ZKP verification will fail if the provided stateDiffs hash is not correct.  
+2. The block commitment [includes](https://github.com/matter-labs/era-contracts/blob/fdb60be1a49f5f0a371fc24b747cf5bdea1b1f74/l1-contracts/contracts/state-transition/chain-deps/facets/Committer.sol#L367-L373) _the hash of the `stateDiffs`_. Thus, ZKP verification will fail if the provided stateDiffs hash is not correct.  
 
 It is a secure construction because the proof can be verified only if both the execution was correct and the hash of the `stateDiffs` is correct. This means that the `L2DAValidator` library indeed received the array of correct `stateDiffs` and, assuming the `L2DAValidator` is working correctly, double-checked that the compression is in the correct format, while L1 contracts at the commit stage double-checked that the operator provided the preimage for the compressed state diffs.
 
