@@ -247,11 +247,18 @@ investigation and mitigation before resuming normal operations.
 It is a temporary solution to prevent any significant impact of the validator hot key leakage, while the network is in
 the Alpha stage.
 
-This contract consists of four main functions `commitBatches`, `proveBatches`, `executeBatches`, and `revertBatches`,
-which can be called only by the validator.
+ValidatorTimelock uses per-chain role-based access control with six operational roles, each gating the corresponding `*SharedBridge` entry point:
+- `precommitSharedBridge` → `PRECOMMITTER_ROLE`
+- `commitBatchesSharedBridge` → `COMMITTER_ROLE`
+- `revertBatchesSharedBridge` → `REVERTER_ROLE`
+- `proveBatchesSharedBridge` → `PROVER_ROLE`
+- `executeBatchesSharedBridge` → `EXECUTOR_ROLE`
+- `upgradeChainFromVersion` → `UPGRADER_ROLE`
 
-When the validator calls `commitBatches`, the same calldata will be propagated to the ZKsync contract (`DiamondProxy`
-through `call` where it invokes the `ExecutorFacet` through `delegatecall`), and also a timestamp is assigned to these
+The `addValidator`/`removeValidator` helpers grant or revoke all roles at once; `addValidatorRoles`/`removeValidatorRoles` allow granular per-role assignment.
+
+When the validator calls `commitBatchesSharedBridge`, the same calldata will be propagated to the ZKsync contract (`DiamondProxy`
+through `call` where it invokes the `CommitterFacet` through `delegatecall`), and also a timestamp is assigned to these
 batches to track the time these batches are committed by the validator to enforce a delay between committing and
 execution of batches. Then, the validator can prove the already committed batches regardless of the mentioned timestamp,
 and again the same calldata (related to the `proveBatches` function) will be propagated to the ZKsync contract. After
