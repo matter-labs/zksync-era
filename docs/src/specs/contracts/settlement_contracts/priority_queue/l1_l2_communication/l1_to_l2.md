@@ -17,12 +17,7 @@ between system and user logs.
 
 ### Initiation
 
-A new priority operation can be appended by calling the
-[requestL2Transaction](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Mailbox.sol#L236)
-method on L1. This method will perform several checks for the transaction, making sure that it is processable and
-provides enough fee to compensate the operator for this transaction. Then, this transaction will be
-[appended](https://github.com/code-423n4/2023-10-zksync/blob/ef99273a8fdb19f5912ca38ba46d6bd02071363d/code/contracts/ethereum/contracts/zksync/facets/Mailbox.sol#L369C1-L369C1)
-to the priority queue.
+A new priority operation is submitted by calling [`Bridgehub.requestL2TransactionDirect`](https://github.com/matter-labs/era-contracts/blob/draft-v31/l1-contracts/contracts/core/bridgehub/L1Bridgehub.sol#L152) or [`Bridgehub.requestL2TransactionTwoBridges`](https://github.com/matter-labs/era-contracts/blob/draft-v31/l1-contracts/contracts/core/bridgehub/L1Bridgehub.sol#L206) on L1. These route through to [`Mailbox.bridgehubRequestL2Transaction`](https://github.com/matter-labs/era-contracts/blob/draft-v31/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L126) (gated `onlyBridgehub`), which performs several checks on the transaction (processability, sufficient fee) and appends it to the priority tree. Service transactions can be submitted via [`requestL2ServiceTransaction`](https://github.com/matter-labs/era-contracts/blob/draft-v31/l1-contracts/contracts/state-transition/chain-deps/facets/Mailbox.sol#L400). The legacy `requestL2Transaction` method still exists on the Mailbox as an Era-only shim and is marked for removal.
 
 ### Bootloader
 
