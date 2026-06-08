@@ -2,22 +2,7 @@
 
 ## Overview of the current implementation
 
-Priority queue is a data structure in Era contracts that is used to handle L1->L2 priority operations. It supports the following:
-
-- inserting a new operation into the end of the queue
-- checking that an newly executed batch executed some n first priority operations from the queue (and not some other ones) in correct order
-
-The queue itself only stores the following:
-
-```solidity
-struct PriorityOperation {
-  bytes32 canonicalTxHash;
-  uint64 expirationTimestamp;
-  uint192 layer2Tip;
-}
-```
-
-of which we only care about the canonical hash.
+The priority tree is the live mechanism for handling L1→L2 priority operations. `Mailbox._writePriorityOpHash` appends each new priority op into `s.priorityTree` (an incremental Merkle tree), and batch execution verifies priority ops via Merkle proofs (`s.riorityTree.processBatch`) over `PriorityOpsBatchInfo` against historical roots.
 
 ### Inserting new operations
 
@@ -72,22 +57,22 @@ The implementation details are described below.
 
 ## Implementation
 
-The implementation will consist of two parts:
+The implementation consists of two parts:
 
 - Merkle tree on L1 contracts, to replace the existing priority queue (while still supporting the existing operations)
 - Merkle tree off-chain on the server, to generate the merkle proofs for the executed priority operations.
 
 ### Contracts
 
-On the contracts, the Merkle tree will be implemented as an Incremental (append-only) Merkle Tree ([example implementation](https://github.com/tornadocash/tornado-core/blob/master/contracts/MerkleTreeWithHistory.sol)), meaning that it can efficiently (in `O(height)` compute) append new elements to the right, while only storing `O(height)` nodes at all times.
+On the contracts, the Merkle tree is implemented as an Incremental (append-only) Merkle Tree ([example implementation](https://github.com/tornadocash/tornado-core/blob/master/contracts/MerkleTreeWithHistory.sol)), meaning that it can efficiently (in `O(height)` compute) append new elements to the right, while only storing `O(height)` nodes at all times.
 
 It will also be dynamically sized, meaning that it will double in size when the current size is not enough to store the new element.
 
 ### Server
 
-On the server, the Merkle tree will be implemented as an extension of `MiniMerkleTree` currently used for L2->L1 logs.
+On the server, the Merkle tree is implemented as an extension of `MiniMerkleTree` currently used for L2->L1 logs.
 
-It will have the following properties:
+It has the following properties:
 
 - in-memory: the tree will be stored in memory and will be rebuilt on each restart (details below).
 - dynamically sized (to match the contracts implementation)
@@ -114,7 +99,7 @@ We will only cache some prefix of the tree, meaning nodes in the interval [0; N)
 
 ![Untitled](./img/PQ3.png)
 
-This means that we will not be able to generate merkle proofs for the cached nodes (and since they are already executed, we don't need to). This structure allows us to save a lot of space, since it only takes up `O(height)` space instead of linear space for all executed operations. This is a big optimization since there are currently 3.2M total operations but <10 non-executed operations in the mainnet priority queue, which means most of the tree will be cached.
+This means that we are not be able to generate merkle proofs for the cached nodes (and since they are already executed, we don't need to). This structure allows us to save a lot of space, since it only takes up `O(height)` space instead of linear space for all executed operations. This is a big optimization since there are currently 3.2M total operations but <10 non-executed operations in the mainnet priority queue, which means most of the tree will be cached.
 
 This also means we don’t really have to store non-leaf nodes other than cache, since we can calculate merkle root / merkle paths in `O(n)` where `n` is the number of non-executed operations (and not total number of operations), and since `n` is so small, it is really fast.
 
@@ -122,14 +107,19 @@ This also means we don’t really have to store non-leaf nodes other than cache,
 
 On the contracts, appending a new operation to the tree is done by simply calling `append` on the Incremental Merkle Tree, which will update at most `height` slots. Actually, it works almost exactly like the cache described above. Once again: [tornado-cash implementation](https://github.com/tornadocash/tornado-core/blob/1ef6a263ac6a0e476d063fcb269a9df65a1bd56a/contracts/MerkleTreeWithHistory.sol#L68).
 
-On the server, `eth_watch` will listen for `NewPriorityOperation` events as it does now, and will append the new operation to the tree on the server.
+On the server, `eth_watch` will listen for `NewPriorityRequest` events as it does now, and will append the new operation to the tree on the server.
 
 ### Checking validity
 
-To check that the executed batch indeed took its priority operations from the queue, we have to make sure that if we take first `numberOfL1Txs` non-executed operations from the tree, their rolling hash will match `priorityOperationsHash` . Since will not be storing the hashes of these operations onchain anymore, we will have to provide them as calldata. Additionally in calldata, we should provide merkle proofs for the **first and last** operations in that batch (hence `O(n + height)` calldata). This will make it possible to prove onchain that that contiguous interval of hashes indeed exists in the merkle tree.
+To check that the executed batch indeed took its priority operations from the queue, we have to make sure that if we take first `numberOfL1Txs` non-executed operations from the tree, their rolling hash will match `priorityOperationsHash` . Since will not be storing the hashes of these operations onchain anymore, we provide them as calldata. Additionally in calldata, we should provide merkle proofs for the **first and last** operations in that batch (hence `O(n + height)` calldata). This will make it possible to prove onchain that that contiguous interval of hashes indeed exists in the merkle tree.
 
 This can be done simply by constructing the part of the tree above this interval using the provided paths to first and last elements of the interval checking that computed merkle root matches with stored one (in `O(n)` where `n` is number of priority operations in a batch). We will also need to track the `index` of the first unexecuted operation onchain to properly calculate the merkle root and ensure that batches don’t execute some operations out of order or multiple times.
 
 We will also need to prove that the rolling hash of provided hashes matches with `priorityOperationsHash` which is also `O(n)`
 
-It is important to note that we should store some number of historical root hashes, since the Merkle tree on the server might lag behind the contracts a bit, and hence merkle paths generated on the server-side might become invalid if we compare them to the latest root hash on the contracts. These historical root hashes are not necessary to migrate to and from Gateway though.
+It is important to note that we store some number of historical root hashes, since the Merkle tree on the server might lag behind the contracts a bit, and hence merkle paths generated on the server-side might become invalid if we compare them to the latest root hash on the contracts. These historical root hashes are not necessary to migrate to and from Gateway though.
+
+
+## Legacy: Priority Queue
+
+Previously, priority operations were stored in a linear queue (PriorityQueue library) using `pushBack`/`popFront`, with batch execution verifying ops via a rolling hash loop. This was replaced by the Merkle tree to support Gateway migration. The old library remains in storage as `s.__DEPRECATED_priorityQueue` but is no longer in the request/execute path.
