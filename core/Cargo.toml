@@ -7,6 +7,7 @@ members = [
   "bin/external_node",
   "bin/merkle_tree_consistency_checker",
   "bin/snapshots_creator",
+  "bin/treasury_analytics",
   "bin/selector_generator",
   "bin/system-constants-generator",
   "bin/verified_sources_fetcher",

@@ -1,0 +1,41 @@
+[package]
+name = "treasury_analytics"
+description = "One-off analytics scripts: L1 funds held per token, and hottest contracts by call-trace usage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+zksync_types.workspace = true
+
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+clap = { workspace = true, features = ["derive", "env"] }
+sqlx = { workspace = true, features = [
+    "runtime-tokio",
+    "tls-native-tls",
+    "postgres",
+    "chrono",
+] }
+hex.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+[[bin]]
+name = "l1_token_balances"
+path = "src/bin/l1_token_balances.rs"
+
+[[bin]]
+name = "hot_contracts"
+path = "src/bin/hot_contracts.rs"
+
+[[bin]]
+name = "rich_contracts"
+path = "src/bin/rich_contracts.rs"

@@ -11911,6 +11911,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "treasury_analytics"
+version = "29.19.2-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "clap 4.5.40",
+ "hex",
+ "reqwest 0.12.22",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "zksync_types",
+]
+
+[[package]]
 name = "triomphe"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
