@@ -261,8 +261,8 @@ When the validator calls `commitBatchesSharedBridge`, the same calldata will be 
 through `call` where it invokes the `CommitterFacet` through `delegatecall`), and also a timestamp is assigned to these
 batches to track the time these batches are committed by the validator to enforce a delay between committing and
 execution of batches. Then, the validator can prove the already committed batches regardless of the mentioned timestamp,
-and again the same calldata (related to the `proveBatches` function) will be propagated to the ZKsync contract. After
-the `delay` is elapsed, the validator is allowed to call `executeBatches` to propagate the same calldata to ZKsync
+and again the same calldata (related to the `proveBatchesSharedBridge` function) will be propagated to the ZKsync contract. After
+the `delay` is elapsed, the validator is allowed to call `executeBatchesSharedBridge` to propagate the same calldata to ZKsync
 contract.
 
 The execution delay is dynamically read from the contract's `executionDelay()` function by the node, eliminating the
