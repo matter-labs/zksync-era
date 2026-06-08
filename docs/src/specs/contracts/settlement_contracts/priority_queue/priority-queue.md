@@ -1,6 +1,6 @@
-# Priority Queue to Merkle Tree
+# Priority Operations: Merkle Tree
 
-## Overview of the current implementation
+## Overview
 
 The priority tree is the live mechanism for handling L1→L2 priority operations. `Mailbox._writePriorityOpHash` appends each new priority op into `s.priorityTree` (an incremental Merkle tree), and batch execution verifies priority ops via Merkle proofs (`s.priorityTree.processBatch`) over `PriorityOpsBatchInfo` against historical roots.
 
@@ -11,7 +11,7 @@ Gateway was introduced, requiring support for one more operation:
 - migrating priority queue from L1 to Gateway (and back)
 
 Current implementation takes `O(n)` space and is vulnerable to spam attacks during migration
-(e.g. an attacker can insert a lot of priority operations and we won't be able to migrate all of them due to gas limits).
+(e.g. an attacker can insert a lot of priority operations and migration of all of them would have been impossible due to gas limits).
 
 Hence, we required an implementation with a small (constant- or log-size) space imprint that could be migrated to Gateway and back that would still allow us to perform the other 2 operations.
 
@@ -27,7 +27,7 @@ The implementation details are described below.
 ### FAQ
 
 - Q: Why can't we just migrate the rolling hash of the operations in the existing priority queue?
-- A: The rolling hash is not enough to check that the operations from the executed batch are indeed from the priority queue. That would have required storing all historical rolling hashes, which would have been `O(n)` space and would have not solve the spam attack problem.
+- A: The rolling hash is not enough to check that the operations from the executed batch are indeed from the priority queue. That would have required storing all historical rolling hashes, which would have been `O(n)` space and would not have solve the spam attack problem.
 
 ## Implementation
 
@@ -73,13 +73,13 @@ We only cache some prefix of the tree, meaning nodes in the interval [0; N) wher
 
 ![Untitled](./img/PQ3.png)
 
-This means that we are not be able to generate merkle proofs for the cached nodes (and since they are already executed, we don't need to). This structure allows us to save a lot of space, since it only takes up `O(height)` space instead of linear space for all executed operations. This is a big optimization since there are currently 3.2M total operations but <10 non-executed operations in the mainnet priority queue, which means most of the tree caches.
+This means that we are not able to generate merkle proofs for the cached nodes (and since they are already executed, we don't need to). This structure allows us to save a lot of space, since it only takes up `O(height)` space instead of linear space for all executed operations. This is a big optimization since there are currently 3.2M total operations but <10 non-executed operations in the mainnet priority queue, which means most of the tree is cached.
 
 This also means we don’t really have to store non-leaf nodes other than cache, since we can calculate merkle root / merkle paths in `O(n)` where `n` is the number of non-executed operations (and not total number of operations), and since `n` is so small, it is really fast.
 
 ### Adding new operations
 
-On the contracts, appending a new operation to the tree is done by simply calling `append` on the Incremental Merkle Tree, which will update at most `height` slots. Actually, it works almost exactly like the cache described above. Once again: [tornado-cash implementation](https://github.com/tornadocash/tornado-core/blob/1ef6a263ac6a0e476d063fcb269a9df65a1bd56a/contracts/MerkleTreeWithHistory.sol#L68).
+On the contracts, appending a new operation to the tree is done by simply calling `append` on the Incremental Merkle Tree, which updates at most `height` slots. Actually, it works almost exactly like the cache described above. Once again: [tornado-cash implementation](https://github.com/tornadocash/tornado-core/blob/1ef6a263ac6a0e476d063fcb269a9df65a1bd56a/contracts/MerkleTreeWithHistory.sol#L68).
 
 On the server, `eth_watch` listens for `NewPriorityRequest` events as it does now, and appends the new operation to the tree on the server.
 
