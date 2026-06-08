@@ -114,15 +114,18 @@ L2 -> L1 communication, in contrast to L1 -> L2 communication, is based only on 
 the transaction execution on L1. The full description of the mechanism for sending information from L2 to L1 can be
 found [here](./contracts/settlement_contracts/data_availability/pubdata.md).
 
-### ExecutorFacet
+### Committer and Executor facets
 
-A contract that accepts L2 batches, enforces data availability and checks the validity of zk-proofs.
+The state transition pipeline is split into three stages:
 
-The state transition is divided into three stages:
+- `commitBatchesSharedBridge` - check L2 batch timestamp, process the L2 logs, save data for a batch, and prepare data for zk-proof.
+- `proveBatchesSharedBridge` - validate zk-proof.
+- `executeBatchesSharedBridge` - finalize the state, marking L1 -> L2 communication processing, and saving Merkle tree with L2 logs.
 
-- `commitBatches` - check L2 batch timestamp, process the L2 logs, save data for a batch, and prepare data for zk-proof.
-- `proveBatches` - validate zk-proof.
-- `executeBatches` - finalize the state, marking L1 -> L2 communication processing, and saving Merkle tree with L2 logs.
+These stages are divided across two contracts:
+
+- `Committer` handles `precommitSharedBridge` and `commitBatchesSharedBridge`, including batch metadata checks, L2 log processing, DA validation inputs, and batch commitment creation.
+- `Executor` handles proof validation, batch execution, and batch reverts.
 
 Each L2 -> L1 system log will have a key that is part of the following:
 
