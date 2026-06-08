@@ -13,6 +13,7 @@ publish = false
 
 [dependencies]
 zksync_types.workspace = true
+zksync_system_constants.workspace = true
 
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }
@@ -39,3 +40,7 @@ path = "src/bin/hot_contracts.rs"
 [[bin]]
 name = "rich_contracts"
 path = "src/bin/rich_contracts.rs"
+
+[[bin]]
+name = "l2_native_tokens"
+path = "src/bin/l2_native_tokens.rs"

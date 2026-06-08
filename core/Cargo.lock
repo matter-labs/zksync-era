@@ -11922,6 +11922,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "tokio",
+ "zksync_system_constants",
  "zksync_types",
 ]
 

@@ -110,3 +110,47 @@ token only), `--base-decimals`/`--base-symbol`/ `--base-cg-id` (for non-ETH base
 - Pricing is CoinGecko-by-L1-address; on testnet/stage those addresses aren't listed, so ERC20 USD ≈ 0 and ranking
   effectively falls back to the (priced) base token.
 - On pruned chains only retained `storage_logs` are visible.
+
+## `l2_native_tokens` — ERC20 tokens that exist only on L2
+
+Heuristically lists ERC20 tokens that are **native to L2** (never bridged from L1). The `tokens` table can't answer this
+— `l1_address` is `NOT NULL` and the table is filled only from `BridgeInitialize` events, so it effectively enumerates
+L1-originated tokens. Instead this derives the set from the `events` table:
+
+```
+candidates = {ERC20-shaped Transfer emitters}  MINUS  {bridged tokens}
+```
+
+- **ERC20-shaped:** emitted `Transfer(address,address,uint256)` with an empty 4th topic. ERC721 indexes `tokenId` into
+  topic4, so any contract that ever emitted a non-zero-topic4 Transfer is dropped as NFT-like.
+- **bridged (excluded):** deployed by the L2NativeTokenVault (a ContractDeployer `DEPLOY` event whose deployer topic is
+  the NTV), **or** emitted `BridgeInitialize`/`BridgeInitialization`, **or** already in `tokens` with a non-zero
+  `l1_address`.
+
+```bash
+DATABASE_URL=postgres://... \
+./target/release/l2_native_tokens --top 100 --csv candidates.csv
+```
+
+The `events` table is enormous, so the Transfer scan is **never** run in one shot: it walks the block range in bounded
+chunks (`--chunk`), aggregates each chunk server-side (`GROUP BY address`), and merges per-address flags in memory (the
+distinct-token count is small even though raw Transfer rows number in the billions). Every connection sets a
+`statement_timeout` so a runaway chunk is aborted, the pool is capped at 2 connections, and queries run sequentially.
+The bridged-set queries run once over all history but are index-selective (`topic1`/`topic2`), not full scans.
+
+Flags:
+
+- `--from-block`/`--to-block`/`--last` — block range for the Transfer scan (default: full history).
+- `--chunk N` — blocks per query (default 100000); lower it if chunks are too heavy.
+- `--statement-timeout-secs N` — per-query timeout (default 300; 0 disables).
+- `--top N` — candidates to print, ranked by transfer count (default 100).
+- `--csv PATH` — write all candidates (`address,transfers,in_tokens_table,symbol`).
+
+**Caveats — this is a heuristic, not proof:**
+
+- A custom bridge that neither deploys via the NTV nor emits `BridgeInitialize` would slip through and look L2-native.
+- An NFT collection that only ever moved `tokenId` 0 is misclassified as ERC20.
+- A token that never emitted a Transfer is invisible (but it has no balances to report anyway).
+
+For certainty on a specific candidate, read the L2NativeTokenVault `originChainId` storage for its asset id
+(`== this chain id` ⇒ native to L2).
