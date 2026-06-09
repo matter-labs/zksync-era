@@ -30,11 +30,11 @@ The structure has the following recursive format:
 - `settledMessageRoot = keccak256(LocalRoot, AggregatedRoot)`
 - `LocalRoot` — the root of the binary merkle tree over `UserLog[]`. (the same as the one we have now). It only contains messages from the current batch.
 - `AggregatedRoot` — the root of the binary merkle tree over `ChainIdLeaf[]`.
-- `ChainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chain_id, ChainIdRoot`)
+- `ChainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, ChainIdRoot, chain_id)`
 - `CHAIN_ID_LEAF_PADDING` — it is a constant padding, needed to ensure that the preimage of the ChainIdLeaf is larger than 64 bytes and so it can not be an internal node.
 - `chain_id` — the chain id of the chain the batches of which are aggregated.
 - `ChainIdRoot` = the root of the binary merkle tree `BatchRootLeaf[]`.
-- `BatchRootLeaf = keccak256(BATCH_LEAF_HASH_PADDING, batch_number, SettledRootOfBatch).`
+- `BatchRootLeaf = keccak256(BATCH_LEAF_PADDING, SettledRootOfBatch, batch_number).`
 
 In other words, we get the recursive structure, where for leaves of it, i.e. chains that do not aggregate any other chains, have empty `AggregatedRoot`.
 
