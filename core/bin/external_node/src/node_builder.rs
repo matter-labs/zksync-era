@@ -649,6 +649,7 @@ impl ExternalNodeBuilder {
             match component {
                 Component::HttpApi => {
                     self = self
+                        .add_sync_state_updater_layer()?
                         .add_bridge_addresses_updater_layer()?
                         .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
@@ -658,6 +659,7 @@ impl ExternalNodeBuilder {
                 }
                 Component::WsApi => {
                     self = self
+                        .add_sync_state_updater_layer()?
                         .add_bridge_addresses_updater_layer()?
                         .add_mempool_cache_layer()?
                         .add_tree_api_client_layer()?
@@ -695,7 +697,6 @@ impl ExternalNodeBuilder {
                     // Main tasks
                     self = self
                         .add_state_keeper_layer()?
-                        .add_sync_state_updater_layer()?
                         .add_consensus_layer()?
                         .add_pruning_layer()?
                         .add_consistency_checker_layer()?
