@@ -2,9 +2,10 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use itertools::Itertools;
-use zksync_contracts::chain_admin_contract;
+use zksync_contracts::{chain_admin_contract, DIAMOND_CUT};
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
+    abi,
     api::Log,
     h256_to_u256,
     protocol_upgrade::ProtocolUpgradePreimageOracle,
@@ -111,6 +112,20 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             }
 
             for diamond_cut in diamond_cuts {
+                let tokens = ProtocolUpgrade::extract_diamond_cut_tokens(&diamond_cut)
+                    .map_err(|e| EventProcessorError::internal(anyhow::anyhow!(e)))?;
+
+                let v = ProtocolSemanticVersion::try_from_packed(
+                    abi::ProposedUpgrade::decode(&tokens[4..])
+                        .map_err(|e| EventProcessorError::internal(anyhow::anyhow!(e)))?
+                        .new_protocol_version,
+                )
+                .map_err(|e| EventProcessorError::internal(anyhow::anyhow!(e)))?;
+
+                if v.minor >= ProtocolVersionId::Version31 {
+                    continue;
+                }
+
                 let upgrade = ProtocolUpgrade {
                     timestamp,
                     ..ProtocolUpgrade::try_from_diamond_cut(
@@ -124,12 +139,6 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     .await
                     .map_err(EventProcessorError::internal)?
                 };
-
-                if upgrade.version
-                    == ProtocolSemanticVersion::new(ProtocolVersionId::Version31, VersionPatch(0))
-                {
-                    continue;
-                }
 
                 if upgrade.version > latest_protocol_version {
                     continue;

@@ -161,17 +161,21 @@ impl ProtocolUpgrade {
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
-        // Unwraps are safe because we have validated the input against the function signature.
-        let diamond_cut_tokens = DIAMOND_CUT.decode_input(diamond_cut_data)?[0]
+        let tokens = Self::extract_diamond_cut_tokens(diamond_cut_data)
+            .context("extract_diamond_cut_tokens()")?;
+
+        Self::try_from_init_calldata(&tokens, preimage_oracle, chain_specific).await
+    }
+
+    pub fn extract_diamond_cut_tokens(diamond_cut_data: &[u8]) -> anyhow::Result<Vec<u8>> {
+        let tokens = DIAMOND_CUT.decode_input(diamond_cut_data)?[0]
             .clone()
             .into_tuple()
-            .unwrap();
-        Self::try_from_init_calldata(
-            &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
-            preimage_oracle,
-            chain_specific,
-        )
-        .await
+            .ok_or(anyhow::anyhow!("Failed to convert diamond cut tokens"))?;
+
+        tokens[2].clone().into_bytes().ok_or(anyhow::anyhow!(
+            "Failed to extract init calldata from diamond cut"
+        ))
     }
 
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`

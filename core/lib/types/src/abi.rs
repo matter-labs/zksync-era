@@ -366,7 +366,7 @@ impl ProposedUpgrade {
         Token::Tuple(tokens)
     }
 
-    pub(crate) fn decode(data: &[u8]) -> anyhow::Result<Self> {
+    pub fn decode(data: &[u8]) -> anyhow::Result<Self> {
         let mut upgrade = None;
         for (schema, token) in ProposedUpgradeSchema::decode_to_token(data) {
             match Self::decode_from_token(schema, token) {
