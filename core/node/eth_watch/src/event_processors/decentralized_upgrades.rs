@@ -1,15 +1,18 @@
 use std::{collections::HashMap, sync::Arc};
 
-use anyhow::Context as _;
-use itertools::Itertools;
-use zksync_contracts::chain_admin_contract;
-use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
-use zksync_types::{api::Log, h256_to_u256, protocol_upgrade::ProtocolUpgradePreimageOracle, protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, ProtocolVersionId, H256, U256};
-use zksync_types::protocol_version::VersionPatch;
 use crate::{
     client::EthClient,
     event_processors::{EventProcessor, EventProcessorError, EventsSource},
     metrics::{PollStage, METRICS},
+};
+use anyhow::Context as _;
+use itertools::Itertools;
+use zksync_contracts::chain_admin_contract;
+use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
+use zksync_types::protocol_version::VersionPatch;
+use zksync_types::{
+    api::Log, h256_to_u256, protocol_upgrade::ProtocolUpgradePreimageOracle,
+    protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, ProtocolVersionId, H256, U256,
 };
 
 /// Listens to scheduling events coming from the chain admin contract and saves new protocol upgrade proposals to the database.
@@ -119,7 +122,9 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     .map_err(EventProcessorError::internal)?
                 };
 
-                if upgrade.version == ProtocolSemanticVersion::new(ProtocolVersionId::Version31, VersionPatch(0)) {
+                if upgrade.version
+                    == ProtocolSemanticVersion::new(ProtocolVersionId::Version31, VersionPatch(0))
+                {
                     continue;
                 }
 
