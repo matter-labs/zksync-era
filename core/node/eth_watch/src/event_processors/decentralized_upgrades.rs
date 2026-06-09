@@ -4,11 +4,8 @@ use anyhow::Context as _;
 use itertools::Itertools;
 use zksync_contracts::chain_admin_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
-use zksync_types::{
-    api::Log, h256_to_u256, protocol_upgrade::ProtocolUpgradePreimageOracle,
-    protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, H256, U256,
-};
-
+use zksync_types::{api::Log, h256_to_u256, protocol_upgrade::ProtocolUpgradePreimageOracle, protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, ProtocolVersionId, H256, U256};
+use zksync_types::protocol_version::VersionPatch;
 use crate::{
     client::EthClient,
     event_processors::{EventProcessor, EventProcessorError, EventsSource},
@@ -121,6 +118,10 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     .await
                     .map_err(EventProcessorError::internal)?
                 };
+
+                if upgrade.version == ProtocolSemanticVersion::new(ProtocolVersionId::Version31, VersionPatch(0)) {
+                    continue;
+                }
 
                 if upgrade.version > latest_protocol_version {
                     continue;
