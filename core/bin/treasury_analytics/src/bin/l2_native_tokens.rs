@@ -119,14 +119,6 @@ async fn main() -> anyhow::Result<()> {
     let timeout_ms = args.statement_timeout_secs.saturating_mul(1000);
     let pool = PgPoolOptions::new()
         .max_connections(2)
-        .after_connect(move |conn, _meta| {
-            Box::pin(async move {
-                // Cap every query on this connection so a runaway chunk can't grind forever.
-                conn.execute(format!("SET statement_timeout = {timeout_ms}").as_str())
-                    .await?;
-                Ok(())
-            })
-        })
         .connect(&args.database_url)
         .await
         .context("failed to connect to Postgres")?;
