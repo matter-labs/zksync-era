@@ -32,6 +32,15 @@ use crate::{
     web3::{backend_jsonrpsee::MethodTracer, namespaces::validate_gas_cap, state::RpcState},
 };
 
+/// A single transaction's call trace recovered from an L1 batch replay, together with the L2
+/// block it belonged to.
+#[derive(Debug)]
+struct ReplayedTx {
+    tx_hash: H256,
+    l2_block_number: L2BlockNumber,
+    call: Call,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct DebugNamespace {
     state: RpcState,
@@ -197,7 +206,6 @@ impl DebugNamespace {
             .await?;
 
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
-        // let block_hash = block_hash self.state.
         self.current_method()
             .set_block_diff(self.state.last_sealed_l2_block.diff(block_number));
 
@@ -206,6 +214,24 @@ impl DebugNamespace {
             .get_traces_for_l2_block(block_number)
             .await
             .map_err(DalError::generalize)?;
+        let expected_tx_count = connection
+            .blocks_web3_dal()
+            .get_block_tx_count(block_number)
+            .await
+            .map_err(DalError::generalize)?
+            .unwrap_or(0) as usize;
+
+        // Some historical blocks have `call_traces` rows missing because earlier node versions
+        // didn't persist them for all sealed transactions (notably L1 priority txs). Fall back
+        // to replaying the L1 batch — same mechanism `debug_traceTransaction` already uses —
+        // so the response stays consistent with the per-tx endpoint.
+        let call_traces = if call_traces.len() < expected_tx_count {
+            drop(connection);
+            self.replay_l1_batch_for_l2_block_traces(block_number)
+                .await?
+        } else {
+            call_traces
+        };
 
         let options = options.unwrap_or_default();
         let result = match options.tracer {
@@ -309,6 +335,77 @@ impl DebugNamespace {
         block_hash: H256,
         protocol_version: ProtocolVersionId,
     ) -> Result<(Call, CallTraceMeta), Web3Error> {
+        let replayed = self
+            .replay_l1_batch(l1_batch_number, protocol_version, Some(tx_hash))
+            .await?;
+
+        let call = replayed
+            .into_iter()
+            .find_map(|tx| (tx.tx_hash == tx_hash).then_some(tx.call))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Transaction {tx_hash:?} not found in L1 batch #{l1_batch_number} during batch replay"
+                )
+            })?;
+        let meta = CallTraceMeta {
+            index_in_block,
+            tx_hash,
+            block_number: miniblock_number.0,
+            block_hash,
+            internal_error: None,
+        };
+        Ok((call, meta))
+    }
+
+    /// Replays the L1 batch containing `l2_block_number` to recover the call traces of every
+    /// transaction in that L2 block. Persists the generated traces so subsequent calls hit the
+    /// fast (DB-only) path.
+    async fn replay_l1_batch_for_l2_block_traces(
+        &self,
+        l2_block_number: L2BlockNumber,
+    ) -> Result<Vec<(Call, CallTraceMeta)>, Web3Error> {
+        let mut connection = self.state.acquire_connection().await?;
+        let Some((l1_batch_number, block_hash, protocol_version)) = connection
+            .blocks_web3_dal()
+            .get_l2_block_replay_metadata(l2_block_number)
+            .await
+            .map_err(DalError::generalize)?
+        else {
+            // Block not sealed in a batch yet — nothing to replay.
+            return Ok(Vec::new());
+        };
+        drop(connection);
+
+        let replayed = self
+            .replay_l1_batch(l1_batch_number, protocol_version, None)
+            .await?;
+
+        Ok(replayed
+            .into_iter()
+            .filter(|tx| tx.l2_block_number == l2_block_number)
+            .enumerate()
+            .map(|(index_in_block, tx)| {
+                let meta = CallTraceMeta {
+                    index_in_block,
+                    tx_hash: tx.tx_hash,
+                    block_number: l2_block_number.0,
+                    block_hash,
+                    internal_error: None,
+                };
+                (tx.call, meta)
+            })
+            .collect())
+    }
+
+    /// Replays an L1 batch with call tracing enabled, persists the generated traces, and
+    /// returns them in execution order. If `stop_at_tx_hash` is `Some`, execution halts after
+    /// that transaction has been processed.
+    async fn replay_l1_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        protocol_version: ProtocolVersionId,
+        stop_at_tx_hash: Option<H256>,
+    ) -> Result<Vec<ReplayedTx>, Web3Error> {
         let chain_id = self.state.api_config.l2_chain_id;
 
         let mut connection = self.state.acquire_connection().await?;
@@ -316,21 +413,32 @@ impl DebugNamespace {
             .await
             .context("failed to create L1BatchParamsProvider")?;
 
-        let Some(RestoredL1BatchEnv {
-            l1_batch_env,
-            system_env,
-            pubdata_params,
-            ..
-        }) = l1_batch_params_provider
-            .load_l1_batch_env(&mut connection, l1_batch_number, u32::MAX, chain_id)
+        let Some(mut first_l2_block) = l1_batch_params_provider
+            .load_first_l2_block_in_batch(&mut connection, l1_batch_number)
             .await
-            .context("failed to load L1 batch env")?
+            .context("failed to load first L2 block of L1 batch")?
         else {
             return Err(anyhow::anyhow!(
                 "L1 batch #{l1_batch_number} not found in storage while replaying trace"
             )
             .into());
         };
+
+        // Historical L2 blocks may have a NULL `protocol_version` in the `miniblocks` table (e.g.
+        // blocks predating protocol versioning).
+        if !first_l2_block.has_protocol_version() {
+            first_l2_block.set_protocol_version(protocol_version);
+        }
+
+        let RestoredL1BatchEnv {
+            l1_batch_env,
+            system_env,
+            pubdata_params,
+            ..
+        } = l1_batch_params_provider
+            .load_l1_batch_params(&mut connection, &first_l2_block, u32::MAX, chain_id)
+            .await
+            .context("failed to load L1 batch env")?;
 
         let l2_blocks = connection
             .transactions_dal()
@@ -362,8 +470,7 @@ impl DebugNamespace {
         let mut batch_executor =
             executor_factory.init_batch(storage, l1_batch_env, system_env, pubdata_params);
 
-        let mut collected_traces: Vec<(H256, Call)> = vec![];
-        let mut target_call: Option<Call> = None;
+        let mut replayed: Vec<ReplayedTx> = vec![];
 
         'outer: for (block_idx, l2_block) in l2_blocks.into_iter().enumerate() {
             let block_env = L2BlockEnv::from_l2_block_data(&l2_block);
@@ -406,10 +513,13 @@ impl DebugNamespace {
                     revert_reason,
                     call_traces,
                 );
-                collected_traces.push((cur_tx_hash, call.clone()));
+                replayed.push(ReplayedTx {
+                    tx_hash: cur_tx_hash,
+                    l2_block_number: l2_block.number,
+                    call,
+                });
 
-                if cur_tx_hash == tx_hash {
-                    target_call = Some(call);
+                if Some(cur_tx_hash) == stop_at_tx_hash {
                     break 'outer;
                 }
             }
@@ -419,28 +529,20 @@ impl DebugNamespace {
         drop(vm_permit);
 
         // Persist all collected traces to avoid replaying the batch again in the future.
-        if !collected_traces.is_empty() {
+        if !replayed.is_empty() {
+            let to_insert: Vec<(H256, Call)> = replayed
+                .iter()
+                .map(|tx| (tx.tx_hash, tx.call.clone()))
+                .collect();
             let mut connection = self.state.acquire_connection().await?;
             connection
                 .transactions_dal()
-                .insert_call_traces(&collected_traces, protocol_version)
+                .insert_call_traces(&to_insert, protocol_version)
                 .await
                 .map_err(DalError::generalize)?;
         }
 
-        let call = target_call.ok_or_else(|| {
-            anyhow::anyhow!(
-                "Transaction {tx_hash:?} not found in L1 batch #{l1_batch_number} during batch replay"
-            )
-        })?;
-        let meta = CallTraceMeta {
-            index_in_block,
-            tx_hash,
-            block_number: miniblock_number.0,
-            block_hash,
-            internal_error: None,
-        };
-        Ok((call, meta))
+        Ok(replayed)
     }
 
     pub async fn debug_trace_call_impl(

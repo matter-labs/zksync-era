@@ -5,7 +5,7 @@ use tokio::fs;
 use zksync_object_store::StoredObject;
 use zksync_prover_interface::{
     api::SubmitProofRequest,
-    outputs::{L1BatchProofForL1, PlonkL1BatchProofForL1, TypedL1BatchProofForL1},
+    outputs::{L1BatchProofForL1, PlonkL1BatchProofForL1},
 };
 use zksync_types::{protocol_version::ProtocolSemanticVersion, ProtocolVersionId};
 
@@ -17,10 +17,7 @@ async fn test_final_proof_deserialization_cbor() {
 
     let results: L1BatchProofForL1 = StoredObject::deserialize(proof).unwrap();
 
-    let coords = match results.inner() {
-        TypedL1BatchProofForL1::Fflonk(proof) => proof.aggregation_result_coords,
-        TypedL1BatchProofForL1::Plonk(proof) => proof.aggregation_result_coords,
-    };
+    let coords = results.aggregation_result_coords();
 
     assert_eq!(coords[0][0], 7);
 }

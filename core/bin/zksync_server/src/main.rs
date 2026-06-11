@@ -140,6 +140,7 @@ fn main() -> anyhow::Result<()> {
         l1_sl_contracts: Some(contracts_config.settlement_layer_specific_contracts()),
         eth_proof_manager_contracts: Some(contracts_config.eth_proof_manager_contracts()),
         multicall3: Some(contracts_config.l1.multicall3_addr),
+        config_l2_da_commitment_scheme: contracts_config.l2_da_commitment_scheme,
     };
 
     if opt.genesis {

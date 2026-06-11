@@ -63,7 +63,7 @@ impl UnstableNamespace {
         let mut storage = self.state.acquire_connection().await?;
         let stored = storage
             .airbender_proof_generation_dal()
-            .get_airbender_proof(l1_batch_number)
+            .get_airbender_fri_proof(l1_batch_number)
             .await
             .map_err(DalError::generalize)?;
 
@@ -71,10 +71,12 @@ impl UnstableNamespace {
             return Ok(None);
         };
 
-        let proof_data = if stored.proof_blob_url.is_some() {
+        let proof_data = if let Some(blob_url) = stored.proof_blob_url {
             if let Some(object_store) = &self.state.object_store {
-                let proof_for_l1: L1BatchAirbenderProofForL1 =
-                    object_store.get(l1_batch_number).await.map_err(|e| {
+                let proof_for_l1: L1BatchAirbenderProofForL1 = object_store
+                    .get_by_encoded_key(blob_url)
+                    .await
+                    .map_err(|e| {
                         Web3Error::InternalError(anyhow::anyhow!(
                             "Failed to load airbender proof from GCS: {e}"
                         ))

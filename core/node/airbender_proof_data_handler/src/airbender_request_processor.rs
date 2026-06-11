@@ -1,30 +1,36 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use axum::{extract::Path, Json};
 use chrono::Utc;
 use zksync_airbender_prover_interface::{
     api::{
-        AirbenderPresentBatchesResponse, SubmitAirbenderProofRequest, SubmitAirbenderProofResponse,
+        AirbenderPresentBatchesResponse, AirbenderSnarkInputsResponse, SubmitAirbenderProofRequest,
+        SubmitAirbenderProofResponse, SubmitAirbenderSnarkProofRequest,
+        SubmitAirbenderSnarkProofResponse,
     },
     inputs::{AirbenderVerifierInput, BlobHash, CommitmentInput},
-    outputs::L1BatchAirbenderProofForL1,
+    outputs::{L1BatchAirbenderProofForL1, L1BatchAirbenderSnarkProofForL1},
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
-use zksync_dal::{
-    airbender_proof_generation_dal::{AirbenderProofGenerationJobStatus, LockedBatch},
-    ConnectionPool, Core, CoreDal,
-};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::commit::kzg::{
     pubdata_to_blob_commitments, pubdata_to_blob_linear_hashes, pubdata_to_blob_versioned_hashes,
 };
-use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
+use zksync_object_store::{ObjectStore, ObjectStoreError, StoredObject};
+use zksync_prover_interface::{
+    inputs::{VMRunWitnessInputData, WitnessInputMerklePaths},
+    outputs::L1BatchProofForL1,
+};
 use zksync_types::{
     blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId,
 };
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
-use crate::{errors::AirbenderProcessorError, metrics::METRICS};
+use crate::{
+    errors::AirbenderProcessorError,
+    metrics::{ProcessorErrorKind, ProofStage, METRICS},
+};
 
 #[derive(Clone)]
 pub(crate) struct AirbenderRequestProcessor {
@@ -58,24 +64,48 @@ impl AirbenderRequestProcessor {
         let max_attempts = self.config.max_attempts;
 
         for attempt in 0..max_attempts {
-            let Some(locked_batch) = self.lock_batch_for_proving(min_batch_number).await? else {
+            // Whole flow runs in a single transaction so that any mid-flight
+            // failure (DB, blob store, panic) rolls back the lock and leaves
+            // the batch free for the next request.
+            let mut connection = self
+                .pool
+                .connection_tagged("airbender_request_processor")
+                .await?;
+            let mut transaction = connection.start_transaction().await?;
+
+            // Record the protocol version the batch is proved under at lock time, so `submit_proof`
+            // and the SNARK step reuse the exact same version (and blob key) instead of recomputing
+            // it. The version is the batch's own minor version with the latest known patch for that
+            // minor (chosen inside the lock query), so a batch is proven under the protocol it
+            // executed with — not the globally latest version.
+            let Some(locked_batch) = transaction
+                .airbender_proof_generation_dal()
+                .lock_batch_for_proving(self.config.proof_generation_timeout, min_batch_number)
+                .await?
+            else {
                 return Ok(None); // no job available
             };
             let batch_number = locked_batch.l1_batch_number;
 
             match self
-                .airbender_verifier_input_for_existing_batch(batch_number)
+                .airbender_verifier_input_for_existing_batch(batch_number, &mut transaction)
                 .await
             {
                 Ok(input) => {
+                    let protocol_version = locked_batch.protocol_version;
+                    transaction.commit().await?;
+                    METRICS.airbender_jobs_picked[&(ProofStage::Fri, protocol_version.to_string())]
+                        .inc();
                     return Ok(Some(input));
                 }
                 Err(AirbenderProcessorError::ObjectStore {
                     source: ObjectStoreError::KeyNotFound(_),
                     context,
                 }) => {
-                    self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
-                        .await?;
+                    // Dropping the tx rolls the lock back so the batch is retryable.
+                    drop(transaction);
+                    METRICS.airbender_processor_errors[&ProcessorErrorKind::ObjectStoreKeyNotFound]
+                        .inc();
                     tracing::warn!(
                         "Data not available on GCS for batch {} created at {} (attempt {}/{}): {context}",
                         batch_number,
@@ -86,13 +116,12 @@ impl AirbenderRequestProcessor {
                     continue; // try the next batch
                 }
                 Err(err) => {
-                    self.unlock_batch(batch_number, AirbenderProofGenerationJobStatus::Failed)
-                        .await?;
                     return Err(err);
                 }
             }
         }
 
+        METRICS.airbender_processor_errors[&ProcessorErrorKind::AttemptsExhausted].inc();
         tracing::warn!("Exhausted {max_attempts} attempts to find a batch with available GCS data");
         Ok(None)
     }
@@ -110,8 +139,13 @@ impl AirbenderRequestProcessor {
             return Ok(None);
         }
 
+        let mut connection = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?;
+
         match self
-            .airbender_verifier_input_for_existing_batch(l1_batch_number)
+            .airbender_verifier_input_for_existing_batch(l1_batch_number, &mut connection)
             .await
         {
             Ok(input) => Ok(Some(input)),
@@ -145,10 +179,11 @@ impl AirbenderRequestProcessor {
         }))
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(skip(self, connection))]
     async fn airbender_verifier_input_for_existing_batch(
         &self,
         l1_batch_number: L1BatchNumber,
+        connection: &mut Connection<'_, Core>,
     ) -> Result<AirbenderVerifierInput, AirbenderProcessorError> {
         let vm_run_data: VMRunWitnessInputData = self
             .blob_store
@@ -168,17 +203,12 @@ impl AirbenderRequestProcessor {
                 context: "Failed to get WitnessInputMerklePaths".into(),
             })?;
 
-        let mut connection = self
-            .pool
-            .connection_tagged("airbender_request_processor")
-            .await?;
-
         let l2_blocks_execution_data = connection
             .transactions_dal()
             .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number)
             .await?;
 
-        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
+        let l1_batch_params_provider = L1BatchParamsProvider::new(connection)
             .await
             .map_err(AirbenderProcessorError::GeneralError)?;
 
@@ -194,7 +224,7 @@ impl AirbenderRequestProcessor {
             ..
         } = l1_batch_params_provider
             .load_l1_batch_env(
-                &mut connection,
+                connection,
                 l1_batch_number,
                 validation_computational_gas_limit,
                 self.l2_chain_id,
@@ -295,19 +325,6 @@ impl AirbenderRequestProcessor {
         })
     }
 
-    async fn lock_batch_for_proving(
-        &self,
-        min_batch_number: L1BatchNumber,
-    ) -> Result<Option<LockedBatch>, AirbenderProcessorError> {
-        self.pool
-            .connection_tagged("airbender_request_processor")
-            .await?
-            .airbender_proof_generation_dal()
-            .lock_batch_for_proving(self.config.proof_generation_timeout, min_batch_number)
-            .await
-            .map_err(Into::into)
-    }
-
     async fn is_batch_present_for_airbender_proof_inputs(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -324,20 +341,6 @@ impl AirbenderRequestProcessor {
             .map_err(Into::into)
     }
 
-    async fn unlock_batch(
-        &self,
-        l1_batch_number: L1BatchNumber,
-        status: AirbenderProofGenerationJobStatus,
-    ) -> Result<(), AirbenderProcessorError> {
-        self.pool
-            .connection_tagged("airbender_request_processor")
-            .await?
-            .airbender_proof_generation_dal()
-            .unlock_batch(l1_batch_number, status)
-            .await?;
-        Ok(())
-    }
-
     pub(crate) async fn submit_proof(
         &self,
         Json(proof): Json<SubmitAirbenderProofRequest>,
@@ -345,20 +348,33 @@ impl AirbenderRequestProcessor {
         let l1_batch_number = L1BatchNumber(proof.l1_batch_number);
         let prover_id = proof.prover_id;
 
+        let mut connection = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?;
+
+        // The version was recorded when the batch was locked for proving. If it's missing, the batch
+        // was never picked, so reject the submission instead of guessing a key.
+        let protocol_version = connection
+            .airbender_proof_generation_dal()
+            .get_batch_protocol_version(l1_batch_number)
+            .await?
+            .ok_or_else(|| {
+                AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                    "protocol version not recorded for batch {l1_batch_number}; was it picked for proving?"
+                ))
+            })?;
+
         let proof_for_gcs = L1BatchAirbenderProofForL1 { proof: proof.proof };
         let proof_blob_url = self
             .blob_store
-            .put(l1_batch_number, &proof_for_gcs)
+            .put((l1_batch_number, protocol_version), &proof_for_gcs)
             .await
             .map_err(|source| AirbenderProcessorError::ObjectStore {
                 source,
                 context: "Failed to upload proof to GCS".into(),
             })?;
 
-        let mut connection = self
-            .pool
-            .connection_tagged("airbender_request_processor")
-            .await?;
         let mut dal = connection.airbender_proof_generation_dal();
         dal.save_proof_artifacts_metadata(l1_batch_number, &proof_blob_url, &prover_id)
             .await?;
@@ -377,6 +393,8 @@ impl AirbenderRequestProcessor {
             f64::NAN
         };
 
+        METRICS.airbender_proofs_received[&(ProofStage::Fri, protocol_version.to_string())].inc();
+
         tracing::info!(
             l1_batch_number = %l1_batch_number,
             prover_id = %prover_id,
@@ -386,5 +404,151 @@ impl AirbenderRequestProcessor {
         );
 
         Ok(Json(SubmitAirbenderProofResponse::Success))
+    }
+
+    pub(crate) async fn get_snark_inputs(
+        &self,
+    ) -> Result<Option<AirbenderSnarkInputsResponse>, AirbenderProcessorError> {
+        tracing::debug!("Received request for SNARK inputs");
+
+        let min_batch_number = self.config.first_processed_batch;
+        let max_attempts = self.config.max_attempts;
+
+        for attempt in 0..max_attempts {
+            // Whole flow runs in a single transaction so that any mid-flight
+            // failure (DB, blob store, panic) rolls back the lock and leaves
+            // the batch free for the next request.
+            let mut connection = self
+                .pool
+                .connection_tagged("airbender_request_processor")
+                .await?;
+            let mut transaction = connection.start_transaction().await?;
+
+            let Some(locked_batch) = transaction
+                .airbender_proof_generation_dal()
+                .lock_batch_for_snark(self.config.snark_generation_timeout, min_batch_number)
+                .await?
+            else {
+                return Ok(None);
+            };
+            let batch_number = locked_batch.l1_batch_number;
+            let protocol_version = locked_batch.protocol_version;
+
+            let proof: L1BatchAirbenderProofForL1 =
+                match self.blob_store.get((batch_number, protocol_version)).await {
+                    Ok(proof) => proof,
+                    Err(ObjectStoreError::KeyNotFound(err)) => {
+                        // Dropping the tx rolls the lock back to `generated`.
+                        drop(transaction);
+                        METRICS.airbender_processor_errors
+                            [&ProcessorErrorKind::ObjectStoreKeyNotFound]
+                            .inc();
+                        tracing::warn!(
+                            "FRI proof not available on GCS for batch {} (attempt {}/{}): {err}",
+                            batch_number,
+                            attempt + 1,
+                            max_attempts,
+                        );
+                        continue;
+                    }
+                    Err(source) => {
+                        return Err(AirbenderProcessorError::ObjectStore {
+                            source,
+                            context: "Failed to get L1BatchAirbenderProofForL1".into(),
+                        });
+                    }
+                };
+
+            transaction.commit().await?;
+
+            METRICS.airbender_jobs_picked[&(ProofStage::Snark, protocol_version.to_string())].inc();
+
+            return Ok(Some(AirbenderSnarkInputsResponse {
+                l1_batch_number: batch_number.0,
+                fri_proof: proof.proof,
+            }));
+        }
+
+        METRICS.airbender_processor_errors[&ProcessorErrorKind::AttemptsExhausted].inc();
+        tracing::warn!(
+            "Exhausted {max_attempts} attempts to find a batch with available FRI proof"
+        );
+        Ok(None)
+    }
+
+    pub(crate) async fn submit_snark_proof(
+        &self,
+        Json(proof): Json<SubmitAirbenderSnarkProofRequest>,
+    ) -> Result<Json<SubmitAirbenderSnarkProofResponse>, AirbenderProcessorError> {
+        let l1_batch_number = L1BatchNumber(proof.l1_batch_number);
+        let prover_id = proof.prover_id;
+
+        let mut connection = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?;
+
+        // The verifier submits the wrapper proof as a `SnarkWrapperProof`, which doesn't carry the
+        // protocol version. Reuse the version recorded when the FRI proof was submitted so the SNARK
+        // blob key matches and the L1 proof reports the correct version.
+        let protocol_version = connection
+            .airbender_proof_generation_dal()
+            .get_batch_protocol_version(l1_batch_number)
+            .await?
+            .context("must exist")?;
+
+        // Flatten the wrapper proof into the CBOR `L1BatchProofForL1` the eth_sender submits through
+        // `proveBatches`, so the rest of the SNARK path mirrors Boojum proofs byte-for-byte.
+        let l1_proof = L1BatchProofForL1::new_airbender_from_snark_wrapper(
+            &proof.snark_proof,
+            protocol_version,
+        );
+        let snark_proof =
+            <L1BatchProofForL1 as StoredObject>::serialize(&l1_proof).map_err(|err| {
+                AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                    "Failed to CBOR-encode L1BatchProofForL1 for batch {l1_batch_number}: {err}"
+                ))
+            })?;
+
+        let proof_for_gcs = L1BatchAirbenderSnarkProofForL1 { snark_proof };
+        let snark_proof_blob_url = self
+            .blob_store
+            .put((l1_batch_number, protocol_version), &proof_for_gcs)
+            .await
+            .map_err(|source| AirbenderProcessorError::ObjectStore {
+                source,
+                context: "Failed to upload SNARK proof to GCS".into(),
+            })?;
+
+        connection
+            .airbender_proof_generation_dal()
+            .save_snark_proof_artifacts_metadata(l1_batch_number, &snark_proof_blob_url, &prover_id)
+            .await?;
+
+        let sealed_at = connection
+            .blocks_dal()
+            .get_batch_sealed_at(l1_batch_number)
+            .await?;
+
+        let duration = sealed_at.and_then(|sealed_at| (Utc::now() - sealed_at).to_std().ok());
+
+        let duration_secs_f64 = if let Some(duration) = duration {
+            METRICS.airbender_snark_roundtrip_time.observe(duration);
+            duration.as_secs_f64()
+        } else {
+            f64::NAN
+        };
+
+        METRICS.airbender_proofs_received[&(ProofStage::Snark, protocol_version.to_string())].inc();
+
+        tracing::info!(
+            l1_batch_number = %l1_batch_number,
+            prover_id = %prover_id,
+            sealed_to_proven_in_secs = duration_secs_f64,
+            "Received SNARK proof for batch {}",
+            l1_batch_number
+        );
+
+        Ok(Json(SubmitAirbenderSnarkProofResponse::Success))
     }
 }
