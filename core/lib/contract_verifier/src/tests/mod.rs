@@ -30,6 +30,9 @@ mod real;
 
 const SOLC_VERSION: &str = "0.8.27";
 const ZKSOLC_VERSION: &str = "1.5.4";
+/// A zksolc version `>= 1.5.13` (CBOR-capable). Used by metadata-disabledness tests that need to
+/// exercise the post-1.5.13 regime of [`SourceCodeData::appended_metadata_disabled`].
+const ZKSOLC_VERSION_WITH_CBOR: &str = "1.5.14";
 
 const BYTECODE_KINDS: [BytecodeMarker; 2] = [BytecodeMarker::EraVm, BytecodeMarker::Evm];
 
@@ -321,7 +324,12 @@ impl CompilerResolver for MockCompilerResolver {
     async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions> {
         Ok(SupportedCompilerVersions {
             solc: [SOLC_VERSION.to_owned()].into_iter().collect(),
-            zksolc: [ZKSOLC_VERSION.to_owned()].into_iter().collect(),
+            zksolc: [
+                ZKSOLC_VERSION.to_owned(),
+                ZKSOLC_VERSION_WITH_CBOR.to_owned(),
+            ]
+            .into_iter()
+            .collect(),
             vyper: HashSet::default(),
             zkvyper: HashSet::default(),
         })
@@ -350,7 +358,7 @@ impl CompilerResolver for MockCompilerResolver {
                 version.base.clone(),
             ));
         }
-        if version.zk != ZKSOLC_VERSION {
+        if version.zk != ZKSOLC_VERSION && version.zk != ZKSOLC_VERSION_WITH_CBOR {
             return Err(ContractVerifierError::UnknownCompilerVersion(
                 "zksolc",
                 version.zk.clone(),
@@ -486,7 +494,8 @@ async fn contract_verifier_basics(contract: TestContract) {
         .get_zksolc_versions()
         .await
         .unwrap();
-    assert_eq!(zksolc_versions, [ZKSOLC_VERSION]);
+    // Ordered by version text, so `1.5.14` sorts before `1.5.4`.
+    assert_eq!(zksolc_versions, [ZKSOLC_VERSION_WITH_CBOR, ZKSOLC_VERSION]);
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
@@ -701,6 +710,166 @@ async fn bytecode_mismatch_error() {
     assert!(status.compilation_errors.is_none(), "{status:?}");
     let err = status.error.unwrap();
     assert_eq!(err, ContractVerifierError::BytecodeMismatch.to_string());
+}
+
+/// EraVM bytecode of a `value() -> 1` contract compiled with `appendCBOR = false`, i.e. with no
+/// metadata. Its trailing word is functional code (zeroing it changes the return value), not a hash.
+const NO_METADATA_BYTECODE: &str = "0000008003000039000000400030043f0000000100200190000000110000c13d0000000900100198000000190000613d000000000101043b0000000a011001970000000b0010009c000000190000c13d0000000001000416000000000001004b000000190000c13d0000000101000039000000800010043f0000000c010000410000001c0001042e0000000001000416000000000001004b000000190000c13d00000020010000390000010000100443000001200000044300000008010000410000001c0001042e00000000010000190000001d000104300000001b000004320000001c0001042e0000001d0001043000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc000000000000000000000000ffffffff000000000000000000000000000000000000000000000000000000003fa4f245000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000800000000000000000";
+
+fn no_metadata_standard_json_request(
+    address: Address,
+    metadata: serde_json::Value,
+    zksolc_version: &str,
+) -> VerificationIncomingRequest {
+    let standard_json = serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "Counter.sol": {
+                "content": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.30;\ncontract Counter { function value() external pure returns (uint256) { return 1; } }\n"
+            }
+        },
+        "settings": {
+            "metadata": metadata,
+            "optimizer": { "enabled": true, "mode": "3" }
+        }
+    });
+    VerificationIncomingRequest {
+        contract_address: address,
+        source_code_data: SourceCodeData::StandardJsonInput(
+            standard_json.as_object().unwrap().clone(),
+        ),
+        contract_name: "Counter".to_owned(),
+        compiler_versions: CompilerVersions::Solc {
+            compiler_zksolc_version: Some(zksolc_version.to_owned()),
+            compiler_solc_version: SOLC_VERSION.to_owned(),
+        },
+        optimization_used: true,
+        optimizer_mode: None,
+        constructor_arguments: Default::default(),
+        is_system: false,
+        force_evmla: false,
+        evm_specific: Default::default(),
+    }
+}
+
+/// A deployed contract differing from the verified source only in the final word must NOT pass as a
+/// partial match when metadata is disabled (that word is functional code). Cased over `(metadata
+/// settings, zksolc version)` pairs that yield metadata-less bytecode, which is version-dependent:
+/// `>= 1.5.13` needs `appendCBOR:false` + non-`keccak256` hash; `< 1.5.13` needs `bytecodeHash:none`.
+#[test_casing(4, [
+    (serde_json::json!({ "bytecodeHash": "none", "appendCBOR": false }), "1.5.14"),
+    (serde_json::json!({ "appendCBOR": false }), "1.5.14"),
+    (serde_json::json!({ "bytecodeHash": "ipfs", "appendCBOR": false }), "1.5.14"),
+    (serde_json::json!({ "bytecodeHash": "none" }), "1.5.4"),
+])]
+#[tokio::test]
+async fn no_metadata_final_word_mismatch_is_rejected(
+    metadata: serde_json::Value,
+    zksolc_version: &str,
+) {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let original = hex::decode(NO_METADATA_BYTECODE).unwrap();
+    // The attacker deploys bytecode that differs from the verified source only in the final word.
+    let mut deployed = original.clone();
+    let len = deployed.len();
+    deployed[len - 32..].fill(0);
+    assert_ne!(original, deployed);
+
+    let address = Address::repeat_byte(1);
+    mock_deployment(&mut storage, address, deployed, &[]).await;
+    let req = no_metadata_standard_json_request(address, metadata, zksolc_version);
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(&req)
+        .await
+        .unwrap();
+
+    // The verifier honestly recompiles the source and reproduces the ORIGINAL bytecode.
+    let mock_resolver = MockCompilerResolver::zksolc(move |_| CompilationArtifacts {
+        bytecode: original.clone(),
+        deployed_bytecode: None,
+        abi: counter_contract_abi(),
+        immutable_refs: Default::default(),
+    });
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(mock_resolver),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    let status = storage
+        .contract_verification_dal()
+        .get_verification_request_status(request_id)
+        .await
+        .unwrap()
+        .expect("no status");
+    assert_eq!(status.status, "failed", "{status:?}");
+    assert!(status.compilation_errors.is_none(), "{status:?}");
+    let err = status.error.unwrap();
+    assert_eq!(err, ContractVerifierError::BytecodeMismatch.to_string());
+}
+
+/// Counterpart to [`no_metadata_final_word_mismatch_is_rejected`]: when metadata is NOT disabled, a
+/// trailing-word difference must still be accepted as a partial match (no over-rejection).
+#[tokio::test]
+async fn metadata_final_word_mismatch_is_partial_match() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let original = hex::decode(NO_METADATA_BYTECODE).unwrap();
+    let mut deployed = original.clone();
+    let len = deployed.len();
+    deployed[len - 32..].fill(0);
+
+    let address = Address::repeat_byte(1);
+    mock_deployment(&mut storage, address, deployed, &[]).await;
+    // `SolSingleFile` does not disable metadata, so the trailing-word difference is treated as a
+    // (benign) metadata mismatch, i.e. a partial match.
+    let req = test_request(address, COUNTER_CONTRACT);
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(&req)
+        .await
+        .unwrap();
+
+    let original_for_assert = original.clone();
+    let mock_resolver = MockCompilerResolver::zksolc(move |_| CompilationArtifacts {
+        bytecode: original.clone(),
+        deployed_bytecode: None,
+        abi: counter_contract_abi(),
+        immutable_refs: Default::default(),
+    });
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(mock_resolver),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    // The stored artifacts are the recompiled (original) bytecode.
+    assert_request_success(
+        &mut storage,
+        request_id,
+        address,
+        &original_for_assert,
+        &[VerificationProblem::IncorrectMetadata],
+    )
+    .await;
 }
 
 #[test_casing(4, Product((TestContract::ALL, BYTECODE_KINDS)))]
