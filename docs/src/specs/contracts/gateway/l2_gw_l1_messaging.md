@@ -97,9 +97,13 @@ This function will be internally used by the existing `_proveL2LogInclusion` fun
 
 We want to avoid breaking changes to SDKs, so we will modify the `zks_getL2ToL1LogProof` to return the data in the following format (the results of it are directly passed into the `proveL2LeafInclusion` method, so returned value must be supported by the contract):
 
-First `bytes32` corresponds to the metadata of the proof. The zero-th byte should tell the version of the metadata and must be equal to the `SUPPORTED_PROOF_METADATA_VERSION` (a constant of `0x01`).
+The first `bytes32` element of the proof encodes the proof metadata, laid out byte by byte (byte 0 being the most significant):
 
-Then, it should contain the number of 32-byte words that are needed to restore the current `BatchRootLeaf` , i.e. `logLeafProofLen` (it is called this way as it proves that a leaf belongs to the `SettledRootOfBatch`). The second byte contains the `batchLeafProofLen` . It is the length of the merkle path to prove that the `BatchRootLeaf` belonged to the `ChainIdRoot` .
+- byte 0 — metadata version; must equal `SUPPORTED_PROOF_METADATA_VERSION` (a constant of `0x01`).
+- byte 1 — `logLeafProofLen`: the number of 32-byte words needed to restore the current `BatchRootLeaf` (named this way because it proves a leaf belongs to the `SettledRootOfBatch`).
+- byte 2 — `batchLeafProofLen`: the length of the Merkle path proving that the `BatchRootLeaf` belongs to the `ChainIdRoot`.
+- byte 3 — `finalProofNode`: whether this proof is the last link in the chain of recursive settlement-layer proofs.
+- bytes 4–31 — zero.
 
 Then, the following happens:
 
@@ -178,7 +182,7 @@ In order to ease the server migration, we support legacy format of L2→L1 logs 
 
 To differentiate between legacy format and the one, the following approach is used;
 
-- Except for the first 3 bytes the first word in the new format contains 0s, which is unlikely in the old format, where leaves are hashed.
-- I.e. if the last 29 bytes are zeroes, then it is assumed to be the new format and vice versa.
+- Except for the first 4 bytes the first word in the new format contains 0s, which is unlikely in the old format, where leaves are hashed.
+- I.e. if the last 28 bytes are zeroes, then it is assumed to be the new format and vice versa.
 
 In the next release the old format will be removed.
