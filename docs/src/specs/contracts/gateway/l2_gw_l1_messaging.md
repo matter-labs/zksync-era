@@ -109,10 +109,10 @@ If the settlement layer of the chain is the chain itself, we can just end here b
 
 If the chain is not a settlement layer of itself, we then need to calculate:
 
-- `BatchRootLeaf = keccak256(BATCH_LEAF_HASH_PADDING, SettledRootOfBatch, batch_number).`
+- `BatchRootLeaf = keccak256(BATCH_LEAF_PADDING, SettledRootOfBatch, batch_number).`
 - Consume one element from the `_proofs` array to get the mask for the merkle path of the batch leaf in the chain id tree.
 - Consume `batchLeafProofLen` elements to construct the `ChainIdRoot`
-- After that, we calculate the `chainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chainIdRoot, chainId`
+- After that, we calculate the `chainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chainIdRoot, chainId`)
 
 Now, we have the _supposed_ `chainIdRoot` for the chain inside its settlement layer. The only thing left to prove is that this root belonged to some batch of the settlement layer.
 
