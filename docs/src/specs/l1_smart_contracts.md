@@ -232,6 +232,7 @@ Each upgrade consists of two steps:
     of upgrade.
 
 Please note, that both the Owner and Security council can cancel the upgrade before its execution.
+Please note that the cancel function is owner-only; however, the Security Council is able to cancel the upgrade before its execution through the Protocol Upgrade Handler (the owner) emergency path.
 
 The diagram below outlines the complete journey from the initiation of an operation to its execution.
 
