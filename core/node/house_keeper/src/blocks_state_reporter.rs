@@ -13,6 +13,7 @@ pub struct BlockMetricsReporter {
     reporting_interval: Duration,
     connection_pool: ConnectionPool<Core>,
     first_airbender_batch: L1BatchNumber,
+    airbender_max_proving_attempts: u32,
 }
 
 impl BlockMetricsReporter {
@@ -20,11 +21,13 @@ impl BlockMetricsReporter {
         reporting_interval: Duration,
         connection_pool: ConnectionPool<Core>,
         first_airbender_batch: L1BatchNumber,
+        airbender_max_proving_attempts: u32,
     ) -> Self {
         Self {
             reporting_interval,
             connection_pool,
             first_airbender_batch,
+            airbender_max_proving_attempts,
         }
     }
 
@@ -140,7 +143,10 @@ impl BlockMetricsReporter {
 
         let ready_count = conn
             .airbender_proof_generation_dal()
-            .get_ready_for_proving_count(self.first_airbender_batch)
+            .get_ready_for_proving_count(
+                self.first_airbender_batch,
+                self.airbender_max_proving_attempts,
+            )
             .await?;
         FRI_PROVER_METRICS
             .airbender_batches_ready_for_proving
@@ -148,7 +154,10 @@ impl BlockMetricsReporter {
 
         let ready_for_snark_count = conn
             .airbender_proof_generation_dal()
-            .get_ready_for_snark_count(self.first_airbender_batch)
+            .get_ready_for_snark_count(
+                self.first_airbender_batch,
+                self.airbender_max_proving_attempts,
+            )
             .await?;
         FRI_PROVER_METRICS
             .airbender_batches_ready_for_snark

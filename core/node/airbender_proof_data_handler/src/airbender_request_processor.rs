@@ -80,7 +80,11 @@ impl AirbenderRequestProcessor {
             // executed with — not the globally latest version.
             let Some(locked_batch) = transaction
                 .airbender_proof_generation_dal()
-                .lock_batch_for_proving(self.config.proof_generation_timeout, min_batch_number)
+                .lock_batch_for_proving(
+                    self.config.proof_generation_timeout,
+                    min_batch_number,
+                    self.config.max_proving_attempts,
+                )
                 .await?
             else {
                 return Ok(None); // no job available
@@ -343,10 +347,39 @@ impl AirbenderRequestProcessor {
 
     pub(crate) async fn submit_proof(
         &self,
-        Json(proof): Json<SubmitAirbenderProofRequest>,
+        Json(request): Json<SubmitAirbenderProofRequest>,
     ) -> Result<Json<SubmitAirbenderProofResponse>, AirbenderProcessorError> {
-        let l1_batch_number = L1BatchNumber(proof.l1_batch_number);
-        let prover_id = proof.prover_id;
+        let l1_batch_number = L1BatchNumber(request.l1_batch_number);
+        let prover_id = request.prover_id;
+
+        // A failure report releases the batch for retry without touching the blob store; `error`
+        // takes precedence over any proof bytes that might also be present.
+        if let Some(error) = request.error {
+            self.pool
+                .connection_tagged("airbender_request_processor")
+                .await?
+                .airbender_proof_generation_dal()
+                .mark_proof_failed(l1_batch_number, &error)
+                .await?;
+
+            METRICS.airbender_proof_failures[&ProofStage::Fri].inc();
+
+            tracing::warn!(
+                l1_batch_number = %l1_batch_number,
+                prover_id = %prover_id,
+                "Received FRI proof failure for batch {}: {}",
+                l1_batch_number,
+                error,
+            );
+
+            return Ok(Json(SubmitAirbenderProofResponse::Success));
+        }
+
+        let proof = request.proof.ok_or_else(|| {
+            AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                "submission for batch {l1_batch_number} carries neither a proof nor an error"
+            ))
+        })?;
 
         let mut connection = self
             .pool
@@ -365,7 +398,7 @@ impl AirbenderRequestProcessor {
                 ))
             })?;
 
-        let proof_for_gcs = L1BatchAirbenderProofForL1 { proof: proof.proof };
+        let proof_for_gcs = L1BatchAirbenderProofForL1 { proof };
         let proof_blob_url = self
             .blob_store
             .put((l1_batch_number, protocol_version), &proof_for_gcs)
@@ -426,7 +459,11 @@ impl AirbenderRequestProcessor {
 
             let Some(locked_batch) = transaction
                 .airbender_proof_generation_dal()
-                .lock_batch_for_snark(self.config.snark_generation_timeout, min_batch_number)
+                .lock_batch_for_snark(
+                    self.config.snark_generation_timeout,
+                    min_batch_number,
+                    self.config.max_proving_attempts,
+                )
                 .await?
             else {
                 return Ok(None);
@@ -478,10 +515,39 @@ impl AirbenderRequestProcessor {
 
     pub(crate) async fn submit_snark_proof(
         &self,
-        Json(proof): Json<SubmitAirbenderSnarkProofRequest>,
+        Json(request): Json<SubmitAirbenderSnarkProofRequest>,
     ) -> Result<Json<SubmitAirbenderSnarkProofResponse>, AirbenderProcessorError> {
-        let l1_batch_number = L1BatchNumber(proof.l1_batch_number);
-        let prover_id = proof.prover_id;
+        let l1_batch_number = L1BatchNumber(request.l1_batch_number);
+        let prover_id = request.prover_id;
+
+        // A failure report reverts the batch to `generated` for SNARK retry; `error` takes
+        // precedence over any proof that might also be present.
+        if let Some(error) = request.error {
+            self.pool
+                .connection_tagged("airbender_request_processor")
+                .await?
+                .airbender_proof_generation_dal()
+                .mark_snark_proof_failed(l1_batch_number, &error)
+                .await?;
+
+            METRICS.airbender_proof_failures[&ProofStage::Snark].inc();
+
+            tracing::warn!(
+                l1_batch_number = %l1_batch_number,
+                prover_id = %prover_id,
+                "Received SNARK proof failure for batch {}: {}",
+                l1_batch_number,
+                error,
+            );
+
+            return Ok(Json(SubmitAirbenderSnarkProofResponse::Success));
+        }
+
+        let snark_proof = request.snark_proof.ok_or_else(|| {
+            AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                "SNARK submission for batch {l1_batch_number} carries neither a proof nor an error"
+            ))
+        })?;
 
         let mut connection = self
             .pool
@@ -499,10 +565,8 @@ impl AirbenderRequestProcessor {
 
         // Flatten the wrapper proof into the CBOR `L1BatchProofForL1` the eth_sender submits through
         // `proveBatches`, so the rest of the SNARK path mirrors Boojum proofs byte-for-byte.
-        let l1_proof = L1BatchProofForL1::new_airbender_from_snark_wrapper(
-            &proof.snark_proof,
-            protocol_version,
-        );
+        let l1_proof =
+            L1BatchProofForL1::new_airbender_from_snark_wrapper(&snark_proof, protocol_version);
         let snark_proof =
             <L1BatchProofForL1 as StoredObject>::serialize(&l1_proof).map_err(|err| {
                 AirbenderProcessorError::GeneralError(anyhow::anyhow!(
