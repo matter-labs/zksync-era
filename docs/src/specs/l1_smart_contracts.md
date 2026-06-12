@@ -116,15 +116,19 @@ found [here](./contracts/settlement_contracts/data_availability/pubdata.md).
 
 ### Committer and Executor facets
 
-These contracts accept L2 batches, enforces data availability and checks the validity of zk-proofs. The state transition pipeline is split into three stages:
+These contracts accept L2 batches, enforces data availability and checks the validity of zk-proofs. The state transition
+pipeline is split into three stages:
 
-- `commitBatchesSharedBridge` - check L2 batch timestamp, process the L2 logs, save data for a batch, and prepare data for zk-proof.
+- `commitBatchesSharedBridge` - check L2 batch timestamp, process the L2 logs, save data for a batch, and prepare data
+  for zk-proof.
 - `proveBatchesSharedBridge` - validate zk-proof.
-- `executeBatchesSharedBridge` - finalize the state, marking L1 -> L2 communication processing, and saving Merkle tree with L2 logs.
+- `executeBatchesSharedBridge` - finalize the state, marking L1 -> L2 communication processing, and saving Merkle tree
+  with L2 logs.
 
 These stages are divided by contracts as:
 
-- `Committer` handles `precommitSharedBridge` and `commitBatchesSharedBridge`, including batch metadata checks, L2 log processing, DA validation inputs, and batch commitment creation.
+- `Committer` handles `precommitSharedBridge` and `commitBatchesSharedBridge`, including batch metadata checks, L2 log
+  processing, DA validation inputs, and batch commitment creation.
 - `Executor` handles proof validation, batch execution, and batch reverts.
 
 Each L2 -> L1 system log will have a key that is part of the following:
@@ -231,7 +235,8 @@ Each upgrade consists of two steps:
   - Instant upgrade. Scheduled operations can be executed at any moment. Only the Security Council can perform this type
     of upgrade.
 
-Please note that the cancel function is owner-only; however, the Security Council is able to cancel the upgrade before its execution through the Protocol Upgrade Handler (the owner) emergency path.
+Please note that the cancel function is owner-only; however, the Security Council is able to cancel the upgrade before
+its execution through the Protocol Upgrade Handler (the owner) emergency path.
 
 The diagram below outlines the complete journey from the initiation of an operation to its execution.
 
@@ -247,7 +252,9 @@ investigation and mitigation before resuming normal operations.
 It is a temporary solution to prevent any significant impact of the validator hot key leakage, while the network is in
 the Alpha stage.
 
-ValidatorTimelock uses per-chain role-based access control with six operational roles, each gating the corresponding `*SharedBridge` entry point:
+ValidatorTimelock uses per-chain role-based access control with six operational roles, each gating the corresponding
+`*SharedBridge` entry point:
+
 - `precommitSharedBridge` → `PRECOMMITTER_ROLE`
 - `commitBatchesSharedBridge` → `COMMITTER_ROLE`
 - `revertBatchesSharedBridge` → `REVERTER_ROLE`
@@ -255,15 +262,16 @@ ValidatorTimelock uses per-chain role-based access control with six operational 
 - `executeBatchesSharedBridge` → `EXECUTOR_ROLE`
 - `upgradeChainFromVersion` → `UPGRADER_ROLE`
 
-The `addValidator`/`removeValidator` helpers grant or revoke all roles at once; `addValidatorRoles`/`removeValidatorRoles` allow granular per-role assignment.
+The `addValidator`/`removeValidator` helpers grant or revoke all roles at once;
+`addValidatorRoles`/`removeValidatorRoles` allow granular per-role assignment.
 
-When the validator calls `commitBatchesSharedBridge`, the same calldata will be propagated to the ZKsync contract (`DiamondProxy`
-through `call` where it invokes the `CommitterFacet` through `delegatecall`), and also a timestamp is assigned to these
-batches to track the time these batches are committed by the validator to enforce a delay between committing and
-execution of batches. Then, the validator can prove the already committed batches regardless of the mentioned timestamp,
-and again the same calldata (related to the `proveBatchesSharedBridge` function) will be propagated to the ZKsync contract. After
-the `delay` is elapsed, the validator is allowed to call `executeBatchesSharedBridge` to propagate the same calldata to ZKsync
-contract.
+When the validator calls `commitBatchesSharedBridge`, the same calldata will be propagated to the ZKsync contract
+(`DiamondProxy` through `call` where it invokes the `CommitterFacet` through `delegatecall`), and also a timestamp is
+assigned to these batches to track the time these batches are committed by the validator to enforce a delay between
+committing and execution of batches. Then, the validator can prove the already committed batches regardless of the
+mentioned timestamp, and again the same calldata (related to the `proveBatchesSharedBridge` function) will be propagated
+to the ZKsync contract. After the `delay` is elapsed, the validator is allowed to call `executeBatchesSharedBridge` to
+propagate the same calldata to ZKsync contract.
 
 The execution delay is dynamically read from the contract's `executionDelay()` function by the node, eliminating the
 need for manual configuration management.
