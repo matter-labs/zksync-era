@@ -194,7 +194,7 @@ all concatenated together to yield the final compressed version.
 
 For bytecode to be considered valid it must satisfy the following:
 
-1. Bytecode length must be less than 2097120 ((2^16 - 1) \* 32) bytes.
+1. Bytecode length must be at most 2097120 ((2^16 - 1) \* 32) bytes
 2. Bytecode length must be a multiple of 32.
 3. Number of 32-byte words cannot be even.
 
