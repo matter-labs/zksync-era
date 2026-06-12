@@ -11,7 +11,7 @@ Pubdata in ZKsync can be divided up into 4 categories:
 3. Smart Contract Bytecodes  
 4. Storage Writes  
 
-Using data corresponding to these 4 facets across all executed batches, we’re able to reconstruct the full state of L2. To restore the state we just need to filter all of the transactions to the L1 ZKsync contract for only the `commitBatches` transactions where the proposed block has been referenced by a corresponding `executeBatches` call (the reason for this is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed batches that have been executed, we will then pull the transaction input and the relevant fields, applying them in order to reconstruct the current state of L2.
+Using data corresponding to these 4 facets across all executed batches, we’re able to reconstruct the full state of L2. To restore the state we just need to filter all of the transactions to the L1 ZKsync contract for only the `commitBatchesSharedBridge` transactions where the proposed block has been referenced by a corresponding `executeBatchesSharedBridge` call (the reason for this is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed batches that have been executed, we will then pull the transaction input and the relevant fields, applying them in order to reconstruct the current state of L2.
 
 ## L2→L1 communication
 
@@ -24,7 +24,7 @@ We will now refer to the logs that are created by users and Merklized as _user_ 
 | Emitted by VM via an opcode.                                                                                    | VM knows nothing about them.                                                                                                                                                                                                        |
 | Consistency and correctness are enforced by the verifier on L1 (i.e. their hash is part of the block commitment). | Consistency and correctness is enforced by the L1Messenger system contract. The correctness of the behavior of the L1Messenger is enforced implicitly by the prover in the sense that it proves the correctness of the execution overall. |
 | We don’t calculate their Merkle root.                                                                           | We calculate their Merkle root on the L1Messenger system contract.                                                                                                                                                                  |
-| There is a constant small number of these logs.                                                                 | We can have as many as possible as long as the commitBatches function on L1 remains executable (it is the job of the operator to ensure that only such transactions are selected).                                                   |
+| There is a constant small number of these logs.                                                                 | We can have as many as possible as long as the commitBatchesSharedBridge function on L1 remains executable (it is the job of the operator to ensure that only such transactions are selected).                                                   |
 | In EIP-4844 they will remain part of the calldata.                                                              | In EIP-4844 they will become part of the blobs.                                                                                                                                                                                     |
 
 ### Backwards-compatibility
@@ -280,7 +280,7 @@ The interface for committing batches is the following:
 /// @param bootloaderHeapInitialContentsHash Hash of the initial contents of the bootloader heap. In practice it serves as the commitment to the transactions in the batch.
 /// @param eventsQueueStateHash Hash of the events queue state. In practice it serves as the commitment to the events in the batch.
 /// @param systemLogs Concatenation of all L2→L1 system logs in the batch
-/// @param totalL2ToL1Pubdata Total pubdata committed to as part of bootloader run. Contents are: l2Tol1Logs <> l2Tol1Messages <> publishedBytecodes <> stateDiffs
+/// @param operatorDAInput The data-availability input provided by the operator, processed by the L1DAValidator. Its contents depend on the DA mode (for rollups: the state-diff hash, the pubdata, and blob commitment data).
 struct CommitBatchInfo {
   uint64 batchNumber;
   uint64 timestamp;
@@ -291,6 +291,6 @@ struct CommitBatchInfo {
   bytes32 bootloaderHeapInitialContentsHash;
   bytes32 eventsQueueStateHash;
   bytes systemLogs;
-  bytes totalL2ToL1Pubdata;
+  bytes operatorDAInput;;
 }
 ```
