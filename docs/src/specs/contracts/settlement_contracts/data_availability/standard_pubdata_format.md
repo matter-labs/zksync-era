@@ -291,6 +291,6 @@ struct CommitBatchInfo {
   bytes32 bootloaderHeapInitialContentsHash;
   bytes32 eventsQueueStateHash;
   bytes systemLogs;
-  bytes operatorDAInput;;
+  bytes operatorDAInput;
 }
 ```
