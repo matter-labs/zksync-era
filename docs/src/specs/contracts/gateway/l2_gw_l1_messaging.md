@@ -30,11 +30,11 @@ The structure has the following recursive format:
 - `settledMessageRoot = keccak256(LocalRoot, AggregatedRoot)`
 - `LocalRoot` — the root of the binary merkle tree over `UserLog[]`. (the same as the one we have now). It only contains messages from the current batch.
 - `AggregatedRoot` — the root of the binary merkle tree over `ChainIdLeaf[]`.
-- `ChainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chain_id, ChainIdRoot`)
+- `ChainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, ChainIdRoot, chain_id)`
 - `CHAIN_ID_LEAF_PADDING` — it is a constant padding, needed to ensure that the preimage of the ChainIdLeaf is larger than 64 bytes and so it can not be an internal node.
 - `chain_id` — the chain id of the chain the batches of which are aggregated.
 - `ChainIdRoot` = the root of the binary merkle tree `BatchRootLeaf[]`.
-- `BatchRootLeaf = keccak256(BATCH_LEAF_HASH_PADDING, batch_number, SettledRootOfBatch).`
+- `BatchRootLeaf = keccak256(BATCH_LEAF_PADDING, SettledRootOfBatch, batch_number).`
 
 In other words, we get the recursive structure, where for leaves of it, i.e. chains that do not aggregate any other chains, have empty `AggregatedRoot`.
 
@@ -97,9 +97,13 @@ This function will be internally used by the existing `_proveL2LogInclusion` fun
 
 We want to avoid breaking changes to SDKs, so we will modify the `zks_getL2ToL1LogProof` to return the data in the following format (the results of it are directly passed into the `proveL2LeafInclusion` method, so returned value must be supported by the contract):
 
-First `bytes32` corresponds to the metadata of the proof. The zero-th byte should tell the version of the metadata and must be equal to the `SUPPORTED_PROOF_METADATA_VERSION` (a constant of `0x01`).
+The first `bytes32` element of the proof encodes the proof metadata, laid out byte by byte (byte 0 being the most significant):
 
-Then, it should contain the number of 32-byte words that are needed to restore the current `BatchRootLeaf` , i.e. `logLeafProofLen` (it is called this way as it proves that a leaf belongs to the `SettledRootOfBatch`). The second byte contains the `batchLeafProofLen` . It is the length of the merkle path to prove that the `BatchRootLeaf` belonged to the `ChainIdRoot` .
+- byte 0 — metadata version; must equal `SUPPORTED_PROOF_METADATA_VERSION` (a constant of `0x01`).
+- byte 1 — `logLeafProofLen`: the number of 32-byte words needed to restore the current `BatchRootLeaf` (named this way because it proves a leaf belongs to the `SettledRootOfBatch`).
+- byte 2 — `batchLeafProofLen`: the length of the Merkle path proving that the `BatchRootLeaf` belongs to the `ChainIdRoot`.
+- byte 3 — `finalProofNode`: whether this proof is the last link in the chain of recursive settlement-layer proofs.
+- bytes 4–31 — zero.
 
 Then, the following happens:
 
@@ -109,10 +113,10 @@ If the settlement layer of the chain is the chain itself, we can just end here b
 
 If the chain is not a settlement layer of itself, we then need to calculate:
 
-- `BatchRootLeaf = keccak256(BATCH_LEAF_HASH_PADDING, SettledRootOfBatch, batch_number).`
+- `BatchRootLeaf = keccak256(BATCH_LEAF_PADDING, SettledRootOfBatch, batch_number).`
 - Consume one element from the `_proofs` array to get the mask for the merkle path of the batch leaf in the chain id tree.
 - Consume `batchLeafProofLen` elements to construct the `ChainIdRoot`
-- After that, we calculate the `chainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chainIdRoot, chainId`
+- After that, we calculate the `chainIdLeaf = keccak256(CHAIN_ID_LEAF_PADDING, chainIdRoot, chainId`)
 
 Now, we have the _supposed_ `chainIdRoot` for the chain inside its settlement layer. The only thing left to prove is that this root belonged to some batch of the settlement layer.
 
@@ -178,7 +182,7 @@ In order to ease the server migration, we support legacy format of L2→L1 logs 
 
 To differentiate between legacy format and the one, the following approach is used;
 
-- Except for the first 3 bytes the first word in the new format contains 0s, which is unlikely in the old format, where leaves are hashed.
-- I.e. if the last 29 bytes are zeroes, then it is assumed to be the new format and vice versa.
+- Except for the first 4 bytes the first word in the new format contains 0s, which is unlikely in the old format, where leaves are hashed.
+- I.e. if the last 28 bytes are zeroes, then it is assumed to be the new format and vice versa.
 
 In the next release the old format will be removed.
