@@ -93,7 +93,7 @@ db/
 en_db/
 db-ssd/
 backups/
-artifacts/
+# artifacts/
 artifacts-zk/
 cache-zk/
 zksolc
