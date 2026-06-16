@@ -326,6 +326,7 @@ impl AirbenderRequestProcessor {
             system_env,
             pubdata_params,
             commitment_input: Some(commitment_input),
+            read_proofs: Vec::new(),
         })
     }
 

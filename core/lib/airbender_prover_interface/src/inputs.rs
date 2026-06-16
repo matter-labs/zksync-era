@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 use zksync_prover_interface::inputs::{VMRunWitnessInputData, WitnessInputMerklePaths};
-use zksync_types::{block::L2BlockExecutionData, commitment::PubdataParams, H256};
+use zksync_types::{block::L2BlockExecutionData, commitment::PubdataParams, H256, U256};
 use zksync_vm_interface::{L1BatchEnv, SystemEnv};
 
 /// Wire-format mirror of `zksync_types::commitment::BlobHash`.
@@ -33,6 +33,22 @@ pub struct CommitmentInput {
     pub blob_versioned_hashes: Vec<H256>,
 }
 
+/// A Merkle proof of a single storage slot's pre-batch state against
+/// `old_root_hash`, for a slot the committed `merkle_paths` omits (a read inside
+/// a reverted frame, or a reverted initial write). Wire-format mirror of the
+/// verifier's `ReadProof`; field order is load-bearing for bincode.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReadProof {
+    /// Hashed storage key (little-endian `U256`, matching `TreeEntry`).
+    pub hashed_key: U256,
+    /// Pre-state value; zero for an empty/absent slot.
+    pub value: H256,
+    /// Enumeration index; 0 for an empty/initial slot.
+    pub enumeration_index: u64,
+    /// Merkle path from the leaf to `old_root_hash`.
+    pub merkle_path: Vec<H256>,
+}
+
 /// Data fed to the Airbender verifier.
 ///
 /// `commitment_input` is `Some` when the producer can populate it (i.e., the
@@ -47,4 +63,8 @@ pub struct AirbenderVerifierInput {
     pub system_env: SystemEnv,
     pub pubdata_params: PubdataParams,
     pub commitment_input: Option<CommitmentInput>,
+    /// Proofs (vs `old_root_hash`) for view-domain slots absent from
+    /// `merkle_paths`. Empty when every read the VM makes is committed.
+    #[serde(default)]
+    pub read_proofs: Vec<ReadProof>,
 }

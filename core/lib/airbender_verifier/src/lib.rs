@@ -379,6 +379,7 @@ mod tests {
             )
             .unwrap(),
             commitment_input: None,
+            read_proofs: vec![],
         };
         let serialized =
             serde_json::to_vec(&tvi).expect("Failed to serialize AirbenderVerifierInput.");
