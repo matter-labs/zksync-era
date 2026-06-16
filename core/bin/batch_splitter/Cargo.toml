@@ -1,0 +1,36 @@
+[package]
+name = "batch_splitter"
+description = "Utility to split a sealed L1 batch into two independently-provable Airbender pieces"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+zksync_config = { workspace = true, features = ["observability_ext"] }
+zksync_dal.workspace = true
+zksync_object_store.workspace = true
+zksync_types.workspace = true
+zksync_prover_interface.workspace = true
+zksync_airbender_prover_interface.workspace = true
+zksync_airbender_verifier.workspace = true
+zksync_vm_executor.workspace = true
+zksync_vm_interface.workspace = true
+zksync_multivm.workspace = true
+zksync_merkle_tree.workspace = true
+zksync_l1_contract_interface.workspace = true
+zksync_contracts.workspace = true
+zksync_crypto_primitives.workspace = true
+zksync_vlog.workspace = true
+
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+serde.workspace = true
+ciborium.workspace = true
