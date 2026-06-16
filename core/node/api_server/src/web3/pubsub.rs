@@ -59,6 +59,9 @@ pub(crate) struct PubSubNotifier {
 }
 
 impl PubSubNotifier {
+    /// Maximum number of miniblocks scanned for new logs in a single `notify_logs` poll.
+    const NEW_LOGS_BLOCK_RANGE_LIMIT: u32 = 1024;
+
     pub(crate) fn subscription_type(&self) -> SubscriptionType {
         self.ty
     }
@@ -216,11 +219,13 @@ impl PubSubNotifier {
             let db_latency = PUB_SUB_METRICS[&SubscriptionType::Logs]
                 .db_poll_latency
                 .start();
-            let new_logs = self.new_logs(last_block_number).await?;
+            let (new_logs, to_block) = self.new_logs(last_block_number).await?;
             db_latency.observe();
 
-            if let Some(last_log) = new_logs.last() {
-                last_block_number = L2BlockNumber(last_log.block_number.unwrap().as_u32());
+            // Advance the cursor to the scanned upper bound even when the range contained no logs,
+            // so that empty block ranges don't cause the same window to be re-scanned forever.
+            last_block_number = to_block;
+            if !new_logs.is_empty() {
                 let new_logs = new_logs.into_iter().map(PubSubResult::Log).collect();
                 self.send_pub_sub_results(new_logs, SubscriptionType::Logs);
                 self.emit_event(PubSubEvent::L2BlockAdvanced(
@@ -234,14 +239,33 @@ impl PubSubNotifier {
         Ok(())
     }
 
-    async fn new_logs(&self, last_block_number: L2BlockNumber) -> anyhow::Result<Vec<Log>> {
-        self.connection_pool
-            .connection_tagged("api")
-            .await?
+    /// Returns new logs after `last_block_number` together with the block number up to which logs
+    /// were scanned (which the caller should adopt as its next cursor).
+    ///
+    /// At most [`Self::NEW_LOGS_BLOCK_RANGE_LIMIT`] miniblocks are scanned per call, clamped to the
+    /// chain tip. This bounds the work and memory of a single query when the notifier has fallen
+    /// behind; it catches up incrementally over subsequent iterations.
+    async fn new_logs(
+        &self,
+        last_block_number: L2BlockNumber,
+    ) -> anyhow::Result<(Vec<Log>, L2BlockNumber)> {
+        let mut connection = self.connection_pool.connection_tagged("api").await?;
+        let Some(sealed_block) = connection.blocks_dal().get_sealed_l2_block_number().await? else {
+            // Genesis has not been created yet; nothing to scan.
+            return Ok((Vec::new(), last_block_number));
+        };
+        let to_block = sealed_block
+            .min(L2BlockNumber(
+                last_block_number
+                    .0
+                    .saturating_add(Self::NEW_LOGS_BLOCK_RANGE_LIMIT),
+            ))
+            .max(last_block_number);
+        let logs = connection
             .events_web3_dal()
-            .get_all_logs(last_block_number)
-            .await
-            .map_err(Into::into)
+            .get_all_logs(last_block_number, to_block)
+            .await?;
+        Ok((logs, to_block))
     }
 
     pub(crate) async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {

@@ -515,7 +515,7 @@ mod tests {
 
         let logs = conn
             .events_web3_dal()
-            .get_all_logs(L2BlockNumber(0))
+            .get_all_logs(L2BlockNumber(0), L2BlockNumber(u32::MAX))
             .await
             .unwrap();
         assert_eq!(logs.len(), 5);

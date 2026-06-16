@@ -994,7 +994,7 @@ mod tests {
 
         let new_events = storage
             .events_web3_dal()
-            .get_all_logs(L2BlockNumber(0))
+            .get_all_logs(L2BlockNumber(0), L2BlockNumber(u32::MAX))
             .await
             .unwrap();
         assert!(!new_events.is_empty());

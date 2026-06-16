@@ -521,7 +521,7 @@ async fn processing_events_when_sealing_l2_block() {
 
     let logs = conn
         .events_web3_dal()
-        .get_all_logs(l2_block_number - 1)
+        .get_all_logs(l2_block_number - 1, L2BlockNumber(u32::MAX))
         .await
         .unwrap();
 

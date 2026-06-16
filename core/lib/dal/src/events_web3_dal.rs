@@ -193,7 +193,16 @@ impl EventsWeb3Dal<'_, '_> {
         }
     }
 
-    pub async fn get_all_logs(&mut self, from_block: L2BlockNumber) -> DalResult<Vec<Log>> {
+    /// Returns logs for the miniblock range `(from_block, to_block]`.
+    ///
+    /// The upper bound is required so that callers (e.g. the pubsub logs notifier) can advance
+    /// their cursor in bounded steps. Without it, a notifier that has fallen behind would scan an
+    /// unbounded slice of the `events` table into memory in a single query.
+    pub async fn get_all_logs(
+        &mut self,
+        from_block: L2BlockNumber,
+        to_block: L2BlockNumber,
+    ) -> DalResult<Vec<Log>> {
         let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
             StorageWeb3Log,
             r#"
@@ -215,6 +224,7 @@ impl EventsWeb3Dal<'_, '_> {
                     events
                 WHERE
                     miniblock_number > $1
+                    AND miniblock_number <= $2
                 ORDER BY
                     miniblock_number ASC,
                     event_index_in_block ASC
@@ -242,10 +252,12 @@ impl EventsWeb3Dal<'_, '_> {
                 miniblock_number ASC,
                 event_index_in_block ASC
             "#,
-            i64::from(from_block.0)
+            i64::from(from_block.0),
+            i64::from(to_block.0)
         )
         .instrument("get_all_logs")
         .with_arg("from_block", &from_block)
+        .with_arg("to_block", &to_block)
         .fetch_all(self.storage)
         .await?;
         let logs = db_logs.into_iter().map(Into::into).collect();
