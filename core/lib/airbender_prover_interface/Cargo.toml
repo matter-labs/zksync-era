@@ -22,3 +22,5 @@ bincode.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+zksync_merkle_tree.workspace = true
+zksync_crypto_primitives.workspace = true

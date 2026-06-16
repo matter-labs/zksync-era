@@ -68,3 +68,53 @@ pub struct AirbenderVerifierInput {
     #[serde(default)]
     pub read_proofs: Vec<ReadProof>,
 }
+
+#[cfg(test)]
+mod tests {
+    use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
+    use zksync_merkle_tree::{MerkleTree, PatchSet, TreeEntry, TreeEntryWithProof};
+    use zksync_types::{H256, U256};
+
+    use super::ReadProof;
+
+    #[test]
+    fn read_proof_roundtrips_a_real_tree_proof() {
+        // Build a one-leaf tree; capture root + proofs for a present and an absent key.
+        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+        let present = U256::from(0x1111u64);
+        let absent = U256::from(0x2222u64);
+        let value = H256::from_low_u64_be(0x42);
+        let root = tree
+            .extend(vec![TreeEntry::new(present, 1, value)])
+            .unwrap()
+            .root_hash;
+        let entries = tree.entries_with_proofs(0, &[present, absent]).unwrap();
+
+        // Map each tree proof into our ReadProof exactly as the handler does.
+        let to_read_proof = |key: U256, e: &TreeEntryWithProof| ReadProof {
+            hashed_key: key,
+            value: e.base.value,
+            enumeration_index: e.base.leaf_index,
+            merkle_path: e.merkle_path.clone(),
+        };
+        let present_rp = to_read_proof(present, &entries[0]);
+        let absent_rp = to_read_proof(absent, &entries[1]);
+
+        // Reconstruct the tree proof from our ReadProof and confirm it still folds to root.
+        for rp in [&present_rp, &absent_rp] {
+            let reconstructed = TreeEntryWithProof {
+                base: TreeEntry::new(rp.hashed_key, rp.enumeration_index, rp.value),
+                merkle_path: rp.merkle_path.clone(),
+            };
+            reconstructed
+                .verify(&Blake2Hasher, root)
+                .expect("ReadProof must reconstruct a valid proof");
+        }
+
+        // Sanity: the present slot carries the value/index; the absent slot is empty (index 0, value 0).
+        assert_eq!(present_rp.value, value);
+        assert_eq!(present_rp.enumeration_index, 1);
+        assert_eq!(absent_rp.enumeration_index, 0);
+        assert!(absent_rp.value.is_zero());
+    }
+}

@@ -13473,6 +13473,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with 1.14.0",
+ "zksync_crypto_primitives",
+ "zksync_merkle_tree",
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_types",
