@@ -14,8 +14,8 @@ const ATTEMPT_BUCKETS: Buckets = Buckets::exponential(1.0..=64.0, 2.0);
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "job_processor")]
 struct JobProcessorMetrics {
-    #[metrics(labels = ["service_name", "job_id"])]
-    max_attempts_reached: LabeledFamily<(&'static str, String), Counter, 2>,
+    #[metrics(labels = ["service_name"])]
+    max_attempts_reached: LabeledFamily<&'static str, Counter>,
     #[metrics(labels = ["service_name"], buckets = ATTEMPT_BUCKETS)]
     attempts: LabeledFamily<&'static str, Histogram<usize>>,
 }
@@ -116,7 +116,7 @@ pub trait JobProcessor: Sync + Send {
         let attempts = self.get_job_attempts(&job_id).await?;
         let max_attempts = self.max_attempts();
         if attempts == max_attempts {
-            METRICS.max_attempts_reached[&(Self::SERVICE_NAME, format!("{job_id:?}"))].inc();
+            METRICS.max_attempts_reached[&Self::SERVICE_NAME].inc();
             tracing::error!(
                 "Max attempts ({max_attempts}) reached for {} job {:?}",
                 Self::SERVICE_NAME,
