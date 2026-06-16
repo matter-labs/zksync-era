@@ -9,7 +9,7 @@ use zksync_airbender_prover_interface::{
         SubmitAirbenderProofResponse, SubmitAirbenderSnarkProofRequest,
         SubmitAirbenderSnarkProofResponse,
     },
-    inputs::{AirbenderVerifierInput, BlobHash, CommitmentInput},
+    inputs::{AirbenderVerifierInput, BlobHash, CommitmentInput, ReadProof},
     outputs::{L1BatchAirbenderProofForL1, L1BatchAirbenderSnarkProofForL1},
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
@@ -24,7 +24,7 @@ use zksync_prover_interface::{
 };
 use zksync_shared_resources::tree::TreeApiClient;
 use zksync_types::{
-    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId,
+    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId, U256,
 };
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
@@ -39,8 +39,6 @@ pub(crate) struct AirbenderRequestProcessor {
     pool: ConnectionPool<Core>,
     config: AirbenderProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
-    // Held for upcoming read-proof fetching at batch N-1; not yet used.
-    #[allow(dead_code)]
     tree_api_client: Arc<dyn TreeApiClient>,
 }
 
@@ -324,6 +322,41 @@ impl AirbenderRequestProcessor {
             blob_versioned_hashes: versioned_hashes,
         };
 
+        // Bind every slot the VM reads to `old_root_hash`: for view-domain slots
+        // the committed `merkle_paths` omits (reverted-frame reads), fetch a
+        // Merkle proof against the tree at N-1 (= old_root_hash for batch N).
+        let gap = read_proof_gap(&vm_run_data.witness_block_state, &merkle_paths);
+        let read_proofs = if gap.is_empty() {
+            Vec::new()
+        } else {
+            let entries = self
+                .tree_api_client
+                .get_proofs(prev_number, gap.clone())
+                .await
+                .map_err(|e| {
+                    AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                        "tree get_proofs(N-1={prev_number}) for {} read-proof slots failed: {e}",
+                        gap.len()
+                    ))
+                })?;
+            if entries.len() != gap.len() {
+                return Err(AirbenderProcessorError::GeneralError(anyhow::anyhow!(
+                    "tree returned {} proofs for {} requested read-proof slots",
+                    entries.len(),
+                    gap.len()
+                )));
+            }
+            gap.into_iter()
+                .zip(entries)
+                .map(|(hashed_key, e)| ReadProof {
+                    hashed_key,
+                    value: e.value,
+                    enumeration_index: e.index,
+                    merkle_path: e.merkle_path,
+                })
+                .collect()
+        };
+
         Ok(AirbenderVerifierInput {
             vm_run_data,
             merkle_paths,
@@ -332,7 +365,7 @@ impl AirbenderRequestProcessor {
             system_env,
             pubdata_params,
             commitment_input: Some(commitment_input),
-            read_proofs: Vec::new(),
+            read_proofs,
         })
     }
 
@@ -621,5 +654,78 @@ impl AirbenderRequestProcessor {
         );
 
         Ok(Json(SubmitAirbenderSnarkProofResponse::Success))
+    }
+}
+
+/// Hashed keys the verifier needs read-proofs for: every slot the operator's
+/// witness exposes to the VM (`read_storage_key` ∪ `is_write_initial`) that the
+/// committed `merkle_paths` does not already prove. Sorted for a reproducible
+/// request order so the returned proofs pair up by position.
+fn read_proof_gap(
+    witness_block_state: &zksync_types::witness_block_state::WitnessStorageState,
+    merkle_paths: &WitnessInputMerklePaths,
+) -> Vec<U256> {
+    let in_paths: std::collections::HashSet<U256> = merkle_paths
+        .merkle_paths
+        .iter()
+        .map(|log| log.leaf_hashed_key)
+        .collect();
+    let mut domain: std::collections::BTreeSet<U256> = std::collections::BTreeSet::new();
+    for k in witness_block_state.read_storage_key.keys() {
+        domain.insert(k.hashed_key_u256());
+    }
+    for k in witness_block_state.is_write_initial.keys() {
+        domain.insert(k.hashed_key_u256());
+    }
+    domain.into_iter().filter(|k| !in_paths.contains(k)).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_prover_interface::inputs::StorageLogMetadata;
+    use zksync_types::{AccountTreeId, Address, StorageKey, H256};
+
+    use super::*;
+
+    #[test]
+    fn read_proof_gap_excludes_merkle_path_slots_includes_reverted() {
+        let k =
+            |n: u64| StorageKey::new(AccountTreeId::new(Address::from_low_u64_be(n)), H256::zero());
+        let a = k(1);
+        let b = k(2);
+        let c = k(3);
+        let mut wbs = zksync_types::witness_block_state::WitnessStorageState::default();
+        wbs.read_storage_key.insert(a, H256::zero());
+        wbs.read_storage_key.insert(b, H256::zero());
+        wbs.is_write_initial.insert(c, true);
+
+        let mut mp = WitnessInputMerklePaths::new(0);
+        // Build a StorageLogMetadata whose leaf_hashed_key == a.hashed_key_u256();
+        // only leaf_hashed_key matters for the gap computation.
+        let log_a = StorageLogMetadata {
+            root_hash: [0u8; 32],
+            is_write: false,
+            first_write: false,
+            merkle_paths: vec![[0u8; 32]],
+            leaf_hashed_key: a.hashed_key_u256(),
+            leaf_enumeration_index: 1,
+            value_written: [0u8; 32],
+            value_read: [0u8; 32],
+        };
+        mp.push_merkle_path(log_a);
+
+        let gap = read_proof_gap(&wbs, &mp);
+        assert!(
+            gap.contains(&b.hashed_key_u256()),
+            "b should be in gap (read, not in merkle_paths)"
+        );
+        assert!(
+            gap.contains(&c.hashed_key_u256()),
+            "c should be in gap (is_write_initial, not in merkle_paths)"
+        );
+        assert!(
+            !gap.contains(&a.hashed_key_u256()),
+            "a should NOT be in gap (already in merkle_paths)"
+        );
     }
 }
