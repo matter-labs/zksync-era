@@ -47,6 +47,9 @@ pub(crate) struct AirbenderProofDataHandlerMetrics {
     /// Proving jobs handed out to provers, split by stage and protocol version.
     #[metrics(labels = ["stage", "protocol_version"])]
     pub airbender_jobs_picked: LabeledFamily<(ProofStage, String), Counter, 2>,
+    /// Proof failures reported by provers, split by stage.
+    #[metrics(labels = ["stage"])]
+    pub airbender_proof_failures: LabeledFamily<ProofStage, Counter>,
     /// Errors surfaced by the request processor, split by kind.
     #[metrics(labels = ["kind"])]
     pub airbender_processor_errors: LabeledFamily<ProcessorErrorKind, Counter>,
