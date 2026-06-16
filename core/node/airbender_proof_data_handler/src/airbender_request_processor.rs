@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    collections::{BTreeSet, HashSet},
+    sync::Arc,
+};
 
 use anyhow::Context;
 use axum::{extract::Path, Json};
@@ -24,7 +27,8 @@ use zksync_prover_interface::{
 };
 use zksync_shared_resources::tree::TreeApiClient;
 use zksync_types::{
-    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId, U256,
+    blob::num_blobs_required, commitment::L1BatchCommitmentMode,
+    witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId, U256,
 };
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
@@ -325,6 +329,8 @@ impl AirbenderRequestProcessor {
         // Bind every slot the VM reads to `old_root_hash`: for view-domain slots
         // the committed `merkle_paths` omits (reverted-frame reads), fetch a
         // Merkle proof against the tree at N-1 (= old_root_hash for batch N).
+        // `gap` is kept past the `get_proofs` call because the returned proofs
+        // carry no key — we recover each `hashed_key` from the request order.
         let gap = read_proof_gap(&vm_run_data.witness_block_state, &merkle_paths);
         let read_proofs = if gap.is_empty() {
             Vec::new()
@@ -659,18 +665,19 @@ impl AirbenderRequestProcessor {
 
 /// Hashed keys the verifier needs read-proofs for: every slot the operator's
 /// witness exposes to the VM (`read_storage_key` ∪ `is_write_initial`) that the
-/// committed `merkle_paths` does not already prove. Sorted for a reproducible
-/// request order so the returned proofs pair up by position.
+/// committed `merkle_paths` does not already prove. Returned in sorted order for
+/// determinism; the caller pairs proofs back by position, which is safe because
+/// `TreeApiClient::get_proofs` preserves request order.
 fn read_proof_gap(
-    witness_block_state: &zksync_types::witness_block_state::WitnessStorageState,
+    witness_block_state: &WitnessStorageState,
     merkle_paths: &WitnessInputMerklePaths,
 ) -> Vec<U256> {
-    let in_paths: std::collections::HashSet<U256> = merkle_paths
+    let in_paths: HashSet<U256> = merkle_paths
         .merkle_paths
         .iter()
         .map(|log| log.leaf_hashed_key)
         .collect();
-    let mut domain: std::collections::BTreeSet<U256> = std::collections::BTreeSet::new();
+    let mut domain: BTreeSet<U256> = BTreeSet::new();
     for k in witness_block_state.read_storage_key.keys() {
         domain.insert(k.hashed_key_u256());
     }
