@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use axum::{
     body::{to_bytes, Body},
@@ -19,9 +19,12 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::MockObjectStore;
 use zksync_prover_interface::outputs::SnarkWrapperProof;
+use zksync_shared_resources::tree::{
+    MerkleTreeInfo, TreeApiClient, TreeApiError, TreeEntryWithProof,
+};
 use zksync_types::{
     block::L1BatchHeader, settlement::SettlementLayer, L1BatchNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, H256,
+    ProtocolVersionId, H256, U256,
 };
 
 use crate::create_proof_processing_router;
@@ -31,6 +34,30 @@ use crate::create_proof_processing_router;
 /// protocol version from the batch number (mirroring Boojum proofs).
 fn snark_wrapper_proof() -> SnarkWrapperProof {
     serde_json::from_slice(include_bytes!("test_data/snark_wrapper_proof.json")).unwrap()
+}
+
+/// Minimal tree API client for tests. The airbender tests use batches with no
+/// read-proof gap, so an empty proof set is sufficient.
+#[derive(Debug)]
+struct EmptyTreeApiClient;
+
+#[async_trait::async_trait]
+impl TreeApiClient for EmptyTreeApiClient {
+    async fn get_info(&self) -> Result<MerkleTreeInfo, TreeApiError> {
+        Err(TreeApiError::NotReady(None))
+    }
+
+    async fn get_proofs(
+        &self,
+        _l1_batch_number: L1BatchNumber,
+        _hashed_keys: Vec<U256>,
+    ) -> Result<Vec<TreeEntryWithProof>, TreeApiError> {
+        Ok(vec![])
+    }
+}
+
+fn test_tree_api_client() -> Arc<dyn TreeApiClient> {
+    Arc::new(EmptyTreeApiClient)
 }
 
 fn test_config() -> AirbenderProofDataHandlerConfig {
@@ -53,6 +80,7 @@ async fn request_airbender_proof_inputs() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        test_tree_api_client(),
     );
 
     let response = app
@@ -79,6 +107,7 @@ async fn request_airbender_proof_inputs_no_lock_returns_404_for_missing_batch() 
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        test_tree_api_client(),
     );
 
     let response = app
@@ -106,6 +135,7 @@ async fn request_airbender_proof_inputs_no_lock_returns_404_for_missing_blob_dat
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        test_tree_api_client(),
     );
 
     let response = app
@@ -130,6 +160,7 @@ async fn present_batches_returns_null_fields_when_empty() {
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        test_tree_api_client(),
     );
 
     let response = app
@@ -161,6 +192,7 @@ async fn present_batches_returns_oldest_and_latest_batches() {
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        test_tree_api_client(),
     );
 
     let response = app
@@ -210,6 +242,7 @@ async fn submit_airbender_proof() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        test_tree_api_client(),
     );
 
     let response = send_submit_airbender_proof_request(&app, &uri, &airbender_proof_request).await;
@@ -265,6 +298,7 @@ async fn submit_airbender_proof_rejects_when_not_picked() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        test_tree_api_client(),
     );
 
     let response = send_submit_airbender_proof_request(

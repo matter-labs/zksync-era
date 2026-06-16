@@ -12,6 +12,7 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 use zksync_object_store::ObjectStore;
+use zksync_shared_resources::tree::TreeApiClient;
 use zksync_types::L2ChainId;
 
 /// Wiring layer for proof data handler server.
@@ -25,6 +26,7 @@ pub struct AirbenderProofDataHandlerLayer {
 pub struct Input {
     master_pool: PoolResource<MasterPool>,
     object_store: Arc<dyn ObjectStore>,
+    tree_api_client: Option<Arc<dyn TreeApiClient>>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -57,12 +59,18 @@ impl WiringLayer for AirbenderProofDataHandlerLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let main_pool = input.master_pool.get().await?;
         let blob_store = input.object_store;
+        let tree_api_client = input.tree_api_client.ok_or_else(|| {
+            WiringError::Configuration(
+                "Tree API client is required for the airbender proof data handler".into(),
+            )
+        })?;
 
         let task = AirbenderProofDataHandlerTask {
             proof_data_handler_config: self.proof_data_handler_config,
             blob_store,
             main_pool,
             l2_chain_id: self.l2_chain_id,
+            tree_api_client,
         };
 
         Ok(Output { task })
@@ -75,6 +83,7 @@ pub struct AirbenderProofDataHandlerTask {
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
+    tree_api_client: Arc<dyn TreeApiClient>,
 }
 
 #[async_trait::async_trait]
@@ -89,6 +98,7 @@ impl Task for AirbenderProofDataHandlerTask {
             self.blob_store,
             self.main_pool,
             self.l2_chain_id,
+            self.tree_api_client,
             stop_receiver.0,
         )
         .await

@@ -22,6 +22,7 @@ use zksync_prover_interface::{
     inputs::{VMRunWitnessInputData, WitnessInputMerklePaths},
     outputs::L1BatchProofForL1,
 };
+use zksync_shared_resources::tree::TreeApiClient;
 use zksync_types::{
     blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId,
 };
@@ -38,6 +39,9 @@ pub(crate) struct AirbenderRequestProcessor {
     pool: ConnectionPool<Core>,
     config: AirbenderProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
+    // Held for upcoming read-proof fetching at batch N-1; not yet used.
+    #[allow(dead_code)]
+    tree_api_client: Arc<dyn TreeApiClient>,
 }
 
 impl AirbenderRequestProcessor {
@@ -46,12 +50,14 @@ impl AirbenderRequestProcessor {
         pool: ConnectionPool<Core>,
         config: AirbenderProofDataHandlerConfig,
         l2_chain_id: L2ChainId,
+        tree_api_client: Arc<dyn TreeApiClient>,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
             l2_chain_id,
+            tree_api_client,
         }
     }
 

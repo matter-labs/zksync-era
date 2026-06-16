@@ -13460,6 +13460,7 @@ dependencies = [
  "zksync_node_framework",
  "zksync_object_store",
  "zksync_prover_interface",
+ "zksync_shared_resources",
  "zksync_types",
  "zksync_vm_executor",
 ]

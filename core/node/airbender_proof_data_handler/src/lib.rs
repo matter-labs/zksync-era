@@ -17,6 +17,7 @@ use zksync_airbender_prover_interface::api::{
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
+use zksync_shared_resources::tree::TreeApiClient;
 use zksync_types::L2ChainId;
 
 mod airbender_request_processor;
@@ -31,11 +32,18 @@ pub async fn run_server(
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
+    tree_api_client: Arc<dyn TreeApiClient>,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::info!("Starting proof data handler server on {bind_address}");
-    let app = create_proof_processing_router(blob_store, connection_pool, config, l2_chain_id);
+    let app = create_proof_processing_router(
+        blob_store,
+        connection_pool,
+        config,
+        l2_chain_id,
+        tree_api_client,
+    );
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
@@ -58,9 +66,15 @@ fn create_proof_processing_router(
     connection_pool: ConnectionPool<Core>,
     config: AirbenderProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
+    tree_api_client: Arc<dyn TreeApiClient>,
 ) -> Router {
-    let processor =
-        AirbenderRequestProcessor::new(blob_store, connection_pool, config.clone(), l2_chain_id);
+    let processor = AirbenderRequestProcessor::new(
+        blob_store,
+        connection_pool,
+        config.clone(),
+        l2_chain_id,
+        tree_api_client,
+    );
 
     Router::new()
         .route(

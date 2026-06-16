@@ -891,7 +891,9 @@ impl MainNodeBuilder {
                     self = self.add_proof_data_handler_layer()?;
                 }
                 Component::AirbenderProofDataHandler => {
-                    self = self.add_airbender_proof_data_handler_layer()?;
+                    self = self
+                        .add_tree_api_client_layer()?
+                        .add_airbender_proof_data_handler_layer()?;
                 }
                 Component::Consensus => {
                     self = self.add_consensus_layer()?;
