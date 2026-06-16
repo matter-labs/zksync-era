@@ -684,7 +684,10 @@ fn read_proof_gap(
     for k in witness_block_state.is_write_initial.keys() {
         domain.insert(k.hashed_key_u256());
     }
-    domain.into_iter().filter(|k| !in_paths.contains(k)).collect()
+    domain
+        .into_iter()
+        .filter(|k| !in_paths.contains(k))
+        .collect()
 }
 
 #[cfg(test)]
@@ -696,8 +699,12 @@ mod tests {
 
     #[test]
     fn read_proof_gap_excludes_merkle_path_slots_includes_reverted() {
-        let k =
-            |n: u64| StorageKey::new(AccountTreeId::new(Address::from_low_u64_be(n)), H256::zero());
+        let k = |n: u64| {
+            StorageKey::new(
+                AccountTreeId::new(Address::from_low_u64_be(n)),
+                H256::zero(),
+            )
+        };
         let a = k(1);
         let b = k(2);
         let c = k(3);
