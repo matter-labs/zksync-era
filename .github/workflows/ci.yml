@@ -50,6 +50,7 @@ jobs:
               - 'airbender_prover_server/**'
               - 'docker/airbender-prover-server/**'
               - '.github/workflows/ci-airbender-prover-server-reusable.yml'
+              - '.github/workflows/build-airbender-prover-server-template.yml'
               - '.github/workflows/actions/**'
               - '!**/*.md'
               - '!**/*.MD'
@@ -164,6 +165,18 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  build-airbender-prover-server-images:
+    name: Build Airbender prover server images
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.airbender_prover_server == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    uses: ./.github/workflows/build-airbender-prover-server-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
   ci-success:
     name: Github Status Check
     runs-on: ubuntu-latest
@@ -178,6 +191,7 @@ jobs:
         build-core-images,
         build-contract-verifier,
         build-prover-images,
+        build-airbender-prover-server-images,
         e2e-for-prover,
       ]
     steps:

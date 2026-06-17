@@ -73,3 +73,19 @@ cargo test --release -p eravm-prover-server -- --ignored
 CI runs the CPU lane automatically whenever anything under `airbender_prover_server/` (or its Docker/workflow files)
 changes — see
 [`.github/workflows/ci-airbender-prover-server-reusable.yml`](../.github/workflows/ci-airbender-prover-server-reusable.yml).
+
+## Docker images & release
+
+Two images are published, both built from this workspace as the Docker context:
+
+- `airbender-prover-server` — GPU FRI prover + SNARK wrapper
+  ([`docker/airbender-prover-server/Dockerfile`](../docker/airbender-prover-server/Dockerfile)).
+- `airbender-prover-server-cpu` — CUDA-free snark-only
+  ([`docker/airbender-prover-server/Dockerfile.cpu`](../docker/airbender-prover-server/Dockerfile.cpu)).
+
+Versioning is independent (release-please component `airbender_prover_server`). On each push to `main`, release-please
+opens/updates a release PR that bumps the version in `Cargo.toml`; merging it tags `airbender_prover_server-v<version>`.
+That tag triggers [`build-docker-from-tag.yml`](../.github/workflows/build-docker-from-tag.yml), which builds and pushes
+both images (tagged with the version + `latest`) via
+[`build-airbender-prover-server-template.yml`](../.github/workflows/build-airbender-prover-server-template.yml). The
+same template runs build-only on PRs that touch the workspace.
