@@ -19,7 +19,7 @@ services:
     command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*"  --chain /chaindata/reth_config --dev.block-time 300ms
 
   postgres:
-    image: "postgres:14"
+    image: "postgres:18"
     command: postgres -c 'max_connections=1000'
     ulimits:
       nofile:

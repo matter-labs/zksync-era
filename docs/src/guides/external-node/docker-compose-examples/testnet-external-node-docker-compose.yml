@@ -19,7 +19,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
   postgres:
-    image: "postgres:14"
+    image: "postgres:18"
     command: >
       postgres
       -c max_connections=200
