@@ -2,7 +2,7 @@
 set -eo pipefail
 
 LOCAL_DIR="$HOME/.local/"
-BIN_DIR="$LOCAL_DIR/bin"
+BIN_DIR="${LOCAL_DIR}/bin"
 
 BINS=()
 
