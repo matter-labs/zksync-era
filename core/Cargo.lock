@@ -13855,6 +13855,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum 0.8.4",
+ "hex",
  "http-body-util",
  "serde",
  "serde_json",
@@ -13870,6 +13871,7 @@ dependencies = [
  "zksync_node_framework",
  "zksync_node_test_utils",
  "zksync_types",
+ "zksync_vm_interface",
 ]
 
 [[package]]

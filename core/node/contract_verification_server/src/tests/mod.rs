@@ -7,7 +7,11 @@ use utils::{mock_verification_info, MockApiClient, MockContractVerifier};
 use zksync_types::{
     bytecode::BytecodeMarker,
     contract_verification::{
-        api::VerificationProblem,
+        api::{
+            CompilationArtifacts, CompilerVersions, SourceCodeData, VerificationIncomingRequest,
+            VerificationInfo, VerificationProblem, VerificationRequest,
+        },
+        contract_identifier::{ContractIdentifier, DetectedMetadata},
         etherscan::{
             EtherscanBoolean, EtherscanCodeFormat, EtherscanPostPayload, EtherscanPostRequest,
             EtherscanResult, EtherscanSourceCodeResponse, EtherscanVerificationRequest,
@@ -19,8 +23,82 @@ use zksync_types::{
 use super::*;
 use crate::{
     api_impl::ApiError,
-    tests::utils::{mock_deploy_contract, prepare_storage, SOLC_VERSION, ZKSOLC_VERSION},
+    tests::utils::{
+        mock_deploy_contract, mock_deploy_contract_with_bytecode, mock_deploy_evm_contract,
+        prepare_storage, store_verification_info, SOLC_VERSION, ZKSOLC_VERSION,
+    },
 };
+
+/// EraVM bytecode of a `value() -> 1` contract compiled with metadata disabled (`appendCBOR:false`).
+/// Its trailing word is functional code (read as `code[12]`), yet the keccak heuristic strips it.
+const METADATA_DISABLED_BYTECODE: &str = "0000008003000039000000400030043f0000000100200190000000110000c13d0000000900100198000000190000613d000000000101043b0000000a011001970000000b0010009c000000190000c13d0000000001000416000000000001004b000000190000c13d0000000101000039000000800010043f0000000c010000410000001c0001042e0000000001000416000000000001004b000000190000c13d00000020010000390000010000100443000001200000044300000008010000410000001c0001042e00000000010000190000001d000104300000001b000004320000001c0001042e0000001d0001043000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc000000000000000000000000ffffffff000000000000000000000000000000000000000000000000000000003fa4f245000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000800000000000000000";
+
+fn eravm_verification_info(
+    address: Address,
+    source_code_data: SourceCodeData,
+    zksolc_version: Option<&str>,
+) -> VerificationInfo {
+    VerificationInfo {
+        request: VerificationRequest {
+            id: 1,
+            req: VerificationIncomingRequest {
+                contract_address: address,
+                source_code_data,
+                contract_name: "Counter".to_owned(),
+                compiler_versions: CompilerVersions::Solc {
+                    compiler_zksolc_version: zksolc_version.map(str::to_owned),
+                    compiler_solc_version: SOLC_VERSION.to_owned(),
+                },
+                optimization_used: true,
+                optimizer_mode: None,
+                constructor_arguments: Default::default(),
+                is_system: false,
+                force_evmla: false,
+                evm_specific: Default::default(),
+            },
+        },
+        artifacts: CompilationArtifacts {
+            bytecode: vec![],
+            deployed_bytecode: None,
+            abi: serde_json::json!([]),
+            immutable_refs: Default::default(),
+        },
+        verified_at: Default::default(),
+        verification_problems: Vec::new(),
+    }
+}
+
+/// Standard-JSON source that disables metadata (`bytecodeHash:"none"`, `appendCBOR:false`), under
+/// which the trailing EraVM word is functional code rather than a metadata hash.
+fn metadata_disabled_standard_json() -> SourceCodeData {
+    SourceCodeData::StandardJsonInput(
+        serde_json::json!({
+            "language": "Solidity",
+            "sources": { "Counter.sol": { "content": "contract Counter {}" } },
+            "settings": {
+                "metadata": { "bytecodeHash": "none", "appendCBOR": false },
+                "optimizer": { "enabled": true }
+            }
+        })
+        .as_object()
+        .unwrap()
+        .clone(),
+    )
+}
+
+/// Bytecode colliding with `METADATA_DISABLED_BYTECODE` on the metadata-stripped hash but differing
+/// in the trailing functional word. When `cbor_cloaked`, an empty CBOR map makes it CBOR-detected
+/// rather than keccak-detected (which a deployed-side-only guard would miss).
+fn divergent_bytecode(original: &[u8], cbor_cloaked: bool) -> Vec<u8> {
+    let mut deployed = original[..original.len() - 32].to_vec();
+    if cbor_cloaked {
+        deployed.extend_from_slice(&[0xDE; 29]);
+        deployed.extend_from_slice(&[0xA0, 0x00, 0x01]);
+    } else {
+        deployed.extend_from_slice(&[0; 32]);
+    }
+    deployed
+}
 
 mod utils;
 
@@ -355,6 +433,167 @@ async fn partial_verification(bytecode_kind: BytecodeMarker) {
     let info = client.verification_info(address).await;
     assert_eq!(info.request.id, new_id);
     assert_eq!(info.verification_problems, vec![]);
+}
+
+/// The similar-match fallback must NOT serve a metadata-disabled contract's source for a different
+/// address whose deployed bytecode differs only in the trailing (functional) word — including when it
+/// is crafted to be CBOR-detected rather than keccak-detected.
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn fallback_partial_match_suppressed_for_metadata_disabled_contract(cbor_cloaked: bool) {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let client = MockApiClient::new(pool.clone());
+    prepare_storage(&mut storage).await;
+
+    let original = hex::decode(METADATA_DISABLED_BYTECODE).unwrap();
+    let original_id = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &original);
+    assert_eq!(
+        original_id.detected_metadata,
+        Some(DetectedMetadata::Keccak256)
+    );
+
+    // An honestly verified, metadata-disabled contract B stored at its own address.
+    let stored_address = Address::repeat_byte(0xb0);
+    let metadata_disabled = metadata_disabled_standard_json();
+    assert!(metadata_disabled.appended_metadata_disabled(Some("1.5.14")));
+    store_verification_info(
+        &mut storage,
+        eravm_verification_info(stored_address, metadata_disabled, Some("1.5.14")),
+        original_id.bytecode_keccak256,
+        original_id.bytecode_without_metadata_keccak256,
+    )
+    .await;
+
+    // The attacker deploys, at a different address, bytecode that collides with B on the
+    // metadata-stripped hash but diverges in the trailing functional word.
+    let deployed = divergent_bytecode(&original, cbor_cloaked);
+    let deployed_id = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &deployed);
+    assert_eq!(
+        deployed_id.bytecode_without_metadata_keccak256,
+        original_id.bytecode_without_metadata_keccak256,
+        "deployed bytecode must collide on the metadata-stripped hash"
+    );
+    assert_ne!(
+        deployed_id.bytecode_keccak256,
+        original_id.bytecode_keccak256
+    );
+    let expected_detection = if cbor_cloaked {
+        // The CBOR-cloaked variant must actually be CBOR-detected, else it would not exercise the
+        // bypass of a deployed-side keccak-heuristic check.
+        assert!(matches!(
+            deployed_id.detected_metadata,
+            Some(DetectedMetadata::Cbor { .. })
+        ));
+        true
+    } else {
+        assert_eq!(
+            deployed_id.detected_metadata,
+            Some(DetectedMetadata::Keccak256)
+        );
+        false
+    };
+    assert_eq!(expected_detection, cbor_cloaked);
+
+    let attacker_address = Address::repeat_byte(0xa0);
+    mock_deploy_contract_with_bytecode(&mut storage, attacker_address, deployed).await;
+
+    // The fallback must not serve B's source for the attacker's address.
+    client
+        .assert_verification_info_error(attacker_address, ApiError::VerificationInfoNotFound)
+        .await;
+}
+
+/// Counterpart to [`fallback_partial_match_suppressed_for_metadata_disabled_contract`]: when the
+/// stored contract carries real metadata, the fallback must still serve its source for a bytecode
+/// differing only in the (genuine) metadata region (no over-rejection).
+#[tokio::test]
+async fn fallback_partial_match_served_for_metadata_enabled_contract() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let client = MockApiClient::new(pool.clone());
+    prepare_storage(&mut storage).await;
+
+    let original = hex::decode(METADATA_DISABLED_BYTECODE).unwrap();
+    let original_id = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &original);
+
+    // Stored contract B is verified *without* disabling metadata.
+    let stored_address = Address::repeat_byte(0xb0);
+    let metadata_enabled = SourceCodeData::SolSingleFile("contract Counter {}".to_owned());
+    assert!(!metadata_enabled.appended_metadata_disabled(Some("1.5.14")));
+    store_verification_info(
+        &mut storage,
+        eravm_verification_info(stored_address, metadata_enabled, Some("1.5.14")),
+        original_id.bytecode_keccak256,
+        original_id.bytecode_without_metadata_keccak256,
+    )
+    .await;
+
+    let attacker_address = Address::repeat_byte(0xa0);
+    mock_deploy_contract_with_bytecode(
+        &mut storage,
+        attacker_address,
+        divergent_bytecode(&original, false),
+    )
+    .await;
+
+    // The fallback serves B's source (as a partial match) for the queried address.
+    let info = client.verification_info(attacker_address).await;
+    assert_eq!(info.request.req.contract_address, stored_address);
+    assert_eq!(
+        info.verification_problems,
+        vec![VerificationProblem::IncorrectMetadata]
+    );
+}
+
+/// Cross-marker variant: EVM-marked bytecode can collide with a metadata-disabled EraVM contract on
+/// the metadata-stripped hash. Since suppression keys on the stored contract, not the queried marker,
+/// this is still treated as not verified (gating on the deployed marker would let it through).
+#[tokio::test]
+async fn fallback_partial_match_suppressed_across_bytecode_markers() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let client = MockApiClient::new(pool.clone());
+    prepare_storage(&mut storage).await;
+
+    let original = hex::decode(METADATA_DISABLED_BYTECODE).unwrap();
+    let original_id = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &original);
+
+    // Store the metadata-disabled EraVM contract B.
+    let stored_address = Address::repeat_byte(0xb0);
+    store_verification_info(
+        &mut storage,
+        eravm_verification_info(
+            stored_address,
+            metadata_disabled_standard_json(),
+            Some("1.5.14"),
+        ),
+        original_id.bytecode_keccak256,
+        original_id.bytecode_without_metadata_keccak256,
+    )
+    .await;
+
+    // The attacker deploys EVM bytecode = B's prefix followed by an empty CBOR map, so it is
+    // CBOR-detected (EVM marker) yet collides with B on the metadata-stripped hash.
+    let mut evm_runtime = original[..original.len() - 32].to_vec();
+    evm_runtime.extend_from_slice(&[0xA0, 0x00, 0x01]);
+    let evm_id = ContractIdentifier::from_bytecode(BytecodeMarker::Evm, &evm_runtime);
+    assert!(matches!(
+        evm_id.detected_metadata,
+        Some(DetectedMetadata::Cbor { .. })
+    ));
+    assert_eq!(
+        evm_id.bytecode_without_metadata_keccak256, original_id.bytecode_without_metadata_keccak256,
+        "EVM-marked bytecode must collide on the metadata-stripped hash"
+    );
+    assert_ne!(evm_id.bytecode_keccak256, original_id.bytecode_keccak256);
+
+    let attacker_address = Address::repeat_byte(0xa0);
+    mock_deploy_evm_contract(&mut storage, attacker_address, evm_runtime).await;
+
+    client
+        .assert_verification_info_error(attacker_address, ApiError::VerificationInfoNotFound)
+        .await;
 }
 
 #[test_casing(2, [BytecodeMarker::EraVm, BytecodeMarker::Evm])]
