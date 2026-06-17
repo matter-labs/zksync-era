@@ -154,7 +154,7 @@ impl MempoolFetcher {
                 let addresses: Vec<_> =
                     chunk.iter().map(|(tx, _)| tx.initiator_account()).collect();
 
-                let _guard = self.mempool.enter_critical();
+                let _guard = self.mempool.enter_critical().await;
                 let nonces = get_nonces(&mut connection, &addresses).await?;
                 self.mempool.insert(chunk, nonces);
             }

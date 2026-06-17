@@ -293,7 +293,7 @@ impl TransactionsDal<'_, '_> {
         let is_duplicate = sqlx::query!(
             r#"
             SELECT
-                TRUE
+                TRUE AS "is_duplicate"
             FROM
                 transactions
             WHERE
