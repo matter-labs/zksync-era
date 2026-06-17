@@ -451,7 +451,7 @@ mod tests {
                 ports:
                     - 127.0.0.1:8546:8545
             postgres:
-                image: "postgres:14"
+                image: "postgres:18"
                 ports:
                     - "5433:5432"
             
