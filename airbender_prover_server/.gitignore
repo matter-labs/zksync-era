@@ -1,0 +1,8 @@
+/target
+
+# The repo-wide .gitignore excludes any `dist` directory, but the guest program
+# artifacts are intentionally vendored here. Re-include them.
+!/guest/dist
+!/guest/dist/app
+!/guest/dist/app/app.bin
+!/guest/dist/app/app.text

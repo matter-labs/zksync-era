@@ -1,0 +1,56 @@
+[workspace]
+members = ["crates/bin/*", "crates/lib/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0" # x-release-please-version
+edition = "2021"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[workspace.dependencies]
+# External dependencies
+anyhow = "1"
+bincode = { version = "2", features = ["serde"] }
+clap = "4.2.2"
+ctrlc = { version = "3", features = ["termination"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+# `rustls` (not the default `native-tls`) matches the rest of the stack's
+# reqwest TLS backend, avoiding a second TLS implementation in the binary.
+sentry = { version = "0.35", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls", "tracing"] }
+serde = "1"
+serde_json = "1"
+serde_with = "1"
+tokio = "1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+vise = "0.3.2"
+vise-exporter = "0.3.2"
+
+# Airbender platform crates (shared with the verifier repo build).
+# `default-features = false` drops airbender-host's default `gpu-prover` (the
+# CUDA `gpu_prover` crate). The server re-enables it through its own `gpu_fri`
+# feature; a `--no-default-features` build stays CUDA-free. Must live on the
+# workspace dep — a member's `default-features = false` is otherwise ignored.
+airbender-host = { git = "https://github.com/matter-labs/airbender-platform", tag = "v0.2.3", default-features = false }
+
+# Crates that remain in the eravm-airbender-verifier repo after PR #58 (which
+# extracted this server). Pinned to the PR #58 branch rev for now.
+# TODO: switch to a released tag once
+# https://github.com/matter-labs/eravm-airbender-verifier/pull/58 merges.
+# `default-features = false` drops the host crate's default `gpu_fri`; the
+# server re-enables it via its own `gpu_fri` feature. Set on the workspace dep
+# so a member's `default-features = false` isn't ignored.
+eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", rev = "212f73f6d18b89e121a61daabb0ec79e204c25da", default-features = false }
+# Same rev as eravm-prover-host so the two git copies unify into one crate
+# instance. Used by the client to deserialize jobs into `V1AirbenderVerifierInput`
+# (wire-compatible with zksync-era's flat `AirbenderVerifierInput`).
+zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", rev = "212f73f6d18b89e121a61daabb0ec79e204c25da" }
+
+# Local crates in this workspace.
+zksync_cli_utils = { path = "crates/lib/cli_utils" }
+zksync_prover_metrics = { path = "crates/lib/prover_metrics" }
