@@ -735,6 +735,7 @@ mod tests {
             bytecode: vec![],
             deployed_bytecode: None,
             immutable_refs: Default::default(),
+            factory_dependency_refs: Default::default(),
         };
 
         let verification_info = VerificationInfo {
