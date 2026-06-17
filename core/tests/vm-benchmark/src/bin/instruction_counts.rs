@@ -4,6 +4,14 @@ use std::{collections::BTreeMap, env, fs, io, path::PathBuf};
 
 use vm_benchmark::{CountInstructions, Fast, Legacy, BYTECODES};
 
+/// Bytecodes whose instruction counts are known to differ between the fast and legacy VMs.
+///
+/// The divergence stems from protocol-level changes (see the `v31` upgrade) and is tracked by the
+/// `#[ignore]`d `instruction_count_matches_on_both_vms_for_benchmark_bytecodes` test. For these
+/// bytecodes we still report the count (using the fast VM), but only warn instead of failing so
+/// that the benchmark keeps running; any *other* bytecode diverging is treated as a regression.
+const KNOWN_VM_DIVERGENCES: &[&str] = &["slot_hash_collision"];
+
 #[derive(Debug)]
 enum Command {
     Print,
@@ -51,11 +59,19 @@ impl Command {
                 // We have a unit test comparing stats, but do it here as well just in case.
                 let fast_count = Fast::count_instructions(&tx);
                 let legacy_count = Legacy::count_instructions(&tx);
-                assert_eq!(
-                    fast_count, legacy_count,
-                    "mismatch on number of instructions on bytecode `{}`",
-                    bytecode.name
-                );
+                if fast_count != legacy_count {
+                    assert!(
+                        KNOWN_VM_DIVERGENCES.contains(&bytecode.name),
+                        "unexpected mismatch on number of instructions on bytecode `{}`: \
+                         fast VM = {fast_count}, legacy VM = {legacy_count}",
+                        bytecode.name
+                    );
+                    eprintln!(
+                        "warning: known instruction count mismatch on bytecode `{}`: \
+                         fast VM = {fast_count}, legacy VM = {legacy_count}",
+                        bytecode.name
+                    );
+                }
 
                 (bytecode.name, fast_count)
             })

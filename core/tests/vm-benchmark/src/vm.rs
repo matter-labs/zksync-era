@@ -13,9 +13,9 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::{Address, U256},
 };
 use zksync_types::{
-    block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms,
-    settlement::SettlementLayer, u256_to_h256, utils::storage_key_for_eth_balance, L1BatchNumber,
-    L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction,
+    block::L2BlockHasher, fee_model::BatchFeeInput, settlement::SettlementLayer, u256_to_h256,
+    utils::storage_key_for_eth_balance, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
+    Transaction,
 };
 
 use crate::{instruction_counter::InstructionCounter, transaction::PRIVATE_KEY};
@@ -219,7 +219,12 @@ impl CountInstructions for Legacy {
 }
 
 fn test_env() -> (SystemEnv, L1BatchEnv) {
-    let timestamp = unix_timestamp_ms();
+    // The environment must be deterministic so that the same transaction yields identical
+    // execution across VM implementations. `count_instructions` builds a fresh env for each VM
+    // (e.g. `Fast` vs `Legacy`) and compares the resulting instruction counts; a non-deterministic
+    // timestamp or fee account would feed the VMs different inputs and cause spurious mismatches
+    // (notably for the `slot_hash_collision` bytecode, whose execution depends on storage slots).
+    let timestamp = 1_700_000_000_000;
     let system_env = SystemEnv {
         zk_porter_available: false,
         version: ProtocolVersionId::latest(),
@@ -238,7 +243,7 @@ fn test_env() -> (SystemEnv, L1BatchEnv) {
             250_000_000,    // 0.25 gwei
         ),
         interop_fee: U256::zero(),
-        fee_account: Address::random(),
+        fee_account: Address::repeat_byte(0x42),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {
             number: 1,
