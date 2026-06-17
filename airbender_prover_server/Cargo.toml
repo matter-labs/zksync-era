@@ -41,18 +41,20 @@ vise-exporter = "0.3.2"
 # workspace dep — a member's `default-features = false` is otherwise ignored.
 airbender-host = { git = "https://github.com/matter-labs/airbender-platform", tag = "v0.2.3", default-features = false }
 
-# Crates that remain in the eravm-airbender-verifier repo after PR #58 (which
-# extracted this server). Pinned to the PR #58 branch rev for now.
-# TODO: switch to a released tag once
-# https://github.com/matter-labs/eravm-airbender-verifier/pull/58 merges.
+# Crates consumed from the eravm-airbender-verifier repo. Pinned to `main`,
+# which carries the original single-version `V1AirbenderVerifierInput` the server
+# was built against. (The open server-extraction PR is currently based on a
+# branch that also pulls in an unrelated V2 multi-version input refactor; do NOT
+# pin to it until that is rebased out.)
+# TODO: switch to the released server-extraction tag once it lands on `main`.
 # `default-features = false` drops the host crate's default `gpu_fri`; the
 # server re-enables it via its own `gpu_fri` feature. Set on the workspace dep
 # so a member's `default-features = false` isn't ignored.
-eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", rev = "212f73f6d18b89e121a61daabb0ec79e204c25da", default-features = false }
+eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", rev = "063da529d57a9e3ae793e19eb571b418eedbf4d1", default-features = false }
 # Same rev as eravm-prover-host so the two git copies unify into one crate
 # instance. Used by the client to deserialize jobs into `V1AirbenderVerifierInput`
 # (wire-compatible with zksync-era's flat `AirbenderVerifierInput`).
-zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", rev = "212f73f6d18b89e121a61daabb0ec79e204c25da" }
+zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", rev = "063da529d57a9e3ae793e19eb571b418eedbf4d1" }
 
 # Local crates in this workspace.
 zksync_cli_utils = { path = "crates/lib/cli_utils" }

@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use eravm_prover_host::SnarkWrapperProof;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{info, warn};
-use zksync_airbender_verifier::types::{AirbenderVerifierInput, FlatAirbenderVerifierInput};
+use zksync_airbender_verifier::types::{AirbenderVerifierInput, V1AirbenderVerifierInput};
 
 use crate::types::{SubmitFriProofRequest, SubmitSnarkProofRequest, WorkerJob};
 
@@ -63,32 +63,16 @@ impl JobServerClient {
     }
 
     pub fn fetch_fri_job(&self) -> Result<Option<WorkerJob>> {
-        // zksync-era's data handler puts a *flat*, version-envelope-free
-        // `AirbenderVerifierInput` on the wire. `FlatAirbenderVerifierInput` is
-        // the verifier crate's untagged JSON decoder for exactly that payload:
-        // it accepts both the post-v31 (V2) and pre-v31 (legacy) flat shapes and
-        // `into_v2()` upgrades the latter with the implicit pre-v31 defaults.
-        //
-        // NOTE: `zksync_airbender_verifier` here is the *verifier-repo* crate
-        // (the versioned enum + `Flat`/`into_v2` decoders), pulled via git —
-        // NOT zksync-era's local `core/lib/airbender_verifier` (a flat struct).
-        // The two are only wire-compatible; we depend on the git one because the
-        // host↔guest encoding needs the tagged enum. Types never cross the
-        // server↔data-handler (JSON) or server↔host (`Vec<u32>` words) boundary,
-        // so the duplicate crate name in the graph is harmless.
-        let Some(flat) =
-            self.poll_json::<FlatAirbenderVerifierInput>(FRI_INPUTS_PATH, FRI_LABEL)?
+        // zksync-era's `AirbenderVerifierInput` is a flat struct on the wire,
+        // matching this verifier's `V1AirbenderVerifierInput`. We deserialize
+        // the bare payload here and wrap it in the local versioned enum so the
+        // host↔guest channel and on-disk bincode corpus keep using V1.
+        let Some(v1) = self.poll_json::<V1AirbenderVerifierInput>(FRI_INPUTS_PATH, FRI_LABEL)?
         else {
             return Ok(None);
         };
-        let payload = flat
-            .into_v2()
-            .context("failed to normalize flat AirbenderVerifierInput")?;
-        let batch_number = payload.vm_run_data.l1_batch_number.0;
-        // The host↔guest channel and on-disk corpus use the tagged enum; send
-        // the canonical post-v31 (V2) variant — the guest unwraps it via the
-        // same `into_v2()` regardless of tag.
-        let input = AirbenderVerifierInput::V2(Box::new(payload));
+        let batch_number = v1.vm_run_data.l1_batch_number.0;
+        let input = AirbenderVerifierInput::V1(v1);
         let mut inputs = Inputs::new();
         inputs
             .push(&input)

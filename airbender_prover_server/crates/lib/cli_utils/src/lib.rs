@@ -99,7 +99,7 @@ pub fn resolve_batch_inputs(
 /// from callers.
 ///
 /// Returns the versioned wire wrapper; callers extract the payload with
-/// `.into_v2()`.
+/// `.into_v1()`.
 pub fn load_batch(batch_input: &BatchInputFile) -> Result<AirbenderVerifierInput> {
     let raw = read_batch_text(&batch_input.path)
         .with_context(|| format!("while attempting to read {}", batch_input.path.display()))?;

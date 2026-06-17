@@ -12,7 +12,7 @@ categories.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-bincode.workspace = true
+bincode = { version = "2", features = ["serde"] }
 flate2.workspace = true
 sentry = { workspace = true, optional = true }
 tracing.workspace = true
@@ -20,6 +20,6 @@ tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 zksync_airbender_verifier.workspace = true
 
 [features]
-# Adds the Sentry tracing layer to `init_tracing`. Enabled by the server binary
-# so it reports errors/panics to Sentry; left off for any non-server consumer.
+# Adds the Sentry tracing layer to `init_tracing`. Enabled by the server binary;
+# left off for host and the verifier libraries so they don't link Sentry.
 sentry = ["dep:sentry"]
