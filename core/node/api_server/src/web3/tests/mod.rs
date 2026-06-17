@@ -1293,6 +1293,46 @@ impl HttpTest for FeeHistoryTest {
             err,
             ClientError::Call(err) if err.code() == INVALID_PARAMS_CODE
         );
+
+        // Percentiles up to the limit are accepted, yielding a reward matrix of the requested width.
+        const LIMIT: usize = crate::web3::namespaces::eth::FEE_HISTORY_REWARD_PERCENTILES_LIMIT;
+        let history = client
+            .fee_history(
+                2.into(),
+                api::BlockNumber::Latest,
+                Some(vec![50.0_f32; LIMIT]),
+            )
+            .await?;
+        let reward = history.inner.reward.expect("missing reward matrix");
+        assert!(!reward.is_empty());
+        assert!(reward.iter().all(|row| row.len() == LIMIT), "{reward:?}");
+
+        // Exceeding the limit is rejected without allocating the reward matrix.
+        let err = client
+            .fee_history(
+                1.into(),
+                api::BlockNumber::Latest,
+                Some(vec![0.0_f32; LIMIT + 1]),
+            )
+            .await
+            .unwrap_err();
+        assert_matches!(
+            err,
+            ClientError::Call(err) if err.code() == INVALID_PARAMS_CODE
+        );
+
+        // Out-of-range percentiles are rejected.
+        for bad in [-1.0_f32, 100.5, 1_000.0] {
+            let err = client
+                .fee_history(1.into(), api::BlockNumber::Latest, Some(vec![bad]))
+                .await
+                .unwrap_err();
+            assert_matches!(
+                err,
+                ClientError::Call(err) if err.code() == INVALID_PARAMS_CODE,
+                "percentile {bad} should be rejected"
+            );
+        }
         Ok(())
     }
 }
