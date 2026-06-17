@@ -53,3 +53,23 @@ cargo build --release -p eravm-prover-server
 # CUDA-free, snark-only
 cargo build --release --no-default-features -p eravm-prover-server
 ```
+
+## Testing
+
+```bash
+# Unit tests (CPU; run in CI on every change under airbender_prover_server/)
+cargo test --no-default-features -p eravm-prover-server
+```
+
+`tests/integration_test.rs` spawns the built binary and drives it against a local axum mock of the data handler through
+real proving. It is `#[ignore]`d because it needs a GPU, the vendored guest binary, and the LFS mainnet batch corpus, so
+it does not run in the CPU lane (it is still compiled there, to catch breakage). Run it on a GPU host with the corpus
+available:
+
+```bash
+cargo test --release -p eravm-prover-server -- --ignored
+```
+
+CI runs the CPU lane automatically whenever anything under `airbender_prover_server/` (or its Docker/workflow files)
+changes — see
+[`.github/workflows/ci-airbender-prover-server-reusable.yml`](../.github/workflows/ci-airbender-prover-server-reusable.yml).

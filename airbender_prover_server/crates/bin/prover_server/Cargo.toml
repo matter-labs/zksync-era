@@ -29,6 +29,15 @@ zksync_airbender_verifier.workspace = true
 zksync_cli_utils = { workspace = true, features = ["sentry"] }
 zksync_prover_metrics.workspace = true
 
+[dev-dependencies]
+# Test-only deps for the (GPU/corpus-gated, `#[ignore]`d) integration test, which
+# spawns the built binary and serves batches via a local axum mock of the data
+# handler. The verifier/host crates it also uses are already normal dependencies
+# and are available to integration tests without re-listing here.
+axum.workspace = true
+hex.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
+
 [features]
 # `gpu_fri` (default) links Airbender's CUDA `gpu_prover` so the server can run
 # the FRI prover (`fri-only` / `fri-snark` modes). Build with

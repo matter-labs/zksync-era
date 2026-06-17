@@ -1,6 +1,6 @@
 [package]
 name = "zksync_cli_utils"
-description = "Shared tracing initialization for the Airbender prover server"
+description = "Shared command-line helpers for repository-owned batch input workflows"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -12,8 +12,12 @@ categories.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+bincode.workspace = true
+flate2.workspace = true
 sentry = { workspace = true, optional = true }
+tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+zksync_airbender_verifier.workspace = true
 
 [features]
 # Adds the Sentry tracing layer to `init_tracing`. Enabled by the server binary
