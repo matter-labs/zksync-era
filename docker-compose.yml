@@ -34,6 +34,8 @@ services:
     environment:
       # We bind only to 127.0.0.1, so setting insecure password is acceptable here
       - POSTGRES_PASSWORD=notsecurepassword
+      # postgres:18 moved the default PGDATA; pin it so the mounted volume is used
+      - PGDATA=/var/lib/postgresql/data
 
   # This is specific to runner
   zk:

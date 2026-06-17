@@ -49,6 +49,8 @@ services:
     environment:
       - POSTGRES_PASSWORD=notsecurepassword
       - PGPORT=5430
+      # postgres:18 moved the default PGDATA; pin it so the mounted volume is used
+      - PGDATA=/var/lib/postgresql/data
   # Generation of consensus secrets.
   # The secrets are generated iff the secrets file doesn't already exist.
   generate-secrets:
