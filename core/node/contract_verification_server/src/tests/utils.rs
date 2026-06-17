@@ -1,4 +1,4 @@
-use std::{str, time::Duration, vec};
+use std::{collections::HashMap, str, time::Duration, vec};
 
 use axum::{
     body::Body,
@@ -11,6 +11,7 @@ use tower::ServiceExt;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_node_test_utils::create_l2_block;
 use zksync_types::{
+    address_to_h256,
     bytecode::{BytecodeHash, BytecodeMarker},
     contract_verification::{
         api::{
@@ -19,8 +20,12 @@ use zksync_types::{
         },
         etherscan::EtherscanResponse,
     },
-    get_code_key, Address, L2BlockNumber, ProtocolVersion, StorageLog, H256,
+    get_code_key,
+    tx::IncludedTxLocation,
+    Address, L1BatchNumber, L2BlockNumber, ProtocolVersion, StorageLog, CONTRACT_DEPLOYER_ADDRESS,
+    H256,
 };
+use zksync_vm_interface::VmEvent;
 
 use crate::{api_impl::ApiError, RestApi};
 
@@ -66,6 +71,91 @@ pub(super) async fn mock_deploy_contract(
         .append_storage_logs(L2BlockNumber(0), &[deploy_log])
         .await
         .unwrap()
+}
+
+/// Records a deployment (factory dep + deploy event) of `raw` bytecode hashed as `bytecode_hash` at
+/// `address`, so that the similar-match fallback can fetch it via `get_contract_info_for_verification`.
+async fn record_deployment(
+    storage: &mut Connection<'_, Core>,
+    address: Address,
+    bytecode_hash: H256,
+    raw: Vec<u8>,
+) {
+    storage
+        .factory_deps_dal()
+        .insert_factory_deps(L2BlockNumber(0), &HashMap::from([(bytecode_hash, raw)]))
+        .await
+        .unwrap();
+
+    let deploy_event = VmEvent {
+        location: (L1BatchNumber(0), 0),
+        address: CONTRACT_DEPLOYER_ADDRESS,
+        indexed_topics: vec![
+            VmEvent::DEPLOY_EVENT_SIGNATURE,
+            address_to_h256(&Address::zero()),
+            bytecode_hash,
+            address_to_h256(&address),
+        ],
+        value: vec![],
+    };
+    let location = IncludedTxLocation {
+        tx_hash: H256::zero(),
+        tx_index_in_l2_block: 0,
+    };
+    storage
+        .events_dal()
+        .save_events(L2BlockNumber(0), &[(location, vec![&deploy_event])])
+        .await
+        .unwrap();
+}
+
+/// Records an EraVM deployment of `bytecode` at `address`.
+pub(super) async fn mock_deploy_contract_with_bytecode(
+    storage: &mut Connection<'_, Core>,
+    address: Address,
+    bytecode: Vec<u8>,
+) {
+    let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value();
+    record_deployment(storage, address, bytecode_hash, bytecode).await;
+}
+
+/// Records an EVM deployment whose trimmed runtime bytecode is `runtime` at `address`. The raw stored
+/// bytecode is `runtime` zero-padded to a valid (32-aligned, odd-word-count) length, with the real
+/// length encoded into the EVM bytecode hash.
+pub(super) async fn mock_deploy_evm_contract(
+    storage: &mut Connection<'_, Core>,
+    address: Address,
+    runtime: Vec<u8>,
+) {
+    let real_len = runtime.len();
+    let mut raw = runtime;
+    if raw.len() % 32 != 0 {
+        raw.resize(raw.len().div_ceil(32) * 32, 0);
+    }
+    if (raw.len() / 32) % 2 == 0 {
+        raw.resize(raw.len() + 32, 0);
+    }
+    let bytecode_hash = BytecodeHash::for_evm_bytecode(real_len, &raw).value();
+    record_deployment(storage, address, bytecode_hash, raw).await;
+}
+
+/// Stores verification info for an already-verified contract with explicit bytecode hashes, so a
+/// later similar-bytecode lookup can match it on `bytecode_without_metadata_keccak256`.
+pub(super) async fn store_verification_info(
+    storage: &mut Connection<'_, Core>,
+    info: VerificationInfo,
+    bytecode_keccak256: H256,
+    bytecode_without_metadata_keccak256: H256,
+) {
+    storage
+        .contract_verification_dal()
+        .save_verification_info(
+            info,
+            bytecode_keccak256,
+            bytecode_without_metadata_keccak256,
+        )
+        .await
+        .unwrap();
 }
 
 pub(super) fn mock_verification_info(

@@ -341,6 +341,26 @@ impl ContractIdentifier {
         Match::None
     }
 
+    /// Like [`Self::matches`], but downgrades an EraVM partial match to [`Match::None`] when
+    /// `trust_keccak_metadata` is false. EraVM keccak metadata detection is a heuristic; if the
+    /// contract has no metadata, the trailing word it strips is functional code, so a difference there
+    /// is a real mismatch. Keyed on the marker, since EVM trailing CBOR is inert but a metadata-less
+    /// EraVM word is not.
+    pub fn matches_with_metadata_trust(
+        &self,
+        deployed: &Self,
+        trust_keccak_metadata: bool,
+    ) -> Match {
+        let match_kind = self.matches(deployed);
+        if match_kind == Match::Partial
+            && !trust_keccak_metadata
+            && self.bytecode_marker == BytecodeMarker::EraVm
+        {
+            return Match::None;
+        }
+        match_kind
+    }
+
     /// Returns the length of the metadata in the bytecode.
     pub fn metadata_length(&self) -> usize {
         self.detected_metadata
@@ -353,6 +373,97 @@ impl ContractIdentifier {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn eravm_keccak_heuristic_partial_match_is_gated() {
+        // Compiled with no appended metadata; the final word is functional code (referenced by the
+        // runtime as `code[12]`), not a metadata hash.
+        let original = hex::decode("0000008003000039000000400030043f0000000100200190000000110000c13d0000000900100198000000190000613d000000000101043b0000000a011001970000000b0010009c000000190000c13d0000000001000416000000000001004b000000190000c13d0000000101000039000000800010043f0000000c010000410000001c0001042e0000000001000416000000000001004b000000190000c13d00000020010000390000010000100443000001200000044300000008010000410000001c0001042e00000000010000190000001d000104300000001b000004320000001c0001042e0000001d0001043000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc000000000000000000000000ffffffff000000000000000000000000000000000000000000000000000000003fa4f245000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000800000000000000000").unwrap();
+        let mut mutated = original.clone();
+        let len = mutated.len();
+        mutated[len - 32..].fill(0);
+
+        let original_id = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &original);
+        let mutated_id = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &mutated);
+
+        // The bytecodes are functionally different (the final, referenced word differs)...
+        assert_ne!(
+            original_id.bytecode_keccak256,
+            mutated_id.bytecode_keccak256
+        );
+        // ...but the keccak metadata heuristic strips that final word on both sides.
+        assert_eq!(
+            original_id.detected_metadata,
+            Some(DetectedMetadata::Keccak256)
+        );
+        assert_eq!(
+            mutated_id.detected_metadata,
+            Some(DetectedMetadata::Keccak256)
+        );
+
+        // Plain `matches` (and trusting the keccak heuristic) classifies them as a partial match.
+        assert_eq!(original_id.matches(&mutated_id), Match::Partial);
+        assert_eq!(
+            original_id.matches_with_metadata_trust(&mutated_id, true),
+            Match::Partial
+        );
+
+        // When the contract is known to carry no metadata, the keccak heuristic must not be trusted:
+        // the trailing-word difference is a real bytecode mismatch, not a metadata one.
+        assert_eq!(
+            original_id.matches_with_metadata_trust(&mutated_id, false),
+            Match::None
+        );
+
+        // An exact match is unaffected by the trust flag.
+        assert_eq!(
+            original_id.matches_with_metadata_trust(&original_id, false),
+            Match::Full
+        );
+    }
+
+    #[test]
+    fn eravm_metadata_disabled_contract_collides_even_when_deployed_bytecode_is_cbor() {
+        // Appending an empty CBOR map to a metadata-disabled program image makes the deployed
+        // bytecode CBOR-detected, yet it still collides on the metadata-stripped hash while the
+        // trailing functional word diverges. So suppression must key on the stored contract, not on
+        // how the deployed bytecode's metadata is detected.
+        let original = hex::decode("0000008003000039000000400030043f0000000100200190000000110000c13d0000000900100198000000190000613d000000000101043b0000000a011001970000000b0010009c000000190000c13d0000000001000416000000000001004b000000190000c13d0000000101000039000000800010043f0000000c010000410000001c0001042e0000000001000416000000000001004b000000190000c13d00000020010000390000010000100443000001200000044300000008010000410000001c0001042e00000000010000190000001d000104300000001b000004320000001c0001042e0000001d0001043000000000000000000000000000000000000000020000000000000000000000000000004000000100000000000000000000000000000000000000000000000000fffffffc000000000000000000000000ffffffff000000000000000000000000000000000000000000000000000000003fa4f245000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000800000000000000000").unwrap();
+        let original_id = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &original);
+        // The metadata-less contract is classified via the keccak heuristic.
+        assert_eq!(
+            original_id.detected_metadata,
+            Some(DetectedMetadata::Keccak256)
+        );
+
+        // Replace the trailing functional word with 29 attacker bytes followed by an empty CBOR map
+        // (`0xA0`) and its 2-byte length (`0x0001`), so the bytecode is now CBOR-detected.
+        let mut cloaked = original[..original.len() - 32].to_vec();
+        cloaked.extend_from_slice(&[0xDE; 29]);
+        cloaked.extend_from_slice(&[0xA0, 0x00, 0x01]);
+        assert_eq!(cloaked.len(), original.len());
+
+        let cloaked_id = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &cloaked);
+        assert!(
+            matches!(
+                cloaked_id.detected_metadata,
+                Some(DetectedMetadata::Cbor { .. })
+            ),
+            "deployed bytecode should be CBOR-detected, got {:?}",
+            cloaked_id.detected_metadata
+        );
+        // It collides on the metadata-stripped hash with the metadata-less original...
+        assert_eq!(
+            cloaked_id.bytecode_without_metadata_keccak256,
+            original_id.bytecode_without_metadata_keccak256
+        );
+        // ...while differing in the full bytecode (the trailing functional word diverges).
+        assert_ne!(
+            cloaked_id.bytecode_keccak256,
+            original_id.bytecode_keccak256
+        );
+        assert_eq!(original_id.matches(&cloaked_id), Match::Partial);
+    }
 
     #[test]
     fn eravm_cbor_without_padding() {

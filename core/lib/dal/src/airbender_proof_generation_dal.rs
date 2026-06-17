@@ -75,20 +75,28 @@ impl AirbenderProofGenerationDal<'_, '_> {
         &mut self,
         processing_timeout: Duration,
         min_batch_number: L1BatchNumber,
+        max_attempts: u32,
     ) -> DalResult<Option<LockedBatch>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
+        let max_attempts = i16::try_from(max_attempts).unwrap_or(i16::MAX);
         let picked = AirbenderProofGenerationJobStatus::PickedByProver.to_string();
         let failed = AirbenderProofGenerationJobStatus::Failed.to_string();
 
-        // Step 1: Try to reclaim a timed-out or failed batch (row already exists).
+        // Step 1: Try to reclaim a timed-out or failed batch (row already exists). A batch is only
+        // reclaimable while it has retries left (`attempts < max_attempts`); each reclaim bumps
+        // `attempts`, so a batch that keeps failing eventually stays in `failed` for good instead
+        // of being retried forever.
         // FOR UPDATE SKIP LOCKED ensures parallel provers don't pick the same row.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
             r#"
             UPDATE airbender_proof_generation_details
             SET
-                status = $1, updated_at = NOW(), prover_taken_at = NOW()
+                status = $1,
+                updated_at = NOW(),
+                prover_taken_at = NOW(),
+                attempts = attempts + 1
             WHERE
                 l1_batch_number = (
                     SELECT apgd.l1_batch_number
@@ -99,6 +107,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
                         p.l1_batch_number >= $3
                         AND p.vm_run_data_blob_url IS NOT NULL
                         AND p.proof_gen_data_blob_url IS NOT NULL
+                        AND apgd.attempts < $5
                         AND (
                             apgd.status = $2
                             OR (
@@ -119,10 +128,12 @@ impl AirbenderProofGenerationDal<'_, '_> {
             failed,
             min_batch_number,
             processing_timeout,
+            max_attempts,
         )
         .instrument("lock_batch_for_proving#reclaim")
         .with_arg("processing_timeout", &processing_timeout)
         .with_arg("min_batch_number", &min_batch_number)
+        .with_arg("max_attempts", &max_attempts)
         .fetch_optional(self.storage)
         .await?
         .map(Into::into);
@@ -143,7 +154,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
             r#"
             INSERT INTO airbender_proof_generation_details (
                 l1_batch_number, status, created_at, updated_at, prover_taken_at,
-                protocol_version, protocol_version_patch
+                attempts, protocol_version, protocol_version_patch
             )
             SELECT
                 p.l1_batch_number,
@@ -151,6 +162,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 NOW(),
                 NOW(),
                 NOW(),
+                1,
                 l.protocol_version,
                 (
                     SELECT pp.patch
@@ -266,6 +278,52 @@ impl AirbenderProofGenerationDal<'_, '_> {
         Ok(())
     }
 
+    /// Marks a FRI proving job as failed after a prover reports it could not produce the proof.
+    /// The batch goes back to `failed` and is retried by [`Self::lock_batch_for_proving`] until the
+    /// attempts limit is hit. Only a batch currently `picked_by_prover` is affected, so a stale
+    /// prover can't fail a batch that already timed out and was reassigned.
+    pub async fn mark_proof_failed(
+        &mut self,
+        batch_number: L1BatchNumber,
+        error: &str,
+    ) -> DalResult<()> {
+        let batch_number = i64::from(batch_number.0);
+        let query = sqlx::query!(
+            r#"
+            UPDATE airbender_proof_generation_details
+            SET
+                status = $1,
+                error = $2,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $3
+                AND status = $4
+            "#,
+            AirbenderProofGenerationJobStatus::Failed.to_string(),
+            error,
+            batch_number,
+            AirbenderProofGenerationJobStatus::PickedByProver.to_string(),
+        );
+        let instrumentation = Instrumented::new("mark_proof_failed")
+            .with_arg("l1_batch_number", &batch_number)
+            .with_arg("error", &error);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Cannot fail proof for batch {}: batch is not in '{}' status (it may have timed out and been reassigned)",
+                batch_number,
+                AirbenderProofGenerationJobStatus::PickedByProver,
+            ));
+            return Err(err);
+        }
+
+        Ok(())
+    }
+
     /// Lock a batch for SNARK wrapping. Picks the oldest batch whose FRI proof has been
     /// submitted (`status = 'generated'`), or reclaims a `picked_for_snark` batch whose
     /// `snark_taken_at` exceeded `processing_timeout`.
@@ -273,17 +331,26 @@ impl AirbenderProofGenerationDal<'_, '_> {
         &mut self,
         processing_timeout: Duration,
         min_batch_number: L1BatchNumber,
+        max_attempts: u32,
     ) -> DalResult<Option<LockedBatch>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
+        let max_attempts = i16::try_from(max_attempts).unwrap_or(i16::MAX);
         let picked_for_snark = AirbenderProofGenerationJobStatus::PickedForSnark.to_string();
         let generated = AirbenderProofGenerationJobStatus::Generated.to_string();
 
+        // Each SNARK pick (a fresh `generated` batch, a reverted failure, or a reclaimed timeout)
+        // bumps `snark_attempts`; a batch is only picked while `snark_attempts < max_attempts`, so
+        // SNARK wrapping is retried only a bounded number of times.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
             r#"
             UPDATE airbender_proof_generation_details
-            SET status = $1, updated_at = NOW(), snark_taken_at = NOW()
+            SET
+                status = $1,
+                updated_at = NOW(),
+                snark_taken_at = NOW(),
+                snark_attempts = snark_attempts + 1
             WHERE
                 l1_batch_number = (
                     SELECT apgd.l1_batch_number
@@ -291,6 +358,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
                     WHERE
                         apgd.l1_batch_number >= $3
                         AND apgd.proof_blob_url IS NOT NULL
+                        AND apgd.snark_attempts < $5
                         AND (
                             apgd.status = $2
                             OR (
@@ -311,10 +379,12 @@ impl AirbenderProofGenerationDal<'_, '_> {
             generated,
             min_batch_number,
             processing_timeout,
+            max_attempts,
         )
         .instrument("lock_batch_for_snark")
         .with_arg("processing_timeout", &processing_timeout)
         .with_arg("min_batch_number", &min_batch_number)
+        .with_arg("max_attempts", &max_attempts)
         .fetch_optional(self.storage)
         .await?
         .map(Into::into);
@@ -360,6 +430,52 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 batch_number,
                 AirbenderProofGenerationJobStatus::PickedForSnark,
                 AirbenderProofGenerationJobStatus::Generated,
+            ));
+            return Err(err);
+        }
+
+        Ok(())
+    }
+
+    /// Marks a SNARK wrapping job as failed after a prover reports it could not produce the proof.
+    /// The batch reverts to `generated` (its FRI proof is still valid) so it re-enters the SNARK
+    /// queue, retried by [`Self::lock_batch_for_snark`] until the attempts limit is hit. Only a
+    /// batch currently `picked_for_snark` is affected.
+    pub async fn mark_snark_proof_failed(
+        &mut self,
+        batch_number: L1BatchNumber,
+        error: &str,
+    ) -> DalResult<()> {
+        let batch_number = i64::from(batch_number.0);
+        let query = sqlx::query!(
+            r#"
+            UPDATE airbender_proof_generation_details
+            SET
+                status = $1,
+                error = $2,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $3
+                AND status = $4
+            "#,
+            AirbenderProofGenerationJobStatus::Generated.to_string(),
+            error,
+            batch_number,
+            AirbenderProofGenerationJobStatus::PickedForSnark.to_string(),
+        );
+        let instrumentation = Instrumented::new("mark_snark_proof_failed")
+            .with_arg("l1_batch_number", &batch_number)
+            .with_arg("error", &error);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Cannot fail SNARK proof for batch {}: batch is not in '{}' status (it may have timed out and been reassigned)",
+                batch_number,
+                AirbenderProofGenerationJobStatus::PickedForSnark,
             ));
             return Err(err);
         }
@@ -558,11 +674,16 @@ impl AirbenderProofGenerationDal<'_, '_> {
         Ok(batch_number)
     }
 
+    /// Number of batches waiting for FRI proving: never started, or `failed` but still within the
+    /// retry budget. A batch that exhausted `max_attempts` is permanently abandoned and excluded,
+    /// so the gauge reflects work that will actually be picked up.
     pub async fn get_ready_for_proving_count(
         &mut self,
         min_batch_number: L1BatchNumber,
+        max_attempts: u32,
     ) -> DalResult<i64> {
         let min_batch_number = i64::from(min_batch_number.0);
+        let max_attempts = i16::try_from(max_attempts).unwrap_or(i16::MAX);
         let row = sqlx::query!(
             r#"
             SELECT
@@ -578,14 +699,16 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 AND p.proof_gen_data_blob_url IS NOT NULL
                 AND (
                     apgd.l1_batch_number IS NULL
-                    OR apgd.status = $2
+                    OR (apgd.status = $2 AND apgd.attempts < $3)
                 )
             "#,
             min_batch_number,
             AirbenderProofGenerationJobStatus::Failed.to_string(),
+            max_attempts,
         )
         .instrument("get_ready_for_proving_count")
         .with_arg("min_batch_number", &min_batch_number)
+        .with_arg("max_attempts", &max_attempts)
         .fetch_one(self.storage)
         .await?;
 
@@ -593,12 +716,15 @@ impl AirbenderProofGenerationDal<'_, '_> {
     }
 
     /// Number of batches whose FRI proof has been submitted (`status = 'generated'`) and are
-    /// waiting to be wrapped into a SNARK proof.
+    /// waiting to be wrapped into a SNARK proof, excluding those that exhausted the SNARK retry
+    /// budget (`snark_attempts >= max_attempts`).
     pub async fn get_ready_for_snark_count(
         &mut self,
         min_batch_number: L1BatchNumber,
+        max_attempts: u32,
     ) -> DalResult<i64> {
         let min_batch_number = i64::from(min_batch_number.0);
+        let max_attempts = i16::try_from(max_attempts).unwrap_or(i16::MAX);
         let row = sqlx::query!(
             r#"
             SELECT
@@ -609,12 +735,15 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 apgd.l1_batch_number >= $1
                 AND apgd.proof_blob_url IS NOT NULL
                 AND apgd.status = $2
+                AND apgd.snark_attempts < $3
             "#,
             min_batch_number,
             AirbenderProofGenerationJobStatus::Generated.to_string(),
+            max_attempts,
         )
         .instrument("get_ready_for_snark_count")
         .with_arg("min_batch_number", &min_batch_number)
+        .with_arg("max_attempts", &max_attempts)
         .fetch_one(self.storage)
         .await?;
 
@@ -704,7 +833,7 @@ mod tests {
 
         let locked = conn
             .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0))
+            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10)
             .await
             .unwrap()
             .expect("batch should be lockable");
@@ -735,7 +864,7 @@ mod tests {
 
         let first = conn
             .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0))
+            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10)
             .await
             .unwrap()
             .expect("batch should be lockable");
@@ -746,7 +875,7 @@ mod tests {
         // Zero timeout makes the picked batch immediately reclaimable.
         let reclaimed = conn
             .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0))
+            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), 10)
             .await
             .unwrap()
             .expect("batch should be reclaimable");
@@ -754,5 +883,45 @@ mod tests {
         assert_eq!(reclaimed.l1_batch_number, L1BatchNumber(1));
         assert_eq!(reclaimed.protocol_version, first.protocol_version);
         assert_eq!(reclaimed.protocol_version.patch, VersionPatch(3));
+    }
+
+    /// A batch that keeps failing must stop being reclaimed once it has used up `max_attempts`
+    /// picks, instead of being retried forever.
+    #[tokio::test]
+    async fn reclaim_stops_after_max_attempts() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let batch_minor = ProtocolVersionId::latest();
+        save_patch(&mut conn, batch_minor, 0).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
+
+        let max_attempts = 3;
+
+        // First pick (attempts -> 1), then two reclaims (attempts -> 2, 3). Each cycle fails the
+        // batch back so the reclaim branch can pick it up again.
+        for _ in 0..max_attempts {
+            let mut dal = conn.airbender_proof_generation_dal();
+            let locked = dal
+                .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), max_attempts)
+                .await
+                .unwrap()
+                .expect("batch should be lockable while attempts remain");
+            assert_eq!(locked.l1_batch_number, L1BatchNumber(1));
+            dal.mark_proof_failed(L1BatchNumber(1), "boom")
+                .await
+                .unwrap();
+        }
+
+        // The batch has now been picked `max_attempts` times — it must no longer be reclaimable.
+        let exhausted = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), max_attempts)
+            .await
+            .unwrap();
+        assert!(
+            exhausted.is_none(),
+            "batch should not be reclaimed after exhausting attempts"
+        );
     }
 }

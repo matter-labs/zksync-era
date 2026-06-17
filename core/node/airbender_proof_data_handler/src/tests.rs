@@ -40,6 +40,7 @@ fn test_config() -> AirbenderProofDataHandlerConfig {
         proof_generation_timeout: Duration::from_secs(600),
         snark_generation_timeout: Duration::from_secs(600),
         max_attempts: 5,
+        max_proving_attempts: 10,
     }
 }
 
@@ -200,7 +201,8 @@ async fn submit_airbender_proof() {
     let airbender_proof_request = SubmitAirbenderProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-prover".to_string(),
-        proof: vec![0x0A, 0x0B, 0x0C, 0x0D, 0x0E],
+        proof: Some(vec![0x0A, 0x0B, 0x0C, 0x0D, 0x0E]),
+        error: None,
     };
     let uri = "/airbender/submit_proofs".to_string();
     let app = create_proof_processing_router(
@@ -255,7 +257,8 @@ async fn submit_airbender_proof_rejects_when_not_picked() {
     let airbender_proof_request = SubmitAirbenderProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-prover".to_string(),
-        proof: vec![0x0A, 0x0B, 0x0C],
+        proof: Some(vec![0x0A, 0x0B, 0x0C]),
+        error: None,
     };
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
@@ -271,6 +274,113 @@ async fn submit_airbender_proof_rejects_when_not_picked() {
     )
     .await;
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+// A failure reported through the shared /airbender/submit_proofs route marks the batch `failed`.
+#[tokio::test]
+async fn submit_airbender_proof_failure_marks_batch_failed() {
+    let batch_number = L1BatchNumber::from(1);
+    let db_conn_pool = ConnectionPool::test_pool().await;
+
+    save_default_protocol_version(&db_conn_pool).await;
+    db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
+    mock_airbender_batch_status(db_conn_pool.clone(), batch_number).await;
+
+    let request = SubmitAirbenderProofRequest {
+        l1_batch_number: batch_number.0,
+        prover_id: "test-prover".to_string(),
+        proof: None,
+        error: Some("prover ran out of memory".to_string()),
+    };
+
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool.clone(),
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response =
+        send_submit_airbender_proof_request(&app, "/airbender/submit_proofs", &request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let mut conn = db_conn_pool.connection().await.unwrap();
+    let row = conn
+        .airbender_proof_generation_dal()
+        .get_airbender_fri_proof(batch_number)
+        .await
+        .unwrap()
+        .expect("row should exist");
+    assert_eq!(row.status, "failed");
+}
+
+#[tokio::test]
+async fn submit_airbender_proof_failure_rejects_when_not_picked() {
+    let batch_number = L1BatchNumber::from(1);
+    let db_conn_pool = ConnectionPool::test_pool().await;
+
+    // No airbender_proof_generation_job inserted, so there is nothing in `picked_by_prover` to fail.
+    let request = SubmitAirbenderProofRequest {
+        l1_batch_number: batch_number.0,
+        prover_id: "test-prover".to_string(),
+        proof: None,
+        error: Some("boom".to_string()),
+    };
+
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool,
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response =
+        send_submit_airbender_proof_request(&app, "/airbender/submit_proofs", &request).await;
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+#[tokio::test]
+async fn submit_airbender_snark_proof_failure_reverts_to_generated() {
+    let batch_number = L1BatchNumber(1);
+    let db_conn_pool = ConnectionPool::test_pool().await;
+
+    // Seed the batch into `picked_for_snark`.
+    mock_airbender_picked_for_snark(db_conn_pool.clone(), batch_number).await;
+
+    let request = SubmitAirbenderSnarkProofRequest {
+        l1_batch_number: batch_number.0,
+        prover_id: "test-snark-prover".to_string(),
+        snark_proof: None,
+        error: Some("wrapper proof failed".to_string()),
+    };
+
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool.clone(),
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response =
+        send_submit_snark_proof_request(&app, "/airbender/submit_snark_proofs", &request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // The FRI proof is still valid, so a SNARK failure reverts the batch to `generated` for retry.
+    let mut conn = db_conn_pool.connection().await.unwrap();
+    let row = conn
+        .airbender_proof_generation_dal()
+        .get_airbender_snark_proof(batch_number)
+        .await
+        .unwrap()
+        .expect("row should exist");
+    assert_eq!(row.status, "generated");
 }
 
 #[tokio::test]
@@ -439,7 +549,8 @@ async fn submit_snark_proof_succeeds_when_picked_for_snark() {
     let request = SubmitAirbenderSnarkProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
-        snark_proof: snark_wrapper_proof(),
+        snark_proof: Some(snark_wrapper_proof()),
+        error: None,
     };
 
     let app = create_proof_processing_router(
@@ -484,7 +595,8 @@ async fn submit_snark_proof_rejects_when_not_picked_for_snark() {
     let request = SubmitAirbenderSnarkProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
-        snark_proof: snark_wrapper_proof(),
+        snark_proof: Some(snark_wrapper_proof()),
+        error: None,
     };
 
     let app = create_proof_processing_router(
@@ -551,7 +663,7 @@ async fn mock_airbender_picked_for_snark(
         .expect("Failed to save FRI proof artifacts");
 
     let locked = dal
-        .lock_batch_for_snark(Duration::from_secs(600), L1BatchNumber(0))
+        .lock_batch_for_snark(Duration::from_secs(600), L1BatchNumber(0), 10)
         .await
         .expect("Failed to lock batch for SNARK")
         .expect("Expected the seeded batch to be lockable for SNARK");

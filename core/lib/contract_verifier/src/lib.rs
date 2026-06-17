@@ -325,7 +325,16 @@ impl ContractVerifier {
 
         let mut verification_problems = Vec::new();
 
-        match compiled_identifier.matches(&deployed_identifier) {
+        // A partial match trusts the heuristic that the trailing EraVM word is metadata. If the
+        // source disables metadata, that word is functional code, so the heuristic can't be trusted
+        // (only standard-JSON input can disable metadata).
+        let trust_keccak_metadata = !request
+            .req
+            .source_code_data
+            .appended_metadata_disabled(request.req.compiler_versions.zk_compiler_version());
+        match compiled_identifier
+            .matches_with_metadata_trust(&deployed_identifier, trust_keccak_metadata)
+        {
             Match::Full => {}
             Match::Partial => {
                 tracing::info!(
