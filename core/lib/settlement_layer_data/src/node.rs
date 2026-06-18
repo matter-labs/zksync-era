@@ -230,14 +230,26 @@ impl WiringLayer for SettlementLayerData<MainNodeConfig> {
             final_settlement_mode.settlement_layer(),
         );
 
-        if let Some(l2_da_commitment_scheme) = zkchain_on_chain_config.l2_da_commitment_scheme {
-            if l2_da_commitment_scheme == L2DACommitmentScheme::None {
+        match zkchain_on_chain_config.l2_da_commitment_scheme {
+            // The on-chain getter is unavailable before the medium-interop upgrade, so the value
+            // is not present yet. Use the config value so the chain can be configured ahead of
+            // the upgrade.
+            None => {
+                tracing::warn!("L2 DA commitment scheme is not available on-chain (pre-upgrade), falling back to the config value ({:?})", self.config.config_l2_da_commitment_scheme);
+                zkchain_on_chain_config.l2_da_commitment_scheme =
+                    Some(self.config.config_l2_da_commitment_scheme)
+            }
+            Some(L2DACommitmentScheme::None) => {
                 tracing::warn!("L2 DA commitment scheme from on-chain config is None, falling back to the config value");
                 zkchain_on_chain_config.l2_da_commitment_scheme =
                     Some(self.config.config_l2_da_commitment_scheme)
-            } else if l2_da_commitment_scheme != self.config.config_l2_da_commitment_scheme {
+            }
+            Some(l2_da_commitment_scheme)
+                if l2_da_commitment_scheme != self.config.config_l2_da_commitment_scheme =>
+            {
                 tracing::warn!("L2 DA commitment scheme from on-chain config ({l2_da_commitment_scheme:?}) does not match the config value ({:?}), using the on-chain value", self.config.config_l2_da_commitment_scheme);
             }
+            Some(_) => {}
         }
 
         Ok(Output {

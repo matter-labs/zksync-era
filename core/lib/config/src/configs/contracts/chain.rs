@@ -1,4 +1,7 @@
-use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
+use smart_config::{
+    de::{Optional, Serde},
+    ConfigSchema, DescribeConfig, DeserializeConfig,
+};
 use zksync_basic_types::{commitment::L2DACommitmentScheme, Address, H256};
 
 use super::{
@@ -190,6 +193,13 @@ pub struct ContractsConfig {
     // Setting default values to zero(for backwards compatibility)
     #[config(nest, default)]
     pub proof_manager_contracts: ProofManagerContracts,
+    /// Explicit override for the L2 DA commitment scheme.
+    ///
+    /// The scheme is normally read from the chain via `getDAValidatorPair`, but that getter only
+    /// exists from the medium-interop upgrade onwards. This config makes it possible to pin the
+    /// scheme before that upgrade is applied (or when the on-chain value is `None`).
+    #[config(with = Optional(Serde![str]))]
+    pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
 }
 
 impl ContractsConfig {
@@ -200,6 +210,7 @@ impl ContractsConfig {
             bridges: BridgesConfig::for_tests(),
             ecosystem_contracts: EcosystemContracts::for_tests(),
             proof_manager_contracts: ProofManagerContracts::for_tests(),
+            l2_da_commitment_scheme: None,
         }
     }
 
@@ -345,6 +356,7 @@ mod tests {
                 proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
                 proxy_admin_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
             },
+            l2_da_commitment_scheme: Some(L2DACommitmentScheme::PubdataKeccak256),
         }
     }
 
@@ -386,6 +398,8 @@ mod tests {
             CONTRACTS_PROOF_MANAGER_CONTRACTS_PROOF_MANAGER_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
             CONTRACTS_PROOF_MANAGER_CONTRACTS_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
             CONTRACTS_PROOF_MANAGER_CONTRACTS_PROXY_ADMIN_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+
+            CONTRACTS_L2_DA_COMMITMENT_SCHEME="PubdataKeccak256"
         "#;
         let env = Environment::from_dotenv("test.env", env).unwrap();
 
@@ -442,6 +456,7 @@ mod tests {
               proof_manager_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
               proxy_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
               proxy_admin_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
+            l2_da_commitment_scheme: PubdataKeccak256
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 

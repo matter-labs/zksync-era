@@ -31,6 +31,50 @@ impl SourceCodeData {
             SourceCodeData::VyperMultiFile(_) => CompilerType::Vyper,
         }
     }
+
+    /// Returns `true` if the standard JSON input tells `zksolc` to append no metadata word, so the
+    /// trailing EraVM word is functional code and the keccak metadata heuristic must not be trusted.
+    /// Depends on the version, as the metadata scheme changed in 1.5.13:
+    /// * `>= 1.5.13` appends nothing only with `appendCBOR == false` and a non-`keccak256` hash
+    ///   (`keccak256` always appends a standalone, inert word).
+    /// * `< 1.5.13` (pre-CBOR) drops its keccak word only with `bytecodeHash == "none"`.
+    /// * An unknown version treats either regime's metadata-less config as disabled.
+    pub fn appended_metadata_disabled(&self, zksolc_version: Option<&str>) -> bool {
+        let Self::StandardJsonInput(input) = self else {
+            return false;
+        };
+        let Some(metadata) = input.get("settings").and_then(|s| s.get("metadata")) else {
+            return false;
+        };
+        let bytecode_hash = metadata.get("bytecodeHash").and_then(|v| v.as_str());
+        // zksolc < 1.5.13: a standalone keccak256 word is appended unless `bytecodeHash: "none"`.
+        let keccak_word_suppressed = bytecode_hash == Some("none");
+        // zksolc >= 1.5.13: no metadata word at all when CBOR is off and no keccak256 hash is asked.
+        let cbor_disabled = metadata.get("appendCBOR").and_then(|v| v.as_bool()) == Some(false)
+            && bytecode_hash != Some("keccak256");
+
+        match zksolc_version.and_then(Self::parse_zksolc_version) {
+            Some(version) if version < (1, 5, 13) => keccak_word_suppressed,
+            Some(_) => cbor_disabled,
+            None => keccak_word_suppressed || cbor_disabled,
+        }
+    }
+
+    /// Parses the `(major, minor, patch)` version triple from a `zksolc` version string, tolerating a
+    /// leading `v`/`vm-` and any trailing suffix (e.g. `-a167aa3`). Returns `None` if no
+    /// `<major>.<minor>.<patch>` can be found.
+    fn parse_zksolc_version(version: &str) -> Option<(u64, u64, u64)> {
+        let first_digit = version.find(|c: char| c.is_ascii_digit())?;
+        let numeric: String = version[first_digit..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+        let mut parts = numeric.split('.');
+        let major = parts.next()?.parse().ok()?;
+        let minor = parts.next()?.parse().ok()?;
+        let patch = parts.next().unwrap_or("0").parse().ok()?;
+        Some((major, minor, patch))
+    }
 }
 
 // Implementing Custom deserializer which deserializes `SourceCodeData`
@@ -391,6 +435,68 @@ mod tests {
         let type_not_specified_object_result =
             serde_json::from_str::<SourceCodeData>(type_not_specified_object_str);
         assert!(type_not_specified_object_result.is_err());
+    }
+
+    #[test]
+    fn appended_metadata_disabled_detection() {
+        // A config is "disabled" when no metadata word is appended (the trailing word is then
+        // functional code). This depends on the version, since `appendCBOR` only exists from 1.5.13.
+        let parse = |settings: &str| -> SourceCodeData {
+            serde_json::from_str(&format!(
+                r#"{{"codeFormat": "solidity-standard-json-input", "sourceCode": {{"settings": {settings}}}}}"#,
+            ))
+            .unwrap()
+        };
+        const MODERN: Option<&str> = Some("1.5.14"); // CBOR-capable
+        const LEGACY: Option<&str> = Some("1.5.4"); // pre-CBOR, keccak256-only
+
+        // --- zksolc >= 1.5.13 (CBOR-capable) ---
+        // appendCBOR:false with a non-keccak (or unset) hash => no metadata word at all => disabled.
+        assert!(
+            parse(r#"{"metadata": {"bytecodeHash": "none", "appendCBOR": false}}"#)
+                .appended_metadata_disabled(MODERN)
+        );
+        // appendCBOR:false alone (default bytecodeHash) produces the same metadata-less bytecode.
+        assert!(
+            parse(r#"{"metadata": {"appendCBOR": false}}"#).appended_metadata_disabled(MODERN),
+            "appendCBOR:false alone must be treated as metadata-disabled on modern zksolc"
+        );
+        // ...as does `ipfs` (or any non-keccak hash) + appendCBOR:false.
+        assert!(
+            parse(r#"{"metadata": {"bytecodeHash": "ipfs", "appendCBOR": false}}"#)
+                .appended_metadata_disabled(MODERN)
+        );
+        // Keccak metadata hash is explicitly requested => a standalone, inert hash word is appended.
+        assert!(
+            !parse(r#"{"metadata": {"bytecodeHash": "keccak256", "appendCBOR": false}}"#)
+                .appended_metadata_disabled(MODERN)
+        );
+        // CBOR still appended (the default) => trailing word is reliably-detected metadata.
+        assert!(
+            !parse(r#"{"metadata": {"bytecodeHash": "none"}}"#).appended_metadata_disabled(MODERN)
+        );
+        assert!(!parse(r#"{"metadata": {}}"#).appended_metadata_disabled(MODERN));
+        assert!(!parse(r#"{}"#).appended_metadata_disabled(MODERN));
+
+        // --- zksolc < 1.5.13 (pre-CBOR): only `bytecodeHash: "none"` drops the keccak256 word ---
+        // Legacy `bytecodeHash: "none"` alone is metadata-less.
+        assert!(
+            parse(r#"{"metadata": {"bytecodeHash": "none"}}"#).appended_metadata_disabled(LEGACY),
+            "legacy bytecodeHash:none must be treated as metadata-disabled"
+        );
+        // Legacy ignores `appendCBOR` and defaults to a keccak256 word, so these still carry metadata.
+        assert!(!parse(r#"{"metadata": {"appendCBOR": false}}"#).appended_metadata_disabled(LEGACY));
+        assert!(!parse(r#"{"metadata": {}}"#).appended_metadata_disabled(LEGACY));
+        assert!(!parse(r#"{}"#).appended_metadata_disabled(LEGACY));
+
+        // --- Unknown/unparseable version => either regime's metadata-less config counts as disabled ---
+        assert!(parse(r#"{"metadata": {"bytecodeHash": "none"}}"#).appended_metadata_disabled(None));
+        assert!(parse(r#"{"metadata": {"appendCBOR": false}}"#).appended_metadata_disabled(None));
+        assert!(!parse(r#"{"metadata": {}}"#).appended_metadata_disabled(None));
+
+        // Non-standard-JSON requests can't disable metadata via settings.
+        assert!(!SourceCodeData::SolSingleFile("contract C {}".into())
+            .appended_metadata_disabled(MODERN));
     }
 
     fn create_verification_request(
