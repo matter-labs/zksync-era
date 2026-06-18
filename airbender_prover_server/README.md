@@ -76,12 +76,15 @@ changes — see
 
 ## Docker images & release
 
-Two images are published, both built from this workspace as the Docker context:
+Two images are published (under the verifier repo's canonical image name, matching what eravm-airbender-verifier itself
+pushed), both built from this workspace as the Docker context:
 
-- `airbender-prover-server` — GPU FRI prover + SNARK wrapper
+- `eravm-airbender-verifier` — GPU FRI prover + SNARK wrapper
   ([`docker/airbender-prover-server/Dockerfile`](../docker/airbender-prover-server/Dockerfile)).
-- `airbender-prover-server-cpu` — CUDA-free snark-only
+- `eravm-airbender-verifier-cpu` — CUDA-free snark-only
   ([`docker/airbender-prover-server/Dockerfile.cpu`](../docker/airbender-prover-server/Dockerfile.cpu)).
+
+For example the GPU image is pushed to `us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/eravm-airbender-verifier`.
 
 Versioning is independent (release-please component `airbender_prover_server`). On each push to `main`, release-please
 opens/updates a release PR that bumps the version in `Cargo.toml`; merging it tags `airbender_prover_server-v<version>`.

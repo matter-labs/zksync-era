@@ -35,11 +35,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # GPU image: FRI prover (CUDA) + SNARK wrapper.
-          - image: airbender-prover-server
+          # GPU image: FRI prover (CUDA) + SNARK wrapper. Published under the
+          # verifier repo's canonical image name, matching what eravm-airbender-verifier
+          # itself pushed (`us-docker.pkg.dev/.../eravm-airbender-verifier`).
+          - image: eravm-airbender-verifier
             dockerfile: docker/airbender-prover-server/Dockerfile
-          # CPU image: snark-only pipeline, no CUDA.
-          - image: airbender-prover-server-cpu
+          # CPU image: snark-only pipeline, no CUDA — same name with a `-cpu` suffix.
+          - image: eravm-airbender-verifier-cpu
             dockerfile: docker/airbender-prover-server/Dockerfile.cpu
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
