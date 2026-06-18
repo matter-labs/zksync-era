@@ -12,6 +12,40 @@ pub(crate) trait PruneCondition: fmt::Debug + fmt::Display + Send + Sync + 'stat
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
 }
 
+fn is_l1_batch_old_enough(
+    now_timestamp: u64,
+    l1_batch_timestamp: u64,
+    minimum_age: Duration,
+) -> bool {
+    now_timestamp.saturating_sub(l1_batch_timestamp) > minimum_age.as_secs()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn l1_batch_age_check_handles_future_timestamps() {
+        let now_timestamp = 100;
+
+        assert!(!is_l1_batch_old_enough(
+            now_timestamp,
+            now_timestamp + 1,
+            Duration::ZERO
+        ));
+        assert!(!is_l1_batch_old_enough(
+            now_timestamp,
+            now_timestamp - 10,
+            Duration::from_secs(10)
+        ));
+        assert!(is_l1_batch_old_enough(
+            now_timestamp,
+            now_timestamp - 11,
+            Duration::from_secs(10)
+        ));
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct L1BatchOlderThanPruneCondition {
     pub minimum_age: Duration,
@@ -36,9 +70,13 @@ impl PruneCondition for L1BatchOlderThanPruneCondition {
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await?;
-        let is_old_enough = l1_batch_header.is_some()
-            && (Utc::now().timestamp() as u64 - l1_batch_header.unwrap().timestamp
-                > self.minimum_age.as_secs());
+        let is_old_enough = l1_batch_header.is_some_and(|header| {
+            is_l1_batch_old_enough(
+                Utc::now().timestamp() as u64,
+                header.timestamp,
+                self.minimum_age,
+            )
+        });
         Ok(is_old_enough)
     }
 }
