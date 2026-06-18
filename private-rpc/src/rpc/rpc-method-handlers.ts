@@ -21,6 +21,7 @@ export const allHandlers = [
        ───────────────────────────── */
     unrestricted('eth_blockNumber'),
     unrestricted('eth_chainId'),
+    unrestricted('net_version'),
     validatedEthereumCall('eth_call', 2),
     validatedEthereumCall('eth_estimateGas', 2),
     unrestricted('eth_gasPrice'),
