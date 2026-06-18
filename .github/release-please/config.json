@@ -27,6 +27,15 @@
           "path": "Cargo.toml"
         }
       ]
+    },
+    "airbender_prover_server": {
+      "component": "airbender_prover_server",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "Cargo.toml"
+        }
+      ]
     }
   }
 }
