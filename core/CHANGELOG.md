@@ -1,5 +1,27 @@
 # Changelog
 
+## [31.0.0](https://github.com/matter-labs/zksync-era/compare/core-v29.20.0...core-v31.0.0) (2026-06-18)
+
+
+### Features
+
+* **airbender:** submit proof failures and bound proving retries ([#4858](https://github.com/matter-labs/zksync-era/issues/4858)) ([312feec](https://github.com/matter-labs/zksync-era/commit/312feec4a70aa612cd137dd0d23f0adaa01db878))
+* **config:** allow setting l2_da_commitment_scheme before upgrade ([#4855](https://github.com/matter-labs/zksync-era/issues/4855)) ([2a0c27e](https://github.com/matter-labs/zksync-era/commit/2a0c27ef5887359f504132cd2be219b167b71ac3))
+
+
+### Bug Fixes
+
+* **api:** bound eth_feeHistory reward percentiles ([#4860](https://github.com/matter-labs/zksync-era/issues/4860)) ([ecf64c6](https://github.com/matter-labs/zksync-era/commit/ecf64c678853bcb00c529a8f61583a5110b2a760))
+* **api:** correct max_connections operator-precedence bug ([#4868](https://github.com/matter-labs/zksync-era/issues/4868)) ([a62fb68](https://github.com/matter-labs/zksync-era/commit/a62fb68bbf3da96c657b702900273fd782c2e5da))
+* **contract-verifier:** Paths for solc compiler ([#4859](https://github.com/matter-labs/zksync-era/issues/4859)) ([7bd5dea](https://github.com/matter-labs/zksync-era/commit/7bd5deaed03bf5ebf3241863504b3fedfda4be2a))
+* **state_keeper:** await enter_critical() in mempool sync ([#4862](https://github.com/matter-labs/zksync-era/issues/4862)) ([b3fd6ce](https://github.com/matter-labs/zksync-era/commit/b3fd6cedb7e84a556b68839b16c28a89abd7bde5))
+* **verifier:** reject partial matches for metadata-less EraVM bytecode ([#4857](https://github.com/matter-labs/zksync-era/issues/4857)) ([59a824a](https://github.com/matter-labs/zksync-era/commit/59a824a13a9a264c234c3d36b21b36ecd33d8b31))
+
+
+### Miscellaneous Chores
+
+* **core:** release 31.0.0 ([66ec233](https://github.com/matter-labs/zksync-era/commit/66ec2332609bdda51cf610e907d5cd3e8529b86e))
+
 ## [29.20.0](https://github.com/matter-labs/zksync-era/compare/core-v29.19.2...core-v29.20.0) (2026-06-04)
 
 

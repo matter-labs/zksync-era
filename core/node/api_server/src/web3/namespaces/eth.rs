@@ -41,6 +41,10 @@ use crate::{
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
 
+/// Maximum number of reward percentiles accepted by `eth_feeHistory`, bounding the size of the
+/// returned reward matrix.
+pub const FEE_HISTORY_REWARD_PERCENTILES_LIMIT: usize = 128;
+
 #[derive(Debug)]
 pub(crate) struct EthNamespace {
     state: RpcState,
@@ -1074,6 +1078,23 @@ impl EthNamespace {
     ) -> Result<FeeHistory, Web3Error> {
         self.current_method()
             .set_block_id(BlockId::Number(newest_block));
+
+        // Limit the number of reward percentiles and validate their range before allocating the
+        // reward matrix below.
+        if reward_percentiles.len() > FEE_HISTORY_REWARD_PERCENTILES_LIMIT {
+            return Err(Web3Error::InvalidFeeHistoryParams(format!(
+                "{} reward percentiles requested, but at most {} are allowed",
+                reward_percentiles.len(),
+                FEE_HISTORY_REWARD_PERCENTILES_LIMIT
+            )));
+        }
+        if let Some(invalid) = reward_percentiles.iter().find(|percentile| {
+            !percentile.is_finite() || **percentile < 0.0 || **percentile > 100.0
+        }) {
+            return Err(Web3Error::InvalidFeeHistoryParams(format!(
+                "percentile {invalid} is out of the expected [0, 100] range"
+            )));
+        }
 
         // Limit `block_count`.
         let block_count = block_count.clamp(1, self.state.api_config.fee_history_limit);
