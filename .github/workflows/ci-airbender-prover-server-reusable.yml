@@ -28,6 +28,13 @@ jobs:
         run: |
           ci_run bash -lc "cd airbender_prover_server && cargo fmt --check"
 
+      - name: Lints
+        run: |
+          # CUDA-free clippy (matches the build/test lane); fail on any warning,
+          # consistent with the rest of the repo. `--all-targets` also lints the
+          # (otherwise `#[ignore]`d) integration test.
+          ci_run bash -lc "cd airbender_prover_server && CARGO_PROFILE_DEV_DEBUG=0 cargo clippy --no-default-features --all-targets --locked -- -D warnings"
+
       - name: Build and unit/integration tests (CUDA-free)
         run: |
           # `--no-default-features` drops the CUDA `gpu_prover`, so the lane runs

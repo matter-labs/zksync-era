@@ -9,7 +9,7 @@ use eravm_prover_host::{FriProver, FriVerifier, RawFriProof, SnarkPipeline};
 use tracing::info;
 use zksync_prover_metrics::{ProofLabels, ProofStatus, ProofType, METRICS};
 
-use crate::types::{FailedProof, ProofKind, ProofOutcome, ProverResult, WorkerJob};
+use crate::types::{FailedProof, ProofOutcome, ProverResult, WorkerJob};
 
 pub struct ProverWorker {
     fri: Option<Box<dyn FriProver>>,
@@ -98,7 +98,7 @@ impl ProverWorker {
                 input_words,
             } => match self.fri.as_mut() {
                 Some(fri) => {
-                    info!(kind = %ProofKind::Fri, "Started proving batch {batch_number}");
+                    info!(kind = %ProofType::Fri, "Started proving batch {batch_number}");
                     let started = Instant::now();
                     let result = catch_prover_panic("FRI prover", || {
                         fri.prove_input(batch_number as u64, &input_words)
@@ -115,14 +115,14 @@ impl ProverWorker {
                             batch_number,
                             proof: Box::new(proof),
                         })
-                        .map_err(|err| FailedProof::new(batch_number, ProofKind::Fri, err))
+                        .map_err(|err| FailedProof::new(batch_number, ProofType::Fri, err))
                 }
                 // `snark-only` workers (including every CUDA-free build) carry
                 // no FRI prover and the job worker never enqueues FRI jobs;
                 // fail loudly if one ever arrives.
                 None => Err(FailedProof::new(
                     batch_number,
-                    ProofKind::Fri,
+                    ProofType::Fri,
                     anyhow::anyhow!("received a FRI job but this worker has no FRI prover"),
                 )),
             },
@@ -131,7 +131,7 @@ impl ProverWorker {
                 proof,
             } => match self.prepare_snark_input(batch_number, *proof) {
                 Ok(raw_proof) => {
-                    info!(kind = %ProofKind::Snark, "Started proving batch {batch_number}");
+                    info!(kind = %ProofType::Snark, "Started proving batch {batch_number}");
                     let started = Instant::now();
                     let snark = self.snark.as_mut().unwrap();
                     let result = catch_prover_panic("SNARK prover", || snark.prove(raw_proof));
@@ -146,9 +146,9 @@ impl ProverWorker {
                             batch_number,
                             proof: Box::new(proof),
                         })
-                        .map_err(|err| FailedProof::new(batch_number, ProofKind::Snark, err))
+                        .map_err(|err| FailedProof::new(batch_number, ProofType::Snark, err))
                 }
-                Err(err) => Err(FailedProof::new(batch_number, ProofKind::Snark, err)),
+                Err(err) => Err(FailedProof::new(batch_number, ProofType::Snark, err)),
             },
         };
         self.result_tx.send(result)
@@ -192,14 +192,14 @@ fn catch_prover_panic<T>(label: &str, f: impl FnOnce() -> Result<T>) -> Result<T
         Ok(result) => result,
         Err(payload) => Err(anyhow::anyhow!(
             "{label} panicked: {}",
-            panic_payload_message(&payload)
+            panic_payload_message(payload.as_ref())
         )),
     }
 }
 
 /// Extracts a human-readable message from a caught panic payload, which is
 /// typically a `&str` or `String` for `panic!`-style aborts.
-fn panic_payload_message(payload: &Box<dyn Any + Send>) -> String {
+fn panic_payload_message(payload: &(dyn Any + Send)) -> String {
     if let Some(s) = payload.downcast_ref::<&str>() {
         (*s).to_owned()
     } else if let Some(s) = payload.downcast_ref::<String>() {

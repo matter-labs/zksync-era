@@ -125,15 +125,12 @@ struct Cli {
     #[arg(long, env = "SNARK_THREADS")]
     snark_threads: Option<usize>,
 
-    /// Path to a committed SNARK VK JSON. Required for `fri-snark` and
-    /// `snark-only` modes — the server never derives this on the fly.
-    /// Regenerate with `eravm-prover-host gen-vks`.
-    #[arg(
-        long,
-        env = "SNARK_VK",
-        required_if_eq_any = [("mode", "fri-snark"), ("mode", "snark-only")],
-    )]
-    snark_vk: Option<PathBuf>,
+    /// Path to the committed SNARK VK JSON. Defaults to the vendored
+    /// `vks/snark_vk.json`; the server never derives it on the fly. Regenerate
+    /// with `eravm-prover-host gen-vks` when the guest changes. Only consumed in
+    /// `fri-snark` / `snark-only` modes.
+    #[arg(long, env = "SNARK_VK", default_value_os_t = default_snark_vk_path())]
+    snark_vk: PathBuf,
 
     /// Sentry DSN for error reporting. When unset, Sentry is disabled and the
     /// server logs to stdout only.
@@ -255,8 +252,8 @@ fn build_prover(
             .context("while building FRI prover")
     };
     let build_snark = || -> Result<SnarkPipeline> {
-        let snark_vk = load_snark_vk(cli.snark_vk.as_deref())?;
-        SnarkPipeline::new(&snark_options, snark_vk).context("while building SNARK pipeline")
+        let snark_vk = load_snark_vk(&cli.snark_vk)?;
+        SnarkPipeline::new(&snark_options, Some(snark_vk)).context("while building SNARK pipeline")
     };
 
     let builder = ProverWorker::builder();
@@ -276,13 +273,12 @@ fn build_prover(
     })
 }
 
-fn load_snark_vk(path: Option<&std::path::Path>) -> Result<Option<SnarkWrapperVK>> {
-    let Some(path) = path else { return Ok(None) };
+fn load_snark_vk(path: &std::path::Path) -> Result<SnarkWrapperVK> {
     let path_string = path.to_string_lossy().into_owned();
     let vk: SnarkWrapperVK = deserialize_from_file(&path_string)
         .with_context(|| format!("while loading SNARK VK from {}", path.display()))?;
     info!(path = %path.display(), "Loaded SNARK VK from file");
-    Ok(Some(vk))
+    Ok(vk)
 }
 
 /// Initialize Sentry error reporting. Returns `None` (Sentry disabled) when no
@@ -344,4 +340,11 @@ fn default_dist_dir() -> PathBuf {
 /// Override at runtime with `--fri-vk` or `FRI_VK`.
 fn default_fri_vk_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../vks/fri_vk.bin")
+}
+
+/// Compile-time fallback path to the committed SNARK verification key, vendored
+/// at `airbender_prover_server/vks/snark_vk.json` (mirrors [`default_fri_vk_path`]).
+/// Override at runtime with `--snark-vk` or `SNARK_VK`.
+fn default_snark_vk_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../vks/snark_vk.json")
 }

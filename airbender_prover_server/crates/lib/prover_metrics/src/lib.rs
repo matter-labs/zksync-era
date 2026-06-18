@@ -12,11 +12,20 @@ pub enum ProofStatus {
     Failure,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(rename_all = "snake_case", label = "kind")]
 pub enum ProofType {
     Fri,
     Snark,
+}
+
+impl std::fmt::Display for ProofType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProofType::Fri => f.write_str("FRI"),
+            ProofType::Snark => f.write_str("SNARK"),
+        }
+    }
 }
 
 /// Labels attached to proof generation metrics.

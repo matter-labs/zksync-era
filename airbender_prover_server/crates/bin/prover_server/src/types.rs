@@ -25,10 +25,10 @@ impl WorkerJob {
         }
     }
 
-    pub fn kind(&self) -> ProofKind {
+    pub fn kind(&self) -> ProofType {
         match self {
-            WorkerJob::Fri { .. } => ProofKind::Fri,
-            WorkerJob::Snark { .. } => ProofKind::Snark,
+            WorkerJob::Fri { .. } => ProofType::Fri,
+            WorkerJob::Snark { .. } => ProofType::Snark,
         }
     }
 }
@@ -43,31 +43,6 @@ pub enum ProverMode {
     FriSnark,
     /// Poll for ready FRI proofs, run the SNARK wrapper, submit SNARK proofs.
     SnarkOnly,
-}
-
-/// Which phase of the pipeline an outcome came from.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ProofKind {
-    Fri,
-    Snark,
-}
-
-impl std::fmt::Display for ProofKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ProofKind::Fri => f.write_str("FRI"),
-            ProofKind::Snark => f.write_str("SNARK"),
-        }
-    }
-}
-
-impl From<ProofKind> for ProofType {
-    fn from(kind: ProofKind) -> Self {
-        match kind {
-            ProofKind::Fri => ProofType::Fri,
-            ProofKind::Snark => ProofType::Snark,
-        }
-    }
 }
 
 /// Successful proving outcome emitted by the prover worker. Failures travel
@@ -88,10 +63,10 @@ pub enum ProofOutcome {
 }
 
 impl ProofOutcome {
-    pub fn kind(&self) -> ProofKind {
+    pub fn kind(&self) -> ProofType {
         match self {
-            ProofOutcome::Fri { .. } => ProofKind::Fri,
-            ProofOutcome::Snark { .. } => ProofKind::Snark,
+            ProofOutcome::Fri { .. } => ProofType::Fri,
+            ProofOutcome::Snark { .. } => ProofType::Snark,
         }
     }
 }
@@ -101,13 +76,13 @@ impl ProofOutcome {
 /// inspecting the success type.
 pub struct FailedProof {
     pub batch_number: u32,
-    pub kind: ProofKind,
+    pub kind: ProofType,
     /// Full anyhow error chain (`{err:#}`) captured at the point of failure.
     pub reason: String,
 }
 
 impl FailedProof {
-    pub fn new(batch_number: u32, kind: ProofKind, err: anyhow::Error) -> Self {
+    pub fn new(batch_number: u32, kind: ProofType, err: anyhow::Error) -> Self {
         Self {
             batch_number,
             kind,

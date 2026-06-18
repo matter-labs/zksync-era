@@ -25,13 +25,15 @@ type RequestResult = Result<(), (Option<reqwest::StatusCode>, anyhow::Error)>;
 /// Stateless beyond its configured endpoints and HTTP clients — owns no
 /// scheduling, channels, or in-flight job state.
 pub struct JobServerClient {
-    /// Used for polling job inputs (shorter timeout).
-    poll_client: reqwest::blocking::Client,
-    /// Used for submitting proof results (longer timeout for large SNARK payloads).
-    submit_client: reqwest::blocking::Client,
+    /// One client for both polling and submitting; the per-request timeout
+    /// (`poll_timeout` for fetches, `submit_timeout` for submissions — the
+    /// latter is larger for big SNARK payloads) is applied per call.
+    client: reqwest::blocking::Client,
     server_url: String,
     prover_id: String,
     submit_attempts: usize,
+    poll_timeout: Duration,
+    submit_timeout: Duration,
 }
 
 impl JobServerClient {
@@ -43,22 +45,17 @@ impl JobServerClient {
         poll_timeout: Duration,
         submit_timeout: Duration,
     ) -> Result<Self> {
-        let poll_client = reqwest::blocking::Client::builder()
+        let client = reqwest::blocking::Client::builder()
             .connect_timeout(connection_timeout)
-            .timeout(poll_timeout)
             .build()
-            .context("while building poll HTTP client")?;
-        let submit_client = reqwest::blocking::Client::builder()
-            .connect_timeout(connection_timeout)
-            .timeout(submit_timeout)
-            .build()
-            .context("while building submit HTTP client")?;
+            .context("while building HTTP client")?;
         Ok(Self {
-            poll_client,
-            submit_client,
+            client,
             server_url,
             prover_id,
             submit_attempts,
+            poll_timeout,
+            submit_timeout,
         })
     }
 
@@ -178,8 +175,9 @@ impl JobServerClient {
     fn poll_json<R: DeserializeOwned>(&self, path: &str, label: &str) -> Result<Option<R>> {
         let url = format!("{}{path}", self.server_url);
         let response = self
-            .poll_client
+            .client
             .post(&url)
+            .timeout(self.poll_timeout)
             .send()
             .with_context(|| format!("while polling {url}"))?;
         match response.status() {
@@ -207,8 +205,9 @@ impl JobServerClient {
     ) -> RequestResult {
         let url = format!("{}{path}", self.server_url);
         let response = self
-            .submit_client
+            .client
             .post(&url)
+            .timeout(self.submit_timeout)
             .json(payload)
             .send()
             .with_context(|| format!("while submitting {label} proof to {url}"))
@@ -261,7 +260,12 @@ impl JobServerClient {
                     );
                     last_err = err;
                     if attempt < attempts {
-                        std::thread::sleep(Duration::from_millis(100));
+                        // Exponential backoff: 100ms, 200ms, 400ms, … capped at
+                        // 5s, so a 5xx storm isn't hammered with near-instant
+                        // retries.
+                        let backoff = Duration::from_millis(100 * (1u64 << (attempt - 1)))
+                            .min(Duration::from_secs(5));
+                        std::thread::sleep(backoff);
                     }
                 }
             }

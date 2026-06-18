@@ -8,7 +8,7 @@ use tracing::{debug, error, info, warn};
 use zksync_prover_metrics::{ProofType, METRICS};
 
 use crate::client::JobServerClient;
-use crate::types::{ProofKind, ProofOutcome, ProverMode, ProverResult, WorkerJob};
+use crate::types::{ProofOutcome, ProverMode, ProverResult, WorkerJob};
 
 /// Orchestrates the network side of the prover: fetches jobs from the
 /// [`JobServerClient`], forwards them to the prover thread, and submits
@@ -96,7 +96,7 @@ impl JobWorker {
                 match self.fetch_job() {
                     Ok(Some(job)) => {
                         info!(batch_number = job.batch_number(), kind = %job.kind(), "Received job");
-                        METRICS.pending_jobs[&ProofType::from(job.kind())].inc_by(1);
+                        METRICS.pending_jobs[&job.kind()].inc_by(1);
                         self.pending_job = Some(job);
                         did_work = true;
                     }
@@ -152,7 +152,7 @@ impl JobWorker {
             Ok(o) => o.kind(),
             Err(f) => f.kind,
         };
-        METRICS.pending_jobs[&ProofType::from(kind)].dec_by(1);
+        METRICS.pending_jobs[&kind].dec_by(1);
         let batch_number = match outcome {
             Ok(ProofOutcome::Fri {
                 batch_number,
@@ -189,10 +189,10 @@ impl JobWorker {
                     "Prover job failed; reporting to server",
                 );
                 match failure.kind {
-                    ProofKind::Fri => self
+                    ProofType::Fri => self
                         .client
                         .submit_fri_error(failure.batch_number, &failure.reason)?,
-                    ProofKind::Snark => self
+                    ProofType::Snark => self
                         .client
                         .submit_snark_error(failure.batch_number, &failure.reason)?,
                 }

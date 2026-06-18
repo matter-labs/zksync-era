@@ -15,11 +15,15 @@
 //! copy.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+
+use anyhow::{Context, Result};
+use flate2::read::GzDecoder;
 
 use axum::{
     extract::{DefaultBodyLimit, State},
@@ -37,9 +41,8 @@ use eravm_prover_host::{
     default_trusted_setup_download_url, default_trusted_setup_path,
     download_trusted_setup_if_not_present, load_vk_from_disk, SnarkWrapperProof,
 };
-use zksync_airbender_verifier::types::V1AirbenderVerifierInput;
+use zksync_airbender_verifier::types::{AirbenderVerifierInput, V1AirbenderVerifierInput};
 use zksync_airbender_verifier::Verify;
-use zksync_cli_utils::{load_batch, BatchInputFile};
 
 const DEFAULT_FRI_PROOF_TIMEOUT: Duration = Duration::from_secs(20 * 60);
 // SNARK wrapping is the long pole on top of FRI; give it room.
@@ -654,6 +657,117 @@ fn load_fri_fixtures(dir: &std::path::Path) -> Vec<FriProofFixture> {
             }
         })
         .collect()
+}
+
+/// A repository-owned batch input file: its logical batch number and path.
+/// (Test-local; the production binary never loads the on-disk batch corpus.)
+struct BatchInputFile {
+    number: u64,
+    path: PathBuf,
+}
+
+/// Load and deserialize an `AirbenderVerifierInput` from a batch file.
+///
+/// Inputs are stored as hex-encoded framed bytes — first 4 bytes (big-endian
+/// `u32`) are the bincode payload length, followed by the payload padded out to
+/// a multiple of 4 bytes. Files may be plain `.bin` or gzipped `.bin.gz`
+/// (tracked in Git LFS).
+fn load_batch(batch_input: &BatchInputFile) -> Result<AirbenderVerifierInput> {
+    let raw = read_batch_text(&batch_input.path)
+        .with_context(|| format!("while attempting to read {}", batch_input.path.display()))?;
+    let mut bytes = parse_hex_bytes(&raw).with_context(|| {
+        format!(
+            "while attempting to parse hex bytes for batch {} from {}",
+            batch_input.number,
+            batch_input.path.display()
+        )
+    })?;
+    anyhow::ensure!(
+        bytes.len() >= 4,
+        "batch {}: framed payload too short ({} bytes)",
+        batch_input.number,
+        bytes.len()
+    );
+    let byte_len = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize;
+    bytes.drain(..4);
+    anyhow::ensure!(
+        bytes.len() >= byte_len,
+        "batch {}: declared length {byte_len} exceeds available bytes {}",
+        batch_input.number,
+        bytes.len()
+    );
+    bytes.truncate(byte_len);
+
+    let (input, decoded_len): (AirbenderVerifierInput, usize) =
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard())
+            .with_context(|| format!("while decoding batch {} as bincode", batch_input.number))?;
+    anyhow::ensure!(
+        decoded_len == bytes.len(),
+        "batch {}: trailing bytes after bincode decode ({decoded_len} of {})",
+        batch_input.number,
+        bytes.len(),
+    );
+    Ok(input)
+}
+
+fn read_batch_text(batch_path: &Path) -> Result<String> {
+    match batch_path.extension().and_then(|ext| ext.to_str()) {
+        Some("bin") => std::fs::read_to_string(batch_path)
+            .with_context(|| format!("while attempting to read {}", batch_path.display())),
+        Some("gz") => read_gzip_batch_text(batch_path),
+        _ => anyhow::bail!(
+            "unsupported batch input path {}, expected a .bin or .bin.gz file",
+            batch_path.display()
+        ),
+    }
+}
+
+fn read_gzip_batch_text(batch_path: &Path) -> Result<String> {
+    let compressed_bytes = std::fs::read(batch_path)
+        .with_context(|| format!("while attempting to read {}", batch_path.display()))?;
+
+    const GIT_LFS_POINTER_PREFIX: &str = "version https://git-lfs.github.com/spec/v1";
+    if compressed_bytes.starts_with(GIT_LFS_POINTER_PREFIX.as_bytes()) {
+        anyhow::bail!(
+            "{} is still a Git LFS pointer; pull the matching LFS object before retrying",
+            batch_path.display()
+        );
+    }
+
+    let mut decoder = GzDecoder::new(compressed_bytes.as_slice());
+    let mut raw = String::new();
+    decoder.read_to_string(&mut raw).with_context(|| {
+        format!(
+            "while attempting to decompress UTF-8 text from {}",
+            batch_path.display()
+        )
+    })?;
+    Ok(raw)
+}
+
+fn parse_hex_bytes(raw: &str) -> Result<Vec<u8>> {
+    let mut compact: String = raw.chars().filter(|ch| !ch.is_whitespace()).collect();
+    if let Some(stripped) = compact.strip_prefix("0x") {
+        compact = stripped.to_owned();
+    }
+
+    anyhow::ensure!(!compact.is_empty(), "batch payload is empty");
+    // Files are stored in 8-hex-char (= 4-byte) words; require alignment so we
+    // catch truncated files early.
+    anyhow::ensure!(
+        compact.len().is_multiple_of(8),
+        "batch payload length must be a multiple of 8 hex characters (got {})",
+        compact.len()
+    );
+
+    let mut bytes = Vec::with_capacity(compact.len() / 2);
+    for chunk in compact.as_bytes().chunks(2) {
+        let s = std::str::from_utf8(chunk).context("while decoding hex chunk as UTF-8")?;
+        let byte =
+            u8::from_str_radix(s, 16).with_context(|| format!("while parsing hex byte `{s}`"))?;
+        bytes.push(byte);
+    }
+    Ok(bytes)
 }
 
 /// Loads a batch from the LFS corpus and returns the verifier input plus the
