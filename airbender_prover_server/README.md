@@ -10,7 +10,7 @@ This is its own Cargo workspace with independent versioning (release-please comp
 
 ## Layout
 
-- `crates/bin/prover_server` — the `eravm-prover-server` binary.
+- `src/` — the `eravm-prover-server` binary (the workspace root is also this package).
 - `crates/lib/prover_metrics` — Prometheus (`vise`) metrics.
 - `crates/lib/cli_utils` — shared `init_tracing` (with optional Sentry layer).
 - `guest/dist/app/{app.bin,app.text}` — the vendored Airbender guest program.

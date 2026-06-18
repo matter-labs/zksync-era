@@ -329,7 +329,7 @@ fn default_prover_id() -> String {
 /// Cargo git checkout. We vendor the artifacts instead and point at them.
 /// Override at runtime with `--guest-dist-dir` or `PROVER_GUEST_DIST_DIR`.
 fn default_dist_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../guest/dist/app")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("guest/dist/app")
 }
 
 /// Compile-time fallback path to the committed FRI verification key.
@@ -339,12 +339,12 @@ fn default_dist_dir() -> PathBuf {
 /// `default_fri_vk_path()`, which would resolve into the Cargo git checkout.
 /// Override at runtime with `--fri-vk` or `FRI_VK`.
 fn default_fri_vk_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../vks/fri_vk.bin")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vks/fri_vk.bin")
 }
 
 /// Compile-time fallback path to the committed SNARK verification key, vendored
 /// at `airbender_prover_server/vks/snark_vk.json` (mirrors [`default_fri_vk_path`]).
 /// Override at runtime with `--snark-vk` or `SNARK_VK`.
 fn default_snark_vk_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../vks/snark_vk.json")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vks/snark_vk.json")
 }

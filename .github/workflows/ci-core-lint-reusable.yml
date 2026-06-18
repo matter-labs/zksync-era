@@ -28,15 +28,8 @@ jobs:
         run: |
           MISSING_ANY=false
           for FILE in ${ADDED_FILES}; do
-            PACKAGE_NAME="$(yq -oy .package.name ${FILE})"
-            # Virtual/workspace manifests (e.g. a new workspace root with only
-            # `[workspace]`) have no `[package]`, so there is nothing to publish
-            # and no required fields to check — skip them.
-            if [ -z "${PACKAGE_NAME}" ] || [ "${PACKAGE_NAME}" = "null" ]; then
-              echo "↪️  Skipping virtual/workspace manifest (no [package]): ${FILE}"
-              continue
-            fi
             echo "✅ New crate added: ${FILE}"
+            PACKAGE_NAME="$(yq -oy .package.name ${FILE})"
             echo "Checking required fields fields for a new package ${PACKAGE_NAME}..."
             MISSING_FIELDS=""
             for FIELD in ${REQUIRED_FIELDS}; do
