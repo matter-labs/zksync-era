@@ -93,7 +93,8 @@ impl EventHandler for ProofRequestAcknowledgedHandler {
         };
 
         let assigned_to =
-            ProvingNetwork::from_u256(h256_to_u256(*log.topics.get(3).context("missing topic 3")?));
+            ProvingNetwork::from_u256(h256_to_u256(*log.topics.get(3).context("missing topic 3")?))
+                .context("invalid assigned_to in ProofRequestAcknowledged event")?;
 
         let event = ProofRequestAcknowledged {
             chain_id,
