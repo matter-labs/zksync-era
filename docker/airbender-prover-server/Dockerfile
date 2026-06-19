@@ -81,12 +81,11 @@ RUN mkdir -p /setup \
 # source change.
 COPY . .
 
-# Guard against a build context missing the vendored guest binary. The guest is
-# not built here — `guest/dist/app/app.bin` is vendored into the workspace and
-# refreshed when the upstream guest changes.
-RUN test -f guest/dist/app/app.bin \
-    || (echo "ERROR: guest/dist/app/app.bin missing from build context." \
-             "It is vendored into airbender_prover_server/; re-vendor it from the verifier repo." >&2; exit 1)
+# The guest program (`guest/dist/app/{app.bin,app.text}`) and verification keys
+# (`vks/`) are NOT in the build context — they are gitignored and downloaded by
+# the server crate's `build.rs` from the pinned `zksync_airbender_verifier`
+# GitHub release during the `cargo build` below, so no guard/vendoring step is
+# needed here. A failed download fails `cargo build` loudly.
 
 # Step 5: build the server binary (FRI on GPU + SNARK wrapper on GPU). BuildKit
 # cache mounts persist cargo's registry, git, and target dirs across builds.
