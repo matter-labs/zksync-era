@@ -322,24 +322,22 @@ fn default_prover_id() -> String {
 
 /// Compile-time fallback path to the guest program (`app.bin` / `app.text`).
 ///
-/// Resolves to the guest artifacts vendored into this workspace at
-/// `airbender_prover_server/guest/dist/app`. Unlike the verifier repo — where
-/// the guest lived next to the host crate — `eravm-prover-host` is consumed
-/// here as a git dependency, so its own `dist_dir()` would resolve into the
-/// Cargo git checkout. We vendor the artifacts instead and point at them.
-/// Override at runtime with `--guest-dist-dir` or `PROVER_GUEST_DIST_DIR`.
+/// `build.rs` downloads the guest artifacts from the GitHub release matching the
+/// pinned `zksync_airbender_verifier` version and exports their directory as
+/// `AIRBENDER_GUEST_DIST_DIR`, which we bake in here. (They are no longer
+/// committed to the repo, so they can't drift from the verifier we compile
+/// against.) Override at runtime with `--guest-dist-dir` or `PROVER_GUEST_DIST_DIR`.
 fn default_dist_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("guest/dist/app")
+    PathBuf::from(env!("AIRBENDER_GUEST_DIST_DIR"))
 }
 
-/// Compile-time fallback path to the committed FRI verification key.
+/// Compile-time fallback path to the FRI verification key.
 ///
-/// Resolves to `airbender_prover_server/vks/fri_vk.bin`, vendored alongside the
-/// guest binary it was derived from. Replaces `eravm-prover-host`'s
-/// `default_fri_vk_path()`, which would resolve into the Cargo git checkout.
-/// Override at runtime with `--fri-vk` or `FRI_VK`.
+/// Like the guest program, `build.rs` downloads `fri_vk.bin` from the matching
+/// verifier release and exports its path as `AIRBENDER_FRI_VK`. Override at
+/// runtime with `--fri-vk` or `FRI_VK`.
 fn default_fri_vk_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vks/fri_vk.bin")
+    PathBuf::from(env!("AIRBENDER_FRI_VK"))
 }
 
 /// Compile-time fallback path to the committed SNARK verification key, vendored

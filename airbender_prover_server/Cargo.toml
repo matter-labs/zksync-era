@@ -35,6 +35,13 @@ zksync_airbender_verifier.workspace = true
 zksync_cli_utils = { workspace = true, features = ["sentry"] }
 zksync_prover_metrics.workspace = true
 
+[build-dependencies]
+# `build.rs` reads `cargo metadata` (parsed with serde_json) to find the pinned
+# `zksync_airbender_verifier` release, then downloads the guest program + FRI VK
+# from that release with reqwest's blocking client.
+reqwest = { workspace = true, features = ["blocking"] }
+serde_json.workspace = true
+
 [dev-dependencies]
 # Test-only deps for the (GPU/corpus-gated, `#[ignore]`d) integration test, which
 # spawns the built binary and serves batches via a local axum mock of the data

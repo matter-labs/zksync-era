@@ -1,8 +1,10 @@
 /target
 
-# The repo-wide .gitignore excludes any `dist` directory, but the guest program
-# artifacts are intentionally vendored here. Re-include them.
-!/guest/dist
-!/guest/dist/app
-!/guest/dist/app/app.bin
-!/guest/dist/app/app.text
+# Guest program and FRI VK are downloaded at build time by `build.rs` from the
+# matching `zksync_airbender_verifier` release — never committed. The repo-wide
+# .gitignore already excludes `dist`; we additionally exclude the downloaded
+# FRI VK and the per-file `.tag` cache markers `build.rs` writes. `snark_vk.json`
+# stays committed (it is not published as a release asset).
+/vks/fri_vk.bin
+/vks/*.tag
+/guest/dist/app/*.tag
