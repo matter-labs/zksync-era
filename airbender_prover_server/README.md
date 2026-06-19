@@ -15,16 +15,16 @@ This is its own Cargo workspace with independent versioning (release-please comp
 - `crates/lib/cli_utils` — shared `init_tracing` (with optional Sentry layer).
 - `guest/dist/app/{app.bin,app.text}` — the Airbender guest program (downloaded at build time, gitignored).
 - `vks/fri_vk.bin` — the FRI verification key (downloaded at build time, gitignored).
-- `vks/snark_vk.json` — the SNARK wrapper verification key (committed).
+- `vks/snark_vk.json` — the SNARK wrapper verification key (downloaded at build time, gitignored).
 
-`app.bin`, `app.text`, and `fri_vk.bin` are **not committed**. [`build.rs`](build.rs) reads `cargo metadata` to find the
-pinned `zksync_airbender_verifier` version, then downloads these artifacts from that version's GitHub release into
-`guest/dist/app` / `vks/`. This keeps them locked to the exact verifier code we compile against — bumping the
-`zksync_airbender_verifier` pin automatically re-fetches the matching artifacts on the next build.
+None of these artifacts are **committed**. [`build.rs`](build.rs) reads `cargo metadata` to find the pinned
+`zksync_airbender_verifier` version, then downloads them from that version's GitHub release into `guest/dist/app` /
+`vks/`. This keeps them locked to the exact verifier code we compile against — bumping the `zksync_airbender_verifier`
+pin automatically re-fetches the matching artifacts on the next build.
 
 Downloads are cached: a file is re-fetched only when the pinned version changes. For offline / air-gapped builds, set
-`AIRBENDER_GUEST_DIST_DIR` and/or `AIRBENDER_FRI_VK` in the build environment to point at prebuilt artifacts and the
-corresponding download is skipped.
+`AIRBENDER_GUEST_DIST_DIR`, `AIRBENDER_FRI_VK`, and/or `AIRBENDER_SNARK_VK` in the build environment to point at
+prebuilt artifacts and the corresponding download is skipped.
 
 ## Modes
 
@@ -36,14 +36,14 @@ Selected with `--mode` / `PROVER_MODE`:
 
 ## Key configuration
 
-| Flag               | Env                     | Default                     |
-| ------------------ | ----------------------- | --------------------------- |
-| `--server-url`     | `PROVER_SERVER_URL`     | (required)                  |
-| `--mode`           | `PROVER_MODE`           | `fri-only`                  |
-| `--fri-vk`         | `FRI_VK`                | downloaded `vks/fri_vk.bin` |
-| `--snark-vk`       | `SNARK_VK`              | —                           |
-| `--guest-dist-dir` | `PROVER_GUEST_DIST_DIR` | downloaded `guest/dist/app` |
-| `--metrics-port`   | —                       | off                         |
+| Flag               | Env                     | Default                        |
+| ------------------ | ----------------------- | ------------------------------ |
+| `--server-url`     | `PROVER_SERVER_URL`     | (required)                     |
+| `--mode`           | `PROVER_MODE`           | `fri-only`                     |
+| `--fri-vk`         | `FRI_VK`                | downloaded `vks/fri_vk.bin`    |
+| `--snark-vk`       | `SNARK_VK`              | downloaded `vks/snark_vk.json` |
+| `--guest-dist-dir` | `PROVER_GUEST_DIST_DIR` | downloaded `guest/dist/app`    |
+| `--metrics-port`   | —                       | off                            |
 
 The server loads VKs from disk and never derives them on the fly.
 

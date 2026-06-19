@@ -340,9 +340,12 @@ fn default_fri_vk_path() -> PathBuf {
     PathBuf::from(env!("AIRBENDER_FRI_VK"))
 }
 
-/// Compile-time fallback path to the committed SNARK verification key, vendored
-/// at `airbender_prover_server/vks/snark_vk.json` (mirrors [`default_fri_vk_path`]).
-/// Override at runtime with `--snark-vk` or `SNARK_VK`.
+/// Compile-time fallback path to the SNARK wrapper verification key.
+///
+/// Like the guest program and FRI VK, `build.rs` downloads `snark_vk.json` from
+/// the matching verifier release and exports its path as `AIRBENDER_SNARK_VK`
+/// (mirrors [`default_fri_vk_path`]). Override at runtime with `--snark-vk` or
+/// `SNARK_VK`.
 fn default_snark_vk_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vks/snark_vk.json")
+    PathBuf::from(env!("AIRBENDER_SNARK_VK"))
 }

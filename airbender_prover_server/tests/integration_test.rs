@@ -473,7 +473,8 @@ fn fri_vk_path() -> PathBuf {
 fn snark_vk_path() -> PathBuf {
     std::env::var_os("IT_SNARK_VK")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vks/snark_vk.json"))
+        // `build.rs` downloads the SNARK VK and bakes its path in here.
+        .unwrap_or_else(|| PathBuf::from(env!("AIRBENDER_SNARK_VK")))
 }
 
 /// CRS used by the SNARK wrapper. The build's `gpu_snark` feature picks the

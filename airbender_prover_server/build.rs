@@ -37,6 +37,7 @@ fn main() {
     println!("cargo:rerun-if-changed=Cargo.lock");
     println!("cargo:rerun-if-env-changed=AIRBENDER_GUEST_DIST_DIR");
     println!("cargo:rerun-if-env-changed=AIRBENDER_FRI_VK");
+    println!("cargo:rerun-if-env-changed=AIRBENDER_SNARK_VK");
 
     let manifest_dir = PathBuf::from(env_var("CARGO_MANIFEST_DIR"));
 
@@ -65,12 +66,23 @@ fn main() {
         }
     };
 
+    // SNARK wrapper verification key: `vks/snark_vk.json`.
+    let snark_vk = match std::env::var_os("AIRBENDER_SNARK_VK") {
+        Some(path) => PathBuf::from(path),
+        None => {
+            let path = manifest_dir.join("vks/snark_vk.json");
+            ensure_artifact(&release, "snark_vk.json", &path);
+            path
+        }
+    };
+
     // Bake the resolved locations in as compile-time defaults for `main.rs`.
     println!(
         "cargo:rustc-env=AIRBENDER_GUEST_DIST_DIR={}",
         guest_dir.display()
     );
     println!("cargo:rustc-env=AIRBENDER_FRI_VK={}", fri_vk.display());
+    println!("cargo:rustc-env=AIRBENDER_SNARK_VK={}", snark_vk.display());
 }
 
 /// A resolved GitHub release to download artifacts from.
@@ -101,9 +113,9 @@ fn resolve_release() -> Release {
             panic!("cargo metadata: package `{VERIFIER_PACKAGE}` not found in dependency graph")
         });
 
-    let source = package["source"]
-        .as_str()
-        .unwrap_or_else(|| panic!("`{VERIFIER_PACKAGE}` has no `source` (is it a path dependency?)"));
+    let source = package["source"].as_str().unwrap_or_else(|| {
+        panic!("`{VERIFIER_PACKAGE}` has no `source` (is it a path dependency?)")
+    });
     let version = package["version"]
         .as_str()
         .unwrap_or_else(|| panic!("`{VERIFIER_PACKAGE}` has no `version`"));
@@ -152,10 +164,9 @@ fn parse_git_repo(source: &str) -> String {
 fn tag_from_source(source: &str) -> Option<String> {
     let query = source.split('?').nth(1)?;
     let query = query.split('#').next().unwrap_or(query);
-    query.split('&').find_map(|kv| {
-        kv.strip_prefix("tag=")
-            .map(|t| t.to_owned())
-    })
+    query
+        .split('&')
+        .find_map(|kv| kv.strip_prefix("tag=").map(|t| t.to_owned()))
 }
 
 /// Download `asset` to `dest` unless a usable copy is already cached there.
@@ -200,8 +211,8 @@ fn read_marker(marker: &Path) -> Option<String> {
 
 /// Blocking GET that fails the build on any non-success status.
 fn download(url: &str) -> Vec<u8> {
-    let response = reqwest::blocking::get(url)
-        .unwrap_or_else(|e| panic!("request to {url} failed: {e}"));
+    let response =
+        reqwest::blocking::get(url).unwrap_or_else(|e| panic!("request to {url} failed: {e}"));
     let status = response.status();
     assert!(
         status.is_success(),
