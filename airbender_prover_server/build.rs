@@ -1,29 +1,10 @@
-//! Build-time fetch of the Airbender guest program and FRI verification key.
-//!
-//! The guest artifacts (`app.bin` / `app.text`) and the FRI verification key
-//! (`fri_vk.bin`) are **not** committed to this repo. Instead they are pulled
-//! from the GitHub release of `zksync_airbender_verifier` that matches the
-//! version this crate pins, so the artifacts can never drift out of sync with
-//! the verifier code we compile against.
-//!
-//! Flow:
-//! 1. Read `cargo metadata` and find the `zksync_airbender_verifier` package.
-//!    Its source spec encodes the git repository and the pinned ref; the
-//!    release tag is taken from an explicit `?tag=` if present, otherwise
-//!    derived from the package version (`v{version}`, the release-please tag
-//!    convention used by the verifier repo).
-//! 2. Download each artifact from
-//!    `https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>` into a
-//!    local cache (`guest/dist/app` and `vks/`). Downloads are skipped when the
-//!    file is already present for the same tag, so incremental builds don't
-//!    re-fetch.
-//! 3. Export the resolved paths as `AIRBENDER_GUEST_DIST_DIR` / `AIRBENDER_FRI_VK`
-//!    so `main.rs` can bake them in as the compile-time default locations.
-//!
-//! Escape hatches (for offline / air-gapped / prebuilt-artifact builds): set
-//! `AIRBENDER_GUEST_DIST_DIR` and/or `AIRBENDER_FRI_VK` in the build environment
-//! to point at existing files; the corresponding download is then skipped and
-//! the provided path is re-exported verbatim.
+//! Downloads the guest program + verification keys from the GitHub release of
+//! `zksync_airbender_verifier` matching the version this crate pins, so they
+//! never drift from the verifier code we compile against and need not be
+//! committed. The resolved paths are exported as `AIRBENDER_GUEST_DIST_DIR` /
+//! `AIRBENDER_FRI_VK` / `AIRBENDER_SNARK_VK` for `main.rs` to bake in as
+//! defaults. Set any of those env vars at build time to use prebuilt files and
+//! skip the corresponding download (offline / air-gapped builds).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -40,14 +21,11 @@ fn main() {
     println!("cargo:rerun-if-env-changed=AIRBENDER_SNARK_VK");
 
     let manifest_dir = PathBuf::from(env_var("CARGO_MANIFEST_DIR"));
-
-    // Resolve where the verifier release lives from cargo metadata.
     let release = resolve_release();
 
     // Guest program: `guest/dist/app/{app.bin,app.text}`.
     let guest_dir = match std::env::var_os("AIRBENDER_GUEST_DIST_DIR") {
-        // Operator override: trust the provided directory as-is.
-        Some(dir) => PathBuf::from(dir),
+        Some(dir) => PathBuf::from(dir), // override: trust as-is.
         None => {
             let dir = manifest_dir.join("guest/dist/app");
             ensure_artifact(&release, "app.bin", &dir.join("app.bin"));
@@ -76,7 +54,7 @@ fn main() {
         }
     };
 
-    // Bake the resolved locations in as compile-time defaults for `main.rs`.
+    // Export the resolved locations as `main.rs`'s compile-time defaults.
     println!(
         "cargo:rustc-env=AIRBENDER_GUEST_DIST_DIR={}",
         guest_dir.display()
@@ -100,8 +78,7 @@ impl Release {
     }
 }
 
-/// Inspect `cargo metadata` to find the verifier package and derive the release
-/// repo + tag it corresponds to.
+/// Find the verifier package in `cargo metadata` and derive its release.
 fn resolve_release() -> Release {
     let metadata = run_cargo_metadata();
     let package = metadata["packages"]
@@ -121,16 +98,13 @@ fn resolve_release() -> Release {
         .unwrap_or_else(|| panic!("`{VERIFIER_PACKAGE}` has no `version`"));
 
     let repo_url = parse_git_repo(source);
-    // Prefer an explicit `?tag=`; otherwise fall back to the release-please tag
-    // convention (`v{version}`). Either way the artifacts track the exact
-    // verifier version we compile against.
+    // An explicit `?tag=`, else the release-please convention `v{version}`.
     let tag = tag_from_source(source).unwrap_or_else(|| format!("v{version}"));
 
     Release { repo_url, tag }
 }
 
-/// Run `cargo metadata` and parse it as JSON. Uses the `CARGO` cargo sets for
-/// build scripts so the right toolchain is invoked.
+/// Run `cargo metadata` and parse it as JSON.
 fn run_cargo_metadata() -> serde_json::Value {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     let output = Command::new(cargo)
@@ -146,13 +120,13 @@ fn run_cargo_metadata() -> serde_json::Value {
     serde_json::from_slice(&output.stdout).expect("failed to parse `cargo metadata` JSON")
 }
 
-/// Extract the base repo URL from a cargo git source spec such as
-/// `git+https://github.com/matter-labs/eravm-airbender-verifier?rev=abc#abc`.
+/// Base repo URL from a cargo git source spec like
+/// `git+https://github.com/owner/repo?rev=abc#abc`.
 fn parse_git_repo(source: &str) -> String {
     let url = source
         .strip_prefix("git+")
         .unwrap_or_else(|| panic!("`{VERIFIER_PACKAGE}` source is not a git dependency: {source}"));
-    // Drop the `?query` and `#fragment` parts, then a trailing `.git`.
+    // Drop `?query` / `#fragment`, then a trailing `.git`.
     let url = url.split(['?', '#']).next().unwrap_or(url);
     url.strip_suffix(".git")
         .unwrap_or(url)
@@ -169,13 +143,10 @@ fn tag_from_source(source: &str) -> Option<String> {
         .find_map(|kv| kv.strip_prefix("tag=").map(|t| t.to_owned()))
 }
 
-/// Download `asset` to `dest` unless a usable copy is already cached there.
-///
-/// A sibling `<dest>.tag` marker records which release a downloaded file came
-/// from. We skip the download when the file exists *and* either has no marker
-/// (a pre-existing / operator-placed copy we trust) or a marker matching the
-/// current tag. We only re-download when a marker is present but records a
-/// *different* tag — i.e. the verifier pin moved since we last fetched.
+/// Download `asset` to `dest` unless already cached. A sibling `<dest>.tag`
+/// marker records the release a download came from: we re-fetch only when the
+/// marker records a *different* tag (the pin moved). A file with no marker (a
+/// pre-existing / operator-placed copy) is trusted as-is.
 fn ensure_artifact(release: &Release, asset: &str, dest: &Path) {
     let marker = dest.with_extension(format!(
         "{}.tag",

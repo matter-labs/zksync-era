@@ -36,9 +36,8 @@ zksync_cli_utils = { workspace = true, features = ["sentry"] }
 zksync_prover_metrics.workspace = true
 
 [build-dependencies]
-# `build.rs` reads `cargo metadata` (parsed with serde_json) to find the pinned
-# `zksync_airbender_verifier` release, then downloads the guest program + FRI VK
-# from that release with reqwest's blocking client.
+# `build.rs` reads `cargo metadata` (serde_json) to find the pinned verifier
+# release, then downloads the artifacts with reqwest's blocking client.
 reqwest = { workspace = true, features = ["blocking"] }
 serde_json.workspace = true
 
@@ -103,11 +102,9 @@ vise-exporter = "0.3.2"
 # workspace dep — a member's `default-features = false` is otherwise ignored.
 airbender-host = { git = "https://github.com/matter-labs/airbender-platform", tag = "v0.2.3", default-features = false }
 
-# Crates consumed from the eravm-airbender-verifier repo, pinned to the released
-# tag `v29.8.0`. `build.rs` derives this same tag from cargo metadata and
-# downloads the matching guest program (`app.bin`/`app.text`) + FRI VK from that
-# release, so the baked-in artifacts always track the verifier code we compile
-# against.
+# eravm-airbender-verifier crates, pinned to the released tag `v29.8.0`.
+# `build.rs` derives this tag from cargo metadata and downloads the matching
+# artifacts, so they track the verifier code we compile against.
 # `default-features = false` drops the host crate's default `gpu_fri`; the
 # server re-enables it via its own `gpu_fri` feature. Set on the workspace dep
 # so a member's `default-features = false` isn't ignored.

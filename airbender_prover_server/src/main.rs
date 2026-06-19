@@ -320,31 +320,20 @@ fn default_prover_id() -> String {
     std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_owned())
 }
 
-/// Compile-time fallback path to the guest program (`app.bin` / `app.text`).
-///
-/// `build.rs` downloads the guest artifacts from the GitHub release matching the
-/// pinned `zksync_airbender_verifier` version and exports their directory as
-/// `AIRBENDER_GUEST_DIST_DIR`, which we bake in here. (They are no longer
-/// committed to the repo, so they can't drift from the verifier we compile
-/// against.) Override at runtime with `--guest-dist-dir` or `PROVER_GUEST_DIST_DIR`.
+/// Default guest program dir (`app.bin` / `app.text`), downloaded by `build.rs`
+/// from the matching verifier release. Override with `--guest-dist-dir` /
+/// `PROVER_GUEST_DIST_DIR`.
 fn default_dist_dir() -> PathBuf {
     PathBuf::from(env!("AIRBENDER_GUEST_DIST_DIR"))
 }
 
-/// Compile-time fallback path to the FRI verification key.
-///
-/// Like the guest program, `build.rs` downloads `fri_vk.bin` from the matching
-/// verifier release and exports its path as `AIRBENDER_FRI_VK`. Override at
-/// runtime with `--fri-vk` or `FRI_VK`.
+/// Default FRI VK path, downloaded by `build.rs`. Override with `--fri-vk` /
+/// `FRI_VK`.
 fn default_fri_vk_path() -> PathBuf {
     PathBuf::from(env!("AIRBENDER_FRI_VK"))
 }
 
-/// Compile-time fallback path to the SNARK wrapper verification key.
-///
-/// Like the guest program and FRI VK, `build.rs` downloads `snark_vk.json` from
-/// the matching verifier release and exports its path as `AIRBENDER_SNARK_VK`
-/// (mirrors [`default_fri_vk_path`]). Override at runtime with `--snark-vk` or
+/// Default SNARK VK path, downloaded by `build.rs`. Override with `--snark-vk` /
 /// `SNARK_VK`.
 fn default_snark_vk_path() -> PathBuf {
     PathBuf::from(env!("AIRBENDER_SNARK_VK"))
