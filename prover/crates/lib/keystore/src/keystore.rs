@@ -29,6 +29,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use shivini::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
+#[cfg(feature = "circuit-prover")]
 use zksync_circuit_prover_service::types::setup_data::GoldilocksProverSetupData;
 #[cfg(any(feature = "gpu", feature = "gpu-light"))]
 use zksync_circuit_prover_service::types::setup_data::{
@@ -413,6 +414,7 @@ impl Keystore {
     // Setup keys
     //
 
+    #[cfg(feature = "circuit-prover")]
     pub fn load_cpu_setup_data_for_circuit_type(
         &self,
         key: ProverServiceDataKey,

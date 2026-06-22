@@ -13,8 +13,8 @@ categories.workspace = true
 zksync_basic_types.workspace = true
 zksync_utils.workspace = true
 zksync_prover_fri_types.workspace = true
-zksync_witness_generator_service.workspace = true
-zksync_circuit_prover_service.workspace = true
+zksync_witness_generator_service = { workspace = true, optional = true }
+zksync_circuit_prover_service = { workspace = true, optional = true }
 zkevm_test_harness.workspace = true
 zksync_types.workspace = true
 circuit_definitions = { workspace = true, features = ["log_tracing"] }
@@ -37,6 +37,11 @@ futures = { workspace = true, features = ["compat"] }
 
 [features]
 default = []
-# feature to not compile era-bellman-cuda, but to be able to use GPU features
-gpu-light = ["dep:shivini", "dep:boojum-cuda"]
-gpu = ["dep:shivini", "dep:fflonk-gpu", "dep:boojum-cuda", "dep:proof-compression-gpu"]
+# Enables setup data loading (CPU proving) via zksync_circuit_prover_service.
+# Pulls in shivini -> CUDA transitive dependency.
+circuit-prover = ["dep:zksync_circuit_prover_service"]
+# Enables the VerificationKeyManager trait impl via zksync_witness_generator_service.
+witness-gen-service = ["dep:zksync_witness_generator_service"]
+# Feature to not compile era-bellman-cuda, but to be able to use GPU features.
+gpu-light = ["circuit-prover", "dep:shivini", "dep:boojum-cuda"]
+gpu = ["gpu-light", "witness-gen-service", "dep:fflonk-gpu", "dep:proof-compression-gpu"]
