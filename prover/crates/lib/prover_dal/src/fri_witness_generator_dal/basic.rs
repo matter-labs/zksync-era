@@ -13,7 +13,7 @@ use zksync_db_connection::{
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
-use crate::{fri_witness_generator_dal::FriWitnessJobStatus, Prover};
+use crate::{fri_witness_generator_dal::FriWitnessJobStatus, priority_for_chain, Prover};
 
 #[derive(Debug)]
 pub struct FriBasicWitnessGeneratorDal<'a, 'c> {
@@ -57,6 +57,7 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
             witness_inputs_fri (
                 l1_batch_number,
                 chain_id,
+                priority,
                 witness_inputs_blob_url,
                 protocol_version,
                 status,
@@ -66,11 +67,14 @@ impl FriBasicWitnessGeneratorDal<'_, '_> {
                 batch_sealed_at
             )
             VALUES
-            ($1, $2, $3, $4, 'queued', NOW(), NOW(), $5, $6)
-            ON CONFLICT (l1_batch_number, chain_id) DO NOTHING
+            ($1, $2, $3, $4, $5, 'queued', NOW(), NOW(), $6, $7)
+            ON CONFLICT (l1_batch_number, chain_id) DO UPDATE
+            SET
+                updated_at = NOW()
             "#,
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
+            priority_for_chain(batch_id.chain_id()),
             witness_inputs_blob_url,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
