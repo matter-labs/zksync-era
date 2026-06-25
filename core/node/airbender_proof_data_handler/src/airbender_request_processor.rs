@@ -25,7 +25,7 @@ use zksync_prover_interface::{
     inputs::{VMRunWitnessInputData, WitnessInputMerklePaths},
     outputs::L1BatchProofForL1,
 };
-use zksync_shared_resources::tree::TreeApiClient;
+use zksync_shared_resources::tree::{TreeApiClient, TreeEntryWithProof};
 use zksync_types::{
     blob::num_blobs_required, commitment::L1BatchCommitmentMode,
     witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId, U256,
@@ -329,8 +329,6 @@ impl AirbenderRequestProcessor {
         // Bind every slot the VM reads to `old_root_hash`: for view-domain slots
         // the committed `merkle_paths` omits (reverted-frame reads), fetch a
         // Merkle proof against the tree at N-1 (= old_root_hash for batch N).
-        // `gap` is kept past the `get_proofs` call because the returned proofs
-        // carry no key — we recover each `hashed_key` from the request order.
         let gap = read_proof_gap(&vm_run_data.witness_block_state, &merkle_paths);
         let read_proofs = if gap.is_empty() {
             Vec::new()
@@ -345,22 +343,7 @@ impl AirbenderRequestProcessor {
                         gap.len()
                     ))
                 })?;
-            if entries.len() != gap.len() {
-                return Err(AirbenderProcessorError::GeneralError(anyhow::anyhow!(
-                    "tree returned {} proofs for {} requested read-proof slots",
-                    entries.len(),
-                    gap.len()
-                )));
-            }
-            gap.into_iter()
-                .zip(entries)
-                .map(|(hashed_key, e)| ReadProof {
-                    hashed_key,
-                    value: e.value,
-                    enumeration_index: e.index,
-                    merkle_path: e.merkle_path,
-                })
-                .collect()
+            read_proofs_from_entries(gap, entries).map_err(AirbenderProcessorError::GeneralError)?
         };
 
         Ok(AirbenderVerifierInput {
@@ -690,6 +673,32 @@ fn read_proof_gap(
         .collect()
 }
 
+/// Pair tree proofs with the hashed keys they were requested for, into
+/// `ReadProof`s. `entries` come back from `get_proofs` in request order and carry
+/// no key, so we recover each `hashed_key` from `gap` by position; the length
+/// guard rejects a malformed (out-of-contract) tree response.
+fn read_proofs_from_entries(
+    gap: Vec<U256>,
+    entries: Vec<TreeEntryWithProof>,
+) -> anyhow::Result<Vec<ReadProof>> {
+    anyhow::ensure!(
+        entries.len() == gap.len(),
+        "tree returned {} proofs for {} requested read-proof slots",
+        entries.len(),
+        gap.len()
+    );
+    Ok(gap
+        .into_iter()
+        .zip(entries)
+        .map(|(hashed_key, e)| ReadProof {
+            hashed_key,
+            value: e.value,
+            enumeration_index: e.index,
+            merkle_path: e.merkle_path,
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_prover_interface::inputs::StorageLogMetadata;
@@ -741,5 +750,39 @@ mod tests {
             !gap.contains(&a.hashed_key_u256()),
             "a should NOT be in gap (already in merkle_paths)"
         );
+    }
+
+    #[test]
+    fn read_proofs_from_entries_pairs_by_position_and_guards_length() {
+        let gap = vec![U256::from(0xaau64), U256::from(0xbbu64)];
+        let entries = vec![
+            TreeEntryWithProof {
+                value: H256::from_low_u64_be(0x11),
+                index: 5,
+                merkle_path: vec![H256::zero()],
+            },
+            // An absent (empty) slot: value 0, index 0.
+            TreeEntryWithProof {
+                value: H256::zero(),
+                index: 0,
+                merkle_path: vec![H256::repeat_byte(2)],
+            },
+        ];
+
+        let rps = read_proofs_from_entries(gap.clone(), entries.clone()).unwrap();
+        assert_eq!(rps.len(), 2);
+        // Each ReadProof recovers its key from gap by position and copies the
+        // proof's value/index/path verbatim.
+        for i in 0..2 {
+            assert_eq!(rps[i].hashed_key, gap[i]);
+            assert_eq!(rps[i].value, entries[i].value);
+            assert_eq!(rps[i].enumeration_index, entries[i].index);
+            assert_eq!(rps[i].merkle_path, entries[i].merkle_path);
+        }
+
+        // A length mismatch (malformed tree response) errors rather than silently
+        // truncating / mispairing.
+        let short = vec![entries.into_iter().next().unwrap()];
+        assert!(read_proofs_from_entries(gap, short).is_err());
     }
 }
