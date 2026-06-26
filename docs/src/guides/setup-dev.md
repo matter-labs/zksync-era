@@ -226,7 +226,7 @@ cargo install --locked sqlx-cli --version 0.8.1
 ## Foundry ZKsync
 
 ZKSync depends on Foundry ZKsync (which is is a specialized fork of Foundry, tailored for ZKsync). Please follow this
-[installation guide](https://foundry-book.zksync.io/getting-started/installation) to get started with Foundry ZKsync.
+[installation guide](https://foundry-book.zksync.io/introduction/installation/) to get started with Foundry ZKsync.
 
 Foundry ZKsync can also be used for deploying smart contracts. For commands related to deployment, you can pass flags
 for Foundry integration.
