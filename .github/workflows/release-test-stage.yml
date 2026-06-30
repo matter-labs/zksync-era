@@ -15,6 +15,7 @@ jobs:
     outputs:
       core: ${{ steps.changed-files-yaml.outputs.core_any_changed }}
       prover: ${{ steps.changed-files-yaml.outputs.prover_any_changed }}
+      airbender_prover_server: ${{ steps.changed-files-yaml.outputs.airbender_prover_server_any_changed }}
       all: ${{ steps.changed-files-yaml.outputs.all_any_changed }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -34,9 +35,15 @@ jobs:
               - '!core/lib/zksync_core/**'
             core:
               - core/**
+            airbender_prover_server:
+              - airbender_prover_server/**
+              - docker/airbender-prover-server/**
+              - .github/workflows/build-airbender-prover-server-template.yml
             all:
               - '!core/**'
               - '!prover/**'
+              - '!airbender_prover_server/**'
+              - '!docker/airbender-prover-server/**'
   setup:
     name: Setup
     runs-on: [ubuntu-latest]
@@ -90,6 +97,18 @@ jobs:
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      action: "push"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  build-push-airbender-prover-server-images:
+    name: Build and push images
+    needs: [setup, changed_files]
+    uses: ./.github/workflows/build-airbender-prover-server-template.yml
+    if: needs.changed_files.outputs.airbender_prover_server == 'true' || needs.changed_files.outputs.all == 'true'
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
