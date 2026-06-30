@@ -41,7 +41,7 @@ use eravm_prover_host::{
     default_trusted_setup_download_url, default_trusted_setup_path,
     download_trusted_setup_if_not_present, load_vk_from_disk, SnarkWrapperProof,
 };
-use zksync_airbender_verifier::types::{AirbenderVerifierInput, V1AirbenderVerifierInput};
+use zksync_airbender_verifier::types::AirbenderVerifierInput;
 use zksync_airbender_verifier::Verify;
 
 const DEFAULT_FRI_PROOF_TIMEOUT: Duration = Duration::from_secs(20 * 60);
@@ -62,9 +62,9 @@ type CapturedFriProof = Arc<Mutex<Option<(u32, Vec<u8>)>>>;
 
 #[derive(Clone)]
 struct TestServerState {
-    /// Stored as the bare V1 payload so the test mock matches the upstream
+    /// Stored as the bare payload so the test mock matches the upstream
     /// zksync-era wire format (a flat struct, no version enum wrapper).
-    verifier_input: Arc<V1AirbenderVerifierInput>,
+    verifier_input: Arc<AirbenderVerifierInput>,
     /// One-shot latch for `/airbender/proof_inputs`: serve the job once, then 204.
     fri_input_served: Arc<AtomicBool>,
     /// Latest FRI submission captured by `/airbender/submit_proofs`. Read by
@@ -80,7 +80,7 @@ struct TestServerState {
 struct BatchTestInput {
     number: u32,
     filename: String,
-    verifier_input: V1AirbenderVerifierInput,
+    verifier_input: AirbenderVerifierInput,
     expected_public_input: [u32; 8],
 }
 
@@ -783,11 +783,8 @@ fn load_batch_and_expected_public_input(filename: &str) -> BatchTestInput {
         number: number.into(),
         path: batch_path,
     };
-    let v1 = load_batch(&batch_input)
-        .expect("failed to load batch")
-        .into_v1()
-        .expect("expected AirbenderVerifierInput::V1 from disk");
-    let expected_public_input = v1
+    let verifier_input = load_batch(&batch_input).expect("failed to load batch");
+    let expected_public_input = verifier_input
         .clone()
         .verify()
         .expect("native verify failed")
@@ -798,7 +795,7 @@ fn load_batch_and_expected_public_input(filename: &str) -> BatchTestInput {
     BatchTestInput {
         number,
         filename: filename.to_owned(),
-        verifier_input: v1,
+        verifier_input,
         expected_public_input,
     }
 }
