@@ -1,0 +1,21 @@
+[package]
+name = "zksync_cli_utils"
+description = "Shared tracing initialization for the Airbender prover server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+sentry = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+
+[features]
+# Adds the Sentry tracing layer to `init_tracing`. Enabled by the server binary
+# so it reports errors/panics to Sentry; left off for any non-server consumer.
+sentry = ["dep:sentry"]

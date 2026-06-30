@@ -15,6 +15,7 @@ jobs:
     outputs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
+      airbender_prover_server: ${{ steps.changed-files.outputs.airbender_prover_server_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
@@ -43,6 +44,14 @@ jobs:
               - '.github/workflows/ci-prover-reusable.yml'
               - '.github/workflows/actions/**'
               - 'docker-compose-runner-nightly.yml'
+              - '!**/*.md'
+              - '!**/*.MD'
+            airbender_prover_server:
+              - 'airbender_prover_server/**'
+              - 'docker/airbender-prover-server/**'
+              - '.github/workflows/ci-airbender-prover-server-reusable.yml'
+              - '.github/workflows/build-airbender-prover-server-template.yml'
+              - '.github/workflows/actions/**'
               - '!**/*.md'
               - '!**/*.MD'
             core:
@@ -106,6 +115,12 @@ jobs:
     if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     uses: ./.github/workflows/ci-prover-e2e.yml
 
+  ci-for-airbender-prover-server:
+    name: CI for Airbender Prover Server
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.airbender_prover_server == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    uses: ./.github/workflows/ci-airbender-prover-server-reusable.yml
+
   ci-for-docs:
     needs: changed_files
     if: needs.changed_files.outputs.docs == 'true'
@@ -150,6 +165,18 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
+  build-airbender-prover-server-images:
+    name: Build Airbender prover server images
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.airbender_prover_server == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    uses: ./.github/workflows/build-airbender-prover-server-template.yml
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
   ci-success:
     name: Github Status Check
     runs-on: ubuntu-latest
@@ -159,10 +186,12 @@ jobs:
         ci-for-core-lint,
         ci-for-core,
         ci-for-prover,
+        ci-for-airbender-prover-server,
         ci-for-docs,
         build-core-images,
         build-contract-verifier,
         build-prover-images,
+        build-airbender-prover-server-images,
         e2e-for-prover,
       ]
     steps:
