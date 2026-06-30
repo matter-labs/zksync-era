@@ -1230,7 +1230,9 @@ async fn metadata_version_fallback_patches_factory_dependency_hash_refs() {
     let cbor_metadata = eravm_cbor_metadata_suffix_for_zksolc(ZKSOLC_VERSION_WITH_CBOR);
     let mut matching_bytecode = vec![0x11; 96];
     matching_bytecode[32..64].copy_from_slice(&[0xaa; 32]);
+    matching_bytecode.extend_from_slice(&[0; 32]);
     matching_bytecode.extend_from_slice(&cbor_metadata);
+    assert_eq!(matching_bytecode.len() / 32 % 2, 1);
 
     let mut deployed_bytecode = matching_bytecode.clone();
     deployed_bytecode[32..64].copy_from_slice(&[0xbb; 32]);
