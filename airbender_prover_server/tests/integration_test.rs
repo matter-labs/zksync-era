@@ -429,7 +429,8 @@ async fn handle_submit_snark_proofs(
 fn guest_dist_dir() -> PathBuf {
     std::env::var_os("IT_GUEST_DIST_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../guest/dist/app"))
+        // `build.rs` downloads the guest program and bakes its directory in here.
+        .unwrap_or_else(|| PathBuf::from(env!("AIRBENDER_GUEST_DIST_DIR")))
 }
 
 fn batch_file_path(filename: &str) -> PathBuf {
@@ -463,7 +464,8 @@ fn prover_server_bin() -> PathBuf {
 fn fri_vk_path() -> PathBuf {
     std::env::var_os("IT_FRI_VK")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vks/fri_vk.bin"))
+        // `build.rs` downloads the FRI VK and bakes its path in here.
+        .unwrap_or_else(|| PathBuf::from(env!("AIRBENDER_FRI_VK")))
 }
 
 /// Path to the committed SNARK wrapper verification key. Required for the
@@ -471,7 +473,8 @@ fn fri_vk_path() -> PathBuf {
 fn snark_vk_path() -> PathBuf {
     std::env::var_os("IT_SNARK_VK")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../vks/snark_vk.json"))
+        // `build.rs` downloads the SNARK VK and bakes its path in here.
+        .unwrap_or_else(|| PathBuf::from(env!("AIRBENDER_SNARK_VK")))
 }
 
 /// CRS used by the SNARK wrapper. The build's `gpu_snark` feature picks the

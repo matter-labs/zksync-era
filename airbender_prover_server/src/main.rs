@@ -320,31 +320,21 @@ fn default_prover_id() -> String {
     std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_owned())
 }
 
-/// Compile-time fallback path to the guest program (`app.bin` / `app.text`).
-///
-/// Resolves to the guest artifacts vendored into this workspace at
-/// `airbender_prover_server/guest/dist/app`. Unlike the verifier repo — where
-/// the guest lived next to the host crate — `eravm-prover-host` is consumed
-/// here as a git dependency, so its own `dist_dir()` would resolve into the
-/// Cargo git checkout. We vendor the artifacts instead and point at them.
-/// Override at runtime with `--guest-dist-dir` or `PROVER_GUEST_DIST_DIR`.
+/// Default guest program dir (`app.bin` / `app.text`), downloaded by `build.rs`
+/// from the matching verifier release. Override with `--guest-dist-dir` /
+/// `PROVER_GUEST_DIST_DIR`.
 fn default_dist_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("guest/dist/app")
+    PathBuf::from(env!("AIRBENDER_GUEST_DIST_DIR"))
 }
 
-/// Compile-time fallback path to the committed FRI verification key.
-///
-/// Resolves to `airbender_prover_server/vks/fri_vk.bin`, vendored alongside the
-/// guest binary it was derived from. Replaces `eravm-prover-host`'s
-/// `default_fri_vk_path()`, which would resolve into the Cargo git checkout.
-/// Override at runtime with `--fri-vk` or `FRI_VK`.
+/// Default FRI VK path, downloaded by `build.rs`. Override with `--fri-vk` /
+/// `FRI_VK`.
 fn default_fri_vk_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vks/fri_vk.bin")
+    PathBuf::from(env!("AIRBENDER_FRI_VK"))
 }
 
-/// Compile-time fallback path to the committed SNARK verification key, vendored
-/// at `airbender_prover_server/vks/snark_vk.json` (mirrors [`default_fri_vk_path`]).
-/// Override at runtime with `--snark-vk` or `SNARK_VK`.
+/// Default SNARK VK path, downloaded by `build.rs`. Override with `--snark-vk` /
+/// `SNARK_VK`.
 fn default_snark_vk_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vks/snark_vk.json")
+    PathBuf::from(env!("AIRBENDER_SNARK_VK"))
 }
