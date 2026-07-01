@@ -3,7 +3,7 @@ import { FileMutex } from './file-mutex';
 import { findHome } from './zksync-home';
 import { withDeadline } from './deadline';
 import { GW_ASSET_TRACKER_ADDRESS, ArtifactWrappedBaseToken, ArtifactGWAssetTracker } from 'utils/src/constants';
-import { ConfigName, loadConfig } from 'utils/build/file-configs';
+import { ConfigName, loadConfig, setSettlementFeePayer } from 'utils/build/file-configs';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-ethers';
 
@@ -140,6 +140,11 @@ export async function setSettlementFeePayerAgreement(chainName: string): Promise
     await (await gwWrappedZkToken.deposit({ value: ethers.parseEther('1') })).wait();
     await (await gwWrappedZkToken.approve(GW_ASSET_TRACKER_ADDRESS, ethers.parseEther('1'))).wait();
     await (await gwAssetTracker.setSettlementFeePayerAgreement(l2ChainId, true)).wait();
+
+    // The eth_sender defaults the settlement fee payer to the zero address when unset, which cannot pay
+    // gateway settlement fees. Point it at the operator we just registered and funded above, so that
+    // `executeBatches` on the gateway can charge the fee instead of reverting with `SettlementFeePayerNotAgreed`.
+    setSettlementFeePayer(pathToHome, chainName, operator.address);
 
     console.log(`✅ Successfully set up payment of settlement fees for ${chainName}`);
 }
