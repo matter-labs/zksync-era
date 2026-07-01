@@ -209,7 +209,7 @@ impl ZkSolc {
             &["abi"][..]
         };
 
-        Self::ensure_selector_outputs(&mut output_selection, "*", "*", contract_outputs);
+        Self::ensure_selector_outputs(&mut output_selection, "*", "*", &["abi"]);
         Self::ensure_selector_outputs(&mut output_selection, "*", "", &["abi"]);
         Self::ensure_selector_outputs(
             &mut output_selection,
@@ -541,7 +541,8 @@ mod tests {
         let standard_json = standard_json_input(&input);
         let output_selection = standard_json.settings.output_selection.as_ref().unwrap();
 
-        assert_selector_contains(output_selection, "*", "*", &["abi", "evm"]);
+        assert_selector_contains(output_selection, "*", "*", &["abi"]);
+        assert_selector_excludes(output_selection, "*", "*", "evm");
         assert_selector_contains(output_selection, "*", "", &["abi"]);
         assert_selector_excludes(output_selection, "*", "", "evm");
         assert_selector_contains(
@@ -617,7 +618,7 @@ mod tests {
             input.settings.output_selection,
             Some(serde_json::json!({
                 "*": {
-                    "*": ["storageLayout", "abi", "evm"],
+                    "*": ["storageLayout", "abi"],
                     "": ["ast", "abi"]
                 },
                 "Counter.sol": {
