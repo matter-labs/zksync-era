@@ -21,7 +21,7 @@ jobs:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -56,9 +56,9 @@ jobs:
           ci_run zkstack dev contracts
 
       - name: Use Node.js
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install yarn
         run: |
@@ -86,7 +86,7 @@ jobs:
         vm_mode: [ "OLD", "NEW" ]
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -154,7 +154,7 @@ jobs:
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -292,7 +292,7 @@ jobs:
           fi
 
       - name: Upload logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: logs_${{matrix.use_gateway_chain}}_${{matrix.tested_chain_type}}
