@@ -1,0 +1,147 @@
+name: Workflow for testing the Airbender prover end-to-end
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-test:
+    runs-on: [matterlabs-ci-gpu-runner]
+    env:
+      RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
+      YQ_VERSION: "4.45.1"
+      # gpu_prover's CUDA build compiles every kernel once per SM arch and is not cached by
+      # sccache, so it dominates the build time. The Airbender GPU prover floors at sm_80 (the
+      # prod image builds 80;120), so T4 (sm_75) is not a target; restrict to the CI fleet's
+      # likely cards — A100 (80) and L4 (89) — to roughly halve the CUDA compile vs the
+      # boojum e2e's 75;80;89;90. If the runner's GPU is another arch (e.g. H100 = 90), the FRI
+      # prover will fail to launch kernels — add that arch here.
+      CUDA_ARCH: "80;89"
+      CUDAARCHS: "80;89"
+      PASSED_ENV_VARS: "CUDA_ARCH,CUDAARCHS"
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
+
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+
+      - name: Init
+        run: |
+          mkdir -p airbender_prover_logs
+          ci_run git config --global --add safe.directory "*"
+          ci_run chmod -R +x ./bin
+
+          ci_run zkstack chain create \
+            --chain-name proving_chain \
+            --chain-id sequential \
+            --prover-mode gpu \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default true \
+            --ignore-prerequisites \
+            --evm-emulator false
+
+          ci_run zkstack ecosystem init --dev --verbose
+
+          WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)
+          echo "Using Web3 HTTP URL: $WEB3_HTTP_URL"
+          echo "URL=$WEB3_HTTP_URL" >> $GITHUB_ENV
+
+      # gpu_prover's CUDA build (via the `cmake` crate) requires CMake >= 3.28, but the
+      # zk-environment image ships 3.24. Install the same version the Docker image uses into
+      # /usr/local (ahead of the system CMake on PATH), mirroring docker/airbender-prover-server/Dockerfile.
+      - name: Install newer CMake for the GPU prover build
+        env:
+          CMAKE_VERSION: "3.30.2"
+        run: |
+          PASSED_ENV_VARS="CMAKE_VERSION" \
+          ci_run bash -lc 'curl -fsSLO "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh" && chmod +x "cmake-${CMAKE_VERSION}-linux-x86_64.sh" && "./cmake-${CMAKE_VERSION}-linux-x86_64.sh" --skip-license --prefix=/usr/local && rm "cmake-${CMAKE_VERSION}-linux-x86_64.sh" && cmake --version'
+
+      # Build the Airbender prover server (GPU FRI prover) from source. The workspace pins its own
+      # nightly via `airbender_prover_server/rust-toolchain`; `rustup show` installs it on demand.
+      # `build.rs` downloads the guest binary + FRI VK for the pinned verifier version at build time.
+      - name: Build Airbender prover server
+        run: |
+          ci_run run_retried bash -lc "cd airbender_prover_server && rustup show"
+          ci_run bash -lc "cd airbender_prover_server && cargo build --release -p eravm-prover-server"
+
+      - name: Run server
+        run: |
+          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip,airbender_proof_data_handler &>airbender_prover_logs/server.log &
+
+      - name: Waiting for web3_json_rpc to become ready
+        env:
+          INTERVAL: 10
+          TIMEOUT: 300
+        run: |
+          PASSED_ENV_VARS="URL,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/web3_json_rpc_checker
+
+      - name: Send txs to new precompiles
+        run: |
+          WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' ./chains/proving_chain/configs/general.yaml)
+          # TODO: newer versions of `zksync-cli` (e.g., 1.12.1) use an incorrect L2 Web3 RPC URL for some reason, so the version below is temporarily pinned to the latest working version
+          ci_run npx zksync-cli@1.11.0 bridge deposit --chain=dockerized-node --amount 3 --pk=0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110 --to=0xa61464658AfeAf65CccaaFD3a512b69A83B77618 --rpc=$WEB3_HTTP_URL
+
+          ci_run cast send 0x0000000000000000000000000000000000000005 0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000208f3b7d5c187f8abbe0581dab5a37644febd35ea6d4fe3213288f9d63ab82a6b1afa9888e351dfdefd862945b0da33c9ea1de907ae830292438df1fa184447777c7e38934b1501e64e5c0bd0ab35b3354520b6e88b81a1f063c37007c65b7efd5 --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000006 0x099c07c9dd1107b9c9b0836da7ecfb7202d10bea1b8d1e88bc51ca476f23d91d28351e12f9219537fc8d6cac7c6444bd7980390d0d3e203fe0d8c1b0d811995021e177a985c3db8ef1d670629972c007ae90c78fb16e3011de1d08f5a44cb6550bd68a7caa07f6adbecbf06fb1f09d32b7bed1369a2a58058d1521bebd8272ac --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000006 0x099c08c9dd1107b9c9b0836da7ecfb7202d10bea1b8d1e88cc51ca476f23d91d28351e12f9219537fc8d6cac7c6444bd7980390d0d3e203fe0d8c1b0d811995021e177a985c3db8ef1d670629972c007ae90c78fb16e3011de1d08f5a44cb6550bd68a7caa07f6adbecbf06fb1f09d32b7bed1369a2a58058d1521bebd8272ac --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000007 0x1a87b0584ce92f4593d161480614f2989035225609f08058ccfa3d0f940febe31a2f3c951f6dadcc7ee9007dff81504b0fcd6d7cf59996efdc33d92bf7f9f8f630644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000000 --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000007 0x000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000001 --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000008 0x2cf44499d5d27bb186308b7af7af02ac5bc9eeb6a3d147c186b21fb1b76e18da2c0f001f52110ccfe69108924926e45f0b0c868df0e7bde1fe16d3242dc715f61fb19bb476f6b9e44e2a32234da8212f61cd63919354bc06aef31e3cfaff3ebc22606845ff186793914e03e21df544c34ffe2f2f3504de8a79d9159eca2d98d92bd368e28381e8eccb5fa81fc26cf3f048eea9abfdd85d7ed3ab3698d63e4f902fe02e47887507adf0ff1743cbac6ba291e66f59be6bd763950bb16041a0a85e000000000000000000000000000000000000000000000000000000000000000130644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd451971ff0471b09fa93caaf13cbf443c1aede09cc4328f5a62aad45f40ec133eb4091058a3141822985733cbdddfed0fd8d6c104e9e9eff40bf5abfef9ab163bc72a23af9a5ce2ba2796c1f4e453a370eb0af8c212d9dc9acd8fc02c2e907baea223a8eb0b0996252cb548a4487da97b02422ebc0e834613f954de6c7e0afdc1fc --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000008 0x0413aa5b0805215b55a5e2dda0662031aad0f5ef13f28b25df20b8670d1c59a616fb4b64ccff216fa5272e1e987c0616d60d8883d5834229c685949047e9411d2d81dbc969f72bc0454ff8b04735b717b725fee98a2fcbcdcf6c5b51b1dff33f075239888fc8448ab781e2a8bb85eb556469474cd707d4b913bee28679920eb61ef1c268b7c4c78959f099a043ecd5e537fe3069ac9197235f16162372848cba209cfadc22f7e80d399d1886f1c53898521a34c62918ed802305f32b4070a3c4 --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+
+      - name: Wait for precompiles txs to be included in the batch
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 10
+          TIMEOUT: 200
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/precompiles_status_checker
+
+      # The Airbender proof data handler serves proof inputs from `proof_generation_details`,
+      # populated by the tree, `vm_runner_bwip` and `vm_runner_protective_reads` components. The
+      # prover polls `/airbender/proof_inputs` (port 4320), which locks the batch (creating the
+      # `airbender_proof_generation_details` row), proves the FRI proof on GPU, and submits it back
+      # via `/airbender/submit_proofs`, transitioning the batch to `status = 'generated'`.
+      - name: Run Airbender prover server (fri-only)
+        run: |
+          ci_run bash -lc "cd airbender_prover_server && PROVER_SERVER_URL=http://127.0.0.1:4320 ./target/release/eravm-prover-server --mode fri-only" &>airbender_prover_logs/prover_server.log &
+
+      - name: Wait for the Airbender FRI proof to be generated
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 1800
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/airbender_proof_status_checker
+
+      - name: Upload logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: airbender_prover_logs
+          path: airbender_prover_logs
+
+      - name: Show sccache logs
+        if: always()
+        run: |
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
