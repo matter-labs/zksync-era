@@ -16,11 +16,11 @@ pub static TESTNET_BRIDGEHUB_ADDR: Lazy<Address> =
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DefaultGatewayUrl {
     Testnet,
-    Mainnet,
     Stage,
 }
 
-/// While MatterLabs is the only gateway provider, it's safe to use default parameters for the gateway client.
+/// While MatterLabs is the only gateway provider, testnet and stage still have stable default
+/// parameters for the gateway client.
 /// These URLs serve as fallbacks in case the gateway URL is not specified in the secrets.
 /// This is not defined in JSON, as it's easier to configure the value in secrets
 /// rather than modifying a JSON file.
@@ -29,7 +29,6 @@ impl DefaultGatewayUrl {
         match address {
             addr if addr == *TESTNET_BRIDGEHUB_ADDR => Some(Self::Testnet),
             addr if addr == *STAGE_BRIDGEHUB_ADDR => Some(Self::Stage),
-            addr if addr == *MAINNET_BRIDGEHUB_ADDR => Some(Self::Mainnet),
             _ => None,
         }
     }
@@ -37,9 +36,35 @@ impl DefaultGatewayUrl {
     pub fn to_gateway_url(self) -> SensitiveUrl {
         let url = match self {
             Self::Testnet => "https://rpc.era-gateway-testnet.zksync.dev/",
-            Self::Mainnet => "https://rpc.era-gateway-mainnet.zksync.dev/",
             Self::Stage => "https://rpc.era-gateway-stage.zksync.dev/",
         };
         SensitiveUrl::from_str(url).expect("URL is valid")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        DefaultGatewayUrl, MAINNET_BRIDGEHUB_ADDR, STAGE_BRIDGEHUB_ADDR, TESTNET_BRIDGEHUB_ADDR,
+    };
+
+    #[test]
+    fn default_gateway_url_is_available_for_testnet_and_stage() {
+        assert_eq!(
+            DefaultGatewayUrl::from_bridgehub_address(*TESTNET_BRIDGEHUB_ADDR),
+            Some(DefaultGatewayUrl::Testnet)
+        );
+        assert_eq!(
+            DefaultGatewayUrl::from_bridgehub_address(*STAGE_BRIDGEHUB_ADDR),
+            Some(DefaultGatewayUrl::Stage)
+        );
+    }
+
+    #[test]
+    fn mainnet_requires_explicit_gateway_url() {
+        assert_eq!(
+            DefaultGatewayUrl::from_bridgehub_address(*MAINNET_BRIDGEHUB_ADDR),
+            None
+        );
     }
 }

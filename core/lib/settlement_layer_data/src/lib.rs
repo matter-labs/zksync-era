@@ -35,6 +35,15 @@ pub enum SettlementLayerError {
     Internal(#[from] anyhow::Error),
 }
 
+const MAINNET_GATEWAY_FALLBACK_REMOVED_WARN: &str =
+    "No Gateway RPC URL was configured for the Era mainnet bridgehub. The built-in mainnet Gateway fallback was removed because the public endpoint is unavailable. Configure `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly before using Gateway settlement.";
+const GATEWAY_SETTLEMENT_ACTIVE_REQUIRES_CLIENT: &str =
+    "Gateway settlement is active, but no reachable Gateway RPC client is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.";
+const GATEWAY_MIGRATION_FINISH_REQUIRES_CLIENT: &str =
+    "Gateway settlement is required to finish migration, but no reachable Gateway RPC client is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.";
+const GATEWAY_NOTIFICATION_REQUIRES_CLIENT: &str =
+    "Gateway migration notification requires a reachable Gateway RPC client, but none is configured. Set `gateway_rpc_url` / `EN_GATEWAY_URL` explicitly.";
+
 async fn get_l2_client(
     eth_client: &dyn EthInterface,
     bridgehub_address: Address,
@@ -76,6 +85,9 @@ async fn get_l2_client_unchecked(
         } else {
             None
         }
+    } else if l1_bridgehub_address == *gateway_urls::MAINNET_BRIDGEHUB_ADDR {
+        tracing::warn!(MAINNET_GATEWAY_FALLBACK_REMOVED_WARN);
+        None
     } else {
         tracing::warn!(
             "No client was found for gateway, you are working in none \
@@ -83,6 +95,13 @@ async fn get_l2_client_unchecked(
         );
         None
     })
+}
+
+fn require_gateway_client<'a>(
+    gateway_client: Option<&'a dyn EthInterface>,
+    context: &'static str,
+) -> anyhow::Result<&'a dyn EthInterface> {
+    gateway_client.context(context)
 }
 
 // Gateway has different rules for pubdata and gas space.
@@ -149,6 +168,14 @@ pub async fn current_settlement_layer(
     )
     .await?;
 
+    let gateway_client = match settlement_mode_from_l1 {
+        SettlementLayer::Gateway(_) => Some(require_gateway_client(
+            gateway_client,
+            GATEWAY_SETTLEMENT_ACTIVE_REQUIRES_CLIENT,
+        )?),
+        SettlementLayer::L1(_) => gateway_client,
+    };
+
     let (sl_client, bridge_hub_address) = match settlement_mode_from_l1 {
         SettlementLayer::L1(_) => (
             l1_client,
@@ -157,10 +184,7 @@ pub async fn current_settlement_layer(
                 .bridgehub_proxy_addr
                 .expect("Bridgehub address should always be presented"),
         ),
-        SettlementLayer::Gateway(_) => (
-            gateway_client.expect("No gateway url was provided"),
-            L2_BRIDGEHUB_ADDRESS,
-        ),
+        SettlementLayer::Gateway(_) => (gateway_client.unwrap(), L2_BRIDGEHUB_ADDRESS),
     };
 
     // Load chain contracts from sl
@@ -193,8 +217,11 @@ pub async fn current_settlement_layer(
         // If it's impossible to use settlement_mode_from_l1 server have to use the opposite settlement_layer
         match settlement_mode_from_l1 {
             SettlementLayer::L1(_) => {
+                let gateway_client = require_gateway_client(
+                    gateway_client,
+                    GATEWAY_MIGRATION_FINISH_REQUIRES_CLIENT,
+                )?;
                 let chain_id = gateway_client
-                    .expect("No gateway url was provided")
                     .fetch_chain_id()
                     .await
                     .map_err(ContractCallError::from)?;
@@ -212,8 +239,9 @@ pub async fn current_settlement_layer(
 
     let target_settlement_mode = match latest_gateway_migration_notification {
         Some(GatewayMigrationNotification::ToGateway) => {
+            let gateway_client =
+                require_gateway_client(gateway_client, GATEWAY_NOTIFICATION_REQUIRES_CLIENT)?;
             let chain_id = gateway_client
-                .expect("No gateway url was provided")
                 .fetch_chain_id()
                 .await
                 .map_err(ContractCallError::from)?;
@@ -232,4 +260,32 @@ pub async fn current_settlement_layer(
     let mut layer = WorkingSettlementLayer::new(final_settlement_mode, target_settlement_mode);
     layer.set_migration_in_progress(!use_settlement_mode_from_l1);
     Ok(layer)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        gateway_urls, get_l2_client_unchecked, require_gateway_client,
+        GATEWAY_SETTLEMENT_ACTIVE_REQUIRES_CLIENT, MAINNET_GATEWAY_FALLBACK_REMOVED_WARN,
+    };
+
+    #[tokio::test]
+    async fn mainnet_gateway_fallback_now_requires_explicit_url() {
+        let gateway_client =
+            get_l2_client_unchecked(None, *gateway_urls::MAINNET_BRIDGEHUB_ADDR).await;
+        assert!(gateway_client.unwrap().is_none());
+    }
+
+    #[test]
+    fn require_gateway_client_returns_actionable_error() {
+        let err =
+            require_gateway_client(None, GATEWAY_SETTLEMENT_ACTIVE_REQUIRES_CLIENT).unwrap_err();
+        assert_eq!(err.to_string(), GATEWAY_SETTLEMENT_ACTIVE_REQUIRES_CLIENT);
+    }
+
+    #[test]
+    fn mainnet_gateway_warning_contract_mentions_operator_action() {
+        assert!(MAINNET_GATEWAY_FALLBACK_REMOVED_WARN.contains("Era mainnet bridgehub"));
+        assert!(MAINNET_GATEWAY_FALLBACK_REMOVED_WARN.contains("EN_GATEWAY_URL"));
+    }
 }
