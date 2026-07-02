@@ -2276,6 +2276,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "batch_splitter"
+version = "29.20.0-non-semver-compat"
+dependencies = [
+ "anyhow",
+ "ciborium",
+ "clap 4.5.40",
+ "serde",
+ "tokio",
+ "tracing",
+ "zksync_airbender_prover_interface",
+ "zksync_airbender_verifier",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_crypto_primitives",
+ "zksync_dal",
+ "zksync_l1_contract_interface",
+ "zksync_merkle_tree",
+ "zksync_multivm",
+ "zksync_object_store",
+ "zksync_prover_interface",
+ "zksync_types",
+ "zksync_vlog",
+ "zksync_vm_executor",
+ "zksync_vm_interface",
+]
+
+[[package]]
 name = "bech32"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
