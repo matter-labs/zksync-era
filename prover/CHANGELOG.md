@@ -1,5 +1,24 @@
 # Changelog
 
+## [26.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.3.0...prover-v26.0.0) (2026-07-02)
+
+
+### Features
+
+* Draft v31 ([#4608](https://github.com/matter-labs/zksync-era/issues/4608)) ([a2d815b](https://github.com/matter-labs/zksync-era/commit/a2d815b7971f3a191e805817ad3d43508f33c831))
+* **prover:** Submit airbender proofs ([#4836](https://github.com/matter-labs/zksync-era/issues/4836)) ([c477e64](https://github.com/matter-labs/zksync-era/commit/c477e642e18043dbc2d5167e04f7256d43349d31))
+
+
+### Bug Fixes
+
+* add explicit timeouts to all reqwest HTTP clients + add lots of prover logs ([#4772](https://github.com/matter-labs/zksync-era/issues/4772)) ([ad7a55d](https://github.com/matter-labs/zksync-era/commit/ad7a55d8a4f4609a42ef1598a22aa6c1e4a72132))
+* automated protocol upgrade for upgrade-circuit-divergency-before-v31 ([#4813](https://github.com/matter-labs/zksync-era/issues/4813)) ([799626f](https://github.com/matter-labs/zksync-era/commit/799626f85920f484624f2aab21852dba5f82d13e))
+
+
+### Miscellaneous Chores
+
+* **prover:** release 26.0.0 ([815a8e3](https://github.com/matter-labs/zksync-era/commit/815a8e3766ad070ed95e561cf8b8fd831bbf0a74))
+
 ## [25.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.2.0...prover-v25.3.0) (2026-04-10)
 
 
