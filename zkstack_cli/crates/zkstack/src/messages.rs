@@ -171,7 +171,7 @@ pub(super) const MSG_SAVE_ERC20_CONFIG_ATTENTION: &str =
 /// Ecosystem change default related messages
 pub(super) fn msg_chain_doesnt_exist_err(chain_name: &str, chains: &Vec<String>) -> String {
     format!(
-        "Chain with name {} doesnt exist, please choose one of {:?}",
+        "Chain with name {} doesn't exist, please choose one of {:?}",
         chain_name, chains
     )
 }

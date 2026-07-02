@@ -350,7 +350,7 @@ impl WiringLayer for SettlementLayerData<ENConfig> {
                 &getters_facet_contract(),
             )
             .await
-            .context("Error occured while getting current SL mode")?
+            .context("Error occurred while getting current SL mode")?
         };
 
         let l2_eth_client = get_l2_client(
