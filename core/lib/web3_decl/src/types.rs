@@ -410,7 +410,9 @@ pub enum PubSubResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EcosystemContractsDto {
-    pub bridgehub_proxy_addr: Address,
+    /// Optional because some EN-backed chains do not expose a bridgehub
+    /// contract on the ecosystem-contracts path.
+    pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub message_root_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Address,
@@ -592,5 +594,44 @@ mod tests {
         serde_json::from_str::<GenesisConfigDto>(genesis_json).unwrap_or_else(|err| {
             panic!("Failed to parse genesis config with a new name: {}", err)
         });
+    }
+
+    #[test]
+    fn ecosystem_contracts_serde_keeps_optional_bridgehub() {
+        let without_bridgehub = EcosystemContractsDto {
+            bridgehub_proxy_addr: None,
+            state_transition_proxy_addr: Some(Address::repeat_byte(0x11)),
+            message_root_proxy_addr: None,
+            transparent_proxy_admin_addr: Address::zero(),
+            l1_bytecodes_supplier_addr: None,
+            l1_wrapped_base_token_store: None,
+            server_notifier_addr: None,
+        };
+        let without_bridgehub_json = serde_json::to_value(&without_bridgehub).unwrap();
+        assert_eq!(
+            without_bridgehub_json["bridgehub_proxy_addr"],
+            serde_json::Value::Null
+        );
+
+        let with_bridgehub = EcosystemContractsDto {
+            bridgehub_proxy_addr: Some(Address::repeat_byte(0x22)),
+            ..without_bridgehub
+        };
+        let with_bridgehub_json = serde_json::to_value(&with_bridgehub).unwrap();
+        assert_eq!(
+            with_bridgehub_json["bridgehub_proxy_addr"],
+            serde_json::json!("0x2222222222222222222222222222222222222222")
+        );
+
+        let restored_without_bridgehub: EcosystemContractsDto =
+            serde_json::from_value(without_bridgehub_json).unwrap();
+        assert!(restored_without_bridgehub.bridgehub_proxy_addr.is_none());
+
+        let restored_with_bridgehub: EcosystemContractsDto =
+            serde_json::from_value(with_bridgehub_json).unwrap();
+        assert_eq!(
+            restored_with_bridgehub.bridgehub_proxy_addr,
+            Some(Address::repeat_byte(0x22))
+        );
     }
 }

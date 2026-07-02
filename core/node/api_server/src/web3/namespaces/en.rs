@@ -113,8 +113,7 @@ impl EnNamespace {
                 .state
                 .api_config
                 .l1_ecosystem_contracts
-                .bridgehub_proxy_addr
-                .unwrap(),
+                .bridgehub_proxy_addr,
             state_transition_proxy_addr: self
                 .state
                 .api_config
