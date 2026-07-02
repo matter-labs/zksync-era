@@ -11,8 +11,14 @@ jobs:
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
       YQ_VERSION: "4.45.1"
-      CUDA_ARCH: "75;80;89;90"
-      CUDAARCHS: "75;80;89;90"
+      # gpu_prover's CUDA build compiles every kernel once per SM arch and is not cached by
+      # sccache, so it dominates the build time. The Airbender GPU prover floors at sm_80 (the
+      # prod image builds 80;120), so T4 (sm_75) is not a target; restrict to the CI fleet's
+      # likely cards — A100 (80) and L4 (89) — to roughly halve the CUDA compile vs the
+      # boojum e2e's 75;80;89;90. If the runner's GPU is another arch (e.g. H100 = 90), the FRI
+      # prover will fail to launch kernels — add that arch here.
+      CUDA_ARCH: "80;89"
+      CUDAARCHS: "80;89"
       PASSED_ENV_VARS: "CUDA_ARCH,CUDAARCHS"
 
     steps:
