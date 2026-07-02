@@ -2,6 +2,9 @@ name: Workflow for testing the Airbender prover end-to-end
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   e2e-test:
     runs-on: [matterlabs-ci-gpu-runner]
