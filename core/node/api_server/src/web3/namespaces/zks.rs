@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -177,6 +178,9 @@ impl ZksNamespace {
         U64::from(*self.state.api_config.l1_chain_id)
     }
 
+    /// Builds an L2->L1 log proof for a sealed batch and upgrades the local
+    /// Merkle proof with post-gateway metadata when the batch was executed
+    /// through Gateway.
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         storage: &mut Connection<'_, Core>,
@@ -231,7 +235,7 @@ impl ZksNamespace {
         let aggregated_root = batch_with_metadata
             .metadata
             .aggregation_root
-            .expect("`aggregation_root` must be present for post-gateway branch");
+            .context("missing `aggregation_root` for post-gateway L2->L1 log proof")?;
         let root = KeccakHasher.compress(&local_root, &aggregated_root);
 
         let mut log_leaf_proof = proof;

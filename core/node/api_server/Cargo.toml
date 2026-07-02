@@ -64,6 +64,7 @@ zk_evm_1_5_0.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
 zksync_test_contracts.workspace = true
+sqlx.workspace = true
 
 assert_matches.workspace = true
 http-body-util.workspace = true
