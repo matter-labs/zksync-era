@@ -40,6 +40,27 @@ struct MainNodeFeeState {
     interop_fee: U256,
 }
 
+/// Returns whether `en_getInteropFee` failed because the upstream endpoint does
+/// not expose that optional capability for EN.
+fn is_unavailable_interop_fee_error(err: &jsonrpsee::core::client::Error) -> bool {
+    match err {
+        jsonrpsee::core::client::Error::Call(error)
+            if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
+        {
+            true
+        }
+        jsonrpsee::core::client::Error::Transport(error) => error
+            .downcast_ref::<jsonrpsee::http_client::transport::Error>()
+            .is_some_and(|error| {
+                matches!(
+                    error,
+                    jsonrpsee::http_client::transport::Error::Rejected { status_code: 403 }
+                )
+            }),
+        _ => false,
+    }
+}
+
 impl MainNodeFeeParamsFetcher {
     pub fn new(client: Box<DynClient<L2>>) -> Self {
         let fee_params = FeeParams::sensible_v1_default();
@@ -87,16 +108,14 @@ impl MainNodeFeeParamsFetcher {
                     Ok(interop_fee) => {
                         main_node_fee_state.interop_fee = interop_fee;
                     }
-                    Err(err) => match err.as_ref() {
-                        jsonrpsee::core::client::Error::Call(error)
-                            if error.code() == jsonrpsee::types::error::METHOD_NOT_FOUND_CODE =>
-                        {
-                            // Method is not supported by the main node, preserve the previously observed value.
-                        }
-                        _ => {
-                            tracing::warn!("Unable to get main node's interop fee: {}", err);
-                        }
-                    },
+                    Err(err) if is_unavailable_interop_fee_error(err.as_ref()) => {
+                        // `en_getInteropFee` is optional for EN. Some public proxies reject
+                        // non-whitelisted methods at the HTTP layer before returning a JSON-RPC
+                        // `METHOD_NOT_FOUND`, so preserve the previously observed value here too.
+                    }
+                    Err(err) => {
+                        tracing::warn!("Unable to get main node's interop fee: {}", err);
+                    }
                 }
             }
 
@@ -130,5 +149,41 @@ impl BatchFeeModelInputProvider for MainNodeFeeParamsFetcher {
 
     async fn get_interop_fee(&self) -> U256 {
         self.main_node_fee_state.read().unwrap().interop_fee
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_web3_decl::jsonrpsee::{
+        core::client::Error,
+        http_client::transport,
+        types::{error::ErrorCode, ErrorObject},
+    };
+
+    use super::is_unavailable_interop_fee_error;
+
+    #[test]
+    fn unavailable_interop_fee_accepts_method_not_found() {
+        let err = Error::Call(ErrorObject::owned(
+            ErrorCode::MethodNotFound.code(),
+            ErrorCode::MethodNotFound.message(),
+            None::<()>,
+        ));
+
+        assert!(is_unavailable_interop_fee_error(&err));
+    }
+
+    #[test]
+    fn unavailable_interop_fee_accepts_http_403_rejection() {
+        let err = Error::Transport(transport::Error::Rejected { status_code: 403 }.into());
+
+        assert!(is_unavailable_interop_fee_error(&err));
+    }
+
+    #[test]
+    fn unavailable_interop_fee_rejects_other_transport_errors() {
+        let err = Error::Transport(transport::Error::Rejected { status_code: 429 }.into());
+
+        assert!(!is_unavailable_interop_fee_error(&err));
     }
 }
