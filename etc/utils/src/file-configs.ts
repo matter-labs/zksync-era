@@ -170,3 +170,16 @@ export function replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome: string, cha
     const newGeneralConfig = yaml.stringify(generalConfigObject);
     fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
 }
+
+// Explicitly pins the account that pays gateway settlement fees for `executeBatches`.
+// The eth_sender defaults this to the zero address when unset, which cannot pay fees on
+// the gateway, so tests that settle on the gateway must point it at the operator (which is
+// registered as an agreed fee payer and holds approved wrapped ZK).
+export function setSettlementFeePayer(pathToHome: string, chain: string, address: string) {
+    const generalConfigPath = getConfigPath({ pathToHome, chain, config: 'general.yaml' });
+    const generalConfig = fsSync.readFileSync(generalConfigPath, 'utf8');
+    const generalConfigObject = yaml.parse(generalConfig);
+    generalConfigObject['eth']['sender']['settlement_fee_payer'] = address;
+    const newGeneralConfig = yaml.stringify(generalConfigObject);
+    fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
+}

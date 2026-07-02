@@ -39,6 +39,14 @@ ignore = [
   # migrated to rand 0.9. The unsoundness requires a custom logger that calls rand from
   # logging callbacks, which we don't do.
   "RUSTSEC-2026-0097",
+  # `quick-xml` <0.41.0 XML-parsing DoS advisories (quadratic attribute-duplicate check and
+  # unbounded namespace-declaration allocation in `NsReader`). Reached only transitively via
+  # sentry -> sentry-contexts -> os_info -> plist, which parses local system `.plist` files to
+  # report OS info -- not untrusted network input, so the DoS vectors are not reachable for us.
+  # No released `plist` depends on the patched quick-xml >=0.41.0 yet (latest 1.9.0 caps at
+  # ^0.39.2, and bumping it pulls in crates requiring Rust 1.88 which our nightly toolchain lacks).
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195",
 ]
 
 [licenses]
