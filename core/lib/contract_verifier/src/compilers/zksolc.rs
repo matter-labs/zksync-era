@@ -192,6 +192,7 @@ impl ZkSolc {
             deployed_bytecode: None,
             abi: serde_json::Value::Array(Vec::new()),
             immutable_refs: Default::default(),
+            factory_dependency_refs: Default::default(),
         })
     }
 

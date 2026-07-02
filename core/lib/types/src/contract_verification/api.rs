@@ -329,10 +329,14 @@ pub struct CompilationArtifacts {
     /// Defaults to empty if no immutables are found.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub immutable_refs: HashMap<String, Vec<ImmutableReference>>,
+    /// Offsets of linked factory dependency bytecode hashes in EraVM bytecode.
+    /// These hashes may differ for dependencies with deployment-specific bytecode.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub factory_dependency_refs: Vec<ImmutableReference>,
 }
 
 /// Stores each immutable reference offset and length in deployed bytecode.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ImmutableReference {
     pub start: usize,
     pub length: usize,
@@ -354,6 +358,14 @@ impl CompilationArtifacts {
                     compiled_code[start..end].fill(0);
                     deployed_code[start..end].fill(0);
                 }
+            }
+        }
+        for span in &self.factory_dependency_refs {
+            let start = span.start;
+            let end = start + span.length;
+            if end <= compiled_code.len() && end <= deployed_code.len() {
+                compiled_code[start..end].fill(0);
+                deployed_code[start..end].fill(0);
             }
         }
     }
@@ -736,5 +748,26 @@ mod tests {
                 compiler_zkvyper_version: Some("v1.5.10".to_string()),
             }
         );
+    }
+
+    #[test]
+    fn patches_factory_dependency_refs() {
+        let artifacts = CompilationArtifacts {
+            bytecode: vec![],
+            deployed_bytecode: None,
+            abi: serde_json::Value::Array(vec![]),
+            immutable_refs: Default::default(),
+            factory_dependency_refs: vec![ImmutableReference {
+                start: 4,
+                length: 4,
+            }],
+        };
+        let mut compiled = vec![1, 2, 3, 4, 0xaa, 0xaa, 0xaa, 0xaa, 9];
+        let mut deployed = vec![1, 2, 3, 4, 0xbb, 0xbb, 0xbb, 0xbb, 9];
+
+        artifacts.patch_immutable_bytecodes(&mut compiled, &mut deployed);
+
+        assert_eq!(compiled, vec![1, 2, 3, 4, 0, 0, 0, 0, 9]);
+        assert_eq!(deployed, vec![1, 2, 3, 4, 0, 0, 0, 0, 9]);
     }
 }

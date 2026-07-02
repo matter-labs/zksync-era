@@ -288,28 +288,16 @@ impl ContractVerifier {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
             BytecodeMarker::Evm => Self::deployed_evm_bytecode(&deployed_contract)?,
         };
-        let mut deployed_code = deployed_bytecode.to_vec();
+        let deployed_code = deployed_bytecode.to_vec();
         let deployed_identifier =
             ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
 
         let artifacts = self
-            .get_compilation_artifacts(&mut request, &deployed_identifier)
+            .get_compilation_artifacts(&mut request, &deployed_identifier, &deployed_code)
             .await?;
 
-        let mut compiled_code = artifacts.deployed_bytecode().to_vec();
-
-        // If contract contains immutable references (e.g. places to be filled during constructor execution),
-        // rewrite them with zeroes, as we can't know the values just yet.
-        // We're checking the constructor arguments as well, so assuming tha constructor arguments
-        // are the same, the immutable values should also be the same.
-        artifacts.patch_immutable_bytecodes(&mut compiled_code, &mut deployed_code);
-
-        let compiled_identifier =
-            ContractIdentifier::from_bytecode(bytecode_marker, &compiled_code);
-
-        // regenerate the deployed identifier after patching the immutable bytecode
-        let deployed_identifier =
-            ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
+        let (compiled_identifier, deployed_identifier) =
+            Self::patched_identifiers(bytecode_marker, &artifacts, deployed_code);
 
         let constructor_args = match bytecode_marker {
             BytecodeMarker::EraVm => self
@@ -396,6 +384,7 @@ impl ContractVerifier {
         &self,
         request: &mut VerificationRequest,
         deployed_identifier: &ContractIdentifier,
+        deployed_code: &[u8],
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         // If compiler versions from the metadata don't match with the request,
         // we'll first try to use info from metadata.
@@ -419,13 +408,14 @@ impl ContractVerifier {
                 .await;
 
             if let Ok(artifacts) = artifacts {
-                let compiled_identifier = ContractIdentifier::from_bytecode(
+                let (compiled_identifier, deployed_identifier) = Self::patched_identifiers(
                     deployed_identifier.bytecode_marker,
-                    artifacts.deployed_bytecode(),
+                    &artifacts,
+                    deployed_code.to_vec(),
                 );
                 // Check if the compiled bytecode matches the deployed bytecode
                 if matches!(
-                    compiled_identifier.matches(deployed_identifier),
+                    compiled_identifier.matches(&deployed_identifier),
                     Match::Full | Match::Partial
                 ) {
                     tracing::info!(
@@ -459,6 +449,25 @@ impl ContractVerifier {
         // We either have no alternative request or it didn't succeed
         self.compile(request.req.clone(), deployed_identifier.bytecode_marker)
             .await
+    }
+
+    fn patched_identifiers(
+        bytecode_marker: BytecodeMarker,
+        artifacts: &CompilationArtifacts,
+        mut deployed_code: Vec<u8>,
+    ) -> (ContractIdentifier, ContractIdentifier) {
+        let mut compiled_code = artifacts.deployed_bytecode().to_vec();
+
+        // If contract contains immutable references (e.g. places to be filled during constructor execution),
+        // rewrite them with zeroes, as we can't know the values just yet.
+        // We're checking the constructor arguments as well, so assuming the constructor arguments
+        // are the same, the immutable values should also be the same.
+        artifacts.patch_immutable_bytecodes(&mut compiled_code, &mut deployed_code);
+
+        (
+            ContractIdentifier::from_bytecode(bytecode_marker, &compiled_code),
+            ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code),
+        )
     }
 
     // Updates request compiler versions in the DB.
