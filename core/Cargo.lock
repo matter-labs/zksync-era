@@ -3021,9 +3021,9 @@ dependencies = [
 
 [[package]]
 name = "circuit_definitions"
-version = "0.153.11"
+version = "0.153.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d356a81274e871314d9b3c9ff122ad130835a9736fdcc1259b0ef59087d82d4"
+checksum = "475405b7a3375f19a46e8dfca7aca0203a484c9dd542fa98a351aaaa0ecdff78"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -3035,26 +3035,26 @@ dependencies = [
 
 [[package]]
 name = "circuit_encodings"
-version = "0.153.11"
+version = "0.153.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c1512196c2e2a544bb3399c10c858fcfd189fb4178e31325ecd8cc1b92b30ea"
+checksum = "c8b671708c77f6b03d1d4b644fa878e014cab314ef313bf0ea31cc8023e86be9"
 dependencies = [
  "derivative",
  "serde",
- "zk_evm 0.153.11",
+ "zk_evm 0.153.12",
  "zkevm_circuits",
 ]
 
 [[package]]
 name = "circuit_sequencer_api"
-version = "0.153.11"
+version = "0.153.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e3db81b57ac4295229a723c2aec69ab696673c05b714b3fb58528a73d8514ff"
+checksum = "1fe90fbbd8d569fcf4b4de5e1f74b97c130109731e6adf1cc09c404db3fc0428"
 dependencies = [
  "derivative",
  "rayon",
  "serde",
- "zk_evm 0.153.11",
+ "zk_evm 0.153.12",
  "zksync_bellman",
 ]
 
@@ -13218,9 +13218,9 @@ dependencies = [
 
 [[package]]
 name = "zk_evm"
-version = "0.153.11"
+version = "0.153.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12d0d3612d8b161fce2678c0d00fc9b5477333ea73de4e87e72372d69dc2f458"
+checksum = "cd312214ccdc53b240172bb2180985115801ca63d53a0b2555d1fc16ef790ed5"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -13228,7 +13228,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.153.11",
+ "zk_evm_abstractions 0.153.12",
 ]
 
 [[package]]
@@ -13272,15 +13272,15 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.153.11"
+version = "0.153.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d60390ed334ab21f8042cc358cd77364f1ed9d05ad6ee56fcd2c272f9945110"
+checksum = "16aaaa4ee48201c90baefe34d05ca408696e3c0d48e8d74ef8edae78a09899ec"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.153.11",
+ "zkevm_opcode_defs 0.153.12",
 ]
 
 [[package]]
@@ -13337,9 +13337,9 @@ dependencies = [
 
 [[package]]
 name = "zkevm_circuits"
-version = "0.153.11"
+version = "0.153.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0704e4cd241926476ada6028651fc37a13c42ee78f5d3ac0902f8a1935ebe762"
+checksum = "b59469c9edeb6ab1c2cd5bdb7576b53627dcafc52c7008876d08305fa25b7fe3"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -13352,7 +13352,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "zkevm_opcode_defs 0.153.11",
+ "zkevm_opcode_defs 0.153.12",
  "zksync_cs_derive",
 ]
 
@@ -13417,9 +13417,9 @@ dependencies = [
 
 [[package]]
 name = "zkevm_opcode_defs"
-version = "0.153.11"
+version = "0.153.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5cb5c3cf44efc476d2c8fb63a11820034359af546a2953c2a280ffb061bc25b"
+checksum = "67bd8604a07502aa7a88f70a6fca32aa7ba39d7a708328dc559a22efdecf9a43"
 dependencies = [
  "bitflags 2.9.1",
  "blake2 0.10.6",
@@ -13627,7 +13627,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zk_evm 0.153.11",
+ "zk_evm 0.153.12",
  "zksync_contracts",
  "zksync_crypto_primitives",
  "zksync_dal",
@@ -14444,9 +14444,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_kzg"
-version = "0.153.11"
+version = "0.153.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82323b2e88e688d4a93ecfd84135ce0e68e67c26310a1987f7f48c060683da30"
+checksum = "c7020211ef413588110f4776732155b4d9a243f0711dd91fd409c01b63929286"
 dependencies = [
  "boojum",
  "derivative",
@@ -14601,7 +14601,7 @@ dependencies = [
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
  "zk_evm 0.151.8",
- "zk_evm 0.153.11",
+ "zk_evm 0.153.12",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_mini_merkle_tree",
@@ -15427,22 +15427,22 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2"
-version = "0.5.0-4"
+version = "0.5.0-5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d6cc856c4478bb1cdf08d02bd276554a475b630b1454bd38fb6d057ea39298b"
+checksum = "72aa424a25f62e6fffee45aa9c2fae9b06effd66e56200b7e31c357eee2d6683"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.153.11",
- "zkevm_opcode_defs 0.153.11",
+ "zk_evm_abstractions 0.153.12",
+ "zkevm_opcode_defs 0.153.12",
  "zksync_vm2_interface",
 ]
 
 [[package]]
 name = "zksync_vm2_interface"
-version = "0.5.0-4"
+version = "0.5.0-5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ead524a6f0cad06944d5475d91b38d6c0c908ba0c60b28af42f76db1bc290d03"
+checksum = "be6606960c6e78d88ebacd2e2317824ecc96922fa42ceadb44a7f7e5e9eeb95f"
 dependencies = [
  "primitive-types",
 ]
