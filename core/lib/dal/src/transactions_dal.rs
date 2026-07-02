@@ -1885,6 +1885,8 @@ impl TransactionsDal<'_, '_> {
                                 received_at
                             LIMIT
                                 $1
+                            FOR UPDATE
+                            SKIP LOCKED
                         ) AS subquery1
                     ORDER BY
                         hash
