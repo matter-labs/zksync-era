@@ -84,6 +84,9 @@ impl EthProofWatcher {
             METRICS
                 .submitter_balance
                 .set(self.client.submitter_balance().await?);
+            METRICS
+                .proof_manager_free_usdc
+                .set(self.client.proof_manager_free_usdc().await?);
 
             for event in &self.event_handlers {
                 let to_block = self.client.get_latest_block().await?;

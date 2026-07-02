@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use smart_config::{DescribeConfig, DeserializeConfig};
+use zksync_basic_types::Address;
 
 use crate::ObjectStoreConfig;
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -11,6 +12,10 @@ pub struct EthProofManagerConfig {
     /// HTTP RPC URL of L2(where contracts are deployed)
     #[config(default_t = "http://127.0.0.1:8545".to_string())]
     pub http_rpc_url: String,
+    /// USDC token address used by the ProofManager contract. Required for the
+    /// free-USDC metric; the watcher panics on first tick if left at zero.
+    #[config(default)]
+    pub usdc_address: Address,
     /// Public object store URL
     #[config(default_t = "".to_string())]
     pub public_object_store_url: String,

@@ -29,6 +29,11 @@ pub(super) struct EthProofManagerMetrics {
     #[metrics(labels = ["contract_address"])]
     pub contract_address: LabeledFamily<&'static str, Gauge, 1>,
     pub submitter_balance: Gauge<f64>,
+    /// USDC balance of the ProofManager minus accrued `owedReward` to each
+    /// proving network. Reads high vs the contract's `_can_accept_request`
+    /// because internal `heapObligations` / `potentialFutureReward` are not
+    /// readable. Raw token units (6 decimals).
+    pub proof_manager_free_usdc: Gauge<f64>,
 }
 
 #[vise::register]

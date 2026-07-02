@@ -3,12 +3,15 @@ use std::{cmp::max, ops::Deref, sync::Arc};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
-use zksync_eth_client::{BoundEthInterface, EnrichedClientError, Options};
+use zksync_eth_client::{
+    BoundEthInterface, CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
+    Options,
+};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_types::{
     api::Log,
-    ethabi::{self},
-    web3::{BlockId, BlockNumber, Filter, FilterBuilder},
+    ethabi::{self, Token},
+    web3::{self, BlockId, BlockNumber, Filter, FilterBuilder},
     Address, SLChainId, H256, U256,
 };
 
@@ -70,6 +73,25 @@ pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
     fn contract_address(&self) -> Address;
 
     async fn submitter_balance(&self) -> Result<f64, ClientError>;
+
+    /// USDC balance of the ProofManager minus accrued `owedReward`. See the
+    /// gauge doc for the obligations it does not subtract.
+    async fn proof_manager_free_usdc(&self) -> Result<f64, ClientError>;
+}
+
+/// Minimal `IERC20.balanceOf` ABI, built on the fly to avoid depending on a
+/// specific contracts artifact.
+fn erc20_balance_of_abi() -> ethabi::Contract {
+    serde_json::from_str(
+        r#"[{
+            "inputs": [{"name": "account", "type": "address"}],
+            "name": "balanceOf",
+            "outputs": [{"name": "", "type": "uint256"}],
+            "stateMutability": "view",
+            "type": "function"
+        }]"#,
+    )
+    .expect("hard-coded ERC20 balanceOf ABI is valid")
 }
 
 impl ProofManagerClient {
@@ -443,5 +465,99 @@ impl EthProofManagerClient for ProofManagerClient {
             .await
             .map(|balance| balance.as_u64() as f64)
             .map_err(Into::into)
+    }
+
+    async fn proof_manager_free_usdc(&self) -> Result<f64, ClientError> {
+        let usdc_address = self.config.usdc_address;
+        assert!(
+            usdc_address != Address::zero(),
+            "eth_proof_manager.usdc_address is unset",
+        );
+        let contract_address = self.client.contract_addr();
+        let eth_interface = self.client.deref().as_ref();
+
+        let balance: U256 = CallFunctionArgs::new("balanceOf", contract_address)
+            .for_contract(usdc_address, &erc20_balance_of_abi())
+            .call(eth_interface)
+            .await?;
+
+        // 1 = Fermah, 2 = Lagrange; matches the ProvingNetwork enum.
+        let fermah_owed =
+            read_owed_reward(eth_interface, self.client.contract(), contract_address, 1).await?;
+        let lagrange_owed =
+            read_owed_reward(eth_interface, self.client.contract(), contract_address, 2).await?;
+
+        // Saturate to guard against snapshot races where balance has decreased
+        // but the matching owedReward reset isn't visible yet.
+        let obligations = fermah_owed.saturating_add(lagrange_owed);
+        let free = balance.saturating_sub(obligations);
+
+        Ok(free.as_u64() as f64)
+    }
+}
+
+/// Reads `ProvingNetworkInfo.owedReward`. Decoded manually because the function
+/// returns a single struct, which ethabi yields as one `Token::Tuple`.
+async fn read_owed_reward(
+    eth_interface: &dyn EthInterface,
+    proof_manager_abi: &ethabi::Contract,
+    proof_manager_address: Address,
+    proving_network_enum_value: u8,
+) -> Result<U256, ContractCallError> {
+    let func = proof_manager_abi
+        .function("provingNetworkInfo")
+        .map_err(ContractCallError::Function)?;
+
+    let input_tokens = vec![Token::Uint(U256::from(proving_network_enum_value))];
+    let encoded_input =
+        func.encode_input(&input_tokens)
+            .map_err(|source| ContractCallError::EncodeInput {
+                signature: func.signature(),
+                input: input_tokens,
+                source,
+            })?;
+
+    let request = web3::CallRequest {
+        from: None,
+        to: Some(proof_manager_address),
+        data: Some(web3::Bytes(encoded_input)),
+        gas: None,
+        gas_price: None,
+        value: None,
+        transaction_type: None,
+        access_list: None,
+        max_fee_per_gas: None,
+        max_priority_fee_per_gas: None,
+    };
+
+    let encoded_output = eth_interface.call_contract_function(request, None).await?;
+    let output_tokens = func.decode_output(&encoded_output.0).map_err(|source| {
+        ContractCallError::DecodeOutput {
+            signature: func.signature(),
+            output: encoded_output,
+            source,
+        }
+    })?;
+
+    // Expected: [Tuple([status, addr, owedReward])].
+    match output_tokens.as_slice() {
+        [Token::Tuple(fields)] => match fields.as_slice() {
+            [Token::Uint(_status), Token::Address(_addr), Token::Uint(owed)] => Ok(*owed),
+            _ => Err(unexpected_proving_network_info_layout(func, output_tokens)),
+        },
+        _ => Err(unexpected_proving_network_info_layout(func, output_tokens)),
+    }
+}
+
+fn unexpected_proving_network_info_layout(
+    func: &ethabi::Function,
+    output: Vec<Token>,
+) -> ContractCallError {
+    ContractCallError::DetokenizeOutput {
+        signature: func.signature(),
+        output,
+        source: web3::contract::Error::InvalidOutputType(
+            "provingNetworkInfo returned unexpected token layout".to_string(),
+        ),
     }
 }
