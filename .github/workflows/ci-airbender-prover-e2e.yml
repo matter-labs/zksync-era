@@ -54,6 +54,16 @@ jobs:
           echo "Using Web3 HTTP URL: $WEB3_HTTP_URL"
           echo "URL=$WEB3_HTTP_URL" >> $GITHUB_ENV
 
+      # gpu_prover's CUDA build (via the `cmake` crate) requires CMake >= 3.28, but the
+      # zk-environment image ships 3.24. Install the same version the Docker image uses into
+      # /usr/local (ahead of the system CMake on PATH), mirroring docker/airbender-prover-server/Dockerfile.
+      - name: Install newer CMake for the GPU prover build
+        env:
+          CMAKE_VERSION: "3.30.2"
+        run: |
+          PASSED_ENV_VARS="CMAKE_VERSION" \
+          ci_run bash -lc 'curl -fsSLO "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh" && chmod +x "cmake-${CMAKE_VERSION}-linux-x86_64.sh" && "./cmake-${CMAKE_VERSION}-linux-x86_64.sh" --skip-license --prefix=/usr/local && rm "cmake-${CMAKE_VERSION}-linux-x86_64.sh" && cmake --version'
+
       # Build the Airbender prover server (GPU FRI prover) from source. The workspace pins its own
       # nightly via `airbender_prover_server/rust-toolchain`; `rustup show` installs it on demand.
       # `build.rs` downloads the guest binary + FRI VK for the pinned verifier version at build time.
