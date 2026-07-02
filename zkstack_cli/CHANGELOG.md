@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.2.2](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.2.1...zkstack_cli-v0.2.2) (2026-07-02)
+
+
+### Features
+
+* add HTTP compression to API servers and EN sync client ([#4729](https://github.com/matter-labs/zksync-era/issues/4729)) ([43ff240](https://github.com/matter-labs/zksync-era/commit/43ff2405664427fb162775a9bef387113d3762c2))
+* add support for eip-7594 blob format ([#4542](https://github.com/matter-labs/zksync-era/issues/4542)) ([b57d6f6](https://github.com/matter-labs/zksync-era/commit/b57d6f6eb2c908692f356f584a8e3b0158ef2969))
+* **crypto:** Update crypto deps ([#4587](https://github.com/matter-labs/zksync-era/issues/4587)) ([c5e7152](https://github.com/matter-labs/zksync-era/commit/c5e7152c7908b8f253f111b359d0fa9f4548da62))
+* Draft v31 ([#4608](https://github.com/matter-labs/zksync-era/issues/4608)) ([a2d815b](https://github.com/matter-labs/zksync-era/commit/a2d815b7971f3a191e805817ad3d43508f33c831))
+* v31 execute changes ([#4769](https://github.com/matter-labs/zksync-era/issues/4769)) ([d6a53ee](https://github.com/matter-labs/zksync-era/commit/d6a53eedbd415fd14a0ca0cf7b3e3a851f3201b1))
+* zkstack command for v29.3 upgrade ([#4648](https://github.com/matter-labs/zksync-era/issues/4648)) ([f054095](https://github.com/matter-labs/zksync-era/commit/f0540950e92539020a64c1e59131f0ba21068b52))
+* **zkstack:** ensure priority queue is empty before migrating to gateway ([#4539](https://github.com/matter-labs/zksync-era/issues/4539)) ([a5e1133](https://github.com/matter-labs/zksync-era/commit/a5e1133e4974bde5e2dad81b211e5a205f6a65f5))
+* **zkstack:** support genesis for zksync os ([#4536](https://github.com/matter-labs/zksync-era/issues/4536)) ([c577d86](https://github.com/matter-labs/zksync-era/commit/c577d867cc3081b4ce12c59351e0a32c2fdfe241))
+
+
+### Bug Fixes
+
+* **gateway_migration:** Add wait for starting migration ([#4613](https://github.com/matter-labs/zksync-era/issues/4613)) ([31564c2](https://github.com/matter-labs/zksync-era/commit/31564c286942a514e8c71cfb143064f7225c03b2))
+* update ownerships of contracts for upgrade testing ([#4627](https://github.com/matter-labs/zksync-era/issues/4627)) ([f579999](https://github.com/matter-labs/zksync-era/commit/f57999997f581b557cf8e36e3a9be5650d992022))
+* **upgrades:** support Era v29→v31 accepted upgrade path ([#4794](https://github.com/matter-labs/zksync-era/issues/4794)) ([b8e4dbd](https://github.com/matter-labs/zksync-era/commit/b8e4dbdc81d740b959f977a7b195d30903e15837))
+* **zkstack:** fix `--update-submodules` flag to accept explicit values ([#4559](https://github.com/matter-labs/zksync-era/issues/4559)) ([88481ce](https://github.com/matter-labs/zksync-era/commit/88481cefa8e1536c95698cd7b07d37fd0e4bbe43))
+* **zkstack:** fix total_executed ([#4628](https://github.com/matter-labs/zksync-era/issues/4628)) ([584f01a](https://github.com/matter-labs/zksync-era/commit/584f01a81ac90fa7ce84dc3516e8c648090d090c))
+* **zkstack:** get rid of more dependencies from config ([#4554](https://github.com/matter-labs/zksync-era/issues/4554)) ([9e59509](https://github.com/matter-labs/zksync-era/commit/9e595099746fae6e216431270075dfa44d805b71))
+* **zkstack:** remove ServerNotifier call pre v31 ([#4843](https://github.com/matter-labs/zksync-era/issues/4843)) ([75ca9d8](https://github.com/matter-labs/zksync-era/commit/75ca9d81c482153c2b49872fc198a70eb3b4d44f))
+* **zkstack:** upgrade command ([#4840](https://github.com/matter-labs/zksync-era/issues/4840)) ([7ae4a42](https://github.com/matter-labs/zksync-era/commit/7ae4a42c0fcfa3114f266b5e6d7454488cbbe053))
+* **zkstack:** Use --dev for init config properly ([#4661](https://github.com/matter-labs/zksync-era/issues/4661)) ([e393d40](https://github.com/matter-labs/zksync-era/commit/e393d409412be614f140a09a5330f12fef0e77fb))
+
 ## [0.2.1](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.2.0...zkstack_cli-v0.2.1) (2025-10-09)
 
 
