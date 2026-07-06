@@ -62,6 +62,7 @@ fn eravm_verification_info(
             deployed_bytecode: None,
             abi: serde_json::json!([]),
             immutable_refs: Default::default(),
+            factory_dependency_refs: Default::default(),
         },
         verified_at: Default::default(),
         verification_problems: Vec::new(),

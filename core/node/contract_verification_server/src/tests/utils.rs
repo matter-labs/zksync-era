@@ -173,6 +173,7 @@ pub(super) fn mock_verification_info(
             deployed_bytecode: None,
             abi: abi.unwrap_or_default(),
             immutable_refs: Default::default(),
+            factory_dependency_refs: Default::default(),
         },
         verified_at: Default::default(),
         verification_problems: Vec::new(),

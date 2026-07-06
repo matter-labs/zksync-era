@@ -264,13 +264,15 @@ async fn mock_deployment_inner(
         .unwrap();
 }
 
-type SharedMockFn<In> =
-    Arc<dyn Fn(In) -> Result<CompilationArtifacts, ContractVerifierError> + Send + Sync>;
+type SharedMockFn<In> = Arc<
+    dyn Fn(In, Option<&str>) -> Result<CompilationArtifacts, ContractVerifierError> + Send + Sync,
+>;
 
 #[derive(Clone)]
 struct MockCompilerResolver {
     zksolc: SharedMockFn<ZkSolcInput>,
     solc: SharedMockFn<SolcInput>,
+    zksolc_version: Option<String>,
 }
 
 impl fmt::Debug for MockCompilerResolver {
@@ -286,15 +288,27 @@ impl MockCompilerResolver {
         zksolc: impl Fn(ZkSolcInput) -> CompilationArtifacts + 'static + Send + Sync,
     ) -> Self {
         Self {
-            zksolc: Arc::new(move |input| Ok(zksolc(input))),
-            solc: Arc::new(|input| panic!("unexpected solc call: {input:?}")),
+            zksolc: Arc::new(move |input, _version| Ok(zksolc(input))),
+            solc: Arc::new(|input, _version| panic!("unexpected solc call: {input:?}")),
+            zksolc_version: None,
+        }
+    }
+
+    fn zksolc_with_version(
+        zksolc: impl Fn(ZkSolcInput, &str) -> CompilationArtifacts + 'static + Send + Sync,
+    ) -> Self {
+        Self {
+            zksolc: Arc::new(move |input, version| Ok(zksolc(input, version.unwrap()))),
+            solc: Arc::new(|input, _version| panic!("unexpected solc call: {input:?}")),
+            zksolc_version: None,
         }
     }
 
     fn solc(solc: impl Fn(SolcInput) -> CompilationArtifacts + 'static + Send + Sync) -> Self {
         Self {
-            solc: Arc::new(move |input| Ok(solc(input))),
-            zksolc: Arc::new(|input| panic!("unexpected zksolc call: {input:?}")),
+            solc: Arc::new(move |input, _version| Ok(solc(input))),
+            zksolc: Arc::new(|input, _version| panic!("unexpected zksolc call: {input:?}")),
+            zksolc_version: None,
         }
     }
 }
@@ -305,7 +319,7 @@ impl Compiler<ZkSolcInput> for MockCompilerResolver {
         self: Box<Self>,
         input: ZkSolcInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        (self.zksolc)(input)
+        (self.zksolc)(input, self.zksolc_version.as_deref())
     }
 }
 
@@ -315,7 +329,7 @@ impl Compiler<SolcInput> for MockCompilerResolver {
         self: Box<Self>,
         input: SolcInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        (self.solc)(input)
+        (self.solc)(input, None)
     }
 }
 
@@ -358,13 +372,17 @@ impl CompilerResolver for MockCompilerResolver {
                 version.base.clone(),
             ));
         }
-        if version.zk != ZKSOLC_VERSION && version.zk != ZKSOLC_VERSION_WITH_CBOR {
+        let zk_version = version.zk.strip_prefix('v').unwrap_or(&version.zk);
+        if zk_version != ZKSOLC_VERSION && zk_version != ZKSOLC_VERSION_WITH_CBOR {
             return Err(ContractVerifierError::UnknownCompilerVersion(
                 "zksolc",
                 version.zk.clone(),
             ));
         }
-        Ok(Box::new(self.clone()))
+        Ok(Box::new(Self {
+            zksolc_version: Some(version.zk.clone()),
+            ..self.clone()
+        }))
     }
 
     async fn resolve_vyper(
@@ -471,6 +489,7 @@ async fn contract_verifier_basics(contract: TestContract) {
             deployed_bytecode: None,
             abi: counter_contract_abi(),
             immutable_refs: Default::default(),
+            factory_dependency_refs: Default::default(),
         }
     });
     let verifier = ContractVerifier::with_resolver(
@@ -593,6 +612,7 @@ async fn verifying_evm_bytecode(contract: TestContract) {
         deployed_bytecode: Some(deployed_bytecode),
         abi: counter_contract_abi(),
         immutable_refs: Default::default(),
+        factory_dependency_refs: Default::default(),
     };
     let mock_resolver = MockCompilerResolver::solc(move |input| {
         assert_eq!(input.standard_json.language, "Solidity");
@@ -650,6 +670,7 @@ async fn verifying_evm_with_raw_stored_bytecode() {
         deployed_bytecode: Some(deployed_bytecode),
         abi: counter_contract_abi(),
         immutable_refs: Default::default(),
+        factory_dependency_refs: Default::default(),
     };
     let mock_resolver = MockCompilerResolver::solc(move |_| artifacts.clone());
     let verifier = ContractVerifier::with_resolver(
@@ -687,6 +708,7 @@ async fn bytecode_mismatch_error() {
         deployed_bytecode: None,
         abi: counter_contract_abi(),
         immutable_refs: Default::default(),
+        factory_dependency_refs: Default::default(),
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
@@ -793,6 +815,7 @@ async fn no_metadata_final_word_mismatch_is_rejected(
         deployed_bytecode: None,
         abi: counter_contract_abi(),
         immutable_refs: Default::default(),
+        factory_dependency_refs: Default::default(),
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
@@ -848,6 +871,7 @@ async fn metadata_final_word_mismatch_is_partial_match() {
         deployed_bytecode: None,
         abi: counter_contract_abi(),
         immutable_refs: Default::default(),
+        factory_dependency_refs: Default::default(),
     });
     let verifier = ContractVerifier::with_resolver(
         Duration::from_secs(60),
@@ -929,12 +953,14 @@ async fn args_mismatch_error(contract: TestContract, bytecode_kind: BytecodeMark
             deployed_bytecode: None,
             abi: counter_contract_abi(),
             immutable_refs: Default::default(),
+            factory_dependency_refs: Default::default(),
         }),
         BytecodeMarker::Evm => MockCompilerResolver::solc(move |_| CompilationArtifacts {
             bytecode: vec![3_u8; 48],
             deployed_bytecode: Some(bytecode.clone()),
             abi: counter_contract_abi(),
             immutable_refs: Default::default(),
+            factory_dependency_refs: Default::default(),
         }),
     };
     let verifier = ContractVerifier::with_resolver(
@@ -1002,6 +1028,7 @@ async fn creation_bytecode_mismatch() {
             deployed_bytecode: Some(deployed_bytecode.clone()),
             abi: counter_contract_abi(),
             immutable_refs: Default::default(),
+            factory_dependency_refs: Default::default(),
         }
     });
     let verifier = ContractVerifier::with_resolver(
@@ -1127,6 +1154,7 @@ async fn verifying_evm_with_immutables() {
         deployed_bytecode: Some(deployed_bytecode_compiled),
         abi: counter_contract_abi(),
         immutable_refs: imm_map,
+        factory_dependency_refs: Default::default(),
     };
 
     let mock_resolver = MockCompilerResolver::solc(move |_| artifacts.clone());
@@ -1144,4 +1172,133 @@ async fn verifying_evm_with_immutables() {
     verifier.run(stop_receiver, Some(1)).await.unwrap();
 
     assert_request_success(&mut storage, request_id, address, &creation_bytecode, &[]).await;
+}
+
+#[tokio::test]
+async fn verifying_era_vm_with_factory_dependency_hash_ref() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let mut compiled_bytecode = vec![0x11; 96];
+    compiled_bytecode[32..64].copy_from_slice(&[0xaa; 32]);
+    let mut deployed_bytecode = compiled_bytecode.clone();
+    deployed_bytecode[32..64].copy_from_slice(&[0xbb; 32]);
+
+    let address = Address::repeat_byte(1);
+    mock_deployment(&mut storage, address, deployed_bytecode, &[]).await;
+    let req = test_request(address, COUNTER_CONTRACT);
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(&req)
+        .await
+        .unwrap();
+
+    let artifacts = CompilationArtifacts {
+        bytecode: compiled_bytecode.clone(),
+        deployed_bytecode: None,
+        abi: counter_contract_abi(),
+        immutable_refs: Default::default(),
+        factory_dependency_refs: vec![ImmutableReference {
+            start: 32,
+            length: 32,
+        }],
+    };
+
+    let mock_resolver = MockCompilerResolver::zksolc(move |_| artifacts.clone());
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(mock_resolver),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    assert_request_success(&mut storage, request_id, address, &compiled_bytecode, &[]).await;
+}
+
+#[tokio::test]
+async fn metadata_version_fallback_patches_factory_dependency_hash_refs() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let cbor_metadata = eravm_cbor_metadata_suffix_for_zksolc(ZKSOLC_VERSION_WITH_CBOR);
+    let mut matching_bytecode = vec![0x11; 96];
+    matching_bytecode[32..64].copy_from_slice(&[0xaa; 32]);
+    matching_bytecode.extend_from_slice(&[0; 32]);
+    matching_bytecode.extend_from_slice(&cbor_metadata);
+    assert_eq!(matching_bytecode.len() / 32 % 2, 1);
+
+    let mut deployed_bytecode = matching_bytecode.clone();
+    deployed_bytecode[32..64].copy_from_slice(&[0xbb; 32]);
+
+    let mut wrong_version_bytecode = matching_bytecode.clone();
+    wrong_version_bytecode[0..32].copy_from_slice(&[0xcc; 32]);
+
+    let address = Address::repeat_byte(1);
+    mock_deployment(&mut storage, address, deployed_bytecode, &[]).await;
+    let req = test_request(address, COUNTER_CONTRACT);
+    let request_id = storage
+        .contract_verification_dal()
+        .add_contract_verification_request(&req)
+        .await
+        .unwrap();
+
+    let expected_bytecode = matching_bytecode.clone();
+    let metadata_zksolc_version = format!("v{ZKSOLC_VERSION_WITH_CBOR}");
+    let mock_resolver = MockCompilerResolver::zksolc_with_version(move |_input, version| {
+        let bytecode = if version == metadata_zksolc_version {
+            matching_bytecode.clone()
+        } else {
+            wrong_version_bytecode.clone()
+        };
+
+        CompilationArtifacts {
+            bytecode,
+            deployed_bytecode: None,
+            abi: counter_contract_abi(),
+            immutable_refs: Default::default(),
+            factory_dependency_refs: vec![ImmutableReference {
+                start: 32,
+                length: 32,
+            }],
+        }
+    });
+    let verifier = ContractVerifier::with_resolver(
+        Duration::from_secs(60),
+        pool.clone(),
+        Arc::new(mock_resolver),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    verifier.run(stop_receiver, Some(1)).await.unwrap();
+
+    assert_request_success(&mut storage, request_id, address, &expected_bytecode, &[]).await;
+}
+
+fn eravm_cbor_metadata_suffix_for_zksolc(version: &str) -> Vec<u8> {
+    let compiler = format!("zksolc:{version}");
+    let compiler = compiler.as_bytes();
+    assert!(compiler.len() < 24);
+
+    let mut metadata = vec![0xa1, 0x64];
+    metadata.extend_from_slice(b"solc");
+    metadata.push(0x60 + compiler.len() as u8);
+    metadata.extend_from_slice(compiler);
+
+    let aligned_metadata_len = metadata.len().div_ceil(32) * 32;
+    assert!(metadata.len() + 2 <= aligned_metadata_len);
+
+    let mut suffix = vec![0; aligned_metadata_len - metadata.len() - 2];
+    suffix.extend_from_slice(&metadata);
+    suffix.extend_from_slice(&(metadata.len() as u16).to_be_bytes());
+    suffix
 }
