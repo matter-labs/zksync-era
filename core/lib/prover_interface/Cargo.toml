@@ -17,6 +17,7 @@ zksync_types.workspace = true
 
 # We can use the newest api to send proofs to L1.
 circuit_definitions.workspace = true
+crypto_codegen.workspace = true
 fflonk.workspace = true
 bellman.workspace = true
 

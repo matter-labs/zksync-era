@@ -194,6 +194,38 @@ fn parse_immutable_refs(
     }
 }
 
+fn parse_factory_dependency_refs(contract: &Value, bytecode: &[u8]) -> Vec<ImmutableReference> {
+    let Some(deps) = contract
+        .get("factoryDependencies")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return Vec::new();
+    };
+
+    let mut refs = Vec::new();
+    for hash in deps.keys() {
+        let Ok(hash) = hex::decode(hash.strip_prefix("0x").unwrap_or(hash)) else {
+            continue;
+        };
+        if hash.len() != 32 {
+            continue;
+        }
+
+        refs.extend(
+            bytecode
+                .windows(hash.len())
+                .enumerate()
+                .filter_map(|(start, window)| {
+                    (window == hash.as_slice()).then_some(ImmutableReference {
+                        start,
+                        length: hash.len(),
+                    })
+                }),
+        );
+    }
+    refs
+}
+
 /// Parsing logic shared between `solc` and `zksolc`.
 fn parse_standard_json_output(
     output: &serde_json::Value,
@@ -266,6 +298,7 @@ fn parse_standard_json_output(
     let immutable_refs =
         parse_immutable_refs(contract.pointer("/evm/deployedBytecode/immutableReferences"))
             .unwrap_or_default();
+    let factory_dependency_refs = parse_factory_dependency_refs(contract, &bytecode);
 
     let mut abi = contract["abi"].clone();
     if abi.is_null() {
@@ -285,6 +318,7 @@ fn parse_standard_json_output(
         deployed_bytecode,
         abi,
         immutable_refs,
+        factory_dependency_refs,
     })
 }
 
@@ -362,5 +396,50 @@ mod parser_tests {
                 field_path: "/evm/deployedBytecode/object",
             } if contract_name == "Counter"
         ));
+    }
+
+    #[test]
+    fn parses_factory_dependency_hash_refs() {
+        let dependency_hash = "010002f3aa6cac6815f2300b1a4ed078983900fa5a0268f6575db307b09ae610";
+        let bytecode = format!("11223344{dependency_hash}55667788{dependency_hash}");
+        let output = serde_json::json!({
+            "contracts": {
+                "Counter.sol": {
+                    "Counter": {
+                        "abi": [],
+                        "evm": {
+                            "bytecode": {
+                                "object": bytecode,
+                            }
+                        },
+                        "factoryDependencies": {
+                            dependency_hash: "CounterDependency.sol:CounterDependency"
+                        }
+                    }
+                }
+            }
+        });
+
+        let artifacts = parse_standard_json_output(
+            &output,
+            "Counter".to_owned(),
+            "Counter.sol".to_owned(),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            artifacts.factory_dependency_refs,
+            vec![
+                zksync_types::contract_verification::api::ImmutableReference {
+                    start: 4,
+                    length: 32,
+                },
+                zksync_types::contract_verification::api::ImmutableReference {
+                    start: 40,
+                    length: 32,
+                },
+            ]
+        );
     }
 }

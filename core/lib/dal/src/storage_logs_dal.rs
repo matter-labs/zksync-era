@@ -804,7 +804,7 @@ impl StorageLogsDal<'_, '_> {
 
         let row = sqlx::query_scalar!(
             r#"
-                SELECT TRUE
+                SELECT TRUE AS "exists"
                 FROM storage_logs
                 WHERE miniblock_number <= $1
                 LIMIT 1 OFFSET $2

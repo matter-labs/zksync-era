@@ -550,6 +550,45 @@ impl BlocksWeb3Dal<'_, '_> {
             .await
     }
 
+    /// Returns the metadata needed to replay an L1 batch and recover missing call traces for
+    /// an L2 block: the containing L1 batch number, the L2 block hash, and the protocol
+    /// version. Returns `None` if the L2 block is not yet sealed in an L1 batch.
+    pub async fn get_l2_block_replay_metadata(
+        &mut self,
+        l2_block_number: L2BlockNumber,
+    ) -> DalResult<Option<(L1BatchNumber, H256, ProtocolVersionId)>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                l1_batch_number,
+                hash,
+                protocol_version
+            FROM
+                miniblocks
+            WHERE
+                number = $1
+                AND l1_batch_number IS NOT NULL
+            "#,
+            i64::from(l2_block_number.0)
+        )
+        .instrument("get_l2_block_replay_metadata")
+        .with_arg("l2_block_number", &l2_block_number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| {
+            let protocol_version = row
+                .protocol_version
+                .map(|v| (v as u16).try_into().unwrap())
+                .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+            (
+                L1BatchNumber(row.l1_batch_number.unwrap() as u32),
+                H256::from_slice(&row.hash),
+                protocol_version,
+            )
+        }))
+    }
+
     pub async fn get_l1_batch_number_of_l2_block(
         &mut self,
         l2_block_number: L2BlockNumber,
