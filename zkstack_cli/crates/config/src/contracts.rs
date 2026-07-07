@@ -90,6 +90,7 @@ impl CoreContractsConfig {
                 rollup_l1_da_validator_addr: Some(ctm.rollup_l1_da_validator_addr),
                 blobs_zksync_os_l1_da_validator_addr: ctm.blobs_zksync_os_l1_da_validator_addr,
                 transaction_filterer_addr: self.l1.transaction_filterer_addr,
+                airbender_binary_commitment: self.l1.airbender_binary_commitment,
                 verifier_addr: ctm.verifier_addr,
                 base_token_asset_id: Some(encode_ntv_asset_id(
                     chain_config.l1_network.chain_id().into(),
@@ -176,6 +177,7 @@ impl CoreContractsConfig {
                 access_control_restriction_addr: chain_contracts.l1.access_control_restriction_addr,
                 chain_proxy_admin_addr: chain_contracts.l1.chain_proxy_admin_addr,
                 transaction_filterer_addr: chain_contracts.l1.transaction_filterer_addr,
+                airbender_binary_commitment: chain_contracts.l1.airbender_binary_commitment,
             },
             era_ctm: None,
             zksync_os_ctm: None,
@@ -544,6 +546,11 @@ pub struct L1Contracts {
     // `Option` to be able to parse configs from pre-gateway protocol version.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_filterer_addr: Option<Address>,
+    /// Commitment to the airbender verifier guest binary, provided by the operator for chains that
+    /// settle airbender proofs. When set, chain init applies it on-chain via `setAirbenderBinaryCommitment`
+    /// so the Executor can reconstruct the airbender SNARK public input.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub airbender_binary_commitment: Option<H256>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -558,6 +565,10 @@ pub struct L1CoreContracts {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chain_proxy_admin_addr: Option<Address>,
     pub transaction_filterer_addr: Option<Address>,
+    /// Commitment to the airbender verifier guest binary; propagated to each chain's `L1Contracts`
+    /// so chain init can apply it on-chain via `setAirbenderBinaryCommitment`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub airbender_binary_commitment: Option<H256>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

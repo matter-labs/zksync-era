@@ -4,7 +4,7 @@ use anyhow::Context;
 use ethers::{
     abi::Token,
     contract::BaseContract,
-    types::{Address, Bytes},
+    types::{Address, Bytes, H256},
     utils::hex,
 };
 use lazy_static::lazy_static;
@@ -604,6 +604,44 @@ pub async fn set_da_validator_pair(
         &format!(
             "setting data availability validator pair ({:#?}, {:#?}) for chain {}",
             l1_da_validator_address, l2_da_commitment_scheme, chain_id
+        ),
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn set_airbender_binary_commitment(
+    shell: &Shell,
+    forge_args: &ForgeScriptArgs,
+    foundry_contracts_path: &Path,
+    mode: AdminScriptMode,
+    chain_id: u64,
+    bridgehub: Address,
+    airbender_binary_commitment: H256,
+    l1_rpc_url: String,
+) -> anyhow::Result<AdminScriptOutput> {
+    let calldata = ADMIN_FUNCTIONS
+        .encode(
+            "setAirbenderBinaryCommitment",
+            (
+                bridgehub,
+                U256::from(chain_id),
+                airbender_binary_commitment,
+                mode.should_send(),
+            ),
+        )
+        .unwrap();
+
+    call_script(
+        shell,
+        forge_args,
+        foundry_contracts_path,
+        mode,
+        calldata,
+        l1_rpc_url,
+        &format!(
+            "setting airbender binary commitment {:#?} for chain {}",
+            airbender_binary_commitment, chain_id
         ),
     )
     .await
