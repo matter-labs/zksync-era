@@ -588,7 +588,7 @@ impl ApiServer {
             }),
         );
 
-        let max_connections = !is_http
+        let max_connections = (!is_http)
             .then_some(subscriptions_limit)
             .flatten()
             .unwrap_or(5_000);

@@ -104,9 +104,7 @@ impl CommonStorage<'static> {
         let rocksdb_l1_batch_number = rocksdb.next_l1_batch_number().await;
         if l1_batch_number + 1 != rocksdb_l1_batch_number {
             let err = anyhow::anyhow!(
-                "RocksDB synchronized to L1 batch #{} while #{} was expected",
-                rocksdb_l1_batch_number,
-                l1_batch_number
+                "RocksDB synchronized to L1 batch #{rocksdb_l1_batch_number} while #{l1_batch_number} was expected"
             );
             return Err(err.into());
         }

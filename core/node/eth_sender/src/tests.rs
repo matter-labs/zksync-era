@@ -704,7 +704,11 @@ async fn correct_order_for_confirmations(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, None)
+        .get_ready_for_execute_l1_batches(
+            45,
+            None,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 1);
@@ -715,7 +719,11 @@ async fn correct_order_for_confirmations(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, None)
+        .get_ready_for_execute_l1_batches(
+            45,
+            None,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 0);
@@ -765,7 +773,11 @@ async fn skipped_l1_batch_at_the_start(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
+        .get_ready_for_execute_l1_batches(
+            45,
+            Some(unix_timestamp_ms()),
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 2);
@@ -775,7 +787,11 @@ async fn skipped_l1_batch_at_the_start(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
+        .get_ready_for_execute_l1_batches(
+            45,
+            Some(unix_timestamp_ms()),
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 2);
@@ -821,7 +837,11 @@ async fn skipped_l1_batch_in_the_middle(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, None)
+        .get_ready_for_execute_l1_batches(
+            45,
+            None,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     // We should return all L1 batches including the third one
@@ -833,7 +853,11 @@ async fn skipped_l1_batch_in_the_middle(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, None)
+        .get_ready_for_execute_l1_batches(
+            45,
+            None,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 3);

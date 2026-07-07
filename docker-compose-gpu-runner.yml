@@ -44,7 +44,7 @@ services:
               count: all
               capabilities: [gpu]
   postgres:
-    image: "postgres:14"
+    image: "postgres:18"
     command: postgres -c 'max_connections=200'
     ports:
       - 127.0.0.1:5432:5432

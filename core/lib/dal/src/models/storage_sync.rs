@@ -182,12 +182,25 @@ impl SyncBlock {
             pubdata_params: self.pubdata_params,
             pubdata_limit: self.pubdata_limit,
             interop_roots: self.interop_roots,
-            settlement_layer: Some(self.settlement_layer),
-            interop_fee: Some(
-                self.interop_fee
-                    .try_into()
-                    .expect("interop_fee doesn't fit consensus u64 wire format"),
-            ),
+            // `settlement_layer` and `interop_fee` are only carried on the wire from
+            // protocol version 31 onwards (see `ProtoRepr::build` for `Payload`). Mirror
+            // that gating here so the locally-derived payload matches the proposed one
+            // during `verify_payload`; otherwise consensus on pre-v31 chains stalls with
+            // an "unexpected payload" mismatch on these two fields.
+            settlement_layer: if self.protocol_version < ProtocolVersionId::Version31 {
+                None
+            } else {
+                Some(self.settlement_layer)
+            },
+            interop_fee: if self.protocol_version < ProtocolVersionId::Version31 {
+                None
+            } else {
+                Some(
+                    self.interop_fee
+                        .try_into()
+                        .expect("interop_fee doesn't fit consensus u64 wire format"),
+                )
+            },
         }
     }
 }

@@ -1,0 +1,118 @@
+[workspace]
+members = ["crates/lib/*"]
+resolver = "2"
+
+# The workspace root is also the `eravm-prover-server` binary package; the two
+# small support libraries (`cli_utils`, `prover_metrics`) are workspace members.
+[package]
+name = "eravm-prover-server"
+description = "Airbender prover server: polls a job server for batches, proves them, and submits proofs"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+airbender-host = { workspace = true }
+anyhow.workspace = true
+ctrlc.workspace = true
+bincode.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
+eravm-prover-host = { workspace = true }
+reqwest.workspace = true
+sentry.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_with = { workspace = true, features = ["hex"] }
+tracing.workspace = true
+zksync_airbender_verifier.workspace = true
+# `sentry` feature pulls the Sentry tracing layer into the shared `init_tracing`
+# so the server reports errors/panics.
+zksync_cli_utils = { workspace = true, features = ["sentry"] }
+zksync_prover_metrics.workspace = true
+
+[build-dependencies]
+# `build.rs` reads `cargo metadata` (serde_json) to find the pinned verifier
+# release, then downloads the artifacts with reqwest's blocking client.
+reqwest = { workspace = true, features = ["blocking"] }
+serde_json.workspace = true
+
+[dev-dependencies]
+# Test-only deps for the (GPU/corpus-gated, `#[ignore]`d) integration test, which
+# spawns the built binary and serves batches via a local axum mock of the data
+# handler. The verifier/host crates and bincode it also uses are already normal
+# dependencies and are available to integration tests without re-listing here.
+axum.workspace = true
+flate2.workspace = true
+hex.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
+
+[features]
+# `gpu_fri` (default) links Airbender's CUDA `gpu_prover` so the server can run
+# the FRI prover (`fri-only` / `fri-snark` modes). Build with
+# `--no-default-features` for a CUDA-free binary that only supports
+# `--mode snark-only` — the SNARK wrapper runs on CPU. Forwards to the host
+# crate's identically-named feature.
+default = ["gpu_fri"]
+gpu_fri = ["eravm-prover-host/gpu_fri"]
+# Compile the SNARK wrapper in GPU mode. Requires `bellman-cuda` (see README).
+# Forwards to the host crate's identically-named feature.
+gpu_snark = ["eravm-prover-host/gpu_snark"]
+
+[workspace.package]
+version = "0.1.0" # x-release-please-version
+edition = "2021"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[workspace.dependencies]
+# External dependencies
+anyhow = "1"
+axum = "0.7"
+bincode = { version = "2", features = ["serde"] }
+clap = "4.2.2"
+ctrlc = { version = "3", features = ["termination"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+# `rustls` (not the default `native-tls`) matches the rest of the stack's
+# reqwest TLS backend, avoiding a second TLS implementation in the binary.
+sentry = { version = "0.35", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls", "tracing"] }
+serde = "1"
+serde_json = "1"
+serde_with = "1"
+tokio = "1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+vise = "0.3.2"
+vise-exporter = "0.3.2"
+
+# Airbender platform crates (shared with the verifier repo build).
+# `default-features = false` drops airbender-host's default `gpu-prover` (the
+# CUDA `gpu_prover` crate). The server re-enables it through its own `gpu_fri`
+# feature; a `--no-default-features` build stays CUDA-free. Must live on the
+# workspace dep — a member's `default-features = false` is otherwise ignored.
+airbender-host = { git = "https://github.com/matter-labs/airbender-platform", tag = "v0.2.3", default-features = false }
+
+# eravm-airbender-verifier crates, pinned to the released tag `v29.8.0`.
+# `build.rs` derives this tag from cargo metadata and downloads the matching
+# artifacts, so they track the verifier code we compile against.
+# `default-features = false` drops the host crate's default `gpu_fri`; the
+# server re-enables it via its own `gpu_fri` feature. Set on the workspace dep
+# so a member's `default-features = false` isn't ignored.
+eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v29.8.0", default-features = false }
+# Same tag as eravm-prover-host so the two git copies unify into one crate
+# instance. Used by the client to deserialize jobs into the verifier input type.
+zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v29.8.0" }
+
+# Local crates in this workspace.
+zksync_cli_utils = { path = "crates/lib/cli_utils" }
+zksync_prover_metrics = { path = "crates/lib/prover_metrics" }

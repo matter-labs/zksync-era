@@ -12,6 +12,7 @@ use axum::{
 use tokio::sync::watch;
 use zksync_airbender_prover_interface::api::{
     AirbenderProofGenerationDataResponse, SubmitAirbenderProofRequest,
+    SubmitAirbenderSnarkProofRequest,
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
@@ -107,7 +108,27 @@ fn create_proof_processing_router(
                 },
             ),
         )
+        .route(
+            "/airbender/snark_inputs",
+            post(|State(proc): State<AirbenderRequestProcessor>| async move {
+                match proc.get_snark_inputs().await {
+                    Ok(Some(data)) => Json(data).into_response(),
+                    Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                    Err(e) => e.into_response(),
+                }
+            }),
+        )
+        .route(
+            "/airbender/submit_snark_proofs",
+            post(
+                |State(proc): State<AirbenderRequestProcessor>,
+                 payload: Json<SubmitAirbenderSnarkProofRequest>| async move {
+                    proc.submit_snark_proof(payload).await
+                },
+            ),
+        )
         .with_state(processor)
         .layer(tower_http::compression::CompressionLayer::new())
         .layer(tower_http::decompression::RequestDecompressionLayer::new().zstd(true))
+        .layer(axum::extract::DefaultBodyLimit::max(512 * 1024 * 1024))
 }

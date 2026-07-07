@@ -247,12 +247,24 @@ fn pretty_print_l1_proof(result: &L1BatchProofForL1) {
     );
 
     let inputs = match result.inner() {
-        TypedL1BatchProofForL1::Fflonk(proof) => proof.clone().scheduler_proof.inputs,
-        TypedL1BatchProofForL1::Plonk(proof) => proof.clone().scheduler_proof.inputs,
+        TypedL1BatchProofForL1::Fflonk(proof) => Some(proof.clone().scheduler_proof.inputs),
+        TypedL1BatchProofForL1::Plonk(proof) => Some(proof.clone().scheduler_proof.inputs),
+        // Airbender (ZKsync OS) proofs are an opaque byte payload with no plonk/fflonk-style
+        // scheduler inputs to display.
+        TypedL1BatchProofForL1::Airbender(_) => None,
     };
 
-    println!("Inputs: {:?}", inputs);
-    println!("  This proof will pass on L1, if L1 executor computes the block commitment that is matching exactly the Inputs value above");
+    match inputs {
+        Some(inputs) => {
+            println!("Inputs: {:?}", inputs);
+            println!("  This proof will pass on L1, if L1 executor computes the block commitment that is matching exactly the Inputs value above");
+        }
+        None => {
+            println!(
+                "Airbender (ZKsync OS) proof: opaque byte payload, no scheduler inputs to display."
+            );
+        }
+    }
 }
 
 pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
