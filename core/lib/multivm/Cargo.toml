@@ -27,6 +27,12 @@ zksync_system_constants.workspace = true
 zksync_vm_interface.workspace = true
 zksync_mini_merkle_tree.workspace = true
 
+# Airbender guest cycle-count estimator: reused for its calibrated cost model and
+# feature schema. `default-features = false` drops the crate's vm2 tracer (and its
+# git-pinned `zksync_vm2`); era supplies its own legacy-VM tracer that fills the
+# same `FeatureVector`.
+zksync-era-airbender-cycles-estimator = { workspace = true }
+
 anyhow.workspace = true
 hex.workspace = true
 itertools.workspace = true
