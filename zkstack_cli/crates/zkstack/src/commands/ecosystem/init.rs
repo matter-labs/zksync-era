@@ -9,7 +9,7 @@ use zkstack_cli_config::{
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
     ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
-use zkstack_cli_types::{L1Network, VMOption};
+use zkstack_cli_types::{L1Network, VMOption, VerifierType};
 use zksync_basic_types::Address;
 
 use super::{
@@ -126,6 +126,7 @@ async fn init_ecosystem(
             init_args.support_l2_legacy_shared_bridge_test,
             &init_args.forge_args,
             init_args.vm_option,
+            init_args.verifier,
         )
         .await?;
 
@@ -144,6 +145,7 @@ async fn init_ecosystem(
                 init_args.support_l2_legacy_shared_bridge_test,
                 &init_args.forge_args,
                 VMOption::ZKSyncOsVM,
+                init_args.verifier,
             )
             .await?;
         }
@@ -163,6 +165,7 @@ async fn deploy_and_register_ctm(
     support_l2_legacy_shared_bridge_test: bool,
     forge_args: &ForgeScriptArgs,
     vm_option: VMOption,
+    verifier: Option<VerifierType>,
 ) -> anyhow::Result<CoreContractsConfig> {
     let contracts = deploy_new_ctm_and_accept_admin(
         shell,
@@ -174,6 +177,7 @@ async fn deploy_and_register_ctm(
         bridgehub_proxy_addr,
         vm_option,
         true,
+        verifier,
     )
     .await?;
 

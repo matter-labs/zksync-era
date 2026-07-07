@@ -81,6 +81,11 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
     };
 
     let result = if l1_chain_id == used_settlement_layer {
+        let access_control_restriction = chain_config
+            .get_contracts_config()?
+            .l1
+            .access_control_restriction_addr
+            .context("no access_control_restriction_addr")?;
         set_da_validator_pair(
             shell,
             &Default::default(),
@@ -88,6 +93,7 @@ pub async fn run(shell: &Shell, args: SetDAValidatorPairCalldataArgs) -> anyhow:
             AdminScriptMode::OnlySave,
             args.chain_id,
             args.bridgehub_address,
+            access_control_restriction,
             args.sl_da_validator,
             args.l2_da_validator_commitment_scheme,
             args.l1_rpc_url,
