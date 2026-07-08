@@ -6,20 +6,82 @@ permissions:
   contents: read
 
 jobs:
+  # Build the Airbender prover server (GPU FRI prover) once, on a general GPU build runner,
+  # and hand the binary to the run job as an artifact. Splitting the expensive CUDA build off
+  # the scarce execution runner mirrors how eravm-airbender-verifier separated `vk-build` from
+  # its GPU run job.
+  build-server:
+    runs-on: [matterlabs-ci-runner-high-performance]
+    env:
+      # CUDA-12 toolchain image but NO GPU forwarding: compiling the kernels only needs nvcc, not a
+      # physical GPU, so the build runs on a plain (GPU-less) high-CPU runner. The run job below
+      # uses the GPU compose file to actually launch the kernels.
+      RUNNER_COMPOSE_FILE: "docker-compose-cuda-12-runner.yml"
+      # The run job is pinned to `matterlabs-ci-hetzner-rtx6000-gpu` (RTX 6000 Ada = sm_89), so
+      # target that single arch — the gpu_prover's CUDA build compiles every kernel once per SM
+      # arch and is not cached by sccache, so restricting to the one arch the run job actually
+      # uses roughly halves the CUDA compile.
+      CUDA_ARCH: "89"
+      CUDAARCHS: "89"
+      PASSED_ENV_VARS: "CUDA_ARCH,CUDAARCHS"
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
+
+      # gpu_prover's CUDA build (via the `cmake` crate) requires CMake >= 3.28, but the
+      # zk-environment image ships 3.24. Install the same version the Docker image uses into
+      # /usr/local (ahead of the system CMake on PATH), mirroring docker/airbender-prover-server/Dockerfile.
+      - name: Install newer CMake for the GPU prover build
+        env:
+          CMAKE_VERSION: "3.30.2"
+        run: |
+          PASSED_ENV_VARS="CMAKE_VERSION" \
+          ci_run bash -lc 'curl -fsSLO "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh" && chmod +x "cmake-${CMAKE_VERSION}-linux-x86_64.sh" && "./cmake-${CMAKE_VERSION}-linux-x86_64.sh" --skip-license --prefix=/usr/local && rm "cmake-${CMAKE_VERSION}-linux-x86_64.sh" && cmake --version'
+
+      # Build the Airbender prover server (GPU FRI prover) from source. The workspace pins its own
+      # nightly via `airbender_prover_server/rust-toolchain`; `rustup show` installs it on demand.
+      # `build.rs` downloads the guest binary + FRI/SNARK VKs for the pinned verifier version at
+      # build time into `guest/dist/app` and `vks/`, and bakes those absolute paths into the binary
+      # as its compile-time defaults — so they must ride along in the artifact.
+      - name: Build Airbender prover server
+        run: |
+          ci_run run_retried bash -lc "cd airbender_prover_server && rustup show"
+          ci_run bash -lc "cd airbender_prover_server && cargo build --release -p eravm-prover-server"
+
+      # Ship the binary alongside the guest program + VKs it resolves at runtime. All paths share
+      # the `airbender_prover_server` root, so the artifact preserves that tree and the run job
+      # restores them to the identical in-container paths the binary was compiled to expect.
+      - name: Upload Airbender prover server binary
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: airbender-prover-server
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            airbender_prover_server/target/release/eravm-prover-server
+            airbender_prover_server/guest/dist/app
+            airbender_prover_server/vks
+
+      - name: Show sccache logs
+        if: always()
+        run: |
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
+
   e2e-test:
-    runs-on: [matterlabs-ci-gpu-runner]
+    needs: build-server
+    runs-on: [matterlabs-ci-hetzner-rtx6000-gpu]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
       YQ_VERSION: "4.45.1"
-      # gpu_prover's CUDA build compiles every kernel once per SM arch and is not cached by
-      # sccache, so it dominates the build time. The Airbender GPU prover floors at sm_80 (the
-      # prod image builds 80;120), so T4 (sm_75) is not a target; restrict to the CI fleet's
-      # likely cards — A100 (80) and L4 (89) — to roughly halve the CUDA compile vs the
-      # boojum e2e's 75;80;89;90. If the runner's GPU is another arch (e.g. H100 = 90), the FRI
-      # prover will fail to launch kernels — add that arch here.
-      CUDA_ARCH: "80;89"
-      CUDAARCHS: "80;89"
-      PASSED_ENV_VARS: "CUDA_ARCH,CUDAARCHS"
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -34,6 +96,18 @@ jobs:
 
       - name: Install yq
         run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+
+      # Restore the prebuilt binary + guest/VK files at the same workspace paths (and therefore the
+      # same in-container paths) the binary baked in as defaults. upload-artifact drops the unix
+      # exec bit, so restore it before the binary is run inside the container.
+      - name: Download Airbender prover server binary
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
+        with:
+          name: airbender-prover-server
+          path: airbender_prover_server
+
+      - name: Make Airbender prover server binary executable
+        run: chmod +x airbender_prover_server/target/release/eravm-prover-server
 
       - name: Init
         run: |
@@ -59,24 +133,6 @@ jobs:
           WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)
           echo "Using Web3 HTTP URL: $WEB3_HTTP_URL"
           echo "URL=$WEB3_HTTP_URL" >> $GITHUB_ENV
-
-      # gpu_prover's CUDA build (via the `cmake` crate) requires CMake >= 3.28, but the
-      # zk-environment image ships 3.24. Install the same version the Docker image uses into
-      # /usr/local (ahead of the system CMake on PATH), mirroring docker/airbender-prover-server/Dockerfile.
-      - name: Install newer CMake for the GPU prover build
-        env:
-          CMAKE_VERSION: "3.30.2"
-        run: |
-          PASSED_ENV_VARS="CMAKE_VERSION" \
-          ci_run bash -lc 'curl -fsSLO "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh" && chmod +x "cmake-${CMAKE_VERSION}-linux-x86_64.sh" && "./cmake-${CMAKE_VERSION}-linux-x86_64.sh" --skip-license --prefix=/usr/local && rm "cmake-${CMAKE_VERSION}-linux-x86_64.sh" && cmake --version'
-
-      # Build the Airbender prover server (GPU FRI prover) from source. The workspace pins its own
-      # nightly via `airbender_prover_server/rust-toolchain`; `rustup show` installs it on demand.
-      # `build.rs` downloads the guest binary + FRI VK for the pinned verifier version at build time.
-      - name: Build Airbender prover server
-        run: |
-          ci_run run_retried bash -lc "cd airbender_prover_server && rustup show"
-          ci_run bash -lc "cd airbender_prover_server && cargo build --release -p eravm-prover-server"
 
       - name: Run server
         run: |
