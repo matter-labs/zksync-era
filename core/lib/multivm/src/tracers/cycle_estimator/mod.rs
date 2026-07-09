@@ -59,6 +59,15 @@ pub struct CycleFeatureTracer {
     result: Arc<OnceCell<FeatureVector>>,
 }
 
+impl Default for CycleFeatureTracer {
+    /// A tracer whose published-result cell is private — for built-in use (e.g. as
+    /// a default VM tracer), where the features are read back via [`Self::snapshot`]
+    /// rather than through a shared handle.
+    fn default() -> Self {
+        Self::new(Arc::new(OnceCell::new()))
+    }
+}
+
 impl CycleFeatureTracer {
     /// Create a tracer that publishes its final [`FeatureVector`] into `result`
     /// once the VM finishes executing.
