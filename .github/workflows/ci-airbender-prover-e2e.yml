@@ -14,13 +14,14 @@ jobs:
     runs-on: [matterlabs-ci-runner-high-performance]
     # A wedged CUDA build previously sat silent until the 6h default job limit; fail fast.
     timeout-minutes: 90
-    # Prebuilt cargo-airbender CUDA image — ships nightly Rust + clang + CMake >= 3.28 + the
-    # CUDA 12.9 devel toolchain. Airbender's gpu_prover kernels (C++20 CUDA, template-heavy)
-    # are only built upstream with nvcc >= 12.9; under the zk-environment cuda-12 image's
-    # nvcc 12.2 the cmake kernel build never terminates. Compiling needs nvcc only, not a
-    # physical GPU, so a plain (GPU-less) high-CPU runner works.
+    # CUDA 13.0 devel toolchain, matching docker/airbender-prover-server/Dockerfile and — crucially
+    # — the GPU run job's driver. The RTX 6000 Ada runner's driver is CUDA 13; a binary built
+    # against CUDA 12.9 tripped a device-properties misread there (the worker saw "1 SMs" instead of
+    # 142 and failed at init with cudaErrorMemoryAllocation), so the runtime it links must match the
+    # driver's major version. Compiling the kernels needs nvcc only, not a physical GPU, so this
+    # still runs on the plain high-CPU runner.
     container:
-      image: ghcr.io/matter-labs/cargo-airbender-cuda:v0.2.3
+      image: nvidia/cuda:13.0.0-devel-ubuntu22.04
     env:
       # The run job is pinned to `matterlabs-ci-hetzner-rtx6000-gpu` (RTX 6000 Ada = sm_89), so
       # target that single arch — the gpu_prover's CUDA build compiles every kernel once per SM
@@ -30,12 +31,23 @@ jobs:
       CUDAARCHS: "89"
 
     steps:
+      # The base CUDA image is minimal — install git (needed by checkout and cargo git deps) and
+      # the C/C++ toolchain nvcc uses as its host compiler before anything else runs. Mirrors the
+      # apt layer of docker/airbender-prover-server/Dockerfile.
+      - name: Install base build dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential ca-certificates clang curl git libssl-dev lld pkg-config wget
+
       # No submodules / history: the `airbender_prover_server` workspace is self-contained and
       # pulls everything else as git or crates.io dependencies.
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
-      # sccache (RUSTC_WRAPPER) wired to matterlabs's GCS bucket, same as
-      # eravm-airbender-verifier's build-prover-host.
+      # Rust toolchain + CMake + sccache (RUSTC_WRAPPER wired to matterlabs's GCS bucket), the same
+      # action eravm-airbender-verifier's build-prover-host uses. The base image ships only the CUDA
+      # toolkit, so this provides the rest of the build environment.
       - name: Setup runner
         uses: matter-labs/zksync-os-server/.github/actions/runner-setup@24d38529dbeb2f0bdd016005b1e5e0bc491b692f
 
@@ -61,10 +73,9 @@ jobs:
           cargo build --release --locked -p eravm-prover-server
           ls -lh target/release/eravm-prover-server
 
-      # The run job executes the binary inside the zk-environment cuda-12 container, whose CUDA
-      # runtime (12.2) is older than the 12.9 toolkit this binary links against. Ship the
-      # matching libcudart; the run job prepends it to LD_LIBRARY_PATH. (The GPU *driver* is
-      # forwarded by the runner and stays compatible.)
+      # The run job's host has the CUDA 13 driver but no CUDA toolkit, so ship the matching
+      # libcudart (13); the run job prepends it to LD_LIBRARY_PATH. The driver's libcuda is on the
+      # host already.
       - name: Stage CUDA runtime libraries
         run: |
           mkdir -p airbender_prover_server/cuda-libs
@@ -170,6 +181,38 @@ jobs:
       - name: Make Airbender prover server binary executable
         run: chmod +x airbender_prover_server/target/release/eravm-prover-server
 
+      # Fail fast on a broken GPU / prover BEFORE the ~35-minute ecosystem init. The prover
+      # initializes its GPU workers at startup — before it ever polls for a job — so a bad CUDA
+      # context (wrong driver/runtime, faulty device) surfaces within seconds. Start it against an
+      # unused port, watch the startup log for the allocator-initialized line vs a CUDA error /
+      # panic, then stop it. This runs on the host, exactly like the real prover run below.
+      - name: Check Airbender prover GPU health
+        run: |
+          mkdir -p airbender_prover_logs
+          cd airbender_prover_server
+          LD_LIBRARY_PATH="$PWD/cuda-libs" RUST_BACKTRACE=1 \
+          PROVER_GUEST_DIST_DIR="$PWD/guest/dist/app" FRI_VK="$PWD/vks/fri_vk.bin" \
+          PROVER_SERVER_URL="http://127.0.0.1:1" \
+          ./target/release/eravm-prover-server --mode fri-only &>../airbender_prover_logs/gpu_health.log &
+          HPID=$!
+          ok=""
+          for _ in $(seq 1 30); do
+            if grep -qi "initialized the GPU memory allocator" ../airbender_prover_logs/gpu_health.log; then ok=1; break; fi
+            if grep -qiE "cudaError|panicked|worker encountered an error|GPU_MANAGER encountered" ../airbender_prover_logs/gpu_health.log; then ok=0; break; fi
+            kill -0 "$HPID" 2>/dev/null || { ok=0; break; }
+            sleep 2
+          done
+          kill "$HPID" 2>/dev/null || true
+          wait "$HPID" 2>/dev/null || true
+          echo "----- prover startup log -----"
+          cat ../airbender_prover_logs/gpu_health.log
+          if [ "$ok" = "1" ]; then
+            echo "GPU prover initialized OK — proceeding to ecosystem init."
+          else
+            echo "::error::Airbender prover failed GPU init; aborting before the long ecosystem init."
+            exit 1
+          fi
+
       - name: Init
         run: |
           mkdir -p airbender_prover_logs
@@ -261,11 +304,10 @@ jobs:
       # eravm-airbender-verifier runs its GPU proofs. The handler is reachable at 127.0.0.1 because
       # the zk container uses network_mode: host.
       #
-      # The binary was built in the cargo-airbender-cuda container, so its baked-in compile-time
-      # default guest/VK paths point at that build's checkout — override them to the restored
-      # artifact paths. It links CUDA 12.9's libcudart (newer than anything on the host), so point
-      # the loader at the copy shipped in the artifact; the driver's libcuda is on the host's
-      # default loader path.
+      # The binary was built in the CUDA 13 container, so its baked-in compile-time default
+      # guest/VK paths point at that build's checkout — override them to the restored artifact
+      # paths. It links CUDA 13's libcudart, so point the loader at the copy shipped in the
+      # artifact; the driver's libcuda is on the host's default loader path.
       - name: Run Airbender prover server (fri-only)
         run: |
           AIRBENDER_PORT=$(yq -e '.airbender_proof_data_handler.http_port' ./chains/proving_chain/configs/general.yaml)
