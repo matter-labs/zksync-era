@@ -167,6 +167,17 @@ jobs:
           echo "Using Web3 HTTP URL: $WEB3_HTTP_URL"
           echo "URL=$WEB3_HTTP_URL" >> $GITHUB_ENV
 
+      # The state keeper seals an L1 batch on its (short) default commit deadline. The seven
+      # precompile txs below are sent over a ~25s window, so with the default they scatter across
+      # separate batches (observed: batches 3-8, one/two each). The prover step targets batch 1
+      # (BATCH_NUMBER=1), so every precompile tx must land in batch 1 — raise the deadline to 60s
+      # to keep batch 1 open long enough to absorb them all. Mirrors ci-prover-e2e.yml.
+      - name: Change block_commit_deadline_ms to 60000 to submit txs to batch 1
+        working-directory: ./chains/proving_chain/configs
+        run: |
+          sudo yq -e -i '.state_keeper.block_commit_deadline_ms = "60000"' general.yaml
+          yq '.state_keeper.block_commit_deadline_ms' general.yaml
+
       - name: Run server
         run: |
           ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip,airbender_proof_data_handler &>airbender_prover_logs/server.log &
