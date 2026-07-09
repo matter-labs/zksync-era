@@ -244,16 +244,30 @@ jobs:
       # 4320), so read it from the generated config rather than hardcoding — same as WEB3_HTTP_URL
       # above. A stale hardcoded port silently fails as endless "Connection refused" polls.
       #
+      # Run the GPU prover directly on the runner host, NOT inside the zk-environment cuda-12
+      # container. That container forwards the GPU by bind-mounting raw /dev/nvidia* device nodes
+      # (the nvidia-container-runtime cgroup path is disabled for dind — see the compose comment)
+      # and ships cuda-compat-12-2; combined with this CUDA 12.9-built binary the CUDA context comes
+      # up broken — the device query reports "1 SMs" (vs 142) and allocations fail with
+      # cudaErrorMemoryAllocation. The host has the native driver and the full device, matching how
+      # eravm-airbender-verifier runs its GPU proofs. The handler is reachable at 127.0.0.1 because
+      # the zk container uses network_mode: host.
+      #
       # The binary was built in the cargo-airbender-cuda container, so its baked-in compile-time
-      # default paths point at that job's checkout — override the guest/VK locations with the
-      # restored in-container paths. It also links CUDA 12.9's libcudart, newer than this
-      # container's 12.2 runtime, so point the loader at the copy shipped in the artifact.
+      # default guest/VK paths point at that build's checkout — override them to the restored
+      # artifact paths. It links CUDA 12.9's libcudart (newer than anything on the host), so point
+      # the loader at the copy shipped in the artifact; the driver's libcuda is on the host's
+      # default loader path.
       - name: Run Airbender prover server (fri-only)
         run: |
           AIRBENDER_PORT=$(yq -e '.airbender_proof_data_handler.http_port' ./chains/proving_chain/configs/general.yaml)
           echo "Airbender proof data handler port: $AIRBENDER_PORT"
-          PASSED_ENV_VARS="AIRBENDER_PORT" \
-          ci_run bash -lc "cd airbender_prover_server && LD_LIBRARY_PATH=/usr/src/zksync/airbender_prover_server/cuda-libs PROVER_GUEST_DIST_DIR=/usr/src/zksync/airbender_prover_server/guest/dist/app FRI_VK=/usr/src/zksync/airbender_prover_server/vks/fri_vk.bin PROVER_SERVER_URL=http://127.0.0.1:\$AIRBENDER_PORT ./target/release/eravm-prover-server --mode fri-only" &>airbender_prover_logs/prover_server.log &
+          cd airbender_prover_server
+          LD_LIBRARY_PATH="$PWD/cuda-libs" \
+          PROVER_GUEST_DIST_DIR="$PWD/guest/dist/app" \
+          FRI_VK="$PWD/vks/fri_vk.bin" \
+          PROVER_SERVER_URL="http://127.0.0.1:$AIRBENDER_PORT" \
+          ./target/release/eravm-prover-server --mode fri-only &>../airbender_prover_logs/prover_server.log &
 
       - name: Wait for the Airbender FRI proof to be generated
         env:
