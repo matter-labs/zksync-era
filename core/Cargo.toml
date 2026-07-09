@@ -278,10 +278,13 @@ bellman = { package = "zksync_bellman", version = "=0.32.10" }
 # New VM
 zksync_vm2 = "=0.5.0-5"
 
-# Airbender guest cycle-count estimator (cost model + feature schema). Pinned by
-# rev; `default-features = false` drops the crate's vm2 tracer so we don't pull its
-# git-pinned `zksync_vm2` (era brings its own legacy-VM tracer via `zksync_multivm`).
-zksync-era-airbender-cycles-estimator = { git = "https://github.com/matter-labs/eravm-airbender-verifier.git", rev = "b2c672c835c0d3e778e9f56ab90673357c15b974", default-features = false }
+# Airbender guest cycle-count estimator. era owns the tracer + model code in-tree
+# (see `zksync_multivm::tracers::cycle_estimator`); this dependency exists ONLY to
+# source the calibrated cost table (`EMBEDDED_COST_TABLE`) from the calibration
+# repo, keeping a single source of truth for the fitted constants. Pinned by rev;
+# `default-features = false` drops the crate's vm2 tracer so we don't pull its
+# git-pinned `zksync_vm2`.
+zksync-era-airbender-cycles-estimator = { git = "https://github.com/matter-labs/eravm-airbender-verifier.git", rev = "cfc7dacdc8e15a171e8916ddd06134b5bf6f8ee8", default-features = false }
 
 # Consensus dependencies.
 zksync_concurrency = "=0.13"

@@ -1,13 +1,15 @@
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
-use zksync_era_airbender_cycles_estimator::{estimate_from_features, BatchContext, FeatureId};
 use zksync_types::{Address, Execute, U256};
 
 use super::TestedLatestVm;
 use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmInterface},
-    tracers::CycleFeatureTracer,
+    tracers::{
+        cycle_estimator::{estimate_from_features, BatchContext, FeatureId},
+        CycleFeatureTracer,
+    },
     versions::testonly::VmTesterBuilder,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, ToTracerPointer},
 };

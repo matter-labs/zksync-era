@@ -1,14 +1,17 @@
 //! Airbender guest cycle-count estimator tracer for the legacy (non-fast) VM.
 //!
-//! This is the `zksync-era` sibling of the fast-VM (`zksync_vm2`) tracer shipped
-//! in [`zksync-era-airbender-cycles-estimator`]. It fills the exact same
-//! [`FeatureVector`] — opcode-family counts plus precompile/decommit/storage
-//! complexity — so it feeds the **same calibrated cost model**
-//! ([`CostModel::embedded`]) as the fast VM. Only the observation mechanism
-//! differs: where the fast VM exposes `after_instruction` / `on_extra_prover_cycles`
-//! hooks, the legacy VM is observed by bucketing opcodes in `before_execution`
-//! (mirroring [`crate::vm_latest::tracers::circuits_tracer`]) and by scanning the
-//! VM's decommit / storage / precompile history logs each `finish_cycle`.
+//! This is the `zksync-era` sibling of the fast-VM (`zksync_vm2`) tracer in
+//! matter-labs/eravm-airbender-verifier. The calibrated cost model and feature
+//! schema are vendored here ([`features`], [`model`], [`estimator`], plus the
+//! embedded `cost_table.json`) so the tracer is fully self-contained in era.
+//!
+//! The tracer fills the same [`FeatureVector`] — opcode-family counts plus
+//! precompile/decommit/storage complexity — so it feeds the **same calibrated
+//! cost model** ([`CostModel::embedded`]) the fast VM uses. Only the observation
+//! mechanism differs: the legacy VM is observed by bucketing opcodes in
+//! `before_execution` (mirroring [`crate::vm_latest::tracers::circuits_tracer`])
+//! and by scanning the VM's decommit / storage / precompile history logs each
+//! `finish_cycle`.
 //!
 //! Implemented for the latest available VM only (`vm_latest`), analogous to how
 //! [`CallTracer`](crate::tracers::CallTracer) is wired per VM version.
@@ -16,11 +19,18 @@
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
-use zksync_era_airbender_cycles_estimator::{
-    estimate_from_features, BatchContext, CostModel, CycleEstimate, FeatureId, FeatureVector,
-};
 
+pub mod estimator;
+pub mod features;
+pub mod model;
 pub mod vm_latest;
+
+pub use estimator::{
+    estimate_from_features, estimate_from_features_with_model, features_for_estimate_from,
+    BatchContext, CycleEstimate,
+};
+pub use features::{FeatureId, FeatureVector, SAFETY_CRITICAL_FEATURES};
+pub use model::{CostModel, LinearModel};
 
 /// Passive tracer that counts the calibration features an Airbender cycle-cost
 /// estimate needs, from a legacy-VM execution.
@@ -74,12 +84,8 @@ impl CycleFeatureTracer {
 
     /// Combine the traced vm-execution features with the batch-level scalars the
     /// trace cannot observe and the embedded calibrated cost model into a cycle
-    /// estimate.
-    ///
-    /// This reuses [`estimate_from_features`] — the VM-agnostic entry point of the
-    /// estimator crate — so the legacy VM produces estimates from the *same* model
-    /// and the *same* feature schema as the fast VM. `pubdata_bytes` and
-    /// `state_diff_count` come from the finished batch; the rest from [`BatchContext`].
+    /// estimate. `pubdata_bytes` and `state_diff_count` come from the finished
+    /// batch; the rest from [`BatchContext`].
     pub fn estimate(
         &self,
         pubdata_bytes: u64,

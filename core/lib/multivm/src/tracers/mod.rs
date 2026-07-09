@@ -8,7 +8,7 @@ pub use self::{
 };
 
 mod call_tracer;
-mod cycle_estimator;
+pub mod cycle_estimator;
 pub mod dynamic;
 mod multivm_dispatcher;
 pub mod old;

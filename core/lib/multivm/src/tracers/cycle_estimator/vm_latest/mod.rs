@@ -3,14 +3,14 @@ use zk_evm_1_5_2::{
     zk_evm_abstractions::precompiles::PrecompileAddress,
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
 };
-use zksync_era_airbender_cycles_estimator::FeatureId;
 
+use super::{features::FeatureId, CycleFeatureTracer};
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
-    tracers::{cycle_estimator::CycleFeatureTracer, dynamic::vm_1_5_2::DynTracer},
+    tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 
