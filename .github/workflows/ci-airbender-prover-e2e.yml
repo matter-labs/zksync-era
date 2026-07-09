@@ -150,6 +150,14 @@ jobs:
       - name: Install yq
         run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
 
+      # Diagnostics for the GPU prover: the worker was dying at init with the device query
+      # reporting "1 SMs" and cudaErrorMemoryAllocation. Capture the host driver / CUDA version
+      # and the compute capability so a runtime/driver-vs-toolkit mismatch is visible in the log.
+      - name: Inspect GPU / driver
+        run: |
+          nvidia-smi || true
+          nvidia-smi --query-gpu=driver_version,name,compute_cap,memory.total --format=csv || true
+
       # Restore the prebuilt binary + guest/VK files at the same workspace paths (and therefore the
       # same in-container paths) the binary baked in as defaults. upload-artifact drops the unix
       # exec bit, so restore it before the binary is run inside the container.
@@ -263,7 +271,10 @@ jobs:
           AIRBENDER_PORT=$(yq -e '.airbender_proof_data_handler.http_port' ./chains/proving_chain/configs/general.yaml)
           echo "Airbender proof data handler port: $AIRBENDER_PORT"
           cd airbender_prover_server
+          echo "eravm-prover-server links these CUDA libs:"
+          ldd ./target/release/eravm-prover-server | grep -i "cuda\|not found" || true
           LD_LIBRARY_PATH="$PWD/cuda-libs" \
+          RUST_BACKTRACE=1 \
           PROVER_GUEST_DIST_DIR="$PWD/guest/dist/app" \
           FRI_VK="$PWD/vks/fri_vk.bin" \
           PROVER_SERVER_URL="http://127.0.0.1:$AIRBENDER_PORT" \
