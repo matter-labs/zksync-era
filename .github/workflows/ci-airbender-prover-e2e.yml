@@ -100,6 +100,17 @@ jobs:
       YQ_VERSION: "4.45.1"
 
     steps:
+      # This job runs directly on a persistent bare-metal runner (not in a container). Earlier
+      # steps drive `ci_run`, which is `docker exec` as root, so the ecosystem/chain files it
+      # writes into the workspace (chains/proving_chain/*, zkstack_cli/target/*) are left
+      # root-owned. The unprivileged `actions/checkout` below then fails to clean them
+      # ("EACCES: permission denied, unlink ..."). Reclaim ownership before checkout so it can
+      # reset the tree. Runs before checkout, so it cannot use anything from the repo.
+      - name: Reclaim workspace from prior runs
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}" || true
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
