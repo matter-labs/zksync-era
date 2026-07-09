@@ -129,6 +129,15 @@ jobs:
           fi
           docker-compose version
 
+      # reth-data / postgres-data are named docker volumes. On this persistent bare-metal runner
+      # they survive between runs, so a prior run's L1 (reth) state — already-deployed core
+      # contracts owned by that run's governor — carries over and makes a fresh `zkstack
+      # ecosystem init` fail with "Ownable: caller is not the owner". Tear the stack down with
+      # its volumes before setup-env brings it back up, guaranteeing a clean L1 each run.
+      - name: Reset localnet docker state
+        run: |
+          docker-compose -f "${RUNNER_COMPOSE_FILE}" down --volumes --remove-orphans || true
+
       # sccache is disabled: the Hetzner GPU hosts have no GCP metadata service, so the GCS
       # cache backend cannot authenticate and the sccache server refuses to start. Nothing in
       # this job compiles Rust anyway — the prover server arrives prebuilt as an artifact.
