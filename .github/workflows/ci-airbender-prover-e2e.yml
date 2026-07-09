@@ -6,59 +6,73 @@ permissions:
   contents: read
 
 jobs:
-  # Build the Airbender prover server (GPU FRI prover) once, on a general GPU build runner,
-  # and hand the binary to the run job as an artifact. Splitting the expensive CUDA build off
-  # the scarce execution runner mirrors how eravm-airbender-verifier separated `vk-build` from
-  # its GPU run job.
+  # Build the Airbender prover server (GPU FRI prover) once, on a high-CPU build runner, and
+  # hand the binary to the run job as an artifact. Splitting the expensive CUDA build off the
+  # scarce execution runner mirrors how eravm-airbender-verifier separated `build-prover-host`
+  # from its GPU run job — this job copies that proven configuration.
   build-server:
     runs-on: [matterlabs-ci-runner-high-performance]
+    # A wedged CUDA build previously sat silent until the 6h default job limit; fail fast.
+    timeout-minutes: 90
+    # Prebuilt cargo-airbender CUDA image — ships nightly Rust + clang + CMake >= 3.28 + the
+    # CUDA 12.9 devel toolchain. Airbender's gpu_prover kernels (C++20 CUDA, template-heavy)
+    # are only built upstream with nvcc >= 12.9; under the zk-environment cuda-12 image's
+    # nvcc 12.2 the cmake kernel build never terminates. Compiling needs nvcc only, not a
+    # physical GPU, so a plain (GPU-less) high-CPU runner works.
+    container:
+      image: ghcr.io/matter-labs/cargo-airbender-cuda:v0.2.3
     env:
-      # CUDA-12 toolchain image but NO GPU forwarding: compiling the kernels only needs nvcc, not a
-      # physical GPU, so the build runs on a plain (GPU-less) high-CPU runner. The run job below
-      # uses the GPU compose file to actually launch the kernels.
-      RUNNER_COMPOSE_FILE: "docker-compose-cuda-12-runner.yml"
       # The run job is pinned to `matterlabs-ci-hetzner-rtx6000-gpu` (RTX 6000 Ada = sm_89), so
       # target that single arch — the gpu_prover's CUDA build compiles every kernel once per SM
       # arch and is not cached by sccache, so restricting to the one arch the run job actually
       # uses roughly halves the CUDA compile.
       CUDA_ARCH: "89"
       CUDAARCHS: "89"
-      PASSED_ENV_VARS: "CUDA_ARCH,CUDAARCHS"
 
     steps:
+      # No submodules / history: the `airbender_prover_server` workspace is self-contained and
+      # pulls everything else as git or crates.io dependencies.
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          submodules: "recursive"
-          fetch-depth: 0
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
-        with:
-          runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
+      # sccache (RUSTC_WRAPPER) wired to matterlabs's GCS bucket, same as
+      # eravm-airbender-verifier's build-prover-host.
+      - name: Setup runner
+        uses: matter-labs/zksync-os-server/.github/actions/runner-setup@24d38529dbeb2f0bdd016005b1e5e0bc491b692f
 
-      # gpu_prover's CUDA build (via the `cmake` crate) requires CMake >= 3.28, but the
-      # zk-environment image ships 3.24. Install the same version the Docker image uses into
-      # /usr/local (ahead of the system CMake on PATH), mirroring docker/airbender-prover-server/Dockerfile.
-      - name: Install newer CMake for the GPU prover build
-        env:
-          CMAKE_VERSION: "3.30.2"
+      - name: Inspect toolchain
         run: |
-          PASSED_ENV_VARS="CMAKE_VERSION" \
-          ci_run bash -lc 'curl -fsSLO "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh" && chmod +x "cmake-${CMAKE_VERSION}-linux-x86_64.sh" && "./cmake-${CMAKE_VERSION}-linux-x86_64.sh" --skip-license --prefix=/usr/local && rm "cmake-${CMAKE_VERSION}-linux-x86_64.sh" && cmake --version'
+          nvcc --version
+          cmake --version
+          rustc --version
 
-      # Build the Airbender prover server (GPU FRI prover) from source. The workspace pins its own
-      # nightly via `airbender_prover_server/rust-toolchain`; `rustup show` installs it on demand.
-      # `build.rs` downloads the guest binary + FRI/SNARK VKs for the pinned verifier version at
-      # build time into `guest/dist/app` and `vks/`, and bakes those absolute paths into the binary
-      # as its compile-time defaults — so they must ride along in the artifact.
+      # Build the Airbender prover server (GPU FRI prover) from source. The workspace pins its
+      # own nightly via `airbender_prover_server/rust-toolchain`; `rustup show` installs it on
+      # demand. `build.rs` downloads the guest binary + FRI/SNARK VKs for the pinned verifier
+      # version at build time into `guest/dist/app` and `vks/` — they ride along in the artifact,
+      # and the run job points the server at them explicitly (the compile-time defaults baked
+      # into the binary reference this job's checkout path, which does not exist inside the run
+      # job's container).
       - name: Build Airbender prover server
+        working-directory: airbender_prover_server
+        env:
+          RUST_BACKTRACE: 1
         run: |
-          ci_run run_retried bash -lc "cd airbender_prover_server && rustup show"
-          ci_run bash -lc "cd airbender_prover_server && cargo build --release -p eravm-prover-server"
+          rustup show
+          cargo build --release --locked -p eravm-prover-server
+          ls -lh target/release/eravm-prover-server
 
-      # Ship the binary alongside the guest program + VKs it resolves at runtime. All paths share
-      # the `airbender_prover_server` root, so the artifact preserves that tree and the run job
-      # restores them to the identical in-container paths the binary was compiled to expect.
+      # The run job executes the binary inside the zk-environment cuda-12 container, whose CUDA
+      # runtime (12.2) is older than the 12.9 toolkit this binary links against. Ship the
+      # matching libcudart; the run job prepends it to LD_LIBRARY_PATH. (The GPU *driver* is
+      # forwarded by the runner and stays compatible.)
+      - name: Stage CUDA runtime libraries
+        run: |
+          mkdir -p airbender_prover_server/cuda-libs
+          cp -v /usr/local/cuda/lib64/libcudart.so* airbender_prover_server/cuda-libs/
+
+      # Ship the binary alongside the guest program + VKs it resolves at runtime and the CUDA
+      # runtime libs. All paths share the `airbender_prover_server` root, so the artifact
+      # preserves that tree and the run job restores it at the same relative location.
       - name: Upload Airbender prover server binary
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -69,16 +83,18 @@ jobs:
             airbender_prover_server/target/release/eravm-prover-server
             airbender_prover_server/guest/dist/app
             airbender_prover_server/vks
+            airbender_prover_server/cuda-libs
 
       - name: Show sccache logs
         if: always()
         run: |
-          ci_run sccache --show-stats || true
-          ci_run cat /tmp/sccache_log.txt || true
+          sccache --show-stats || true
+          cat /tmp/sccache_log.txt || true
 
   e2e-test:
     needs: build-server
     runs-on: [matterlabs-ci-hetzner-rtx6000-gpu]
+    timeout-minutes: 120
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
       YQ_VERSION: "4.45.1"
@@ -175,9 +191,14 @@ jobs:
       # prover polls `/airbender/proof_inputs` (port 4320), which locks the batch (creating the
       # `airbender_proof_generation_details` row), proves the FRI proof on GPU, and submits it back
       # via `/airbender/submit_proofs`, transitioning the batch to `status = 'generated'`.
+      #
+      # The binary was built in the cargo-airbender-cuda container, so its baked-in compile-time
+      # default paths point at that job's checkout — override the guest/VK locations with the
+      # restored in-container paths. It also links CUDA 12.9's libcudart, newer than this
+      # container's 12.2 runtime, so point the loader at the copy shipped in the artifact.
       - name: Run Airbender prover server (fri-only)
         run: |
-          ci_run bash -lc "cd airbender_prover_server && PROVER_SERVER_URL=http://127.0.0.1:4320 ./target/release/eravm-prover-server --mode fri-only" &>airbender_prover_logs/prover_server.log &
+          ci_run bash -lc "cd airbender_prover_server && LD_LIBRARY_PATH=/usr/src/zksync/airbender_prover_server/cuda-libs PROVER_GUEST_DIST_DIR=/usr/src/zksync/airbender_prover_server/guest/dist/app FRI_VK=/usr/src/zksync/airbender_prover_server/vks/fri_vk.bin PROVER_SERVER_URL=http://127.0.0.1:4320 ./target/release/eravm-prover-server --mode fri-only" &>airbender_prover_logs/prover_server.log &
 
       - name: Wait for the Airbender FRI proof to be generated
         env:
