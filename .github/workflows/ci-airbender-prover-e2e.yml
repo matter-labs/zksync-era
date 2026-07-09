@@ -118,10 +118,14 @@ jobs:
           fi
           docker-compose version
 
+      # sccache is disabled: the Hetzner GPU hosts have no GCP metadata service, so the GCS
+      # cache backend cannot authenticate and the sccache server refuses to start. Nothing in
+      # this job compiles Rust anyway — the prover server arrives prebuilt as an artifact.
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
           runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
+          sccache: 'false'
 
       - name: Install yq
         run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
@@ -229,9 +233,3 @@ jobs:
         with:
           name: airbender_prover_logs
           path: airbender_prover_logs
-
-      - name: Show sccache logs
-        if: always()
-        run: |
-          ci_run sccache --show-stats || true
-          ci_run cat /tmp/sccache_log.txt || true
