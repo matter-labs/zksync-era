@@ -105,6 +105,19 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
+      # The hetzner rtx6000 runner pool is heterogeneous: some hosts ship only the
+      # `docker compose` v2 CLI plugin, without a `docker-compose` binary on PATH — but
+      # `bin/ci_run` / `bin/ci_localnet_up` (used by setup-env) invoke `docker-compose`.
+      # Shim the legacy name onto the v2 plugin when it is missing.
+      - name: Shim docker-compose onto the compose v2 plugin
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          if ! command -v docker-compose >/dev/null 2>&1; then
+            printf '#!/bin/sh\nexec docker compose "$@"\n' | ${SUDO} tee /usr/local/bin/docker-compose >/dev/null
+            ${SUDO} chmod +x /usr/local/bin/docker-compose
+          fi
+          docker-compose version
+
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
