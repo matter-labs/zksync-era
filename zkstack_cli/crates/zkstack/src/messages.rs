@@ -124,8 +124,6 @@ pub(super) const MSG_REGISTERING_ON_ALL_CHAINS_SPINNER: &str = "Registering on a
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
 pub(super) const MSG_UNPAUSING_DEPOSITS_SPINNER: &str = "Unpausing deposits for chain...";
 pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
-pub(super) const MSG_SETTING_AIRBENDER_BINARY_COMMITMENT_SPINNER: &str =
-    "Setting airbender binary commitment...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
 pub(super) const MSG_UPDATING_DA_VALIDATOR_PAIR_SPINNER: &str = "Updating da validator pair...";

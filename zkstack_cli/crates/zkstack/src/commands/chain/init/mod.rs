@@ -11,8 +11,7 @@ use zksync_basic_types::{commitment::L2DACommitmentScheme, Address};
 
 use crate::{
     admin_functions::{
-        accept_admin, make_permanent_rollup, set_airbender_binary_commitment,
-        set_da_validator_pair, unpause_deposits,
+        accept_admin, make_permanent_rollup, set_da_validator_pair, unpause_deposits,
     },
     commands::chain::{
         args::init::{
@@ -33,8 +32,8 @@ use crate::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOYING_PAYMASTER,
         MSG_GENESIS_DATABASE_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
-        MSG_SETTING_AIRBENDER_BINARY_COMMITMENT_SPINNER, MSG_UNPAUSING_DEPOSITS_SPINNER,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
+        MSG_UNPAUSING_DEPOSITS_SPINNER, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
+        MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
 };
 
@@ -124,27 +123,6 @@ pub async fn init(
     )
     .await?;
     spinner.finish();
-
-    // Configure the airbender verifier guest binary commitment, if the operator provided one. It is
-    // required before airbender proofs can be verified; chains that don't settle airbender proofs
-    // simply leave it unset.
-    if let Some(airbender_binary_commitment) = contracts_config.l1.airbender_binary_commitment {
-        let spinner = Spinner::new(MSG_SETTING_AIRBENDER_BINARY_COMMITMENT_SPINNER);
-        set_airbender_binary_commitment(
-            shell,
-            &init_args.forge_args,
-            &chain_config.path_to_foundry_scripts(),
-            crate::admin_functions::AdminScriptMode::Broadcast(
-                chain_config.get_wallets_config()?.governor,
-            ),
-            chain_config.chain_id.as_u64(),
-            contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-            airbender_binary_commitment,
-            init_args.l1_rpc_url.clone(),
-        )
-        .await?;
-        spinner.finish();
-    }
 
     if !init_args.pause_deposits && !chain_config.legacy_bridge.unwrap_or(false) {
         // Deposits are paused by default to allow immediate Gateway migration. If specified, unpause them.

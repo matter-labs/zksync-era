@@ -3,7 +3,6 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
-use set_airbender_binary_commitment::SetAirbenderBinaryCommitmentArgs;
 use set_da_validator_pair::SetDAValidatorPairArgs;
 use set_da_validator_pair_calldata::SetDAValidatorPairCalldataArgs;
 use set_transaction_filterer::SetTransactionFiltererArgs;
@@ -32,7 +31,6 @@ pub mod init;
 pub mod manage_deposits;
 pub mod register_chain;
 pub mod register_on_all_chains;
-pub(crate) mod set_airbender_binary_commitment;
 mod set_da_validator_pair;
 mod set_da_validator_pair_calldata;
 mod set_pubdata_pricing_mode;
@@ -102,8 +100,6 @@ pub enum ChainCommands {
     UnpauseDeposits(ManageDepositsArgs),
     /// Update da validator pair (used for Rollup -> Validium migration)
     SetDAValidatorPair(SetDAValidatorPairArgs),
-    /// Set the airbender verifier guest binary commitment (required to settle airbender proofs)
-    SetAirbenderBinaryCommitment(SetAirbenderBinaryCommitmentArgs),
     #[command(subcommand, alias = "gw")]
     Gateway(gateway::GatewayComamnds),
 }
@@ -156,9 +152,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             manage_deposits::run(args, shell, ManageDepositsOption::UnpauseDeposits).await
         }
         ChainCommands::SetDAValidatorPair(args) => set_da_validator_pair::run(args, shell).await,
-        ChainCommands::SetAirbenderBinaryCommitment(args) => {
-            set_airbender_binary_commitment::run(args, shell).await
-        }
         ChainCommands::Gateway(args) => gateway::run(shell, args).await,
     }
 }
