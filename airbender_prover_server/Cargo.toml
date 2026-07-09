@@ -102,8 +102,8 @@ vise-exporter = "0.3.2"
 # workspace dep — a member's `default-features = false` is otherwise ignored.
 airbender-host = { git = "https://github.com/matter-labs/airbender-platform", tag = "v0.2.3", default-features = false }
 
-eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v29.9.0", default-features = false }
-zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v29.9.0" }
+eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.0.0", default-features = false }
+zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.0.0" }
 
 # Local crates in this workspace.
 zksync_cli_utils = { path = "crates/lib/cli_utils" }
