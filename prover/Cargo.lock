@@ -9950,7 +9950,7 @@ dependencies = [
 [[package]]
 name = "zksync-era-airbender-cycles-estimator"
 version = "29.9.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier.git?branch=cycle-model-v31#a1d9dc76b910406b8f7d71866e8f1fb8ec31e903"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier.git?rev=44df94719be3a1eb688e2a73a53a228cb7d65efa#44df94719be3a1eb688e2a73a53a228cb7d65efa"
 dependencies = [
  "anyhow",
  "serde",

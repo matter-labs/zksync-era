@@ -7,8 +7,10 @@ use zksync_types::ProtocolVersionId;
 // Local uses
 use crate::seal_criteria::{SealCriterion, SealData, SealResolution, UnexecutableReason};
 
-/// Safety margin on the raw estimate, covering the model's mild under-prediction.
-const CYCLE_ESTIMATE_MARGIN: f64 = 1.10;
+/// Safety margin on the raw estimate. The model is fit with an asymmetric loss and
+/// leans conservative, so this only needs to cover ordinary variance; out-of-envelope
+/// under-prediction is caught separately by `is_within_calibration`.
+const CYCLE_ESTIMATE_MARGIN: f64 = 1.05;
 
 /// Seals a batch when the Airbender guest cycle estimate for the work so far
 /// approaches the per-proof budget (`max_cycles_per_batch`).
@@ -125,6 +127,10 @@ impl SealCriterion for CyclesCriterion {
             block_data,
             tx_count.max(1) as u64,
         );
+        // An untrustworthy estimate is a lower bound, so its ratio would under-report.
+        if !batch_estimate.is_reliable() || !batch_estimate.is_within_calibration() {
+            return None;
+        }
         let used = batch_estimate.conservative(CYCLE_ESTIMATE_MARGIN) as f64;
         let full = config.max_cycles_per_batch as f64;
         Some(used / full)
@@ -203,8 +209,8 @@ mod tests {
 
     #[test]
     fn include_and_seal_when_over_close_bound() {
-        // raw 1.7*base ⇒ conservative 1.87*base ∈ [1.8*base close bound, 2*base limit).
-        let block = block_data(features_reaching(17 * model_base() / 10));
+        // raw 1.85*base ⇒ conservative ~1.94*base ∈ [1.8*base close bound, 2*base limit).
+        let block = block_data(features_reaching(185 * model_base() / 100));
         assert_eq!(
             should_seal(&config_with_limit_2x_base(), block, SealData::default()),
             SealResolution::IncludeAndSeal

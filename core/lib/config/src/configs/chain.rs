@@ -98,8 +98,8 @@ pub struct SealCriteriaConfig {
     /// The maximum number of Airbender guest cycles a batch may consume before it must
     /// be sealed. This bounds the per-proof native-computational-cycle budget: the
     /// sequencer estimates a batch's cycles from the features traced during execution
-    /// (via [`CycleFeatureTracer`]) and seals once the running estimate approaches this
-    /// limit.
+    /// (via the `CycleFeatureTracer`) and seals once the running estimate approaches
+    /// this limit.
     #[config(default_t = 1_000_000_000_000_000)]
     pub max_cycles_per_batch: u64,
     /// A single transaction is rejected as unexecutable if, on its own, it would consume
