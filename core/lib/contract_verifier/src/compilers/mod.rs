@@ -77,6 +77,36 @@ pub(crate) fn validate_source_paths(
     Ok(())
 }
 
+/// Validates the `settings.remappings` array of a standard-JSON input.
+///
+/// A remapping has the form `[context:]prefix=target`. For verification to be hermetic the
+/// compiler must resolve every import against the sources provided inline, never against the
+/// host filesystem. A remapping target that is absolute (`/…`, `file://…`) or points outside
+/// the provided source tree with `..` breaks that guarantee (the compiler treats such a target
+/// as an additional lookup root), so targets are constrained to stay relative and within the
+/// source tree.
+pub(crate) fn validate_remappings(settings: &Value) -> Result<(), ContractVerifierError> {
+    let Some(remappings) = settings.get("remappings").and_then(Value::as_array) else {
+        return Ok(());
+    };
+    for entry in remappings {
+        let Some(remapping) = entry.as_str() else {
+            return Err(ContractVerifierError::InvalidSourcePath(
+                "non-string remapping".to_owned(),
+            ));
+        };
+        // Split off the optional `context:` prefix and the mandatory `prefix=` to isolate the target.
+        let target = remapping.split_once('=').map_or("", |(_, target)| target);
+        if target.starts_with('/')
+            || target.starts_with("file://")
+            || target.split('/').any(|component| component == "..")
+        {
+            return Err(ContractVerifierError::InvalidSourcePath(remapping.to_owned()));
+        }
+    }
+    Ok(())
+}
+
 /// Returns `true` if `source` contains an `import` directive whose path is absolute (`/…`)
 /// or uses a `file://` URL. These forms let the compiler resolve imports against the host
 /// filesystem and potentially leak file contents in error messages.
@@ -125,7 +155,41 @@ pub(crate) fn sanitize_compiler_stderr(stderr: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::has_dangerous_imports;
+    use super::{has_dangerous_imports, validate_remappings};
+
+    #[test]
+    fn rejects_non_hermetic_remapping_targets() {
+        for target in [
+            "@x/=/abs/path",
+            "@x/=file:///abs/path",
+            "@x/=../../../../outside/tree",
+            "ctx:@x/=../outside",
+            "@x/=lib/../../outside",
+        ] {
+            let settings = serde_json::json!({ "remappings": [target] });
+            assert!(
+                validate_remappings(&settings).is_err(),
+                "remapping must be rejected: {target}"
+            );
+        }
+    }
+
+    #[test]
+    fn allows_relative_remapping_targets() {
+        let settings = serde_json::json!({
+            "remappings": [
+                "@openzeppelin/=node_modules/@openzeppelin/",
+                "ds-test/=lib/forge-std/lib/ds-test/src/",
+                "@x/=contracts/x/",
+            ]
+        });
+        assert!(validate_remappings(&settings).is_ok());
+    }
+
+    #[test]
+    fn allows_missing_remappings() {
+        assert!(validate_remappings(&serde_json::json!({})).is_ok());
+    }
 
     #[test]
     fn allows_relative_parent_imports() {

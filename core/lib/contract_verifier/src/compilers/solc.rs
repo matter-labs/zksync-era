@@ -10,7 +10,8 @@ use zksync_types::contract_verification::api::{
 use crate::{
     compilers::{
         has_dangerous_imports, parse_standard_json_output, process_contract_name,
-        sanitize_compiler_stderr, validate_source_paths, Settings, Source, StandardJson,
+        sanitize_compiler_stderr, validate_remappings, validate_source_paths, Settings, Source,
+        StandardJson,
     },
     error::ContractVerifierError,
     resolver::Compiler,
@@ -83,6 +84,7 @@ impl Solc {
                     serde_json::from_value(serde_json::Value::Object(map))
                         .map_err(|_| ContractVerifierError::FailedToDeserializeInput)?;
                 validate_source_paths(&compiler_input.sources)?;
+                validate_remappings(&compiler_input.settings.other)?;
                 for source in compiler_input.sources.values() {
                     if has_dangerous_imports(&source.content) {
                         return Err(ContractVerifierError::InvalidSourcePath(
@@ -224,6 +226,42 @@ mod tests {
     }
 
     #[test]
+    fn build_input_rejects_non_hermetic_remapping() {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "src/Test.sol": {
+                    "content": r#"import "@ext/Lib.sol"; contract Test {}"#,
+                },
+            },
+            "settings": {
+                "remappings": ["@ext/=../../../../outside/tree/"],
+            },
+        });
+        let req = VerificationIncomingRequest {
+            contract_address: Default::default(),
+            source_code_data: SourceCodeData::StandardJsonInput(input.as_object().unwrap().clone()),
+            contract_name: "src/Test.sol:Test".to_owned(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_solc_version: "0.8.26".to_owned(),
+                compiler_zksolc_version: None,
+            },
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: Default::default(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: Default::default(),
+        };
+
+        let err = Solc::build_input(req).unwrap_err();
+        assert!(
+            matches!(err, ContractVerifierError::InvalidSourcePath(_)),
+            "non-hermetic remapping must be rejected, got: {err:?}"
+        );
+    }
+
+    #[test]
     fn build_input_uses_evm_bytecode_outputs_for_evm_contracts() {
         let input = serde_json::json!({
             "language": "Solidity",
@@ -297,9 +335,15 @@ impl Compiler<SolcInput> for Solc {
         // not covered by the sources map will therefore fail with "File not found"
         // rather than silently reading an arbitrary host path.
         let compile_dir = tempfile::tempdir().context("failed to create temp dir for solc")?;
+        // Resolve the binary to an absolute path so it stays locatable after `current_dir` is
+        // switched to the (empty) sandbox directory below.
+        let solc_path = tokio::fs::canonicalize(&self.path)
+            .await
+            .context("failed to canonicalize solc path")?;
 
-        let mut command = tokio::process::Command::new(&self.path);
+        let mut command = tokio::process::Command::new(&solc_path);
         let mut child = command
+            .current_dir(compile_dir.path())
             .arg("--standard-json")
             .arg("--allow-paths")
             .arg(compile_dir.path())
