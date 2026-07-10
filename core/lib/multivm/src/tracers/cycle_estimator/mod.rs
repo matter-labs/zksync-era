@@ -13,9 +13,7 @@ use once_cell::sync::OnceCell;
 pub mod vm_latest;
 
 pub use zksync_era_airbender_cycles_estimator::{
-    assemble_feature_vector, estimate_from_features, estimate_from_features_with_model,
-    BatchContext, CostModel, CycleEstimate, FeatureId, FeatureVector, LinearModel,
-    SAFETY_CRITICAL_FEATURES,
+    estimate_from_features, BatchContext, CostModel, CycleEstimate, FeatureId, FeatureVector,
 };
 
 /// Observe-only tracer that counts the calibration features an Airbender cycle
