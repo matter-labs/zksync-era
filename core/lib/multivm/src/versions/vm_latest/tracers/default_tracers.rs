@@ -63,10 +63,8 @@ pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     // It only takes into account circuits that are generated for actual execution. It doesn't
     // take into account e.g circuits produced by the initial bootloader memory commitment.
     pub(crate) circuits_tracer: CircuitsTracer<S, H>,
-    // Counts the Airbender cycle-estimator calibration features (opcode families +
-    // crypto/decommit/storage complexity) for this execution. Like `circuits_tracer`
-    // it only observes; its `FeatureVector` is read back into `VmExecutionStatistics`
-    // and fed to the cost model by a seal criterion.
+    // Counts Airbender cycle-estimator features; its `FeatureVector` is read back
+    // into `VmExecutionStatistics`.
     pub(crate) cycle_tracer: CycleFeatureTracer,
     // This tracer is responsible for handling EVM deployments and providing the data to the code decommitter.
     pub(crate) evm_deploy_tracer: Option<EvmDeployTracer<S>>,
@@ -249,10 +247,8 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         }
 
         dispatch_tracers!(self.before_execution(state, data, memory, self.storage.clone()));
-        // Dispatched explicitly rather than through `dispatch_tracers!`: `CycleFeatureTracer`
-        // is not parameterized by `S`, so the macro's `after_decoding`/`after_execution`
-        // calls (which carry no `S`-bearing argument) can't infer it. The hooks the tracer
-        // actually uses all take an `S`-pinning argument, so they resolve fine here.
+        // Not in `dispatch_tracers!`: `CycleFeatureTracer` isn't generic over `S`, so the
+        // macro's `after_decoding`/`after_execution` (no `S`-bearing arg) can't infer it.
         self.cycle_tracer
             .before_execution(state, data, memory, self.storage.clone());
     }

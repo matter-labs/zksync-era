@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use zksync_multivm::interface::{FeatureVector, FinishedL1Batch, VmExecutionMetrics};
+use zksync_multivm::interface::{
+    FeatureVector, FeatureVectorExt, FinishedL1Batch, VmExecutionMetrics,
+};
 use zksync_types::{
     priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, InteropRoot, H256,
 };

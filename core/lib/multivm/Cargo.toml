@@ -31,11 +31,8 @@ anyhow.workspace = true
 hex.workspace = true
 itertools.workspace = true
 once_cell.workspace = true
-serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
 
-# Only for the calibrated cost table (`EMBEDDED_COST_TABLE`); the tracer + model
-# code lives in-tree under `tracers::cycle_estimator`.
+# Feature schema + cost model + estimator, re-exported from `tracers::cycle_estimator`.
 zksync-era-airbender-cycles-estimator = { workspace = true }
 thiserror.workspace = true
 tracing.workspace = true
@@ -46,6 +43,7 @@ ethabi.workspace = true
 assert_matches.workspace = true
 pretty_assertions.workspace = true
 rand.workspace = true
+serde_json.workspace = true
 test-casing.workspace = true
 zksync_eth_signer.workspace = true
 zksync_test_contracts.workspace = true

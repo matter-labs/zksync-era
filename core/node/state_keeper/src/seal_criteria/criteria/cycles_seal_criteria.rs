@@ -7,36 +7,24 @@ use zksync_types::ProtocolVersionId;
 // Local uses
 use crate::seal_criteria::{SealCriterion, SealData, SealResolution, UnexecutableReason};
 
-/// Safety margin applied to a raw cycle estimate before comparing it to the limit.
-/// The calibrated model systematically under-predicts by a couple of percent; this
-/// absorbs ordinary variance. It does NOT rescue an *unreliable* estimate (one that
-/// omits an un-priced precompile) — that is handled separately (fail-safe seal).
+/// Safety margin on the raw estimate, covering the model's mild under-prediction.
 const CYCLE_ESTIMATE_MARGIN: f64 = 1.10;
 
-/// Seals a batch once the Airbender guest cycle-count estimate for the work executed
-/// so far approaches the per-proof budget (`max_cycles_per_batch`).
+/// Seals a batch when the Airbender guest cycle estimate for the work so far
+/// approaches the per-proof budget (`max_cycles_per_batch`).
 ///
-/// Unlike [`CircuitsCriterion`](super::CircuitsCriterion), which reads a scalar that
-/// is additive across transactions, the cycle estimate is a *linear* function of the
-/// accumulated feature vector (`total = base + Σ coeff·feature`), so the estimate is
-/// computed here from [`SealData::cycle_features`] rather than summed per transaction.
-///
-/// Fail-safe behavior: if a batch uses a safety-critical precompile the model does
-/// not price, the estimate is a lower bound and cannot be trusted. In that case the
-/// criterion seals the batch (`IncludeAndSeal`) rather than risk exceeding the proof
-/// budget with unaccounted work.
+/// The estimate is linear in the accumulated feature vector, so it is computed once
+/// from [`SealData::cycle_features`] rather than summed per transaction. An estimate
+/// that can't be trusted (un-priced precompiles or out-of-envelope compute) is a
+/// lower bound and seals the batch conservatively.
 #[derive(Debug)]
 pub struct CyclesCriterion;
 
 impl CyclesCriterion {
-    /// Estimate guest cycles for the work described by `features` + the batch-level
-    /// scalars derivable from `seal_data`.
-    ///
-    /// At sequencing time the merkle witness does not exist yet, so the number of
-    /// distinct storage applications is used as the estimate of the leaves the tree
-    /// will witness (as in the estimator's own tests). Bytecode-hashing inputs are
-    /// not available from `SealData` and are treated as zero; the safety margin and
-    /// the `close_block` percentage provide headroom for this approximation.
+    /// Estimate guest cycles from the traced features plus the batch-level scalars
+    /// derivable from `seal_data`. Distinct storage applications stand in for the
+    /// merkle leaves the tree will witness; bytecode-hashing inputs aren't available
+    /// here and are omitted.
     fn estimate(
         features: &FeatureVector,
         seal_data: &SealData,
@@ -70,16 +58,15 @@ impl SealCriterion for CyclesCriterion {
         _protocol_version: ProtocolVersionId,
     ) -> SealResolution {
         let limit = config.max_cycles_per_batch;
-        // A zero limit is degenerate; treat it as "cycle sealing disabled".
         if limit == 0 {
-            return SealResolution::NoSeal;
+            return SealResolution::NoSeal; // disabled
         }
 
         let reject_bound = (limit as f64 * config.reject_tx_at_cycles_percentage).round() as u64;
         let include_and_seal_bound =
             (limit as f64 * config.close_block_at_cycles_percentage).round() as u64;
 
-        // `tx_count` counts transactions *including* the one currently being sealed.
+        // `tx_count` includes the tx currently being sealed.
         let tx_estimate = Self::estimate(&tx_data.cycle_features, tx_data, 1);
         let batch_estimate = Self::estimate(
             &block_data.cycle_features,
@@ -90,21 +77,24 @@ impl SealCriterion for CyclesCriterion {
         let tx_cycles = tx_estimate.conservative(CYCLE_ESTIMATE_MARGIN);
         let batch_cycles = batch_estimate.conservative(CYCLE_ESTIMATE_MARGIN);
 
-        // Only reject a single transaction outright when we *trust* its estimate.
-        // Rejecting on an unreliable (under-counted) estimate could permanently
-        // exclude an otherwise-valid transaction merely because the model has a gap.
-        if tx_estimate.is_reliable() && tx_cycles >= reject_bound {
+        // Trustworthy = all used precompiles priced and inside the calibration
+        // envelope; otherwise `total` under-counts.
+        let tx_trustworthy = tx_estimate.is_reliable() && tx_estimate.is_within_calibration();
+        let batch_trustworthy =
+            batch_estimate.is_reliable() && batch_estimate.is_within_calibration();
+
+        // Reject only on a trusted estimate — never exclude a tx over a model gap.
+        if tx_trustworthy && tx_cycles >= reject_bound {
             return UnexecutableReason::ProofWillFail.into();
         }
 
-        // Fail safe: an unreliable batch estimate omits un-priced precompile work, so
-        // `batch_cycles` is a lower bound. Seal now rather than risk overflowing the
-        // proof budget with work the model can't see.
-        if !batch_estimate.is_reliable() {
+        // An untrustworthy estimate is a lower bound: seal rather than risk the budget.
+        if !batch_trustworthy {
             tracing::warn!(
-                "Batch cycle estimate is unreliable (un-priced precompiles used: {:?}); \
+                "Batch cycle estimate is untrustworthy (un-priced: {:?}, extrapolated: {:?}); \
                  sealing conservatively",
-                batch_estimate.unpriced
+                batch_estimate.unpriced,
+                batch_estimate.extrapolated
             );
             return SealResolution::IncludeAndSeal;
         }
@@ -157,23 +147,25 @@ mod tests {
         CyclesCriterion::estimate(&FeatureVector::default(), &SealData::default(), 1).total
     }
 
-    /// Per-`RichAddressingOp` marginal cycle cost under the embedded model.
-    fn rich_per_op() -> f64 {
+    /// Marginal cost of one `StorageApplication`. Driving estimates through storage
+    /// keeps test batches inside the calibration envelope (arithmetic would trip the
+    /// extrapolation guard).
+    fn storage_per_unit() -> f64 {
         const PROBE: u64 = 1_000_000;
         let mut fv = FeatureVector::default();
-        fv.add(FeatureId::RichAddressingOp, PROBE);
+        fv.add(FeatureId::StorageApplication, PROBE);
         let raw = CyclesCriterion::estimate(&fv, &SealData::default(), 1).total;
-        let per_op = raw.saturating_sub(model_base()) as f64 / PROBE as f64;
-        assert!(per_op > 0.0, "RichAddressingOp must be priced by the model");
-        per_op
+        let per = raw.saturating_sub(model_base()) as f64 / PROBE as f64;
+        assert!(per > 0.0, "StorageApplication must drive the estimate");
+        per
     }
 
-    /// A feature vector whose raw estimate is approximately `raw_target` cycles.
+    /// An in-envelope feature vector whose raw estimate is approximately `raw_target`.
     fn features_reaching(raw_target: u64) -> FeatureVector {
         let over_base = raw_target.saturating_sub(model_base()) as f64;
-        let count = (over_base / rich_per_op()) as u64;
+        let count = (over_base / storage_per_unit()) as u64;
         let mut fv = FeatureVector::default();
-        fv.add(FeatureId::RichAddressingOp, count);
+        fv.add(FeatureId::StorageApplication, count);
         fv
     }
 
@@ -231,8 +223,7 @@ mod tests {
 
     #[test]
     fn single_oversized_tx_is_rejected() {
-        // A single reliable transaction whose own conservative estimate exceeds the
-        // reject bound is unexecutable.
+        // A trusted tx whose own estimate exceeds the reject bound is unexecutable.
         let tx = block_data(features_reaching(2 * model_base()));
         assert_eq!(
             should_seal(&config_with_limit_2x_base(), SealData::default(), tx),
@@ -241,11 +232,22 @@ mod tests {
     }
 
     #[test]
-    fn unreliable_batch_seals_conservatively() {
-        // An un-priced safety-critical precompile makes the estimate unreliable even
-        // though the priced work is tiny — seal rather than trust an under-count.
+    fn untrustworthy_batch_seals_conservatively() {
+        // An arithmetic-dominated batch extrapolates out of the calibration envelope
+        // and seals despite its raw magnitude being under the limit.
         let mut features = FeatureVector::default();
-        features.add(FeatureId::EcPairingCycles, 1);
+        features.add(FeatureId::RichAddressingOp, 5_000_000);
+        let estimate = CyclesCriterion::estimate(&features, &SealData::default(), 1);
+        assert!(
+            !estimate.is_within_calibration(),
+            "an arithmetic-dominated batch must extrapolate: {:?}",
+            estimate.extrapolated
+        );
+        assert!(
+            estimate.conservative(CYCLE_ESTIMATE_MARGIN)
+                < config_with_limit_2x_base().max_cycles_per_batch,
+            "magnitude alone must be under the limit, so the seal is due to extrapolation"
+        );
         assert_eq!(
             should_seal(
                 &config_with_limit_2x_base(),

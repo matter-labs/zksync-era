@@ -4,7 +4,7 @@ use zk_evm_1_5_2::{
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
 };
 
-use super::{features::FeatureId, CycleFeatureTracer};
+use super::{CycleFeatureTracer, FeatureId};
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
@@ -22,10 +22,8 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CycleFea
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        // Opcode → feature-family bucketing mirrors `vm_latest::tracers::circuits_tracer`
-        // (and thus the fast-VM tracer), so the legacy VM emits the same feature
-        // categories the cost model was calibrated on. We count RAW occurrences
-        // (+1); the per-feature cycle weights live in the model, not here.
+        // Opcode → feature-family bucketing mirrors `circuits_tracer` (and the fast-VM
+        // tracer), so the legacy VM emits the same feature categories the model expects.
         let id = match data.opcode.variant.opcode {
             Opcode::Nop(_)
             | Opcode::Add(_)
@@ -93,9 +91,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CycleFeatureTracer {
         state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
-        // The complexity features (decommit words, storage applications, precompile
-        // rounds) are not observable from opcodes alone; like the legacy circuit
-        // tracer we recover them by scanning the VM's history logs for new entries.
+        // Complexity features (decommit words, storage applications, precompile rounds)
+        // aren't observable from opcodes; recover them by scanning the VM history logs.
         self.trace_decommitments(state);
         self.trace_storage_writes(state);
         self.trace_storage_reads(state);

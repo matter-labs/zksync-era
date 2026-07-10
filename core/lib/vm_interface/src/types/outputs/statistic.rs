@@ -129,13 +129,10 @@ pub struct VmExecutionStatistics {
     pub total_log_queries: usize,
     pub pubdata_published: u32,
     pub circuit_statistic: CircuitStatistic,
-    /// Airbender cycle-estimator calibration features observed during the tx
-    /// execution (opcode families + crypto/decommit/storage complexity). Only
-    /// populated by `vm_latest`; empty for other VM versions. The state keeper
-    /// accumulates these across a batch and a seal criterion turns them into a
-    /// guest cycle-count estimate. Not a `Copy`-friendly scalar, which is why it
-    /// rides here (in the non-`Copy` statistics) rather than in
-    /// [`VmExecutionMetrics`].
+    /// Airbender cycle-estimator features observed during the tx. Only populated by
+    /// `vm_latest`; empty otherwise. Lives here (non-`Copy` statistics) rather than
+    /// in the `Copy` [`VmExecutionMetrics`]; the state keeper accumulates it per batch
+    /// for the cycle seal criterion.
     pub cycle_features: FeatureVector,
 }
 

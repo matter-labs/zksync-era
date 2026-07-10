@@ -169,10 +169,8 @@ pub struct SealData {
     pub(super) cumulative_size: usize,
     pub(super) writes_metrics: DeduplicatedWritesMetrics,
     pub(super) gas_remaining: u32,
-    /// Airbender cycle-estimator features — for `tx_data`, those of the just-executed
-    /// transaction; for `block_data`, those accumulated over the pending batch. A
-    /// seal criterion turns them into a guest cycle-count estimate. Rides alongside
-    /// [`VmExecutionMetrics`] because it is not `Copy`.
+    /// Airbender cycle-estimator features — per-transaction in `tx_data`, accumulated
+    /// over the pending batch in `block_data`.
     pub(super) cycle_features: FeatureVector,
 }
 
@@ -188,9 +186,8 @@ impl SealData {
             cumulative_size: transaction.bootloader_encoding_size(),
             writes_metrics: tx_metrics.writes,
             gas_remaining: tx_metrics.gas_remaining,
-            // The single-transaction filter (API/mempool) has no traced features;
-            // an empty vector prices to ~the model base, so it never rejects on
-            // cycles. The batch seal path fills this from the VM statistics.
+            // The single-tx API/mempool filter has no traced features; the batch seal
+            // path fills this from the VM statistics.
             cycle_features: FeatureVector::default(),
         }
     }

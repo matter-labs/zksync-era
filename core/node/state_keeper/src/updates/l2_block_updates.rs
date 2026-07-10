@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use zksync_multivm::{
     interface::{
-        Call, ExecutionResult, FeatureVector, L2BlockEnv, TransactionExecutionResult,
-        TxExecutionStatus, VmEvent, VmExecutionMetrics, VmExecutionResultAndLogs,
+        Call, ExecutionResult, FeatureVector, FeatureVectorExt, L2BlockEnv,
+        TransactionExecutionResult, TxExecutionStatus, VmEvent, VmExecutionMetrics,
+        VmExecutionResultAndLogs,
     },
     vm_latest::TransactionVmExt,
 };
@@ -28,9 +29,6 @@ pub struct L2BlockUpdates {
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
     pub block_execution_metrics: VmExecutionMetrics,
     /// Airbender cycle-estimator features accumulated over this block's transactions.
-    /// Not `Copy`, which is why it rides alongside (rather than inside) the
-    /// `Copy` [`VmExecutionMetrics`]. A seal criterion turns the pending-batch sum
-    /// of these into a guest cycle-count estimate.
     pub block_cycle_features: FeatureVector,
     pub txs_encoding_size: usize,
     pub payload_encoding_size: usize,

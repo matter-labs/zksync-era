@@ -7,7 +7,7 @@ use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
-        Halt, L1BatchEnv, SystemEnv,
+        FeatureVectorExt, Halt, L1BatchEnv, SystemEnv,
     },
     utils::StorageWritesDeduplicator,
 };

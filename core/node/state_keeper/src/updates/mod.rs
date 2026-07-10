@@ -3,7 +3,8 @@ use std::collections::VecDeque;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{
-        Call, FeatureVector, FinishedL1Batch, VmExecutionMetrics, VmExecutionResultAndLogs,
+        Call, FeatureVector, FeatureVectorExt, FinishedL1Batch, VmExecutionMetrics,
+        VmExecutionResultAndLogs,
     },
     utils::{
         get_batch_base_fee, get_bootloader_max_interop_roots_in_batch, get_max_batch_gas_limit,
@@ -338,9 +339,7 @@ impl UpdatesManager {
                 })
     }
 
-    /// Airbender cycle-estimator features accumulated over every transaction in the
-    /// pending batch (committed L2 blocks + pending ones). A seal criterion feeds
-    /// the sum into the calibrated cost model to estimate guest cycles.
+    /// Airbender cycle-estimator features accumulated over the whole pending batch.
     pub(crate) fn pending_cycle_features(&self) -> FeatureVector {
         let mut features = self.committed_updates.block_cycle_features.clone();
         for block in &self.pending_l2_blocks {

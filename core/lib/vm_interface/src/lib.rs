@@ -30,7 +30,7 @@ pub use crate::{
         outputs::{
             BatchTransactionExecutionResult, BootloaderMemory, Call, CallType, CircuitStatistic,
             CompressedBytecodeInfo, CurrentExecutionState, DeduplicatedWritesMetrics,
-            ExecutionResult, FeatureId, FeatureVector, FinishedL1Batch, L2Block,
+            ExecutionResult, FeatureId, FeatureVector, FeatureVectorExt, FinishedL1Batch, L2Block,
             OneshotTransactionExecutionResult, PushTransactionResult, Refunds,
             TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
             VmExecutionLogs, VmExecutionMetrics, VmExecutionResultAndLogs, VmExecutionStatistics,

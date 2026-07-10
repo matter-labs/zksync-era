@@ -13436,7 +13436,7 @@ dependencies = [
 [[package]]
 name = "zksync-era-airbender-cycles-estimator"
 version = "29.9.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier.git?branch=cycle-model-v31#a1d9dc76b910406b8f7d71866e8f1fb8ec31e903"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier.git?branch=cycle-model-v31#44df94719be3a1eb688e2a73a53a228cb7d65efa"
 dependencies = [
  "anyhow",
  "serde",
@@ -14601,7 +14601,6 @@ dependencies = [
  "once_cell",
  "pretty_assertions",
  "rand 0.8.5",
- "serde",
  "serde_json",
  "test-casing",
  "thiserror 2.0.12",
@@ -15492,6 +15491,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
  "tracing",
+ "zksync-era-airbender-cycles-estimator",
  "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",
