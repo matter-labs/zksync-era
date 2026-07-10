@@ -284,7 +284,7 @@ zksync_vm2 = "=0.5.0-5"
 # repo, keeping a single source of truth for the fitted constants. The crate is
 # VM-agnostic (the vm2 tracer lives in a separate sibling crate), so no `zksync_vm2`
 # is pulled here.
-zksync-era-airbender-cycles-estimator = { git = "https://github.com/matter-labs/eravm-airbender-verifier.git", rev = "bd17ef4" }
+zksync-era-airbender-cycles-estimator = { git = "https://github.com/matter-labs/eravm-airbender-verifier.git",  branch = "cycle-model-v31" }
 
 # Consensus dependencies.
 zksync_concurrency = "=0.13"

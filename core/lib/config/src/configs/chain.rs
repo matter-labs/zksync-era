@@ -100,15 +100,7 @@ pub struct SealCriteriaConfig {
     /// sequencer estimates a batch's cycles from the features traced during execution
     /// (via [`CycleFeatureTracer`]) and seals once the running estimate approaches this
     /// limit.
-    ///
-    /// NOTE: the default below is a **placeholder** — it must be calibrated to
-    /// Airbender's actual per-proof native-cycle budget before this criterion is
-    /// relied upon in production. It is intentionally set far above the cost model's
-    /// fixed per-batch base cost (~10^9 cycles) so that, left unconfigured, magnitude
-    /// sealing effectively never fires and other criteria still bound the batch.
-    /// (The fail-safe seal on an *unreliable* estimate stays active regardless.)
-    /// A value of `0` disables the cycle criterion entirely.
-    #[config(default_t = 1_000_000_000_000)]
+    #[config(default_t = 1_000_000_000_000_000)]
     pub max_cycles_per_batch: u64,
     /// A single transaction is rejected as unexecutable if, on its own, it would consume
     /// more than this fraction of [`Self::max_cycles_per_batch`].
@@ -136,7 +128,7 @@ impl SealCriteriaConfig {
             max_circuits_per_batch: 24100,
             // Far above the model base cost so cycle magnitude sealing stays inert in
             // tests that don't specifically exercise it.
-            max_cycles_per_batch: 1_000_000_000_000,
+            max_cycles_per_batch: 1_000_000_000_000_000,
             reject_tx_at_cycles_percentage: 0.95,
             close_block_at_cycles_percentage: 0.95,
         }
