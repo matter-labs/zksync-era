@@ -225,6 +225,68 @@ mod tests {
             .contains_key("@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol"));
     }
 
+    fn standard_json_req(input: serde_json::Value, name: &str) -> VerificationIncomingRequest {
+        VerificationIncomingRequest {
+            contract_address: Default::default(),
+            source_code_data: SourceCodeData::StandardJsonInput(input.as_object().unwrap().clone()),
+            contract_name: name.to_owned(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_solc_version: "0.8.26".to_owned(),
+                compiler_zksolc_version: None,
+            },
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: Default::default(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: Default::default(),
+        }
+    }
+
+    #[test]
+    fn build_input_drops_source_url_references() {
+        // A source may only be provided as inline `content`; any `urls` field (which solc would
+        // resolve against the filesystem) must never reach the compiler.
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "src/Test.sol": {
+                    "content": "contract Test {}",
+                    "urls": ["/some/host/path/Evil.sol"],
+                },
+            },
+            "settings": {},
+        });
+
+        let built = Solc::build_input(standard_json_req(input, "src/Test.sol:Test")).unwrap();
+        let serialized = serde_json::to_string(&built.standard_json).unwrap();
+        assert!(
+            !serialized.contains("urls") && !serialized.contains("/some/host/path"),
+            "url references must be stripped before reaching the compiler: {serialized}"
+        );
+    }
+
+    #[test]
+    fn build_input_rejects_source_without_content() {
+        // A source with only `urls` and no inline `content` has no compilable body and is rejected
+        // rather than being handed to the compiler for filesystem resolution.
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "src/Test.sol": {
+                    "urls": ["/some/host/path/Evil.sol"],
+                },
+            },
+            "settings": {},
+        });
+
+        let err = Solc::build_input(standard_json_req(input, "src/Test.sol:Test")).unwrap_err();
+        assert!(
+            matches!(err, ContractVerifierError::FailedToDeserializeInput),
+            "source without inline content must be rejected, got: {err:?}"
+        );
+    }
+
     #[test]
     fn build_input_rejects_non_hermetic_remapping() {
         let input = serde_json::json!({
