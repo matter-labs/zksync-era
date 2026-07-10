@@ -9,7 +9,7 @@ use zksync_types::contract_verification::api::{
 
 use crate::{
     compilers::{
-        has_dangerous_imports, parse_standard_json_output, process_contract_name,
+        has_unsupported_import_roots, parse_standard_json_output, process_contract_name,
         sanitize_compiler_stderr, validate_remappings, validate_source_paths, Settings, Source,
         StandardJson,
     },
@@ -48,7 +48,7 @@ impl Solc {
 
         let standard_json = match req.source_code_data {
             SourceCodeData::SolSingleFile(source_code) => {
-                if has_dangerous_imports(&source_code) {
+                if has_unsupported_import_roots(&source_code) {
                     return Err(ContractVerifierError::InvalidSourcePath(
                         "import with absolute path".to_owned(),
                     ));
@@ -86,7 +86,7 @@ impl Solc {
                 validate_source_paths(&compiler_input.sources)?;
                 validate_remappings(&compiler_input.settings.other)?;
                 for source in compiler_input.sources.values() {
-                    if has_dangerous_imports(&source.content) {
+                    if has_unsupported_import_roots(&source.content) {
                         return Err(ContractVerifierError::InvalidSourcePath(
                             "import with absolute path".to_owned(),
                         ));
@@ -336,7 +336,7 @@ impl Compiler<SolcInput> for Solc {
         // rather than silently reading an arbitrary host path.
         let compile_dir = tempfile::tempdir().context("failed to create temp dir for solc")?;
         // Resolve the binary to an absolute path so it stays locatable after `current_dir` is
-        // switched to the (empty) sandbox directory below.
+        // switched to the empty working directory below.
         let solc_path = tokio::fs::canonicalize(&self.path)
             .await
             .context("failed to canonicalize solc path")?;

@@ -7,7 +7,7 @@
 //! zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only
 //! ```
 
-use std::{env, sync::Arc, time::Duration};
+use std::{env, fs, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use zksync_types::{
@@ -275,17 +275,39 @@ fn relative_import_standard_json_input() -> serde_json::Map<String, serde_json::
     .clone()
 }
 
-fn relative_escape_attempt_input() -> serde_json::Map<String, serde_json::Value> {
+fn unresolved_parent_import_input() -> serde_json::Map<String, serde_json::Value> {
     serde_json::json!({
         "language": "Solidity",
         "sources": {
             "src/Counter.sol": {
                 "content": r#"
                     pragma solidity ^0.8.20;
-                    import "../etc/shadow";
+                    import "../fixtures/Missing.sol";
 
                     contract Counter {}
                 "#,
+            },
+        },
+        "settings": {
+            "optimizer": { "enabled": true },
+        },
+    })
+    .as_object()
+    .unwrap()
+    .clone()
+}
+
+fn filesystem_fallback_input(source_dir_name: &str) -> serde_json::Map<String, serde_json::Value> {
+    serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "src/Counter.sol": {
+                "content": format!(r#"
+                    pragma solidity ^0.8.20;
+                    import "../{source_dir_name}/Fallback.sol";
+
+                    contract Counter {{}}
+                "#),
             },
         },
         "settings": {
@@ -423,14 +445,14 @@ async fn allows_relative_parent_imports_in_standard_json(bytecode_kind: Bytecode
 
 #[test_casing(2, BYTECODE_KINDS)]
 #[tokio::test]
-async fn relative_import_escape_is_still_blocked(bytecode_kind: BytecodeMarker) {
+async fn unresolved_parent_import_is_reported(bytecode_kind: BytecodeMarker) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let err = compile_standard_json_request(
         &compiler_resolver,
         supported_compilers,
         bytecode_kind,
-        relative_escape_attempt_input(),
+        unresolved_parent_import_input(),
         "src/Counter.sol:Counter",
     )
     .await
@@ -450,9 +472,48 @@ async fn relative_import_escape_is_still_blocked(bytecode_kind: BytecodeMarker) 
         "{errors:?}"
     );
     assert!(
+        errors.iter().all(|err| !err.contains("Missing.sol:1:")),
+        "{errors:?}"
+    );
+}
+
+#[test_casing(2, BYTECODE_KINDS)]
+#[tokio::test]
+async fn standard_json_resolution_is_hermetic(bytecode_kind: BytecodeMarker) {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+    let current_dir = env::current_dir().unwrap();
+    let source_dir = tempfile::Builder::new()
+        .prefix("contract-verifier-source-root-")
+        .tempdir_in(current_dir)
+        .unwrap();
+    fs::write(
+        source_dir.path().join("Fallback.sol"),
+        "pragma solidity ^0.8.20; library Fallback {}",
+    )
+    .unwrap();
+    let source_dir_name = source_dir.path().file_name().unwrap().to_str().unwrap();
+
+    let err = compile_standard_json_request(
+        &compiler_resolver,
+        supported_compilers,
+        bytecode_kind,
+        filesystem_fallback_input(source_dir_name),
+        "src/Counter.sol:Counter",
+    )
+    .await
+    .unwrap_err();
+
+    let ContractVerifierError::CompilationError(serde_json::Value::Array(errors)) = err else {
+        panic!("unexpected error: {err:?}");
+    };
+    let errors: Vec<&str> = errors
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .collect();
+    assert!(
         errors
             .iter()
-            .all(|err| !err.contains("root:") && !err.contains("/etc/shadow:")),
+            .any(|err| err.to_ascii_lowercase().contains("not found")),
         "{errors:?}"
     );
 }
