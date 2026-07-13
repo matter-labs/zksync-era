@@ -77,13 +77,42 @@ pub(crate) fn validate_source_paths(
     Ok(())
 }
 
+/// Validates the `settings.remappings` array of a standard-JSON input.
+///
+/// A remapping has the form `[context:]prefix=target`. Verification inputs are expected to
+/// resolve against the submitted source map. A remapping target that is absolute (`/…`,
+/// `file://…`) or points outside the provided source tree with `..` adds another lookup root,
+/// so targets are constrained to stay relative and within the source tree.
+pub(crate) fn validate_remappings(settings: &Value) -> Result<(), ContractVerifierError> {
+    let Some(remappings) = settings.get("remappings").and_then(Value::as_array) else {
+        return Ok(());
+    };
+    for entry in remappings {
+        let Some(remapping) = entry.as_str() else {
+            return Err(ContractVerifierError::InvalidSourcePath(
+                "non-string remapping".to_owned(),
+            ));
+        };
+        // Split off the optional `context:` prefix and the mandatory `prefix=` to isolate the target.
+        let target = remapping.split_once('=').map_or("", |(_, target)| target);
+        if target.starts_with('/')
+            || target.starts_with("file://")
+            || target.split('/').any(|component| component == "..")
+        {
+            return Err(ContractVerifierError::InvalidSourcePath(
+                remapping.to_owned(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Returns `true` if `source` contains an `import` directive whose path is absolute (`/…`)
-/// or uses a `file://` URL. These forms let the compiler resolve imports against the host
-/// filesystem and potentially leak file contents in error messages.
+/// or uses a `file://` URL. These import roots are outside the submitted source map.
 ///
 /// Relative imports containing `../` are allowed: they are standard Solidity practice and
-/// remain sandboxed by `validate_source_paths()` plus the empty compiler search directory.
-pub(crate) fn has_dangerous_imports(source: &str) -> bool {
+/// are handled by source-path validation plus the empty compiler search directory.
+pub(crate) fn has_unsupported_import_roots(source: &str) -> bool {
     // Covers all Solidity import forms:
     //   import "/path";
     //   import {X} from "/path";
@@ -98,34 +127,83 @@ pub(crate) fn has_dangerous_imports(source: &str) -> bool {
 /// The `formattedMessage` format looks like:
 /// ```text
 /// ParserError: Expected ';' but got end of source
-///  --> /etc/shadow:1:5:
+///  --> Source.sol:1:5:
 ///   |
-/// 1 | root:*:19970:0:99999:7:::
+/// 1 | INVALID_SOURCE_LINE
 ///   |     ^
 /// ```
-/// Lines starting with optional whitespace followed by `|` contain verbatim file
-/// contents and must be removed.  The ` --> path:line:col` header is kept because
-/// it only reveals the path (which the caller already submitted) and the position.
+/// Numbered source lines and caret lines are omitted to keep diagnostics concise. The
+/// ` --> path:line:col` header is preserved for location context.
+fn is_source_context_line(line: &str) -> bool {
+    let line = line.trim_start();
+    if line.starts_with('|') {
+        return true;
+    }
+
+    let digit_count = line
+        .bytes()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
+    digit_count > 0 && line[digit_count..].trim_start().starts_with('|')
+}
+
 fn strip_source_snippets(msg: &str) -> String {
     msg.lines()
-        .filter(|line| !line.trim_start().starts_with('|'))
+        .filter(|line| !is_source_context_line(line))
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-/// Strips source-context lines from raw compiler stderr so that file contents are
-/// not echoed back to the caller.  Used for the non-JSON (exit-code != 0) error path.
+/// Strips source-context lines from raw compiler stderr before returning diagnostics from the
+/// non-JSON (exit-code != 0) error path.
 pub(crate) fn sanitize_compiler_stderr(stderr: &str) -> String {
     stderr
         .lines()
-        .filter(|line| !line.contains(" --> ") && !line.trim_start().starts_with('|'))
+        .filter(|line| !line.contains(" --> ") && !is_source_context_line(line))
         .collect::<Vec<_>>()
         .join("\n")
 }
 
 #[cfg(test)]
 mod tests {
-    use super::has_dangerous_imports;
+    use super::{
+        has_unsupported_import_roots, sanitize_compiler_stderr, strip_source_snippets,
+        validate_remappings,
+    };
+
+    #[test]
+    fn rejects_external_remapping_targets() {
+        for target in [
+            "@x/=/abs/path",
+            "@x/=file:///abs/path",
+            "@x/=../../../../outside/tree",
+            "ctx:@x/=../outside",
+            "@x/=lib/../../outside",
+        ] {
+            let settings = serde_json::json!({ "remappings": [target] });
+            assert!(
+                validate_remappings(&settings).is_err(),
+                "remapping must be rejected: {target}"
+            );
+        }
+    }
+
+    #[test]
+    fn allows_relative_remapping_targets() {
+        let settings = serde_json::json!({
+            "remappings": [
+                "@openzeppelin/=node_modules/@openzeppelin/",
+                "ds-test/=lib/forge-std/lib/ds-test/src/",
+                "@x/=contracts/x/",
+            ]
+        });
+        assert!(validate_remappings(&settings).is_ok());
+    }
+
+    #[test]
+    fn allows_missing_remappings() {
+        assert!(validate_remappings(&serde_json::json!({})).is_ok());
+    }
 
     #[test]
     fn allows_relative_parent_imports() {
@@ -135,15 +213,43 @@ mod tests {
         "#;
 
         assert!(
-            !has_dangerous_imports(source),
+            !has_unsupported_import_roots(source),
             "relative imports within the submitted source tree must be allowed"
         );
     }
 
     #[test]
     fn rejects_absolute_imports() {
-        assert!(has_dangerous_imports(r#"import "/etc/shadow";"#));
-        assert!(has_dangerous_imports(r#"import "file:///etc/shadow";"#));
+        assert!(has_unsupported_import_roots(
+            r#"import "/absolute/path/Source.sol";"#
+        ));
+        assert!(has_unsupported_import_roots(
+            r#"import "file:///absolute/path/Source.sol";"#
+        ));
+    }
+
+    #[test]
+    fn normalizes_formatted_message_source_context() {
+        let message = "ParserError: invalid source\n --> Source.sol:12:1:\n   |\n12 | INVALID_SOURCE_LINE\n   | ^^^^^^^^^^^^^^^^^^^\n";
+
+        let sanitized = strip_source_snippets(message);
+
+        assert!(sanitized.contains("ParserError: invalid source"));
+        assert!(sanitized.contains(" --> Source.sol:12:1:"));
+        assert!(!sanitized.contains("INVALID_SOURCE_LINE"));
+        assert!(!sanitized.contains("12 |"));
+    }
+
+    #[test]
+    fn normalizes_compiler_stderr_source_context() {
+        let stderr = "ParserError: invalid source\n --> Source.sol:1:1:\n  |\n1 | INVALID_SOURCE_LINE\n  | ^^^^^^^^^^^^^^^^^^^\n";
+
+        let sanitized = sanitize_compiler_stderr(stderr);
+
+        assert!(sanitized.contains("ParserError: invalid source"));
+        assert!(!sanitized.contains("Source.sol"));
+        assert!(!sanitized.contains("INVALID_SOURCE_LINE"));
+        assert!(!sanitized.contains("1 |"));
     }
 }
 
