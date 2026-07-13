@@ -22,29 +22,41 @@ const CYCLE_ESTIMATE_MARGIN: f64 = 1.05;
 #[derive(Debug)]
 pub struct CyclesCriterion;
 
+/// Estimate guest cycles from traced features plus batch-level scalars. Distinct
+/// storage applications stand in for the merkle leaves the tree will witness;
+/// bytecode-hashing inputs aren't available in the seal paths and are omitted.
+///
+/// Shared between [`CyclesCriterion`] and the L1 batch seal logic, which persists
+/// the prediction for later comparison against the prover-reported cycle count.
+pub(crate) fn estimate_batch_cycles(
+    features: &FeatureVector,
+    pubdata_bytes: u64,
+    state_diff_count: u64,
+    transaction_count: u64,
+) -> CycleEstimate {
+    let storage_applications = features.get(FeatureId::StorageApplication);
+    let ctx = BatchContext {
+        transaction_count,
+        merkle_leaf_count: storage_applications,
+        storage_key_count: storage_applications,
+        used_bytecode_bytes: 0,
+        used_bytecode_count: 0,
+    };
+    estimate_from_features(features.clone(), pubdata_bytes, state_diff_count, &ctx)
+}
+
 impl CyclesCriterion {
-    /// Estimate guest cycles from the traced features plus the batch-level scalars
-    /// derivable from `seal_data`. Distinct storage applications stand in for the
-    /// merkle leaves the tree will witness; bytecode-hashing inputs aren't available
-    /// here and are omitted.
+    /// [`estimate_batch_cycles`] with the batch-level scalars derived from `seal_data`.
     fn estimate(
         features: &FeatureVector,
         seal_data: &SealData,
         transaction_count: u64,
     ) -> CycleEstimate {
-        let storage_applications = features.get(FeatureId::StorageApplication);
-        let ctx = BatchContext {
-            transaction_count,
-            merkle_leaf_count: storage_applications,
-            storage_key_count: storage_applications,
-            used_bytecode_bytes: 0,
-            used_bytecode_count: 0,
-        };
         let pubdata_bytes = u64::from(seal_data.execution_metrics.pubdata_published);
         let state_diff_count = (seal_data.writes_metrics.initial_storage_writes
             + seal_data.writes_metrics.repeated_storage_writes)
             as u64;
-        estimate_from_features(features.clone(), pubdata_bytes, state_diff_count, &ctx)
+        estimate_batch_cycles(features, pubdata_bytes, state_diff_count, transaction_count)
     }
 }
 

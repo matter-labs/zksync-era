@@ -32,6 +32,7 @@ pub struct StateKeeperPersistence {
     l2_legacy_shared_bridge_addr: Option<Address>,
     pre_insert_txs: bool,
     insert_protective_reads: bool,
+    save_predicted_cycles: bool,
     commands_sender: mpsc::Sender<Completable<L2BlockSealCommand>>,
     l2_block_completion: BTreeMap<L2BlockNumber, oneshot::Receiver<()>>,
     latest_l2_block_submitted: Option<L2BlockNumber>,
@@ -96,6 +97,7 @@ impl StateKeeperPersistence {
             l2_legacy_shared_bridge_addr,
             pre_insert_txs: false,
             insert_protective_reads: true,
+            save_predicted_cycles: false,
             commands_sender,
             l2_block_completion: BTreeMap::new(),
             latest_l2_block_submitted: None,
@@ -113,6 +115,14 @@ impl StateKeeperPersistence {
     /// if the node won't *ever* run a full Merkle tree (such a tree requires protective reads to generate witness inputs).
     pub fn without_protective_reads(mut self) -> Self {
         self.insert_protective_reads = false;
+        self
+    }
+
+    /// Enables persisting the predicted Airbender cycle count when sealing an L1 batch,
+    /// so it can later be compared against the cycle count reported by the prover.
+    /// Intended for the main node; external nodes merely replay batches.
+    pub fn with_predicted_cycles_persistence(mut self) -> Self {
+        self.save_predicted_cycles = true;
         self
     }
 
@@ -254,6 +264,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
                 self.pool.clone(),
                 self.l2_legacy_shared_bridge_addr,
                 self.insert_protective_reads,
+                self.save_predicted_cycles,
             )
             .await
             .with_context(|| format!("cannot persist L1 batch #{batch_number}"))?;
@@ -479,6 +490,7 @@ mod tests {
         )
         .await
         .unwrap();
+        let persistence = persistence.with_predicted_cycles_persistence();
         let mut output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(TreeWritesPersistence::new(pool.clone())));
         tokio::spawn(l2_block_sealer.run());
@@ -534,6 +546,17 @@ mod tests {
         let actual_index = tree_writes[0].leaf_index;
         let expected_index = initial_writes_in_genesis_batch + 1;
         assert_eq!(actual_index, expected_index);
+
+        // The predicted cycle count should be persisted at seal; the real one only
+        // arrives once a prover reports it.
+        let cycle_stats = storage
+            .cycle_stats_dal()
+            .get_cycle_stats(L1BatchNumber(1))
+            .await
+            .unwrap()
+            .expect("no cycle stats for L1 batch #1");
+        assert!(cycle_stats.predicted_cycles.is_some());
+        assert_eq!(cycle_stats.real_cycles, None);
     }
 
     async fn execute_mock_batch(
@@ -685,6 +708,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(protective_reads, HashSet::new());
+
+        // A full node doesn't persist predicted cycles — it merely replays batches.
+        let cycle_stats = storage
+            .cycle_stats_dal()
+            .get_cycle_stats(L1BatchNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(cycle_stats, None);
     }
 
     #[tokio::test]

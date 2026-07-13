@@ -412,6 +412,15 @@ impl AirbenderRequestProcessor {
         dal.save_proof_artifacts_metadata(l1_batch_number, &proof_blob_url, &prover_id)
             .await?;
 
+        // Store the prover-measured cycle count next to the sealer's prediction so the
+        // cycle cost model can be evaluated against reality.
+        if let Some(cycles_used) = request.cycles_used {
+            connection
+                .cycle_stats_dal()
+                .save_real_cycles(l1_batch_number, cycles_used)
+                .await?;
+        }
+
         let sealed_at = connection
             .blocks_dal()
             .get_batch_sealed_at(l1_batch_number)
