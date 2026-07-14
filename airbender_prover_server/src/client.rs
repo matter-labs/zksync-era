@@ -103,13 +103,14 @@ impl JobServerClient {
         }))
     }
 
-    pub fn submit_fri(&self, batch_number: u32, proof: &Proof) -> Result<()> {
+    pub fn submit_fri(&self, batch_number: u32, proof: &Proof, cycles_used: u64) -> Result<()> {
         let proof_bytes = bincode::serde::encode_to_vec(proof, bincode::config::standard())
             .context("failed to bincode-encode FRI proof")?;
         self.submit_with_retries(FRI_LABEL, batch_number, |attempt, attempts| {
             info!(
                 batch_number,
                 proof_bytes = proof_bytes.len(),
+                cycles_used,
                 attempt,
                 attempts,
                 "Submitting FRI proof"
@@ -119,6 +120,7 @@ impl JobServerClient {
                 prover_id: self.prover_id.clone(),
                 proof: Some(&proof_bytes),
                 error: None,
+                cycles_used: Some(cycles_used),
             };
             self.post_payload(FRI_LABEL, batch_number, SUBMIT_FRI_PATH, &payload)
         })
@@ -148,6 +150,7 @@ impl JobServerClient {
                 prover_id: self.prover_id.clone(),
                 proof: None,
                 error: Some(error.to_owned()),
+                cycles_used: None,
             };
             self.post_payload(FRI_LABEL, batch_number, SUBMIT_FRI_PATH, &payload)
         })
