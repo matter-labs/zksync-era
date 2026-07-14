@@ -6,9 +6,8 @@ inputs:
     default: 'docker-compose.yml'
   sccache:
     description: >-
-      Wire sccache to the shared GCS cache and start its servers. Disable on runners without
-      access to the GCP metadata service (e.g. the Hetzner GPU hosts), where the GCS backend
-      cannot authenticate and the sccache server refuses to start.
+      Wire sccache to the shared GCS cache and start its servers. Disable on runners that can't
+      reach the GCS backend (e.g. the Hetzner GPU hosts, which lack the GCP metadata service).
     default: 'true'
 
 runs:

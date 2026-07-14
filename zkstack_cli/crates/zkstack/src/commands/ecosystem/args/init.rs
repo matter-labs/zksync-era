@@ -71,7 +71,11 @@ pub struct EcosystemInitArgs {
     pub no_genesis: bool,
     /// Which main verifier to deploy. Defaults to `testnet` for the `no-proofs` prover mode and
     /// `dual` otherwise. Use `airbender` to wire the Airbender PLONK verifier into the dual verifier.
-    #[clap(long, value_enum, help = MSG_VERIFIER_HELP)]
+    /// Named `--verifier-type` to avoid colliding with forge's `--verifier`
+    /// (etherscan/sourcify/...) that `ForgeScriptArgs` flattens into this command. The explicit
+    /// `id` is required too: clap derives the arg id from the field name (`verifier`), which would
+    /// otherwise still collide with forge's `verifier` id and let its value parser hijack the flag.
+    #[clap(long = "verifier-type", id = "verifier_type", value_enum, help = MSG_VERIFIER_HELP)]
     pub verifier: Option<VerifierType>,
 }
 

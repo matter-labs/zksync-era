@@ -6,34 +6,20 @@ permissions:
   contents: read
 
 jobs:
-  # Build the Airbender prover server (GPU FRI prover) once, on a high-CPU build runner, and
-  # hand the binary to the run job as an artifact. Splitting the expensive CUDA build off the
-  # scarce execution runner mirrors how eravm-airbender-verifier separated `build-prover-host`
-  # from its GPU run job — this job copies that proven configuration.
+  # Build the prover once on a high-CPU runner and hand the binary to the GPU run job as an artifact.
   build-server:
     runs-on: [matterlabs-ci-runner-high-performance]
-    # A wedged CUDA build previously sat silent until the 6h default job limit; fail fast.
     timeout-minutes: 90
-    # CUDA 13.0 devel toolchain, matching docker/airbender-prover-server/Dockerfile and — crucially
-    # — the GPU run job's driver. The RTX 6000 Ada runner's driver is CUDA 13; a binary built
-    # against CUDA 12.9 tripped a device-properties misread there (the worker saw "1 SMs" instead of
-    # 142 and failed at init with cudaErrorMemoryAllocation), so the runtime it links must match the
-    # driver's major version. Compiling the kernels needs nvcc only, not a physical GPU, so this
-    # still runs on the plain high-CPU runner.
+    # CUDA 13 devel toolchain, matching the runner driver's major version and the prod Dockerfile.
     container:
       image: nvidia/cuda:13.0.0-devel-ubuntu22.04
     env:
-      # The run job is pinned to `matterlabs-ci-hetzner-rtx6000-gpu` (RTX 6000 Ada = sm_89), so
-      # target that single arch — the gpu_prover's CUDA build compiles every kernel once per SM
-      # arch and is not cached by sccache, so restricting to the one arch the run job actually
-      # uses roughly halves the CUDA compile.
-      CUDA_ARCH: "89"
-      CUDAARCHS: "89"
+      # Build kernels for both cards in the run-job pool: Ada (sm_89) and Blackwell (sm_120).
+      CUDA_ARCH: "89;120"
+      CUDAARCHS: "89;120"
 
     steps:
-      # The base CUDA image is minimal — install git (needed by checkout and cargo git deps) and
-      # the C/C++ toolchain nvcc uses as its host compiler before anything else runs. Mirrors the
-      # apt layer of docker/airbender-prover-server/Dockerfile.
+      # The base CUDA image lacks git and a host compiler; install them before anything else runs.
       - name: Install base build dependencies
         run: |
           export DEBIAN_FRONTEND=noninteractive
@@ -41,49 +27,46 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential ca-certificates clang curl git libssl-dev lld pkg-config wget
 
-      # No submodules / history: the `airbender_prover_server` workspace is self-contained and
-      # pulls everything else as git or crates.io dependencies.
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
-      # Rust toolchain + CMake + sccache (RUSTC_WRAPPER wired to matterlabs's GCS bucket), the same
-      # action eravm-airbender-verifier's build-prover-host uses. The base image ships only the CUDA
-      # toolkit, so this provides the rest of the build environment.
+      # Rust toolchain + CMake + sccache (wired to matterlabs's GCS bucket).
       - name: Setup runner
         uses: matter-labs/zksync-os-server/.github/actions/runner-setup@24d38529dbeb2f0bdd016005b1e5e0bc491b692f
 
-      - name: Inspect toolchain
+      # era-bellman-cuda backs the GPU SNARK wrapper (gpu_snark); pinned to match the prod Dockerfile.
+      - name: Build era-bellman-cuda
+        env:
+          BELLMAN_CUDA_COMMIT: d1fa8670ee84ec3477c6cc1c85a3554cfa5e0206
         run: |
-          nvcc --version
-          cmake --version
-          rustc --version
+          git clone https://github.com/matter-labs/era-bellman-cuda.git /tmp/era-bellman-cuda
+          git -C /tmp/era-bellman-cuda checkout "$BELLMAN_CUDA_COMMIT"
+          cmake -B /tmp/era-bellman-cuda/build -S /tmp/era-bellman-cuda -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/era-bellman-cuda/build -j"$(nproc)"
+          echo "BELLMAN_CUDA_DIR=/tmp/era-bellman-cuda" >> "$GITHUB_ENV"
 
-      # Build the Airbender prover server (GPU FRI prover) from source. The workspace pins its
-      # own nightly via `airbender_prover_server/rust-toolchain`; `rustup show` installs it on
-      # demand. `build.rs` downloads the guest binary + FRI/SNARK VKs for the pinned verifier
-      # version at build time into `guest/dist/app` and `vks/` — they ride along in the artifact,
-      # and the run job points the server at them explicitly (the compile-time defaults baked
-      # into the binary reference this job's checkout path, which does not exist inside the run
-      # job's container).
+      # build.rs downloads the guest binary + FRI/SNARK VKs for the pinned verifier into
+      # guest/dist/app and vks/; they ride along in the artifact.
       - name: Build Airbender prover server
         working-directory: airbender_prover_server
         env:
           RUST_BACKTRACE: 1
         run: |
           rustup show
-          cargo build --release --locked -p eravm-prover-server
+          cargo build --release --locked --features gpu_snark -p eravm-prover-server
           ls -lh target/release/eravm-prover-server
 
-      # The run job's host has the CUDA 13 driver but no CUDA toolkit, so ship the matching
-      # libcudart (13); the run job prepends it to LD_LIBRARY_PATH. The driver's libcuda is on the
-      # host already.
-      - name: Stage CUDA runtime libraries
+      # The run-job host has the CUDA driver but no toolkit, so ship libcudart plus the
+      # era-bellman-cuda libs the gpu_snark wrapper links; the run job puts them on LD_LIBRARY_PATH.
+      - name: Stage CUDA + bellman-cuda runtime libraries
         run: |
           mkdir -p airbender_prover_server/cuda-libs
           cp -v /usr/local/cuda/lib64/libcudart.so* airbender_prover_server/cuda-libs/
+          find "$BELLMAN_CUDA_DIR/build" -type f \( -name '*.so*' -o -name '*.a' \) \
+            -exec cp -v {} airbender_prover_server/cuda-libs/ \;
+          ls -lh airbender_prover_server/cuda-libs
 
-      # Ship the binary alongside the guest program + VKs it resolves at runtime and the CUDA
-      # runtime libs. All paths share the `airbender_prover_server` root, so the artifact
-      # preserves that tree and the run job restores it at the same relative location.
+      # Ship the binary alongside the guest program, VKs, and runtime libs at their workspace paths;
+      # the run job restores the tree and points the server at them.
       - name: Upload Airbender prover server binary
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -111,26 +94,34 @@ jobs:
       YQ_VERSION: "4.45.1"
 
     steps:
-      # This job runs directly on a persistent bare-metal runner (not in a container). Earlier
-      # steps drive `ci_run`, which is `docker exec` as root, so the ecosystem/chain files it
-      # writes into the workspace (chains/proving_chain/*, zkstack_cli/target/*) are left
-      # root-owned. The unprivileged `actions/checkout` below then fails to clean them
-      # ("EACCES: permission denied, unlink ..."). Reclaim ownership before checkout so it can
-      # reset the tree. Runs before checkout, so it cannot use anything from the repo.
+      # ci_run (docker exec as root) leaves root-owned files on this persistent runner; reclaim
+      # ownership so the unprivileged checkout can clean them.
       - name: Reclaim workspace from prior runs
         run: |
           if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
           ${SUDO} chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}" || true
+
+      # A cancelled prior run can leak the backgrounded prover, holding VRAM. Kill any leftover and
+      # wait for the GPU to free before this run uses it.
+      - name: Free the GPU from orphaned provers
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} pkill -f eravm-prover-server || true
+          for _ in $(seq 1 20); do
+            used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+            echo "GPU memory used: ${used:-unknown} MiB"
+            [ -n "$used" ] && [ "$used" -lt 2000 ] && break
+            ${SUDO} pkill -9 -f eravm-prover-server || true
+            sleep 3
+          done
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
 
-      # The hetzner rtx6000 runner pool is heterogeneous: some hosts ship only the
-      # `docker compose` v2 CLI plugin, without a `docker-compose` binary on PATH — but
-      # `bin/ci_run` / `bin/ci_localnet_up` (used by setup-env) invoke `docker-compose`.
-      # Shim the legacy name onto the v2 plugin when it is missing.
+      # bin/ci_run and bin/ci_localnet_up call `docker-compose`; shim the legacy name onto the
+      # compose v2 plugin on hosts that ship only the plugin.
       - name: Shim docker-compose onto the compose v2 plugin
         run: |
           if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
@@ -140,18 +131,14 @@ jobs:
           fi
           docker-compose version
 
-      # reth-data / postgres-data are named docker volumes. On this persistent bare-metal runner
-      # they survive between runs, so a prior run's L1 (reth) state — already-deployed core
-      # contracts owned by that run's governor — carries over and makes a fresh `zkstack
-      # ecosystem init` fail with "Ownable: caller is not the owner". Tear the stack down with
-      # its volumes before setup-env brings it back up, guaranteeing a clean L1 each run.
+      # reth-data / postgres-data named volumes survive between runs; stale L1 state breaks a fresh
+      # `ecosystem init`, so tear the stack down for a clean L1 each run.
       - name: Reset localnet docker state
         run: |
           docker-compose -f "${RUNNER_COMPOSE_FILE}" down --volumes --remove-orphans || true
 
-      # sccache is disabled: the Hetzner GPU hosts have no GCP metadata service, so the GCS
-      # cache backend cannot authenticate and the sccache server refuses to start. Nothing in
-      # this job compiles Rust anyway — the prover server arrives prebuilt as an artifact.
+      # sccache disabled: these hosts have no GCP metadata service to authenticate the GCS backend,
+      # and nothing in this job compiles Rust (the prover arrives prebuilt).
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
@@ -161,17 +148,6 @@ jobs:
       - name: Install yq
         run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
 
-      # Diagnostics for the GPU prover: the worker was dying at init with the device query
-      # reporting "1 SMs" and cudaErrorMemoryAllocation. Capture the host driver / CUDA version
-      # and the compute capability so a runtime/driver-vs-toolkit mismatch is visible in the log.
-      - name: Inspect GPU / driver
-        run: |
-          nvidia-smi || true
-          nvidia-smi --query-gpu=driver_version,name,compute_cap,memory.total --format=csv || true
-
-      # Restore the prebuilt binary + guest/VK files at the same workspace paths (and therefore the
-      # same in-container paths) the binary baked in as defaults. upload-artifact drops the unix
-      # exec bit, so restore it before the binary is run inside the container.
       - name: Download Airbender prover server binary
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
         with:
@@ -181,11 +157,9 @@ jobs:
       - name: Make Airbender prover server binary executable
         run: chmod +x airbender_prover_server/target/release/eravm-prover-server
 
-      # Fail fast on a broken GPU / prover BEFORE the ~35-minute ecosystem init. The prover
-      # initializes its GPU workers at startup — before it ever polls for a job — so a bad CUDA
-      # context (wrong driver/runtime, faulty device) surfaces within seconds. Start it against an
-      # unused port, watch the startup log for the allocator-initialized line vs a CUDA error /
-      # panic, then stop it. This runs on the host, exactly like the real prover run below.
+      # Fail fast before the long ecosystem init: the prover initializes its GPU workers at startup,
+      # so a broken GPU surfaces in seconds. Smoke-test against an unused port, then kill it and
+      # confirm the VRAM is freed for the real run.
       - name: Check Airbender prover GPU health
         run: |
           mkdir -p airbender_prover_logs
@@ -202,14 +176,22 @@ jobs:
             kill -0 "$HPID" 2>/dev/null || { ok=0; break; }
             sleep 2
           done
-          kill "$HPID" 2>/dev/null || true
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          kill -9 "$HPID" 2>/dev/null || true
           wait "$HPID" 2>/dev/null || true
+          for _ in $(seq 1 20); do
+            used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+            echo "GPU memory used after health check: ${used:-unknown} MiB"
+            [ -n "$used" ] && [ "$used" -lt 2000 ] && break
+            ${SUDO} pkill -9 -f eravm-prover-server 2>/dev/null || true
+            sleep 2
+          done
           echo "----- prover startup log -----"
           cat ../airbender_prover_logs/gpu_health.log
           if [ "$ok" = "1" ]; then
-            echo "GPU prover initialized OK — proceeding to ecosystem init."
+            echo "GPU prover initialized OK."
           else
-            echo "::error::Airbender prover failed GPU init; aborting before the long ecosystem init."
+            echo "::error::Airbender prover failed GPU init; aborting before ecosystem init."
             exit 1
           fi
 
@@ -232,22 +214,31 @@ jobs:
             --ignore-prerequisites \
             --evm-emulator false
 
-          ci_run zkstack ecosystem init --dev --verbose
+          # `--verifier-type airbender` deploys the Airbender PLONK verifier into the dual verifier so
+          # the SNARK proof is checked on L1 by it (distinct from forge's `--verifier`).
+          ci_run zkstack ecosystem init --dev --verifier-type airbender --verbose
 
           WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)
           echo "Using Web3 HTTP URL: $WEB3_HTTP_URL"
           echo "URL=$WEB3_HTTP_URL" >> $GITHUB_ENV
 
-      # The state keeper seals an L1 batch on its (short) default commit deadline. The seven
-      # precompile txs below are sent over a ~25s window, so with the default they scatter across
-      # separate batches (observed: batches 3-8, one/two each). The prover step targets batch 1
-      # (BATCH_NUMBER=1), so every precompile tx must land in batch 1 — raise the deadline to 60s
-      # to keep batch 1 open long enough to absorb them all. Mirrors ci-prover-e2e.yml.
+      # The precompile txs below are sent over a ~25s window; raise the batch commit deadline so they
+      # all land in batch 1 (the batch the prover targets) instead of scattering across batches.
       - name: Change block_commit_deadline_ms to 60000 to submit txs to batch 1
         working-directory: ./chains/proving_chain/configs
         run: |
           sudo yq -e -i '.state_keeper.block_commit_deadline_ms = "60000"' general.yaml
           yq '.state_keeper.block_commit_deadline_ms' general.yaml
+
+      # Put the eth_sender on the Airbender real-proof path: load the Airbender SNARK proof and submit
+      # a real proveBatchesSharedBridge that exercises the on-chain verifier. Neither has a zkstack
+      # knob, so edit the generated config.
+      - name: Put eth_sender on the Airbender real-proof path
+        working-directory: ./chains/proving_chain/configs
+        run: |
+          sudo yq -e -i '.eth.sender.prover = "Airbender"' general.yaml
+          sudo yq -e -i '.eth.sender.proof_sending_mode = "ONLY_REAL_PROOFS"' general.yaml
+          yq '.eth.sender.prover, .eth.sender.proof_sending_mode' general.yaml
 
       - name: Run server
         run: |
@@ -285,52 +276,105 @@ jobs:
           PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/precompiles_status_checker
 
-      # The Airbender proof data handler serves proof inputs from `proof_generation_details`,
-      # populated by the tree, `vm_runner_bwip` and `vm_runner_protective_reads` components. The
-      # prover polls `/airbender/proof_inputs`, which locks the batch (creating the
-      # `airbender_proof_generation_details` row), proves the FRI proof on GPU, and submits it back
-      # via `/airbender/submit_proofs`, transitioning the batch to `status = 'generated'`.
+      # The prover runs on the host (the zk container's GPU forwarding yields a broken CUDA context).
+      # The handler port is assigned per-chain, so read it from the generated config.
       #
-      # The handler's port is assigned per-chain by `zkstack chain create` (not the code default
-      # 4320), so read it from the generated config rather than hardcoding — same as WEB3_HTTP_URL
-      # above. A stale hardcoded port silently fails as endless "Connection refused" polls.
-      #
-      # Run the GPU prover directly on the runner host, NOT inside the zk-environment cuda-12
-      # container. That container forwards the GPU by bind-mounting raw /dev/nvidia* device nodes
-      # (the nvidia-container-runtime cgroup path is disabled for dind — see the compose comment)
-      # and ships cuda-compat-12-2; combined with this CUDA 12.9-built binary the CUDA context comes
-      # up broken — the device query reports "1 SMs" (vs 142) and allocations fail with
-      # cudaErrorMemoryAllocation. The host has the native driver and the full device, matching how
-      # eravm-airbender-verifier runs its GPU proofs. The handler is reachable at 127.0.0.1 because
-      # the zk container uses network_mode: host.
-      #
-      # The binary was built in the CUDA 13 container, so its baked-in compile-time default
-      # guest/VK paths point at that build's checkout — override them to the restored artifact
-      # paths. It links CUDA 13's libcudart, so point the loader at the copy shipped in the
-      # artifact; the driver's libcuda is on the host's default loader path.
+      # Prove FRI and SNARK sequentially so each stage owns the whole GPU: fri-only produces batch 1's
+      # FRI proof, then snark-only wraps it into the PLONK SNARK, handed off via the `generated`
+      # status. Guest/VK paths and the shipped libcudart are passed explicitly.
       - name: Run Airbender prover server (fri-only)
         run: |
           AIRBENDER_PORT=$(yq -e '.airbender_proof_data_handler.http_port' ./chains/proving_chain/configs/general.yaml)
           echo "Airbender proof data handler port: $AIRBENDER_PORT"
           cd airbender_prover_server
-          echo "eravm-prover-server links these CUDA libs:"
-          ldd ./target/release/eravm-prover-server | grep -i "cuda\|not found" || true
           LD_LIBRARY_PATH="$PWD/cuda-libs" \
           RUST_BACKTRACE=1 \
           PROVER_GUEST_DIST_DIR="$PWD/guest/dist/app" \
           FRI_VK="$PWD/vks/fri_vk.bin" \
           PROVER_SERVER_URL="http://127.0.0.1:$AIRBENDER_PORT" \
-          ./target/release/eravm-prover-server --mode fri-only &>../airbender_prover_logs/prover_server.log &
+          ./target/release/eravm-prover-server --mode fri-only &>../airbender_prover_logs/prover_server_fri.log &
 
-      - name: Wait for the Airbender FRI proof to be generated
+      - name: Wait for the FRI proof to be generated
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain
           BATCH_NUMBER: 1
-          INTERVAL: 30
+          INTERVAL: 15
           TIMEOUT: 1800
         run: |
           PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/airbender_proof_status_checker
+
+      # Free the GPU for the SNARK stage.
+      - name: Stop the FRI prover and free the GPU
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} pkill -9 -f eravm-prover-server || true
+          for _ in $(seq 1 20); do
+            used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+            echo "GPU memory used: ${used:-unknown} MiB"
+            [ -n "$used" ] && [ "$used" -lt 2000 ] && break
+            sleep 2
+          done
+
+      # snark-only picks up batch 1's `generated` FRI proof and wraps it into the PLONK SNARK. It
+      # needs the bellman trusted setup (fetched here) + SNARK VK, and an unbounded stack for the
+      # wrapper's recursion.
+      - name: Run Airbender prover server (snark-only)
+        run: |
+          AIRBENDER_PORT=$(yq -e '.airbender_proof_data_handler.http_port' ./chains/proving_chain/configs/general.yaml)
+          cd airbender_prover_server
+          mkdir -p setup
+          curl --fail --location --retry 5 --retry-delay 5 \
+            "https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_compact.key" \
+            -o setup/setup.key
+          ulimit -s unlimited || true
+          LD_LIBRARY_PATH="$PWD/cuda-libs" \
+          RUST_BACKTRACE=1 \
+          RUST_MIN_STACK=134217728 \
+          PROVER_GUEST_DIST_DIR="$PWD/guest/dist/app" \
+          FRI_VK="$PWD/vks/fri_vk.bin" \
+          SNARK_VK="$PWD/vks/snark_vk.json" \
+          SNARK_TRUSTED_SETUP_FILE="$PWD/setup/setup.key" \
+          PROVER_SERVER_URL="http://127.0.0.1:$AIRBENDER_PORT" \
+          ./target/release/eravm-prover-server --mode snark-only &>../airbender_prover_logs/prover_server_snark.log &
+
+      # Assert on-chain (not via the DB) that the eth_sender's proveBatchesSharedBridge landed and the
+      # Airbender verifier accepted it, advancing the diamond's getTotalBatchesVerified to >= 1.
+      - name: Wait for batch to be verified on L1
+        env:
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 2400
+        run: |
+          # Export (not just assign) so ci_run forwards them into the container via PASSED_ENV_VARS;
+          # BATCH_NUMBER/INTERVAL/TIMEOUT come from the step's env: block and are already exported.
+          export DIAMOND_PROXY_ADDR=$(yq -e '.l1.diamond_proxy_addr' ./chains/proving_chain/configs/contracts.yaml)
+          export L1_RPC_URL=$(yq -e '.l1.l1_rpc_url' ./chains/proving_chain/configs/secrets.yaml)
+          echo "Diamond proxy: $DIAMOND_PROXY_ADDR   L1 RPC: $L1_RPC_URL"
+          PASSED_ENV_VARS="L1_RPC_URL,DIAMOND_PROXY_ADDR,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/batch_verified_on_l1_checker
+
+      # Collect the inputs to refresh the era-contracts `AirbenderPlonkProofFixture.sol` from this run's
+      # real proof (the persisted SNARK proof blob + the batch commitments the public input derives
+      # from). The logic lives in `bin/prepare_airbender_fixture`; `serialize_test_proof` turns the
+      # result into the fixture offline — see the emitted README. `if: always()` so it runs even after a
+      # failed step, as long as the proof was produced.
+      - name: Prepare Airbender fixture inputs
+        if: always()
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain
+          BATCH_NUMBER: 1
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER" \
+          ci_run ./bin/prepare_airbender_fixture
+
+      - name: Upload Airbender fixture inputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: airbender_fixture
+          path: airbender_fixture
+          if-no-files-found: warn
 
       - name: Upload logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -338,3 +382,9 @@ jobs:
         with:
           name: airbender_prover_logs
           path: airbender_prover_logs
+
+      - name: Stop the Airbender prover
+        if: always()
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} pkill -f eravm-prover-server || true

@@ -294,7 +294,8 @@ impl MainNodeBuilder {
             OutputHandlerLayer::new(sk_config.shared.l2_block_seal_queue_capacity)
                 .with_protective_reads_persistence_enabled(
                     sk_config.shared.protective_reads_persistence_enabled,
-                );
+                )
+                .with_predicted_cycles_persistence_enabled(true);
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),

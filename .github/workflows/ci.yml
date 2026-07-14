@@ -69,7 +69,7 @@ jobs:
               - 'core/lib/dal/migrations/*airbender*'
               - '.github/workflows/ci-airbender-prover-e2e.yml'
               - '.github/workflows/build-airbender-prover-server-template.yml'
-              - '.github/workflows/actions/**'
+              - '.github/actions/**'
               - 'bin/prover_checkers/**'
               - '!**/*.md'
               - '!**/*.MD'

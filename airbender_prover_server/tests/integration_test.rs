@@ -7,12 +7,10 @@
 //! `prover_server_proves_fri_then_snark` runs `fri-only` to produce the FRI proof against
 //! `/airbender/submit_proofs`, kills that prover, then starts a fresh `snark-only` prover that
 //! picks the captured FRI proof up via `/airbender/snark_inputs` and submits the SNARK proof to
-//! `/airbender/submit_snark_proofs`. Two sequential processes — `fri-snark` would be cleaner but
-//! the FRI prover's GPU allocator eats nearly the whole device, leaving no room for the SNARK
-//! wrapper alongside it. The trusted setup is fetched into the system temp dir on first run
-//! (matches the build's `gpu_snark` feature — GPU `setup_compact.key` when enabled, CPU
-//! `setup_2^24.key` otherwise); override the path via `IT_SNARK_TRUSTED_SETUP` to reuse a local
-//! copy.
+//! `/airbender/submit_snark_proofs`. Two sequential processes so each stage owns the whole GPU.
+//! The trusted setup is fetched into the system temp dir on first run (matches the build's
+//! `gpu_snark` feature — GPU `setup_compact.key` when enabled, CPU `setup_2^24.key` otherwise);
+//! override the path via `IT_SNARK_TRUSTED_SETUP` to reuse a local copy.
 
 use std::collections::HashMap;
 use std::io::Read;

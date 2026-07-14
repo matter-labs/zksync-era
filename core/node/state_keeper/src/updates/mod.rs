@@ -2,7 +2,10 @@ use std::collections::VecDeque;
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
-    interface::{Call, FinishedL1Batch, VmExecutionMetrics, VmExecutionResultAndLogs},
+    interface::{
+        Call, FeatureVector, FeatureVectorExt, FinishedL1Batch, VmExecutionMetrics,
+        VmExecutionResultAndLogs,
+    },
     utils::{
         get_batch_base_fee, get_bootloader_max_interop_roots_in_batch, get_max_batch_gas_limit,
         get_max_gas_per_pubdata_byte, StorageWritesDeduplicator,
@@ -334,6 +337,15 @@ impl UpdatesManager {
                 .fold(VmExecutionMetrics::default(), |sum, b| {
                     sum + b.block_execution_metrics
                 })
+    }
+
+    /// Airbender cycle-estimator features accumulated over the whole pending batch.
+    pub(crate) fn pending_cycle_features(&self) -> FeatureVector {
+        let mut features = self.committed_updates.block_cycle_features.clone();
+        for block in &self.pending_l2_blocks {
+            features.merge(&block.block_cycle_features);
+        }
+        features
     }
 
     pub(crate) fn pending_txs_encoding_size(&self) -> usize {

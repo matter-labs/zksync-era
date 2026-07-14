@@ -60,10 +60,9 @@ impl JobServerClient {
     }
 
     pub fn fetch_fri_job(&self) -> Result<Option<WorkerJob>> {
-        // zksync-era and this verifier now share a single `AirbenderVerifierInput`
-        // shape (v31 wire layout) — the V0/V1 version envelope has been removed —
-        // so the bare payload deserializes directly into it for both the JSON wire
-        // and the host↔guest channel / on-disk bincode corpus.
+        // zksync-era and this verifier share a single `AirbenderVerifierInput` shape
+        // (v31 wire layout), so the bare payload deserializes directly into it for both
+        // the JSON wire and the host↔guest channel / on-disk bincode corpus.
         let Some(input) = self.poll_json::<AirbenderVerifierInput>(FRI_INPUTS_PATH, FRI_LABEL)?
         else {
             return Ok(None);
@@ -102,13 +101,14 @@ impl JobServerClient {
         }))
     }
 
-    pub fn submit_fri(&self, batch_number: u32, proof: &Proof) -> Result<()> {
+    pub fn submit_fri(&self, batch_number: u32, proof: &Proof, cycles_used: u64) -> Result<()> {
         let proof_bytes = bincode::serde::encode_to_vec(proof, bincode::config::standard())
             .context("failed to bincode-encode FRI proof")?;
         self.submit_with_retries(FRI_LABEL, batch_number, |attempt, attempts| {
             info!(
                 batch_number,
                 proof_bytes = proof_bytes.len(),
+                cycles_used,
                 attempt,
                 attempts,
                 "Submitting FRI proof"
@@ -118,6 +118,7 @@ impl JobServerClient {
                 prover_id: self.prover_id.clone(),
                 proof: Some(&proof_bytes),
                 error: None,
+                cycles_used: Some(cycles_used),
             };
             self.post_payload(FRI_LABEL, batch_number, SUBMIT_FRI_PATH, &payload)
         })
@@ -147,6 +148,7 @@ impl JobServerClient {
                 prover_id: self.prover_id.clone(),
                 proof: None,
                 error: Some(error.to_owned()),
+                cycles_used: None,
             };
             self.post_payload(FRI_LABEL, batch_number, SUBMIT_FRI_PATH, &payload)
         })

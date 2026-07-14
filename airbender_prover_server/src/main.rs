@@ -234,10 +234,8 @@ fn build_prover(
         use_zk: cli.snark_use_zk,
         // Server path drives the wrapper directly and never persists intermediates.
         save_intermediates: false,
-        // v31 binds the guest program into the SNARK: the wrapper hashes `app.bin`/`app.text`
-        // into `aux_params` and constrains the proof's final registers to it, so the guest
-        // program commitment becomes part of what L1 settlement verifies. Point at the same
-        // guest dist dir the FRI prover uses.
+        // The wrapper binds the guest program (`app.bin`/`app.text`) into the SNARK, so point at
+        // the same guest dist dir the FRI prover uses.
         bin: app_bin_path(dist_dir),
         text: app_text_path(dist_dir),
     };

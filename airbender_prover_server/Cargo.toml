@@ -64,7 +64,7 @@ gpu_fri = ["eravm-prover-host/gpu_fri"]
 gpu_snark = ["eravm-prover-host/gpu_snark"]
 
 [workspace.package]
-version = "0.1.0" # x-release-please-version
+version = "0.1.1" # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -102,8 +102,8 @@ vise-exporter = "0.3.2"
 # workspace dep — a member's `default-features = false` is otherwise ignored.
 airbender-host = { git = "https://github.com/matter-labs/airbender-platform", tag = "v0.2.3", default-features = false }
 
-eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.0.0", default-features = false }
-zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.0.0" }
+eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.1.1", default-features = false }
+zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.1.1" }
 
 # Local crates in this workspace.
 zksync_cli_utils = { path = "crates/lib/cli_utils" }

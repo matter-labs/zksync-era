@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use zksync_multivm::{
     interface::{
-        Call, ExecutionResult, L2BlockEnv, TransactionExecutionResult, TxExecutionStatus, VmEvent,
-        VmExecutionMetrics, VmExecutionResultAndLogs,
+        Call, ExecutionResult, FeatureVector, FeatureVectorExt, L2BlockEnv,
+        TransactionExecutionResult, TxExecutionStatus, VmEvent, VmExecutionMetrics,
+        VmExecutionResultAndLogs,
     },
     vm_latest::TransactionVmExt,
 };
@@ -27,6 +28,8 @@ pub struct L2BlockUpdates {
     pub system_l2_to_l1_logs: Vec<SystemL2ToL1Log>,
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
     pub block_execution_metrics: VmExecutionMetrics,
+    /// Airbender cycle-estimator features accumulated over this block's transactions.
+    pub block_cycle_features: FeatureVector,
     pub txs_encoding_size: usize,
     pub payload_encoding_size: usize,
     pub l1_tx_count: usize,
@@ -55,6 +58,7 @@ impl L2BlockUpdates {
             system_l2_to_l1_logs: vec![],
             new_factory_deps: HashMap::new(),
             block_execution_metrics: VmExecutionMetrics::default(),
+            block_cycle_features: FeatureVector::default(),
             txs_encoding_size: 0,
             payload_encoding_size: 0,
             l1_tx_count: 0,
@@ -72,6 +76,8 @@ impl L2BlockUpdates {
         result: VmExecutionResultAndLogs,
         execution_metrics: VmExecutionMetrics,
     ) {
+        self.block_cycle_features
+            .merge(&result.statistics.cycle_features);
         self.events.extend(result.logs.events);
         self.storage_logs.extend(result.logs.storage_logs);
         self.user_l2_to_l1_logs
@@ -142,6 +148,8 @@ impl L2BlockUpdates {
         self.new_factory_deps.extend(known_bytecodes);
 
         self.block_execution_metrics += execution_metrics;
+        self.block_cycle_features
+            .merge(&tx_execution_result.statistics.cycle_features);
         self.txs_encoding_size += tx.bootloader_encoding_size();
         self.payload_encoding_size +=
             zksync_protobuf::repr::encode::<zksync_dal::consensus::proto::Transaction>(&tx).len();
@@ -212,6 +220,7 @@ impl L2BlockUpdates {
             system_l2_to_l1_logs: Default::default(),
             new_factory_deps,
             block_execution_metrics: Default::default(),
+            block_cycle_features: Default::default(),
             txs_encoding_size: Default::default(),
             payload_encoding_size: Default::default(),
             l1_tx_count: 0,

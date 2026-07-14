@@ -445,35 +445,53 @@ pub async fn validate_genesis_params(
         ));
     }
 
-    // We are getting function separately to get the second function with the same name, but
-    // overriden one
+    // The dual verifier's overloaded `verificationKeyHash(uint256)` exposes each sub-verifier
+    // (0 = FFLONK, 2 = Airbender); fetch it by index since it shares its name with the no-arg one.
     let function = verifier_abi
         .functions_by_name("verificationKeyHash")?
         .get(1);
 
     if let Some(function) = function {
-        let fflonk_verification_key_hash: Option<H256> =
-            CallFunctionArgs::new("verificationKeyHash", U256::from(0))
+        // Verify the sub-verifier the chain settles with: an Airbender chain resolves type 2, so
+        // check that and skip FFLONK (a different sub-verifier); others fall back to FFLONK.
+        let airbender_verification_key_hash: Option<H256> =
+            CallFunctionArgs::new("verificationKeyHash", U256::from(2))
                 .for_contract(verifier_address, &verifier_abi)
                 .call_with_function(query_client, function.clone())
                 .await
                 .ok();
-        tracing::info!(
-            "FFlonk verification key hash in contract: {:?}",
-            fflonk_verification_key_hash
-        );
-        tracing::info!(
-            "FFlonk verification key hash in config: {:?}",
-            genesis_params.config().fflonk_snark_wrapper_vk_hash
-        );
 
-        if fflonk_verification_key_hash.is_some()
-            && fflonk_verification_key_hash != genesis_params.config().fflonk_snark_wrapper_vk_hash
-        {
-            return Err(anyhow::anyhow!(
-            "FFlonk verification key hash mismatch: {fflonk_verification_key_hash:?} on contract, {:?} in config",
-            genesis_params.config().fflonk_snark_wrapper_vk_hash
-        ));
+        if let Some(airbender_verification_key_hash) = airbender_verification_key_hash {
+            // No dedicated config hash for the Airbender sub-verifier yet; record it and skip the
+            // FFLONK check. The proof is verified against this sub-verifier on L1 at prove time.
+            tracing::info!(
+                "Airbender verification key hash in contract: {airbender_verification_key_hash:?}"
+            );
+        } else {
+            let fflonk_verification_key_hash: Option<H256> =
+                CallFunctionArgs::new("verificationKeyHash", U256::from(0))
+                    .for_contract(verifier_address, &verifier_abi)
+                    .call_with_function(query_client, function.clone())
+                    .await
+                    .ok();
+            tracing::info!(
+                "FFlonk verification key hash in contract: {:?}",
+                fflonk_verification_key_hash
+            );
+            tracing::info!(
+                "FFlonk verification key hash in config: {:?}",
+                genesis_params.config().fflonk_snark_wrapper_vk_hash
+            );
+
+            if fflonk_verification_key_hash.is_some()
+                && fflonk_verification_key_hash
+                    != genesis_params.config().fflonk_snark_wrapper_vk_hash
+            {
+                return Err(anyhow::anyhow!(
+                "FFlonk verification key hash mismatch: {fflonk_verification_key_hash:?} on contract, {:?} in config",
+                genesis_params.config().fflonk_snark_wrapper_vk_hash
+            ));
+            }
         }
     } else {
         tracing::warn!("FFlonk verification key hash is not present in the contract");

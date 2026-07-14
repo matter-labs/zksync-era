@@ -203,6 +203,7 @@ async fn submit_airbender_proof() {
         prover_id: "test-prover".to_string(),
         proof: Some(vec![0x0A, 0x0B, 0x0C, 0x0D, 0x0E]),
         error: None,
+        cycles_used: Some(123_456_789),
     };
     let uri = "/airbender/submit_proofs".to_string();
     let app = create_proof_processing_router(
@@ -236,6 +237,18 @@ async fn submit_airbender_proof() {
         .expect("proof should exist");
 
     assert!(proof.proof_blob_url.is_some());
+
+    // the prover-reported cycle count should be persisted alongside the proof
+
+    let cycle_stats = proof_db_conn
+        .cycle_stats_dal()
+        .get_cycle_stats(batch_number)
+        .await
+        .unwrap()
+        .expect("cycle stats should exist");
+    assert_eq!(cycle_stats.real_cycles, Some(123_456_789));
+    // No prediction was stored for this batch (that happens at seal time on the main node).
+    assert_eq!(cycle_stats.predicted_cycles, None);
 }
 
 #[tokio::test]
@@ -259,6 +272,7 @@ async fn submit_airbender_proof_rejects_when_not_picked() {
         prover_id: "test-prover".to_string(),
         proof: Some(vec![0x0A, 0x0B, 0x0C]),
         error: None,
+        cycles_used: None,
     };
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
@@ -298,6 +312,7 @@ async fn submit_airbender_proof_failure_marks_batch_failed() {
         prover_id: "test-prover".to_string(),
         proof: None,
         error: Some("prover ran out of memory".to_string()),
+        cycles_used: None,
     };
 
     let app = create_proof_processing_router(
@@ -332,6 +347,7 @@ async fn submit_airbender_proof_failure_rejects_when_not_picked() {
         prover_id: "test-prover".to_string(),
         proof: None,
         error: Some("boom".to_string()),
+        cycles_used: None,
     };
 
     let app = create_proof_processing_router(

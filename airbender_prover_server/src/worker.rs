@@ -102,7 +102,6 @@ impl ProverWorker {
                     let started = Instant::now();
                     let result = catch_prover_panic("FRI prover", || {
                         fri.prove_input(batch_number as u64, &input_words)
-                            .map(|out| out.proof)
                     });
                     record_proof_metrics(
                         batch_number,
@@ -111,9 +110,10 @@ impl ProverWorker {
                         started.elapsed(),
                     );
                     result
-                        .map(|proof| ProofOutcome::Fri {
+                        .map(|out| ProofOutcome::Fri {
                             batch_number,
-                            proof: Box::new(proof),
+                            proof: Box::new(out.proof),
+                            cycles_used: out.cycles,
                         })
                         .map_err(|err| FailedProof::new(batch_number, ProofType::Fri, err))
                 }

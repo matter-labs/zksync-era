@@ -1,5 +1,34 @@
 # Changelog
 
+## [31.2.0](https://github.com/matter-labs/zksync-era/compare/core-v31.1.0...core-v31.2.0) (2026-07-14)
+
+
+### Features
+
+* **multivm:** Cycles Tracer ([#4889](https://github.com/matter-labs/zksync-era/issues/4889)) ([6d498bd](https://github.com/matter-labs/zksync-era/commit/6d498bd4bba1fcf7362e64088a9df60fc73b9900))
+* **state_keeper:** persist predicted vs prover-reported Airbender cycles ([#4891](https://github.com/matter-labs/zksync-era/issues/4891)) ([52f2bd8](https://github.com/matter-labs/zksync-era/commit/52f2bd8d0145c465e5221537717ffe9a1331e646))
+
+
+### Bug Fixes
+
+* **contract-verifier:** normalize standard-json source handling ([#4890](https://github.com/matter-labs/zksync-era/issues/4890)) ([6f6222f](https://github.com/matter-labs/zksync-era/commit/6f6222fd58815bff72cf93ab46cc535c8a58b5ed))
+* **verifier:** patch zksolc factory dependency hashes ([#4872](https://github.com/matter-labs/zksync-era/issues/4872)) ([cb19266](https://github.com/matter-labs/zksync-era/commit/cb1926652bfd46f9c1275cec3f6c98ddf544a702))
+
+## [31.1.0](https://github.com/matter-labs/zksync-era/compare/core-v31.0.0...core-v31.1.0) (2026-07-03)
+
+
+### Features
+
+* **eth_sender:** default settlementFeePayer to zero address ([#4884](https://github.com/matter-labs/zksync-era/issues/4884)) ([3e29e4a](https://github.com/matter-labs/zksync-era/commit/3e29e4a08d2e746c3eac0098f5e9bb3a5b3945aa))
+
+
+### Bug Fixes
+
+* automated protocol upgrade ([#4886](https://github.com/matter-labs/zksync-era/issues/4886)) ([b1c9a7f](https://github.com/matter-labs/zksync-era/commit/b1c9a7fd4cc3cf2c4acd4d2106ce01f0f1b8c3e0))
+* **deny:** ignore quick-xml &lt;0.41 XML-parsing DoS advisories ([#4883](https://github.com/matter-labs/zksync-era/issues/4883)) ([622b62c](https://github.com/matter-labs/zksync-era/commit/622b62c1b0c7cfa8770a0250435f47b02729a612))
+* **deps:** bump anyhow to 1.0.103 to resolve RUSTSEC-2026-0190 ([#4882](https://github.com/matter-labs/zksync-era/issues/4882)) ([8a7adb2](https://github.com/matter-labs/zksync-era/commit/8a7adb26ed2adcd3fca21d96ca4130291785d98e))
+* **verifier:** limit zksolc evm output selection ([#4871](https://github.com/matter-labs/zksync-era/issues/4871)) ([f1ca83f](https://github.com/matter-labs/zksync-era/commit/f1ca83f2d5b533ac38ded88d5d7e2b3a0856f32c))
+
 ## [31.0.0](https://github.com/matter-labs/zksync-era/compare/core-v29.20.0...core-v31.0.0) (2026-06-18)
 
 
