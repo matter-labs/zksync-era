@@ -1,5 +1,5 @@
 {
-  "core": "31.1.0",
+  "core": "31.2.0",
   "prover": "25.3.0",
   "zkstack_cli": "0.2.1",
   "airbender_prover_server": "0.1.0"
