@@ -15,8 +15,14 @@ jobs:
       CUDA_ARCH: "75;80;89;90"
       CUDAARCHS: "75;80;89;90"
       PASSED_ENV_VARS: "CUDA_ARCH,CUDAARCHS"
-
     steps:
+      # ci_run (docker exec as root) leaves root-owned files on this persistent runner; reclaim
+      # ownership so the unprivileged checkout can clean them.
+      - name: Reclaim workspace from prior runs
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}" || true
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
