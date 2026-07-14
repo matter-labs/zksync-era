@@ -94,42 +94,10 @@ jobs:
       YQ_VERSION: "4.45.1"
 
     steps:
-      # ci_run (docker exec as root) leaves root-owned files on this persistent runner; reclaim
-      # ownership so the unprivileged checkout can clean them.
-      - name: Reclaim workspace from prior runs
-        run: |
-          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
-          ${SUDO} chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}" || true
-
-      # A cancelled prior run can leak the backgrounded prover, holding VRAM. Kill any leftover and
-      # wait for the GPU to free before this run uses it.
-      - name: Free the GPU from orphaned provers
-        run: |
-          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
-          ${SUDO} pkill -f eravm-prover-server || true
-          for _ in $(seq 1 20); do
-            used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
-            echo "GPU memory used: ${used:-unknown} MiB"
-            [ -n "$used" ] && [ "$used" -lt 2000 ] && break
-            ${SUDO} pkill -9 -f eravm-prover-server || true
-            sleep 3
-          done
-
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
-
-      # bin/ci_run and bin/ci_localnet_up call `docker-compose`; shim the legacy name onto the
-      # compose v2 plugin on hosts that ship only the plugin.
-      - name: Shim docker-compose onto the compose v2 plugin
-        run: |
-          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
-          if ! command -v docker-compose >/dev/null 2>&1; then
-            printf '#!/bin/sh\nexec docker compose "$@"\n' | ${SUDO} tee /usr/local/bin/docker-compose >/dev/null
-            ${SUDO} chmod +x /usr/local/bin/docker-compose
-          fi
-          docker-compose version
 
       # reth-data / postgres-data named volumes survive between runs; stale L1 state breaks a fresh
       # `ecosystem init`, so tear the stack down for a clean L1 each run.
