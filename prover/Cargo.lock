@@ -9948,6 +9948,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync-era-airbender-cycles-estimator"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier.git?rev=44df94719be3a1eb688e2a73a53a228cb7d65efa#44df94719be3a1eb688e2a73a53a228cb7d65efa"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "zksync-gpu-ffi"
 version = "0.156.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10411,6 +10421,7 @@ dependencies = [
  "zk_evm 0.141.0",
  "zk_evm 0.151.8",
  "zk_evm 0.153.12",
+ "zksync-era-airbender-cycles-estimator",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
@@ -10905,6 +10916,7 @@ dependencies = [
  "serde",
  "thiserror 2.0.12",
  "tracing",
+ "zksync-era-airbender-cycles-estimator",
  "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",

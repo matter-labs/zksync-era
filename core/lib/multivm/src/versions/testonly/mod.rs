@@ -34,7 +34,7 @@ use zksync_types::{
 
 pub(super) use self::tester::{
     validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
-    TestedVmWithStorageLimit, VmTester, VmTesterBuilder,
+    TestedVmWithCycleTracer, TestedVmWithStorageLimit, VmTester, VmTesterBuilder,
 };
 use crate::{
     interface::{
@@ -56,6 +56,7 @@ pub(super) mod bytecode_publishing;
 pub(super) mod call_tracer;
 pub(super) mod circuits;
 pub(super) mod code_oracle;
+pub(super) mod cycle_estimator;
 pub(super) mod default_aa;
 pub(super) mod evm;
 pub(super) mod gas_limit;

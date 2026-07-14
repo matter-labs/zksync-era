@@ -58,6 +58,11 @@ pub struct SubmitAirbenderProofRequest {
     pub proof: Option<Vec<u8>>,
     #[serde(default)]
     pub error: Option<String>,
+    /// Guest cycles actually executed for the batch, as measured by the prover's
+    /// RISC-V run. Optional so older provers that don't report it keep working;
+    /// stored next to the sealer's prediction for cost-model calibration.
+    #[serde(default)]
+    pub cycles_used: Option<u64>,
 }
 
 /// SNARK submission payload. Like [`SubmitAirbenderProofRequest`], carries either a proof or an

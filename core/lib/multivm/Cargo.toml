@@ -31,6 +31,9 @@ anyhow.workspace = true
 hex.workspace = true
 itertools.workspace = true
 once_cell.workspace = true
+
+# Feature schema + cost model + estimator, re-exported from `tracers::cycle_estimator`.
+zksync-era-airbender-cycles-estimator = { workspace = true }
 thiserror.workspace = true
 tracing.workspace = true
 vise.workspace = true

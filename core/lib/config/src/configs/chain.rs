@@ -95,6 +95,21 @@ pub struct SealCriteriaConfig {
     /// the recursion layers' circuits.
     #[config(default_t = 31_100)]
     pub max_circuits_per_batch: usize,
+    /// The maximum number of Airbender guest cycles a batch may consume before it must
+    /// be sealed. This bounds the per-proof native-computational-cycle budget: the
+    /// sequencer estimates a batch's cycles from the features traced during execution
+    /// (via the `CycleFeatureTracer`) and seals once the running estimate approaches
+    /// this limit.
+    #[config(default_t = 1_000_000_000_000_000)]
+    pub max_cycles_per_batch: u64,
+    /// A single transaction is rejected as unexecutable if, on its own, it would consume
+    /// more than this fraction of [`Self::max_cycles_per_batch`].
+    #[config(default_t = 0.95, validate(ZERO_TO_ONE))]
+    pub reject_tx_at_cycles_percentage: f64,
+    /// A batch is sealed once its accumulated cycle estimate reaches this fraction of
+    /// [`Self::max_cycles_per_batch`].
+    #[config(default_t = 0.95, validate(ZERO_TO_ONE))]
+    pub close_block_at_cycles_percentage: f64,
 }
 
 impl SealCriteriaConfig {
@@ -111,6 +126,11 @@ impl SealCriteriaConfig {
             close_block_at_eth_params_percentage: 0.95,
             close_block_at_gas_percentage: 0.95,
             max_circuits_per_batch: 24100,
+            // Far above the model base cost so cycle magnitude sealing stays inert in
+            // tests that don't specifically exercise it.
+            max_cycles_per_batch: 1_000_000_000_000_000,
+            reject_tx_at_cycles_percentage: 0.95,
+            close_block_at_cycles_percentage: 0.95,
         }
     }
 }
@@ -302,6 +322,9 @@ mod tests {
                 reject_tx_at_gas_percentage: 0.5,
                 max_pubdata_per_batch: ByteSize(131_072),
                 max_circuits_per_batch: 24100,
+                max_cycles_per_batch: 500_000_000,
+                reject_tx_at_cycles_percentage: 0.7,
+                close_block_at_cycles_percentage: 0.6,
             },
             l1_batch_commit_deadline: Duration::from_millis(2500),
             l2_block_max_payload_size: ByteSize(1_000_000),
@@ -346,6 +369,9 @@ mod tests {
             CHAIN_STATE_KEEPER_MAX_GAS_PER_BATCH="200000000"
             CHAIN_STATE_KEEPER_MAX_PUBDATA_PER_BATCH="131072"
             CHAIN_STATE_KEEPER_MAX_CIRCUITS_PER_BATCH="24100"
+            CHAIN_STATE_KEEPER_MAX_CYCLES_PER_BATCH="500000000"
+            CHAIN_STATE_KEEPER_REJECT_TX_AT_CYCLES_PERCENTAGE="0.7"
+            CHAIN_STATE_KEEPER_CLOSE_BLOCK_AT_CYCLES_PERCENTAGE="0.6"
             CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
@@ -387,6 +413,9 @@ mod tests {
           validation_computational_gas_limit: 10000000
           save_call_traces: false
           max_circuits_per_batch: 24100
+          max_cycles_per_batch: 500000000
+          reject_tx_at_cycles_percentage: 0.7
+          close_block_at_cycles_percentage: 0.6
           l2_block_max_payload_size: 1000000
           protective_reads_persistence_enabled: true
           deployment_allowlist:
@@ -426,6 +455,9 @@ mod tests {
           validation_computational_gas_limit: 10000000
           save_call_traces: false
           max_circuits_per_batch: 24100
+          max_cycles_per_batch: 500000000
+          reject_tx_at_cycles_percentage: 0.7
+          close_block_at_cycles_percentage: 0.6
           l2_block_max_payload_size: 1000000 bytes
           protective_reads_persistence_enabled: true
           deployment_allowlist:

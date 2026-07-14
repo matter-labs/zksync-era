@@ -760,6 +760,7 @@ where
                 computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
                 pubdata_published: result.pubdata_published,
                 circuit_statistic,
+                cycle_features: Default::default(),
                 contracts_used: 0,
                 cycles_used: 0,
                 total_log_queries: 0,

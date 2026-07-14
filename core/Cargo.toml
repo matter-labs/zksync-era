@@ -278,6 +278,12 @@ bellman = { package = "zksync_bellman", version = "=0.32.10" }
 # New VM
 zksync_vm2 = "=0.5.0-5"
 
+# Airbender guest cycle-count model: the VM-agnostic feature schema, calibrated cost
+# model and estimator (single source of truth, shared with the fast-VM tracer). era
+# re-exports these from `zksync_multivm::tracers::cycle_estimator` and adds only the
+# legacy-VM tracer. Pinned to a rev for reproducible builds (swap for a tag on release).
+zksync-era-airbender-cycles-estimator = { git = "https://github.com/matter-labs/eravm-airbender-verifier.git", rev = "44df94719be3a1eb688e2a73a53a228cb7d65efa" }
+
 # Consensus dependencies.
 zksync_concurrency = "=0.13"
 zksync_consensus_bft = "=0.13"

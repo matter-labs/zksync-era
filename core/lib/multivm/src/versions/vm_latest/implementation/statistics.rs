@@ -5,7 +5,10 @@ use zk_evm_1_5_2::aux_structures::Timestamp;
 use zksync_types::U256;
 
 use crate::{
-    interface::{storage::WriteStorage, CircuitStatistic, VmExecutionStatistics, VmMemoryMetrics},
+    interface::{
+        storage::WriteStorage, CircuitStatistic, FeatureVector, VmExecutionStatistics,
+        VmMemoryMetrics,
+    },
     vm_latest::vm::Vm,
     HistoryMode,
 };
@@ -22,6 +25,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         pubdata_published: u32,
         total_log_queries_count: usize,
         circuit_statistic: CircuitStatistic,
+        cycle_features: FeatureVector,
     ) -> VmExecutionStatistics {
         let computational_gas_used = self.calculate_computational_gas_used(gas_remaining_before);
         VmExecutionStatistics {
@@ -36,6 +40,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             total_log_queries: total_log_queries_count,
             pubdata_published,
             circuit_statistic,
+            cycle_features,
         }
     }
 

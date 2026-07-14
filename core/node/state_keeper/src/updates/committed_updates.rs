@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
+use zksync_multivm::interface::{
+    FeatureVector, FeatureVectorExt, FinishedL1Batch, VmExecutionMetrics,
+};
 use zksync_types::{
     priority_op_onchain_data::PriorityOpOnchainData, ExecuteTransactionCommon, InteropRoot, H256,
 };
@@ -12,6 +14,8 @@ pub struct CommittedUpdates {
     pub executed_transaction_hashes: Vec<H256>,
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
     pub block_execution_metrics: VmExecutionMetrics,
+    /// Airbender cycle-estimator features accumulated over the batch's sealed L2 blocks.
+    pub block_cycle_features: FeatureVector,
     pub txs_encoding_size: usize,
     pub l1_tx_count: usize,
     pub finished: Option<FinishedL1Batch>,
@@ -24,6 +28,7 @@ impl CommittedUpdates {
             executed_transaction_hashes: vec![],
             priority_ops_onchain_data: vec![],
             block_execution_metrics: VmExecutionMetrics::default(),
+            block_cycle_features: FeatureVector::default(),
             txs_encoding_size: 0,
             l1_tx_count: 0,
             finished: None,
@@ -51,6 +56,8 @@ impl CommittedUpdates {
         self.executed_transaction_hashes.extend(tx_hashes);
 
         self.block_execution_metrics += l2_block_updates.block_execution_metrics;
+        self.block_cycle_features
+            .merge(&l2_block_updates.block_cycle_features);
         self.txs_encoding_size += l2_block_updates.txs_encoding_size;
         self.l1_tx_count += l2_block_updates.l1_tx_count;
     }

@@ -12,8 +12,9 @@ use zksync_types::contract_verification::api::{
 
 use crate::{
     compilers::{
-        default_json_object, has_dangerous_imports, parse_standard_json_output,
-        process_contract_name, sanitize_compiler_stderr, validate_source_paths, Source,
+        default_json_object, has_unsupported_import_roots, parse_standard_json_output,
+        process_contract_name, sanitize_compiler_stderr, validate_remappings,
+        validate_source_paths, Source,
     },
     error::ContractVerifierError,
     resolver::{Compiler, CompilerPaths},
@@ -97,7 +98,7 @@ impl ZkSolc {
 
         match req.source_code_data {
             SourceCodeData::SolSingleFile(source_code) => {
-                if has_dangerous_imports(&source_code) {
+                if has_unsupported_import_roots(&source_code) {
                     return Err(ContractVerifierError::InvalidSourcePath(
                         "import with absolute path".to_owned(),
                     ));
@@ -139,8 +140,9 @@ impl ZkSolc {
                     serde_json::from_value(serde_json::Value::Object(map))
                         .map_err(|_| ContractVerifierError::FailedToDeserializeInput)?;
                 validate_source_paths(&compiler_input.sources)?;
+                validate_remappings(&compiler_input.settings.other)?;
                 for source in compiler_input.sources.values() {
-                    if has_dangerous_imports(&source.content) {
+                    if has_unsupported_import_roots(&source.content) {
                         return Err(ContractVerifierError::InvalidSourcePath(
                             "import with absolute path".to_owned(),
                         ));
@@ -277,7 +279,16 @@ impl Compiler<ZkSolcInput> for ZkSolc {
         self: Box<Self>,
         input: ZkSolcInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let mut command = tokio::process::Command::new(&self.paths.zk);
+        // Resolve both binaries to absolute paths so they stay locatable after `current_dir` is
+        // switched to the empty working directory in the standard-JSON branch below.
+        let zksolc_path = tokio::fs::canonicalize(&self.paths.zk)
+            .await
+            .context("failed to canonicalize zksolc path")?;
+        let solc_path = tokio::fs::canonicalize(&self.paths.base)
+            .await
+            .context("failed to canonicalize solc path")?;
+
+        let mut command = tokio::process::Command::new(&zksolc_path);
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         match &input {
@@ -291,20 +302,20 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                     }
                 }
 
-                command.arg("--solc").arg(&self.paths.base);
+                command.arg("--solc").arg(&solc_path);
             }
             ZkSolcInput::YulSingleFile { is_system, .. } => {
                 if Self::is_post_1_5_0(&self.zksolc_version) {
                     if *is_system {
                         command.arg("--enable-eravm-extensions");
                     } else {
-                        command.arg("--solc").arg(&self.paths.base);
+                        command.arg("--solc").arg(&solc_path);
                     }
                 } else {
                     if *is_system {
                         command.arg("--system-mode");
                     }
-                    command.arg("--solc").arg(&self.paths.base);
+                    command.arg("--solc").arg(&solc_path);
                 }
             }
         }
@@ -314,13 +325,13 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 contract_name,
                 file_name,
             } => {
-                // Restrict solc (invoked internally by zksolc) to an empty temp dir
-                // so that any import not provided inline is denied at the filesystem
-                // level rather than resolved against the host filesystem.
+                // Run solc (invoked internally by zksolc) from an empty temp dir so
+                // standard-JSON imports must be provided by the input source map.
                 let compile_dir =
                     tempfile::tempdir().context("failed to create temp dir for zksolc")?;
 
                 let mut child = command
+                    .current_dir(compile_dir.path())
                     .arg("--standard-json")
                     .arg("--allow-paths")
                     .arg(compile_dir.path())
