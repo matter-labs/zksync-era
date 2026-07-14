@@ -64,7 +64,7 @@ gpu_fri = ["eravm-prover-host/gpu_fri"]
 gpu_snark = ["eravm-prover-host/gpu_snark"]
 
 [workspace.package]
-version = "0.1.0" # x-release-please-version
+version = "0.1.1" # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
