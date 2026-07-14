@@ -1,5 +1,19 @@
 # Changelog
 
+## [31.2.0](https://github.com/matter-labs/zksync-era/compare/core-v31.1.0...core-v31.2.0) (2026-07-14)
+
+
+### Features
+
+* **multivm:** Cycles Tracer ([#4889](https://github.com/matter-labs/zksync-era/issues/4889)) ([6d498bd](https://github.com/matter-labs/zksync-era/commit/6d498bd4bba1fcf7362e64088a9df60fc73b9900))
+* **state_keeper:** persist predicted vs prover-reported Airbender cycles ([#4891](https://github.com/matter-labs/zksync-era/issues/4891)) ([52f2bd8](https://github.com/matter-labs/zksync-era/commit/52f2bd8d0145c465e5221537717ffe9a1331e646))
+
+
+### Bug Fixes
+
+* **contract-verifier:** normalize standard-json source handling ([#4890](https://github.com/matter-labs/zksync-era/issues/4890)) ([6f6222f](https://github.com/matter-labs/zksync-era/commit/6f6222fd58815bff72cf93ab46cc535c8a58b5ed))
+* **verifier:** patch zksolc factory dependency hashes ([#4872](https://github.com/matter-labs/zksync-era/issues/4872)) ([cb19266](https://github.com/matter-labs/zksync-era/commit/cb1926652bfd46f9c1275cec3f6c98ddf544a702))
+
 ## [31.1.0](https://github.com/matter-labs/zksync-era/compare/core-v31.0.0...core-v31.1.0) (2026-07-03)
 
 
