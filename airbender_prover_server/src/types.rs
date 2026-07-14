@@ -55,6 +55,9 @@ pub enum ProofOutcome {
     Fri {
         batch_number: u32,
         proof: Box<Proof>,
+        /// Guest cycles executed by the FRI prover's RISC-V run for this batch,
+        /// reported to the server alongside the proof.
+        cycles_used: u64,
     },
     Snark {
         batch_number: u32,
@@ -112,6 +115,11 @@ pub struct SubmitFriProofRequest<'a> {
     pub proof: Option<&'a [u8]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Guest cycles the prover actually executed for this batch. Sent with a
+    /// successful proof and omitted on failure submissions; the server's
+    /// `#[serde(default)]` defaults the missing field to `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cycles_used: Option<u64>,
 }
 
 /// SNARK submission payload. Like [`SubmitFriProofRequest`], carries either a
@@ -140,11 +148,14 @@ mod tests {
             prover_id: "prover-1".to_string(),
             proof: Some(&[10, 11, 12, 13, 14]),
             error: None,
+            cycles_used: Some(123_456_789),
         })
         .unwrap();
         assert_eq!(json["l1_batch_number"], 42);
         assert_eq!(json["prover_id"], "prover-1");
         assert_eq!(json["proof"], "0a0b0c0d0e");
+        // A successful submission reports the batch's measured guest cycles.
+        assert_eq!(json["cycles_used"], 123_456_789);
         // The server defaults `error` to `None`, so a success submission omits it.
         assert!(json.get("error").is_none());
     }
@@ -156,10 +167,13 @@ mod tests {
             prover_id: "prover-1".to_string(),
             proof: None,
             error: Some("prover ran out of memory".to_string()),
+            cycles_used: None,
         })
         .unwrap();
         assert_eq!(json["error"], "prover ran out of memory");
         assert!(json.get("proof").is_none());
+        // No proof means no cycle count; the field is omitted on failure.
+        assert!(json.get("cycles_used").is_none());
     }
 
     #[test]

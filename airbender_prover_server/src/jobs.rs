@@ -157,8 +157,10 @@ impl JobWorker {
             Ok(ProofOutcome::Fri {
                 batch_number,
                 proof,
+                cycles_used,
             }) => {
-                self.client.submit_fri(batch_number, proof.as_ref())?;
+                self.client
+                    .submit_fri(batch_number, proof.as_ref(), cycles_used)?;
                 // In `fri-snark` mode, the SNARK job needs the FRI proof, so we can set the new pending job immediately instead of waiting for the next fetch cycle. The in-memory `Proof` is fed directly to the SNARK pipeline without an extra encode/decode round trip.
                 if self.mode == ProverMode::FriSnark {
                     // FRI jobs are processed serially, so the previous SNARK
