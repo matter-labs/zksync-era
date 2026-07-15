@@ -19,12 +19,15 @@ jobs:
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           # `tj-actions/changed-files` compares submodule SHAs too. When a PR only updates
           # `contracts`, it needs enough submodule history to find the merge base there;
           # otherwise it can miss the change and warn about an invalid revision range.
           fetch-depth: 0
+          # Blobs are only needed for the checked-out working tree; history stays
+          # available for the merge base computation as commits and trees.
+          filter: blob:none
           submodules: "recursive"
 
       - name: Get changed files
