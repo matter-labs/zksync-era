@@ -32,6 +32,7 @@ use crate::{
         L1BatchSealStage, L2BlockSealStage, TxExecutionType, KEEPER_METRICS, L1_BATCH_METRICS,
         L2_BLOCK_METRICS,
     },
+    seal_criteria::estimate_batch_cycles,
     updates::{L2BlockSealCommand, UpdatesManager},
 };
 
@@ -46,6 +47,7 @@ impl UpdatesManager {
         pool: ConnectionPool<Core>,
         l2_legacy_shared_bridge_addr: Option<Address>,
         insert_protective_reads: bool,
+        save_predicted_cycles: bool,
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
         let finished_batch = self
@@ -156,6 +158,23 @@ impl UpdatesManager {
             )
             .await?;
         progress.observe(None);
+
+        if save_predicted_cycles {
+            // Mirrors `CyclesCriterion`: same feature vector, pubdata and deduplicated
+            // write counts, so the stored prediction is what the sealer reasoned about.
+            // The prover-reported real count lands in the same row later.
+            let predicted_cycles = estimate_batch_cycles(
+                &self.pending_cycle_features(),
+                u64::from(self.pending_execution_metrics().pubdata_published),
+                dedup_writes_count as u64,
+                (l1_tx_count + l2_tx_count) as u64,
+            )
+            .total;
+            transaction
+                .cycle_stats_dal()
+                .save_predicted_cycles(self.l1_batch_number(), predicted_cycles)
+                .await?;
+        }
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForL2Blocks);
         transaction

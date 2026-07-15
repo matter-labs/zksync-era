@@ -56,13 +56,22 @@ impl WiringLayer for HouseKeeperLayer {
         // Initialize and add tasks
         let first_airbender_batch = self
             .airbender_config
+            .as_ref()
             .map(|c| c.first_processed_batch)
             .unwrap_or_default();
+        // Falls back to the config default when Airbender isn't configured; the value is unused in
+        // that case since there are no Airbender jobs to count.
+        let airbender_max_proving_attempts = self
+            .airbender_config
+            .as_ref()
+            .map(|c| c.max_proving_attempts)
+            .unwrap_or(10);
 
         let l1_batch_metrics_reporter = BlockMetricsReporter::new(
             self.house_keeper_config.l1_batch_metrics_reporting_interval,
             replica_pool,
             first_airbender_batch,
+            airbender_max_proving_attempts,
         );
 
         Ok(Output {

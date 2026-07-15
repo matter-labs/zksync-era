@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 pub use self::{
     bytecode::CompressedBytecodeInfo,
+    cycle_features::{FeatureId, FeatureVector, FeatureVectorExt, SAFETY_CRITICAL_FEATURES},
     execution_result::{
         BatchTransactionExecutionResult, Call, CallType, ExecutionResult,
         OneshotTransactionExecutionResult, Refunds, TransactionExecutionResult, TxExecutionStatus,
@@ -17,6 +18,7 @@ pub use self::{
 };
 
 mod bytecode;
+mod cycle_features;
 mod execution_result;
 mod execution_state;
 mod finished_l1batch;

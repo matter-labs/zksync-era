@@ -21,7 +21,7 @@ use crate::{
         tracer::{TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason},
         Halt, VmExecutionMode,
     },
-    tracers::dynamic::vm_1_5_2::DynTracer,
+    tracers::{dynamic::vm_1_5_2::DynTracer, CycleFeatureTracer},
     vm_latest::{
         bootloader::{utils::apply_l2_block, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
@@ -63,6 +63,9 @@ pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     // It only takes into account circuits that are generated for actual execution. It doesn't
     // take into account e.g circuits produced by the initial bootloader memory commitment.
     pub(crate) circuits_tracer: CircuitsTracer<S, H>,
+    // Counts Airbender cycle-estimator features; its `FeatureVector` is read back
+    // into `VmExecutionStatistics`.
+    pub(crate) cycle_tracer: CycleFeatureTracer,
     // This tracer is responsible for handling EVM deployments and providing the data to the code decommitter.
     pub(crate) evm_deploy_tracer: Option<EvmDeployTracer<S>>,
     subversion: MultiVmSubversion,
@@ -96,6 +99,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             pubdata_tracer,
             ret_from_the_bootloader: None,
             circuits_tracer: CircuitsTracer::new(),
+            cycle_tracer: CycleFeatureTracer::default(),
             evm_deploy_tracer: use_evm_emulator.then(EvmDeployTracer::new),
             storage,
             _phantom: PhantomData,
@@ -243,6 +247,10 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         }
 
         dispatch_tracers!(self.before_execution(state, data, memory, self.storage.clone()));
+        // Not in `dispatch_tracers!`: `CycleFeatureTracer` isn't generic over `S`, so the
+        // macro's `after_decoding`/`after_execution` (no `S`-bearing arg) can't infer it.
+        self.cycle_tracer
+            .before_execution(state, data, memory, self.storage.clone());
     }
 
     fn after_execution(
@@ -272,6 +280,8 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
 impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     pub(crate) fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         dispatch_tracers!(self.initialize_tracer(state));
+        // See the note in `before_execution` on why `cycle_tracer` is dispatched explicitly.
+        self.cycle_tracer.initialize_tracer(state);
     }
 
     pub(crate) fn finish_cycle(
@@ -304,6 +314,11 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             .finish_cycle(state, bootloader_state)
             .stricter(&result);
 
+        result = self
+            .cycle_tracer
+            .finish_cycle(state, bootloader_state)
+            .stricter(&result);
+
         if let Some(evm_deploy_tracer) = &mut self.evm_deploy_tracer {
             result = evm_deploy_tracer
                 .finish_cycle(state, bootloader_state)
@@ -320,6 +335,9 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         stop_reason: VmExecutionStopReason,
     ) {
         dispatch_tracers!(self.after_vm_execution(state, bootloader_state, stop_reason.clone()));
+        // See the note in `before_execution` on why `cycle_tracer` is dispatched explicitly.
+        self.cycle_tracer
+            .after_vm_execution(state, bootloader_state, stop_reason);
     }
 }
 

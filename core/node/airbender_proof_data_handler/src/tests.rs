@@ -18,12 +18,20 @@ use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::MockObjectStore;
+use zksync_prover_interface::outputs::SnarkWrapperProof;
 use zksync_types::{
     block::L1BatchHeader, settlement::SettlementLayer, L1BatchNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, H256,
 };
 
 use crate::create_proof_processing_router;
+
+/// A real `SnarkWrapperProof` (bellman PLONK proof), exactly as the verifier submits it. The data
+/// handler flattens it into the CBOR `L1BatchProofForL1` the eth_sender submits, deriving the
+/// protocol version from the batch number (mirroring Boojum proofs).
+fn snark_wrapper_proof() -> SnarkWrapperProof {
+    serde_json::from_slice(include_bytes!("test_data/snark_wrapper_proof.json")).unwrap()
+}
 
 fn test_config() -> AirbenderProofDataHandlerConfig {
     AirbenderProofDataHandlerConfig {
@@ -32,6 +40,7 @@ fn test_config() -> AirbenderProofDataHandlerConfig {
         proof_generation_timeout: Duration::from_secs(600),
         snark_generation_timeout: Duration::from_secs(600),
         max_attempts: 5,
+        max_proving_attempts: 10,
     }
 }
 
@@ -176,12 +185,25 @@ async fn submit_airbender_proof() {
     let batch_number = L1BatchNumber::from(1);
     let db_conn_pool = ConnectionPool::test_pool().await;
 
+    // The proof is keyed by the batch's semantic version, so the batch and its protocol version
+    // must exist in the DB.
+    save_default_protocol_version(&db_conn_pool).await;
+    db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
     mock_airbender_batch_status(db_conn_pool.clone(), batch_number).await;
 
     let airbender_proof_request = SubmitAirbenderProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-prover".to_string(),
-        proof: vec![0x0A, 0x0B, 0x0C, 0x0D, 0x0E],
+        proof: Some(vec![0x0A, 0x0B, 0x0C, 0x0D, 0x0E]),
+        error: None,
+        cycles_used: Some(123_456_789),
     };
     let uri = "/airbender/submit_proofs".to_string();
     let app = create_proof_processing_router(
@@ -209,12 +231,24 @@ async fn submit_airbender_proof() {
 
     let proof = proof_db_conn
         .airbender_proof_generation_dal()
-        .get_airbender_proof(batch_number)
+        .get_airbender_fri_proof(batch_number)
         .await
         .unwrap()
         .expect("proof should exist");
 
     assert!(proof.proof_blob_url.is_some());
+
+    // the prover-reported cycle count should be persisted alongside the proof
+
+    let cycle_stats = proof_db_conn
+        .cycle_stats_dal()
+        .get_cycle_stats(batch_number)
+        .await
+        .unwrap()
+        .expect("cycle stats should exist");
+    assert_eq!(cycle_stats.real_cycles, Some(123_456_789));
+    // No prediction was stored for this batch (that happens at seal time on the main node).
+    assert_eq!(cycle_stats.predicted_cycles, None);
 }
 
 #[tokio::test]
@@ -222,11 +256,23 @@ async fn submit_airbender_proof_rejects_when_not_picked() {
     let batch_number = L1BatchNumber::from(1);
     let db_conn_pool = ConnectionPool::test_pool().await;
 
-    // Do NOT insert an airbender_proof_generation_job — the batch has no row at all
+    // Seed the batch + protocol version (needed to key the proof), but do NOT insert an
+    // airbender_proof_generation_job — so the submit is rejected at the status check.
+    save_default_protocol_version(&db_conn_pool).await;
+    db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
     let airbender_proof_request = SubmitAirbenderProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-prover".to_string(),
-        proof: vec![0x0A, 0x0B, 0x0C],
+        proof: Some(vec![0x0A, 0x0B, 0x0C]),
+        error: None,
+        cycles_used: None,
     };
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
@@ -242,6 +288,115 @@ async fn submit_airbender_proof_rejects_when_not_picked() {
     )
     .await;
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+// A failure reported through the shared /airbender/submit_proofs route marks the batch `failed`.
+#[tokio::test]
+async fn submit_airbender_proof_failure_marks_batch_failed() {
+    let batch_number = L1BatchNumber::from(1);
+    let db_conn_pool = ConnectionPool::test_pool().await;
+
+    save_default_protocol_version(&db_conn_pool).await;
+    db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
+    mock_airbender_batch_status(db_conn_pool.clone(), batch_number).await;
+
+    let request = SubmitAirbenderProofRequest {
+        l1_batch_number: batch_number.0,
+        prover_id: "test-prover".to_string(),
+        proof: None,
+        error: Some("prover ran out of memory".to_string()),
+        cycles_used: None,
+    };
+
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool.clone(),
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response =
+        send_submit_airbender_proof_request(&app, "/airbender/submit_proofs", &request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let mut conn = db_conn_pool.connection().await.unwrap();
+    let row = conn
+        .airbender_proof_generation_dal()
+        .get_airbender_fri_proof(batch_number)
+        .await
+        .unwrap()
+        .expect("row should exist");
+    assert_eq!(row.status, "failed");
+}
+
+#[tokio::test]
+async fn submit_airbender_proof_failure_rejects_when_not_picked() {
+    let batch_number = L1BatchNumber::from(1);
+    let db_conn_pool = ConnectionPool::test_pool().await;
+
+    // No airbender_proof_generation_job inserted, so there is nothing in `picked_by_prover` to fail.
+    let request = SubmitAirbenderProofRequest {
+        l1_batch_number: batch_number.0,
+        prover_id: "test-prover".to_string(),
+        proof: None,
+        error: Some("boom".to_string()),
+        cycles_used: None,
+    };
+
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool,
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response =
+        send_submit_airbender_proof_request(&app, "/airbender/submit_proofs", &request).await;
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+#[tokio::test]
+async fn submit_airbender_snark_proof_failure_reverts_to_generated() {
+    let batch_number = L1BatchNumber(1);
+    let db_conn_pool = ConnectionPool::test_pool().await;
+
+    // Seed the batch into `picked_for_snark`.
+    mock_airbender_picked_for_snark(db_conn_pool.clone(), batch_number).await;
+
+    let request = SubmitAirbenderSnarkProofRequest {
+        l1_batch_number: batch_number.0,
+        prover_id: "test-snark-prover".to_string(),
+        snark_proof: None,
+        error: Some("wrapper proof failed".to_string()),
+    };
+
+    let app = create_proof_processing_router(
+        MockObjectStore::arc(),
+        db_conn_pool.clone(),
+        test_config(),
+        L2ChainId::default(),
+    );
+
+    let response =
+        send_submit_snark_proof_request(&app, "/airbender/submit_snark_proofs", &request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // The FRI proof is still valid, so a SNARK failure reverts the batch to `generated` for retry.
+    let mut conn = db_conn_pool.connection().await.unwrap();
+    let row = conn
+        .airbender_proof_generation_dal()
+        .get_airbender_snark_proof(batch_number)
+        .await
+        .unwrap()
+        .expect("row should exist");
+    assert_eq!(row.status, "generated");
 }
 
 #[tokio::test]
@@ -292,9 +447,16 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
 
     let fri_payload = vec![0xAA, 0xBB, 0xCC, 0xDD];
     let object_store = MockObjectStore::arc();
+    let mut connection = db_conn_pool.connection().await.unwrap();
+    let proof_version = connection
+        .protocol_versions_dal()
+        .latest_semantic_version()
+        .await
+        .unwrap()
+        .unwrap();
     object_store
         .put(
-            batch_number,
+            (batch_number, proof_version),
             &L1BatchAirbenderProofForL1 {
                 proof: fri_payload.clone(),
             },
@@ -331,7 +493,7 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
     let mut conn = db_conn_pool.connection().await.unwrap();
     let row = conn
         .airbender_proof_generation_dal()
-        .get_airbender_proof(batch_number)
+        .get_airbender_fri_proof(batch_number)
         .await
         .unwrap()
         .expect("row should exist");
@@ -386,7 +548,7 @@ async fn snark_inputs_rolls_back_lock_when_fri_proof_missing_in_gcs() {
     let mut conn = db_conn_pool.connection().await.unwrap();
     let row = conn
         .airbender_proof_generation_dal()
-        .get_airbender_proof(batch_number)
+        .get_airbender_fri_proof(batch_number)
         .await
         .unwrap()
         .expect("row should exist");
@@ -403,7 +565,8 @@ async fn submit_snark_proof_succeeds_when_picked_for_snark() {
     let request = SubmitAirbenderSnarkProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
-        snark_proof: vec![0x01, 0x02, 0x03, 0x04],
+        snark_proof: Some(snark_wrapper_proof()),
+        error: None,
     };
 
     let app = create_proof_processing_router(
@@ -433,11 +596,23 @@ async fn submit_snark_proof_rejects_when_not_picked_for_snark() {
     let batch_number = L1BatchNumber(1);
     let db_conn_pool = ConnectionPool::test_pool().await;
 
-    // No airbender row at all — submit should fail.
+    // The batch and its protocol version exist (so version derivation succeeds), but the batch was
+    // never picked for SNARK — submit should fail when saving metadata.
+    save_default_protocol_version(&db_conn_pool).await;
+    db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
+
     let request = SubmitAirbenderSnarkProofRequest {
         l1_batch_number: batch_number.0,
         prover_id: "test-snark-prover".to_string(),
-        snark_proof: vec![0x01, 0x02],
+        snark_proof: Some(snark_wrapper_proof()),
+        error: None,
     };
 
     let app = create_proof_processing_router(
@@ -481,6 +656,18 @@ async fn mock_airbender_picked_for_snark(
     db_conn_pool: ConnectionPool<Core>,
     batch_number: L1BatchNumber,
 ) {
+    // The processor derives the protocol version from the batch, so the batch (and its protocol
+    // version) must exist before a SNARK proof can be submitted.
+    save_default_protocol_version(&db_conn_pool).await;
+    db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch_header(batch_number.0))
+        .await
+        .unwrap();
+
     let mut conn = db_conn_pool.connection().await.unwrap();
     let mut dal = conn.airbender_proof_generation_dal();
 
@@ -492,7 +679,7 @@ async fn mock_airbender_picked_for_snark(
         .expect("Failed to save FRI proof artifacts");
 
     let locked = dal
-        .lock_batch_for_snark(Duration::from_secs(600), L1BatchNumber(0))
+        .lock_batch_for_snark(Duration::from_secs(600), L1BatchNumber(0), 10)
         .await
         .expect("Failed to lock batch for SNARK")
         .expect("Expected the seeded batch to be lockable for SNARK");

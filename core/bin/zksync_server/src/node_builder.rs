@@ -108,6 +108,9 @@ pub(crate) struct MainNodeBuilder {
     pub l2_contracts: L2Contracts,
     pub eth_proof_manager_contracts: Option<ProofManagerContracts>,
     pub multicall3: Option<Address>,
+    /// Explicit override for the L2 DA commitment scheme, used before the on-chain getter is
+    /// available (pre medium-interop upgrade) or when the on-chain value is `None`.
+    pub config_l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
 }
 
 impl MainNodeBuilder {
@@ -130,6 +133,13 @@ impl MainNodeBuilder {
     }
 
     pub fn l2_da_commitment_scheme(&self) -> L2DACommitmentScheme {
+        // An explicit override always wins. This lets operators pin the scheme before the
+        // on-chain getter (`getDAValidatorPair`) becomes available, i.e. before the
+        // medium-interop upgrade.
+        if let Some(scheme) = self.config_l2_da_commitment_scheme {
+            return scheme;
+        }
+
         let use_dummy_inclusion_data = self
             .configs
             .da_dispatcher_config
@@ -284,7 +294,8 @@ impl MainNodeBuilder {
             OutputHandlerLayer::new(sk_config.shared.l2_block_seal_queue_capacity)
                 .with_protective_reads_persistence_enabled(
                     sk_config.shared.protective_reads_persistence_enabled,
-                );
+                )
+                .with_predicted_cycles_persistence_enabled(true);
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),

@@ -19,6 +19,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmPartialExecutionResult>
                 computational_gas_used: 0,
                 pubdata_published: 0,
                 circuit_statistic: Default::default(),
+                cycle_features: Default::default(),
             },
             refunds: crate::interface::Refunds {
                 gas_refunded: 0,
@@ -46,6 +47,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmPartialExecutionResult>
                 gas_used: 0,
                 pubdata_published: 0,
                 circuit_statistic: Default::default(),
+                cycle_features: Default::default(),
             },
             refunds: crate::interface::Refunds {
                 gas_refunded: 0,
@@ -73,6 +75,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmPartialExecutionResult>
                 gas_used: 0,
                 pubdata_published: 0,
                 circuit_statistic: Default::default(),
+                cycle_features: Default::default(),
             },
             refunds: crate::interface::Refunds {
                 gas_refunded: 0,

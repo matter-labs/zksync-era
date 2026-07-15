@@ -24,11 +24,14 @@ use crate::{
         tracer::ViolatedValidationRule,
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
-    tracers::{CallTracer, StorageInvocations, ValidationTracer},
+    tracers::{
+        cycle_estimator::FeatureVector, CallTracer, CycleFeatureTracer, StorageInvocations,
+        ValidationTracer,
+    },
     utils::bytecode::bytes_to_be_words,
     versions::testonly::{
         filter_out_base_system_contracts, validation_params, TestedVm, TestedVmForValidation,
-        TestedVmWithCallTracer, TestedVmWithStorageLimit,
+        TestedVmWithCallTracer, TestedVmWithCycleTracer, TestedVmWithStorageLimit,
     },
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
@@ -51,6 +54,7 @@ mod call_tracer;
 mod circuits;
 mod code_oracle;
 mod constants;
+mod cycle_estimator;
 mod evm;
 mod gas_limit;
 mod get_used_contracts;
@@ -361,5 +365,18 @@ impl TestedVmWithStorageLimit for TestedLatestVm {
     fn execute_with_storage_limit(&mut self, limit: usize) -> VmExecutionResultAndLogs {
         let tracer = StorageInvocations::new(limit).into_tracer_pointer();
         self.inspect(&mut tracer.into(), InspectExecutionMode::OneTx)
+    }
+}
+
+impl TestedVmWithCycleTracer for TestedLatestVm {
+    fn inspect_with_cycle_tracer(&mut self) -> (VmExecutionResultAndLogs, FeatureVector) {
+        let result = Arc::new(OnceCell::new());
+        let tracer = CycleFeatureTracer::new(result.clone()).into_tracer_pointer();
+        let res = self.inspect(&mut tracer.into(), InspectExecutionMode::OneTx);
+        let features = result
+            .get()
+            .expect("cycle tracer must publish its feature vector after execution")
+            .clone();
+        (res, features)
     }
 }

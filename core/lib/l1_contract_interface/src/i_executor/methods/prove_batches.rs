@@ -59,6 +59,15 @@ impl ProveBatches {
                     let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
                     (U256::from(1), serialized_proof)
                 }
+                TypedL1BatchProofForL1::Airbender(proof) => {
+                    const ZKSYNC_OS_PLONK_VERIFICATION_TYPE: u64 = 2;
+                    let serialized_proof =
+                        proof.proof.chunks(32).map(U256::from_big_endian).collect();
+                    (
+                        U256::from(ZKSYNC_OS_PLONK_VERIFICATION_TYPE),
+                        serialized_proof,
+                    )
+                }
             };
 
             let should_use_fflonk = !is_verifier_pre_fflonk || !protocol_version.is_pre_fflonk();

@@ -226,6 +226,11 @@ async fn verify_proof(
                 "Plonk proofs are not supported by proving networks"
             ));
         }
+        TypedL1BatchProofForL1::Airbender(_) => {
+            return Err(anyhow::anyhow!(
+                "Airbender proofs are not supported by proving networks"
+            ));
+        }
     };
 
     if !verification_result {

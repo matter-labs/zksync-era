@@ -21,6 +21,12 @@ pub struct AirbenderProofDataHandlerConfig {
     /// Maximum number of attempts to find a batch with available GCS data before giving up.
     #[config(default_t = 5)]
     pub max_attempts: usize,
+    /// Maximum number of times a batch is handed out for proving before it is abandoned. Every
+    /// pick counts as an attempt — the initial one and each retry triggered by a reported failure
+    /// or a timeout. Applies independently to the FRI and SNARK stages. Once the limit is reached
+    /// the batch is no longer reclaimed for that stage.
+    #[config(default_t = 10)]
+    pub max_proving_attempts: u32,
 }
 
 #[cfg(test)]
@@ -36,6 +42,7 @@ mod tests {
             proof_generation_timeout: Duration::from_secs(90),
             snark_generation_timeout: Duration::from_secs(120),
             max_attempts: 5,
+            max_proving_attempts: 10,
         }
     }
 
@@ -47,6 +54,7 @@ mod tests {
           proof_generation_timeout_in_secs: 90
           snark_generation_timeout_in_secs: 120
           max_attempts: 5
+          max_proving_attempts: 10
         "#;
         let yaml = serde_yaml::from_str(yaml).unwrap();
         let yaml = Yaml::new("test.yml", yaml).unwrap();
@@ -63,6 +71,7 @@ mod tests {
           proof_generation_timeout: 90s
           snark_generation_timeout: 120s
           max_attempts: 5
+          max_proving_attempts: 10
         "#;
         let yaml = serde_yaml::from_str(yaml).unwrap();
         let yaml = Yaml::new("test.yml", yaml).unwrap();

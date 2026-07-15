@@ -19,7 +19,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
   postgres:
-    image: "postgres:14"
+    image: "postgres:18"
     command: >
       postgres
       -c max_connections=200
@@ -49,6 +49,8 @@ services:
     environment:
       - POSTGRES_PASSWORD=notsecurepassword
       - PGPORT=5430
+      # postgres:18 moved the default PGDATA; pin it so the mounted volume is used
+      - PGDATA=/var/lib/postgresql/data
   # Generation of consensus secrets.
   # The secrets are generated iff the secrets file doesn't already exist.
   generate-secrets:

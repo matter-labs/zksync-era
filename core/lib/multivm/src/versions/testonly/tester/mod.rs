@@ -25,6 +25,7 @@ use crate::{
         TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
+    tracers::cycle_estimator::FeatureVector,
     versions::testonly::{
         default_l1_batch, default_system_env, make_address_rich, ContractToDeploy,
     },
@@ -357,6 +358,13 @@ pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationPara
 
 pub(crate) trait TestedVmWithCallTracer: TestedVm {
     fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>);
+}
+
+pub(crate) trait TestedVmWithCycleTracer: TestedVm {
+    /// Executes a single (already pushed) transaction with the Airbender cycle
+    /// feature tracer attached, returning the execution result and the feature
+    /// vector the tracer collected during that transaction.
+    fn inspect_with_cycle_tracer(&mut self) -> (VmExecutionResultAndLogs, FeatureVector);
 }
 
 pub(crate) trait TestedVmWithStorageLimit: TestedVm {

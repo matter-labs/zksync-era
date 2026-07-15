@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            l1_batch_cycle_stats (l1_batch_number, real_cycles, created_at, updated_at)\n            VALUES\n            ($1, $2, NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO\n            UPDATE\n            SET\n            real_cycles = $2,\n            updated_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4314d59b0ef9ca342be7ffb9561d40283ac269edae29bb571534c22e140c3533"
+}
