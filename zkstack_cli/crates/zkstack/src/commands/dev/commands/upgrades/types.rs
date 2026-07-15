@@ -9,6 +9,7 @@ use zksync_web3_decl::jsonrpsee::core::Serialize;
 pub enum UpgradeVersion {
     V29_4,
     V29_3,
+    V29_2,
     V29InteropAFf,
     V31InteropB,
 }
@@ -18,6 +19,7 @@ impl UpgradeVersion {
         match self {
             UpgradeVersion::V29_4 => "./l1-contracts/script-out/v29-4-upgrade-ecosystem.toml",
             UpgradeVersion::V29_3 => "./l1-contracts/script-out/v29-3-upgrade-ecosystem.toml",
+            UpgradeVersion::V29_2 => "./l1-contracts/script-out/v29-2-upgrade-ecosystem.toml",
             UpgradeVersion::V29InteropAFf => "./l1-contracts/script-out/v29-upgrade-ecosystem.toml",
             UpgradeVersion::V31InteropB => "./l1-contracts/script-out/v31-upgrade-core.toml",
         }
