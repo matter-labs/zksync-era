@@ -60,6 +60,7 @@ impl VyperInput {
         StandardJson {
             language: "Vyper".to_owned(),
             sources: sources.collect(),
+            other: serde_json::json!({}),
             settings: Settings {
                 output_selection: Some(serde_json::json!({
                     "*": [ "abi", "evm.bytecode", "evm.deployedBytecode" ],

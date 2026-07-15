@@ -3,7 +3,6 @@ use chrono::{DateTime, Utc};
 use derive_more::Display;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
-use serde_with::{hex::Hex, serde_as};
 use zksync_basic_types::{
     commitment::PubdataType,
     settlement::SettlementLayer,
@@ -20,7 +19,6 @@ use crate::{
     eth_sender::EthTxFinalityStatus,
     protocol_version::L1VerifierConfig,
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
-    tee_types::TeeType,
     Address, L2BlockNumber, ProtocolVersionId,
 };
 
@@ -205,7 +203,7 @@ pub enum InteropMode {
     // Proof-based interop on Gateway, meaning the Merkle proof hashes to Gateway's MessageRoot
     ProofBasedGateway,
     // Proof-based interop on L1, meaning the Merkle proof hashes to L1's MessageRoot
-    // ProofBasedL1, // todo: v30
+    // ProofBasedL1, // todo: v32
 }
 
 impl Serialize for InteropMode {
@@ -1035,22 +1033,38 @@ pub struct Proof {
     pub storage_proof: Vec<StorageProof>,
 }
 
-#[serde_as]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AirbenderProofStatus {
+    PickedByProver,
+    Generated,
+    PickedForSnark,
+    SnarkGenerated,
+    Failed,
+}
+
+impl TryFrom<String> for AirbenderProofStatus {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        match s.as_str() {
+            "picked_by_prover" => Ok(Self::PickedByProver),
+            "generated" => Ok(Self::Generated),
+            "picked_for_snark" => Ok(Self::PickedForSnark),
+            "snark_generated" => Ok(Self::SnarkGenerated),
+            "failed" => Ok(Self::Failed),
+            other => Err(format!("Unknown airbender proof status: {other}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TeeProof {
+pub struct AirbenderProof {
     pub l1_batch_number: L1BatchNumber,
-    pub tee_type: Option<TeeType>,
-    #[serde_as(as = "Option<Hex>")]
-    pub pubkey: Option<Vec<u8>>,
-    #[serde_as(as = "Option<Hex>")]
-    pub signature: Option<Vec<u8>>,
-    #[serde_as(as = "Option<Hex>")]
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
-    pub status: String,
-    #[serde_as(as = "Option<Hex>")]
-    pub attestation: Option<Vec<u8>>,
+    pub status: AirbenderProofStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

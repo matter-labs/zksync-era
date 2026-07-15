@@ -1,5 +1,32 @@
 # Changelog
 
+## [25.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.2.0...prover-v25.3.0) (2026-04-10)
+
+
+### Features
+
+* **prover-autoscaler:** add max_running_weight cap for scaler targets ([#4744](https://github.com/matter-labs/zksync-era/issues/4744)) ([55382f3](https://github.com/matter-labs/zksync-era/commit/55382f38f47ad754c3ea14d9eb752fd7c18e679b))
+
+
+### Bug Fixes
+
+* **prover-autoscaler:** fix deadlock in k8s event watcher ([#4742](https://github.com/matter-labs/zksync-era/issues/4742)) ([7feb7aa](https://github.com/matter-labs/zksync-era/commit/7feb7aafa339431a002283b0bf767d960fb7258f))
+* **prover-autoscaler:** fix event watcher and running weight cap ([#4746](https://github.com/matter-labs/zksync-era/issues/4746)) ([9c049c4](https://github.com/matter-labs/zksync-era/commit/9c049c4f54b4ead1747b77097b9c59102b94d5cb))
+* **prover-autoscaler:** reliable GPU fallback via pool capping, aggressive mode refactor, and deployment-level stuck detection ([#4750](https://github.com/matter-labs/zksync-era/issues/4750)) ([48da774](https://github.com/matter-labs/zksync-era/commit/48da77497f952db17304432810b8bb295b45c8b2))
+
+## [25.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.1.0...prover-v25.2.0) (2026-03-25)
+
+
+### Features
+
+* Add gcp signer ([#4719](https://github.com/matter-labs/zksync-era/issues/4719)) ([7e54c22](https://github.com/matter-labs/zksync-era/commit/7e54c22b1a8d2c5e0b6ea4e9487f6c48c54cc444))
+* add HTTP compression to API servers and EN sync client ([#4729](https://github.com/matter-labs/zksync-era/issues/4729)) ([43ff240](https://github.com/matter-labs/zksync-era/commit/43ff2405664427fb162775a9bef387113d3762c2))
+
+
+### Bug Fixes
+
+* **prover-autoscaler:** fix resource exhaustion detection and aggr mode ([#4733](https://github.com/matter-labs/zksync-era/issues/4733)) ([f3d81ce](https://github.com/matter-labs/zksync-era/commit/f3d81ced085270a086875ac6187dbee953635831))
+
 ## [25.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.0.0...prover-v25.1.0) (2026-03-18)
 
 

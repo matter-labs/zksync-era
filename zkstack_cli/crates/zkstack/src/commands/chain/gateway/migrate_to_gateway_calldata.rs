@@ -3,16 +3,16 @@ use std::{path::Path, sync::Arc};
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
-    abi::{encode, Token},
+    abi::parse_abi,
+    contract::Contract,
     prelude::Http,
     providers::{Middleware, Provider},
 };
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, forge::ForgeScriptArgs, logger};
 use zkstack_cli_config::{traits::ReadConfig, GatewayConfig, ZkStackConfig, ZkStackConfigTrait};
-use zksync_basic_types::{Address, H256, U256};
-use zksync_system_constants::{L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS};
-use zksync_types::ProtocolVersionId;
+use zksync_basic_types::{commitment::L2DACommitmentScheme, Address, H256, U256};
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use super::{
     gateway_common::{
@@ -21,48 +21,17 @@ use super::{
     messages::message_for_gateway_migration_progress_state,
 };
 use crate::{
-    abi::{BridgehubAbi, ChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
+    abi::{BridgehubAbi, IChainTypeManagerAbi, ValidatorTimelockAbi, ZkChainAbi},
     admin_functions::{
         admin_l1_l2_tx, enable_validator_via_gateway, finalize_migrate_to_gateway,
         set_da_validator_pair_via_gateway, AdminScriptMode, AdminScriptOutput,
     },
     commands::chain::{admin_call_builder::AdminCall, utils::display_admin_script_output},
-    utils::addresses::apply_l1_to_l2_alias,
+    utils::{
+        addresses::{apply_l1_to_l2_alias, precompute_chain_address_on_gateway},
+        protocol_version::get_minor_protocol_version,
+    },
 };
-
-fn get_minor_protocol_version(protocol_version: U256) -> anyhow::Result<ProtocolVersionId> {
-    ProtocolVersionId::try_from_packed_semver(protocol_version)
-        .map_err(|err| anyhow::format_err!("Failed to unpack semver for protocol version: {err}"))
-}
-
-// The most reliable way to precompute the address is to simulate `createNewChain` function
-async fn precompute_chain_address_on_gateway(
-    l2_chain_id: u64,
-    base_token_asset_id: H256,
-    new_l2_admin: Address,
-    protocol_version: U256,
-    gateway_diamond_cut: Vec<u8>,
-    gw_ctm: ChainTypeManagerAbi<Provider<ethers::providers::Http>>,
-) -> anyhow::Result<Address> {
-    let ctm_data = encode(&[
-        Token::FixedBytes(base_token_asset_id.0.into()),
-        Token::Address(new_l2_admin),
-        Token::Uint(protocol_version),
-        Token::Bytes(gateway_diamond_cut),
-    ]);
-
-    let caller = if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
-        L2_BRIDGEHUB_ADDRESS
-    } else {
-        L2_CHAIN_ASSET_HANDLER_ADDRESS
-    };
-    let result = gw_ctm
-        .forwarded_bridge_mint(l2_chain_id.into(), ctm_data.into())
-        .from(caller)
-        .await?;
-
-    Ok(result)
-}
 
 #[derive(Debug)]
 pub(crate) struct MigrateToGatewayConfig {
@@ -166,7 +135,7 @@ impl MigrateToGatewayConfig {
             );
         }
 
-        let gw_ctm = ChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
+        let gw_ctm = IChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
         let gw_ctm_protocol_version = gw_ctm.protocol_version().await?;
         if gw_ctm_protocol_version != protocol_version {
             // The migration would fail anyway since CTM has checks to ensure that the protocol version is the same
@@ -252,45 +221,56 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         context.l1_rpc_url.clone(),
     )
     .await?;
-
     result.extend(finalize_migrate_to_gateway_output.calls);
 
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
-    let (_, l2_da_validator) = context.l1_zk_chain.get_da_validator_pair().await?;
-    if !l2_da_validator.is_zero() {
+    let (_, l2_da_validator_commitment_scheme) =
+        context.l1_zk_chain.get_da_validator_pair().await?;
+    let l2_da_validator_commitment_scheme =
+        L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
+            .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
+    if !l2_da_validator_commitment_scheme.is_none() {
         let da_validator_encoding_result = check_permanent_rollup_and_set_da_validator_via_gateway(
             shell,
             forge_args,
             foundry_contracts_path,
             context,
-            l2_da_validator,
+            l2_da_validator_commitment_scheme,
             crate::admin_functions::AdminScriptMode::OnlySave,
         )
         .await?;
         result.extend(da_validator_encoding_result.calls.into_iter());
     }
 
-    let is_validator_enabled =
-        if get_minor_protocol_version(context.protocol_version)?.is_pre_interop_fast_blocks() {
-            // In previous versions, we need to check if the validator is enabled
-            context
-                .gw_validator_timelock
-                .validators(context.l2_chain_id.into(), context.validator)
-                .await?
-        } else {
-            context
-                .gw_validator_timelock
-                .has_role_for_chain_id(
-                    context.l2_chain_id.into(),
-                    context
-                        .gw_validator_timelock
-                        .committer_role()
-                        .call()
-                        .await?,
-                    context.validator,
-                )
-                .await?
-        };
+    let is_validator_enabled = if get_minor_protocol_version(context.protocol_version)?
+        .is_pre_interop_fast_blocks()
+    {
+        // In previous versions, we need to check if the validator is enabled
+        let legacy_validator_timelock = Contract::new(
+                context.gw_validator_timelock_addr,
+                parse_abi(&[
+                    "function validators(uint256 _chainId, address _validator) external view returns (bool)",
+                ])?,
+                context.gw_provider.clone(),
+            );
+        legacy_validator_timelock
+            .method::<_, bool>("validators", (context.l2_chain_id, context.validator))?
+            .call()
+            .await?
+    } else {
+        context
+            .gw_validator_timelock
+            .has_role_for_chain_id(
+                context.l2_chain_id.into(),
+                context
+                    .gw_validator_timelock
+                    .committer_role()
+                    .call()
+                    .await?,
+                context.validator,
+            )
+            .await?
+    };
 
     // 4. If validator is not yet present, please include.
     if !is_validator_enabled {
@@ -351,7 +331,7 @@ pub(crate) async fn check_permanent_rollup_and_set_da_validator_via_gateway(
     forge_args: &ForgeScriptArgs,
     foundry_contracts_path: &Path,
     context: &MigrateToGatewayContext,
-    l2_da_validator: Address,
+    l2_da_validator_commitment_scheme: L2DACommitmentScheme,
     mode: AdminScriptMode,
 ) -> anyhow::Result<AdminScriptOutput> {
     // Unfortunately, there is no getter for whether a chain is a permanent rollup, we have to
@@ -375,7 +355,7 @@ pub(crate) async fn check_permanent_rollup_and_set_da_validator_via_gateway(
         context.l2_chain_id,
         context.gateway_chain_id,
         context.new_sl_da_validator,
-        l2_da_validator,
+        l2_da_validator_commitment_scheme,
         context.zk_chain_gw_address,
         context.refund_recipient,
         context.l1_rpc_url.clone(),

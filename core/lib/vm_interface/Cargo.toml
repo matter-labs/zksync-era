@@ -15,6 +15,9 @@ zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
 zksync_types.workspace = true
 
+# Feature schema for `VmExecutionStatistics::cycle_features` (VM-agnostic, serde only).
+zksync-era-airbender-cycles-estimator.workspace = true
+
 anyhow.workspace = true
 async-trait.workspace = true
 hex.workspace = true

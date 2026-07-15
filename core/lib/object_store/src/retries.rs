@@ -8,6 +8,11 @@ use crate::{
     raw::{Bucket, ObjectStore, ObjectStoreError},
 };
 
+/// Timeout for a single object store operation attempt. If a single get/put/remove call
+/// takes longer than this, it is treated as a retriable error. This prevents indefinite hangs
+/// when the underlying storage backend (GCS, S3) becomes unresponsive.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
+
 /// Information about request added to logs.
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)] // fields are used via `Debug` impl in logs
@@ -37,7 +42,17 @@ impl Request<'_> {
         let mut retries = 1;
         let mut backoff_secs = 1;
         let result = loop {
-            match f().await {
+            let attempt_result = match tokio::time::timeout(REQUEST_TIMEOUT, f()).await {
+                Ok(result) => result,
+                Err(_elapsed) => {
+                    tracing::warn!("Object store request timed out after {REQUEST_TIMEOUT:?}");
+                    Err(ObjectStoreError::Other {
+                        source: "operation timed out".into(),
+                        is_retriable: true,
+                    })
+                }
+            };
+            match attempt_result {
                 Ok(result) => break Ok(result),
                 Err(err) if err.is_retriable() => {
                     if retries > max_retries {

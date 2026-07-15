@@ -3,22 +3,21 @@ use itertools::Itertools;
 use utils::{
     chain_id_leaf_preimage, get_chain_count, get_chain_id_from_index, get_chain_root_from_id,
 };
+use zksync_airbender_prover_interface::outputs::L1BatchAirbenderProofForL1;
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_multivm::{interface::VmEvent, zk_evm_latest::ethereum_types::U64};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
-    api,
     api::{
-        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
-        TransactionDetailedResult, TransactionExecutionInfo,
+        self, AirbenderProof, AirbenderProofStatus, ChainAggProof, DataAvailabilityDetails,
+        GatewayMigrationStatus, L1ToL2TxsStatus, TransactionDetailedResult,
+        TransactionExecutionInfo,
     },
     eth_sender::EthTxFinalityStatus,
-    server_notification::GatewayMigrationState,
-    tee_types::TeeType,
-    web3,
-    web3::Bytes,
+    server_notification::{GatewayMigrationNotification, GatewayMigrationState},
+    web3::{self, Bytes},
     L1BatchNumber, L2BlockNumber, L2ChainId,
 };
 use zksync_web3_decl::{error::Web3Error, types::H256};
@@ -57,31 +56,48 @@ impl UnstableNamespace {
             .map(|execution_info| TransactionExecutionInfo { execution_info }))
     }
 
-    pub async fn get_tee_proofs_impl(
+    pub async fn get_airbender_proof_impl(
         &self,
         l1_batch_number: L1BatchNumber,
-        tee_type: Option<TeeType>,
-    ) -> Result<Vec<TeeProof>, Web3Error> {
+    ) -> Result<Option<AirbenderProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        let proofs = storage
-            .tee_proof_generation_dal()
-            .get_tee_proofs(l1_batch_number, tee_type)
+        let stored = storage
+            .airbender_proof_generation_dal()
+            .get_airbender_fri_proof(l1_batch_number)
             .await
-            .map_err(DalError::generalize)?
-            .into_iter()
-            .map(|proof| TeeProof {
-                l1_batch_number,
-                tee_type,
-                pubkey: proof.pubkey,
-                signature: proof.signature,
-                proof: proof.proof,
-                proved_at: DateTime::<Utc>::from_naive_utc_and_offset(proof.updated_at, Utc),
-                status: proof.status,
-                attestation: proof.attestation,
-            })
-            .collect::<Vec<_>>();
+            .map_err(DalError::generalize)?;
 
-        Ok(proofs)
+        let Some(stored) = stored else {
+            return Ok(None);
+        };
+
+        let proof_data = if let Some(blob_url) = stored.proof_blob_url {
+            if let Some(object_store) = &self.state.object_store {
+                let proof_for_l1: L1BatchAirbenderProofForL1 = object_store
+                    .get_by_encoded_key(blob_url)
+                    .await
+                    .map_err(|e| {
+                        Web3Error::InternalError(anyhow::anyhow!(
+                            "Failed to load airbender proof from GCS: {e}"
+                        ))
+                    })?;
+                Some(proof_for_l1.proof)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let status = AirbenderProofStatus::try_from(stored.status)
+            .map_err(|e| Web3Error::InternalError(anyhow::anyhow!(e)))?;
+
+        Ok(Some(AirbenderProof {
+            l1_batch_number,
+            proof: proof_data,
+            proved_at: DateTime::<Utc>::from_naive_utc_and_offset(stored.updated_at, Utc),
+            status,
+        }))
     }
 
     pub async fn get_chain_log_proof_impl(
@@ -272,15 +288,52 @@ impl UnstableNamespace {
             }
         };
         let state = GatewayMigrationState::from_sl_and_notification(
-            self.state.api_config.settlement_layer,
+            self.state
+                .api_config
+                .settlement_layer
+                .settlement_layer_for_sending_txs(),
             latest_notification,
         );
+
+        let settlement_layer = self.state.api_config.settlement_layer.settlement_layer();
+        let has_uncommitted_batches = connection
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .map_err(DalError::generalize)?;
+        let latest_sealed_matches_expected = match (
+            latest_notification,
+            connection
+                .blocks_dal()
+                .get_latest_sealed_l1_batch_header()
+                .await
+                .map_err(DalError::generalize)?,
+        ) {
+            (Some(GatewayMigrationNotification::ToGateway), Some(header)) => {
+                header.settlement_layer.is_gateway()
+            }
+            (Some(GatewayMigrationNotification::FromGateway), Some(header)) => {
+                !header.settlement_layer.is_gateway()
+            }
+            (Some(_), None) => false,
+            (None, _) => true,
+        };
+        let all_batches_committed = if state == GatewayMigrationState::InProgress {
+            !has_uncommitted_batches
+        } else {
+            !has_uncommitted_batches && latest_sealed_matches_expected
+        };
 
         Ok(GatewayMigrationStatus {
             latest_notification,
             state,
-            settlement_layer: self.state.api_config.settlement_layer,
-            wait_for_batches_to_be_committed: !all_batches_with_interop_roots_committed,
+            settlement_layer: self
+                .state
+                .api_config
+                .settlement_layer
+                .settlement_layer_for_sending_txs(),
+            wait_for_batches_to_be_committed: !all_batches_committed
+                || !all_batches_with_interop_roots_committed,
         })
     }
 
@@ -290,7 +343,11 @@ impl UnstableNamespace {
         tx_bytes: Bytes,
     ) -> Result<TransactionDetailedResult, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.settlement_layer(),
+        )
+        .await?;
         drop(connection);
         let (mut tx, tx_hash) = self
             .state

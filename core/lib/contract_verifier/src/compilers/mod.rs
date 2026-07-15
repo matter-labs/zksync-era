@@ -19,11 +19,17 @@ mod vyper;
 mod zksolc;
 mod zkvyper;
 
+fn default_json_object() -> Value {
+    serde_json::json!({})
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct StandardJson {
     pub language: String,
     pub sources: HashMap<String, Source>,
+    #[serde(flatten, default = "default_json_object")]
+    other: Value,
     #[serde(default)]
     settings: Settings,
 }
@@ -42,7 +48,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             output_selection: None,
-            other: serde_json::json!({}),
+            other: default_json_object(),
         }
     }
 }
@@ -71,16 +77,48 @@ pub(crate) fn validate_source_paths(
     Ok(())
 }
 
+/// Validates the `settings.remappings` array of a standard-JSON input.
+///
+/// A remapping has the form `[context:]prefix=target`. Verification inputs are expected to
+/// resolve against the submitted source map. A remapping target that is absolute (`/…`,
+/// `file://…`) or points outside the provided source tree with `..` adds another lookup root,
+/// so targets are constrained to stay relative and within the source tree.
+pub(crate) fn validate_remappings(settings: &Value) -> Result<(), ContractVerifierError> {
+    let Some(remappings) = settings.get("remappings").and_then(Value::as_array) else {
+        return Ok(());
+    };
+    for entry in remappings {
+        let Some(remapping) = entry.as_str() else {
+            return Err(ContractVerifierError::InvalidSourcePath(
+                "non-string remapping".to_owned(),
+            ));
+        };
+        // Split off the optional `context:` prefix and the mandatory `prefix=` to isolate the target.
+        let target = remapping.split_once('=').map_or("", |(_, target)| target);
+        if target.starts_with('/')
+            || target.starts_with("file://")
+            || target.split('/').any(|component| component == "..")
+        {
+            return Err(ContractVerifierError::InvalidSourcePath(
+                remapping.to_owned(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Returns `true` if `source` contains an `import` directive whose path is absolute (`/…`)
-/// or starts with a parent-directory traversal (`../…`).  Both forms let the compiler
-/// resolve imports against the host filesystem and leak file contents in error messages.
-pub(crate) fn has_dangerous_imports(source: &str) -> bool {
+/// or uses a `file://` URL. These import roots are outside the submitted source map.
+///
+/// Relative imports containing `../` are allowed: they are standard Solidity practice and
+/// are handled by source-path validation plus the empty compiler search directory.
+pub(crate) fn has_unsupported_import_roots(source: &str) -> bool {
     // Covers all Solidity import forms:
     //   import "/path";
-    //   import "../path";
     //   import {X} from "/path";
     //   import * as X from "/path";
-    let re = Regex::new(r#"\bimport\b[^;]*?["'](/|\.\.)"#).unwrap();
+    //   import "file:///path";
+    let re = Regex::new(r#"\bimport\b[^;]*?["'](?:/|file://)"#).unwrap();
     re.is_match(source)
 }
 
@@ -89,29 +127,130 @@ pub(crate) fn has_dangerous_imports(source: &str) -> bool {
 /// The `formattedMessage` format looks like:
 /// ```text
 /// ParserError: Expected ';' but got end of source
-///  --> /etc/shadow:1:5:
+///  --> Source.sol:1:5:
 ///   |
-/// 1 | root:*:19970:0:99999:7:::
+/// 1 | INVALID_SOURCE_LINE
 ///   |     ^
 /// ```
-/// Lines starting with optional whitespace followed by `|` contain verbatim file
-/// contents and must be removed.  The ` --> path:line:col` header is kept because
-/// it only reveals the path (which the caller already submitted) and the position.
+/// Numbered source lines and caret lines are omitted to keep diagnostics concise. The
+/// ` --> path:line:col` header is preserved for location context.
+fn is_source_context_line(line: &str) -> bool {
+    let line = line.trim_start();
+    if line.starts_with('|') {
+        return true;
+    }
+
+    let digit_count = line
+        .bytes()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
+    digit_count > 0 && line[digit_count..].trim_start().starts_with('|')
+}
+
 fn strip_source_snippets(msg: &str) -> String {
     msg.lines()
-        .filter(|line| !line.trim_start().starts_with('|'))
+        .filter(|line| !is_source_context_line(line))
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-/// Strips source-context lines from raw compiler stderr so that file contents are
-/// not echoed back to the caller.  Used for the non-JSON (exit-code != 0) error path.
+/// Strips source-context lines from raw compiler stderr before returning diagnostics from the
+/// non-JSON (exit-code != 0) error path.
 pub(crate) fn sanitize_compiler_stderr(stderr: &str) -> String {
     stderr
         .lines()
-        .filter(|line| !line.contains(" --> ") && !line.trim_start().starts_with('|'))
+        .filter(|line| !line.contains(" --> ") && !is_source_context_line(line))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        has_unsupported_import_roots, sanitize_compiler_stderr, strip_source_snippets,
+        validate_remappings,
+    };
+
+    #[test]
+    fn rejects_external_remapping_targets() {
+        for target in [
+            "@x/=/abs/path",
+            "@x/=file:///abs/path",
+            "@x/=../../../../outside/tree",
+            "ctx:@x/=../outside",
+            "@x/=lib/../../outside",
+        ] {
+            let settings = serde_json::json!({ "remappings": [target] });
+            assert!(
+                validate_remappings(&settings).is_err(),
+                "remapping must be rejected: {target}"
+            );
+        }
+    }
+
+    #[test]
+    fn allows_relative_remapping_targets() {
+        let settings = serde_json::json!({
+            "remappings": [
+                "@openzeppelin/=node_modules/@openzeppelin/",
+                "ds-test/=lib/forge-std/lib/ds-test/src/",
+                "@x/=contracts/x/",
+            ]
+        });
+        assert!(validate_remappings(&settings).is_ok());
+    }
+
+    #[test]
+    fn allows_missing_remappings() {
+        assert!(validate_remappings(&serde_json::json!({})).is_ok());
+    }
+
+    #[test]
+    fn allows_relative_parent_imports() {
+        let source = r#"
+            import {ContextUpgradeable} from "../utils/ContextUpgradeable.sol";
+            import {Hashes} from "./Hashes.sol";
+        "#;
+
+        assert!(
+            !has_unsupported_import_roots(source),
+            "relative imports within the submitted source tree must be allowed"
+        );
+    }
+
+    #[test]
+    fn rejects_absolute_imports() {
+        assert!(has_unsupported_import_roots(
+            r#"import "/absolute/path/Source.sol";"#
+        ));
+        assert!(has_unsupported_import_roots(
+            r#"import "file:///absolute/path/Source.sol";"#
+        ));
+    }
+
+    #[test]
+    fn normalizes_formatted_message_source_context() {
+        let message = "ParserError: invalid source\n --> Source.sol:12:1:\n   |\n12 | INVALID_SOURCE_LINE\n   | ^^^^^^^^^^^^^^^^^^^\n";
+
+        let sanitized = strip_source_snippets(message);
+
+        assert!(sanitized.contains("ParserError: invalid source"));
+        assert!(sanitized.contains(" --> Source.sol:12:1:"));
+        assert!(!sanitized.contains("INVALID_SOURCE_LINE"));
+        assert!(!sanitized.contains("12 |"));
+    }
+
+    #[test]
+    fn normalizes_compiler_stderr_source_context() {
+        let stderr = "ParserError: invalid source\n --> Source.sol:1:1:\n  |\n1 | INVALID_SOURCE_LINE\n  | ^^^^^^^^^^^^^^^^^^^\n";
+
+        let sanitized = sanitize_compiler_stderr(stderr);
+
+        assert!(sanitized.contains("ParserError: invalid source"));
+        assert!(!sanitized.contains("Source.sol"));
+        assert!(!sanitized.contains("INVALID_SOURCE_LINE"));
+        assert!(!sanitized.contains("1 |"));
+    }
 }
 
 /// Users may provide either just contract name or source file name and contract name joined with ":".
@@ -161,6 +300,38 @@ fn parse_immutable_refs(
     }
 }
 
+fn parse_factory_dependency_refs(contract: &Value, bytecode: &[u8]) -> Vec<ImmutableReference> {
+    let Some(deps) = contract
+        .get("factoryDependencies")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return Vec::new();
+    };
+
+    let mut refs = Vec::new();
+    for hash in deps.keys() {
+        let Ok(hash) = hex::decode(hash.strip_prefix("0x").unwrap_or(hash)) else {
+            continue;
+        };
+        if hash.len() != 32 {
+            continue;
+        }
+
+        refs.extend(
+            bytecode
+                .windows(hash.len())
+                .enumerate()
+                .filter_map(|(start, window)| {
+                    (window == hash.as_slice()).then_some(ImmutableReference {
+                        start,
+                        length: hash.len(),
+                    })
+                }),
+        );
+    }
+    refs
+}
+
 /// Parsing logic shared between `solc` and `zksolc`.
 fn parse_standard_json_output(
     output: &serde_json::Value,
@@ -201,7 +372,10 @@ fn parse_standard_json_output(
     };
 
     let Some(bytecode_str) = contract.pointer("/evm/bytecode/object") else {
-        return Err(ContractVerifierError::AbstractContract(contract_name));
+        return Err(ContractVerifierError::MissingCompilerOutput {
+            contract_name,
+            field_path: "/evm/bytecode/object",
+        });
     };
     let bytecode_str = bytecode_str
         .as_str()
@@ -212,7 +386,10 @@ fn parse_standard_json_output(
 
     let deployed_bytecode = if get_deployed_bytecode {
         let Some(bytecode_str) = contract.pointer("/evm/deployedBytecode/object") else {
-            return Err(ContractVerifierError::AbstractContract(contract_name));
+            return Err(ContractVerifierError::MissingCompilerOutput {
+                contract_name,
+                field_path: "/evm/deployedBytecode/object",
+            });
         };
         let bytecode_str = bytecode_str
             .as_str()
@@ -227,6 +404,7 @@ fn parse_standard_json_output(
     let immutable_refs =
         parse_immutable_refs(contract.pointer("/evm/deployedBytecode/immutableReferences"))
             .unwrap_or_default();
+    let factory_dependency_refs = parse_factory_dependency_refs(contract, &bytecode);
 
     let mut abi = contract["abi"].clone();
     if abi.is_null() {
@@ -246,6 +424,7 @@ fn parse_standard_json_output(
         deployed_bytecode,
         abi,
         immutable_refs,
+        factory_dependency_refs,
     })
 }
 
@@ -255,4 +434,118 @@ fn is_suppressable_error(message: &str) -> bool {
     // All of them mention `suppressedErrors` in the message, which is a custom
     // `zksolc` configuration, so we use it as a marker.
     message.contains("suppressedErrors")
+}
+
+#[cfg(test)]
+mod parser_tests {
+    use super::parse_standard_json_output;
+    use crate::error::ContractVerifierError;
+
+    #[test]
+    fn reports_missing_creation_bytecode_path() {
+        let output = serde_json::json!({
+            "contracts": {
+                "Counter.sol": {
+                    "Counter": {
+                        "abi": []
+                    }
+                }
+            }
+        });
+
+        let err = parse_standard_json_output(
+            &output,
+            "Counter".to_owned(),
+            "Counter.sol".to_owned(),
+            false,
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ContractVerifierError::MissingCompilerOutput {
+                contract_name,
+                field_path: "/evm/bytecode/object",
+            } if contract_name == "Counter"
+        ));
+    }
+
+    #[test]
+    fn reports_missing_deployed_bytecode_path() {
+        let output = serde_json::json!({
+            "contracts": {
+                "Counter.sol": {
+                    "Counter": {
+                        "abi": [],
+                        "evm": {
+                            "bytecode": {
+                                "object": "00"
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        let err = parse_standard_json_output(
+            &output,
+            "Counter".to_owned(),
+            "Counter.sol".to_owned(),
+            true,
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ContractVerifierError::MissingCompilerOutput {
+                contract_name,
+                field_path: "/evm/deployedBytecode/object",
+            } if contract_name == "Counter"
+        ));
+    }
+
+    #[test]
+    fn parses_factory_dependency_hash_refs() {
+        let dependency_hash = "010002f3aa6cac6815f2300b1a4ed078983900fa5a0268f6575db307b09ae610";
+        let bytecode = format!("11223344{dependency_hash}55667788{dependency_hash}");
+        let output = serde_json::json!({
+            "contracts": {
+                "Counter.sol": {
+                    "Counter": {
+                        "abi": [],
+                        "evm": {
+                            "bytecode": {
+                                "object": bytecode,
+                            }
+                        },
+                        "factoryDependencies": {
+                            dependency_hash: "CounterDependency.sol:CounterDependency"
+                        }
+                    }
+                }
+            }
+        });
+
+        let artifacts = parse_standard_json_output(
+            &output,
+            "Counter".to_owned(),
+            "Counter.sol".to_owned(),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(
+            artifacts.factory_dependency_refs,
+            vec![
+                zksync_types::contract_verification::api::ImmutableReference {
+                    start: 4,
+                    length: 32,
+                },
+                zksync_types::contract_verification::api::ImmutableReference {
+                    start: 40,
+                    length: 32,
+                },
+            ]
+        );
+    }
 }

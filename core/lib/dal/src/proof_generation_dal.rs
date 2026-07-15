@@ -459,7 +459,7 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 
-    pub async fn is_batch_present_for_tee_proof_inputs(
+    pub async fn is_batch_present_for_airbender_proof_inputs(
         &mut self,
         batch_number: L1BatchNumber,
         min_batch_number: L1BatchNumber,
@@ -481,7 +481,7 @@ impl ProofGenerationDal<'_, '_> {
         )
         .bind(i64::from(batch_number.0))
         .bind(i64::from(min_batch_number.0))
-        .instrument("is_batch_present_for_tee_proof_inputs")
+        .instrument("is_batch_present_for_airbender_proof_inputs")
         .with_arg("batch_number", &batch_number)
         .with_arg("min_batch_number", &min_batch_number)
         .fetch_optional(self.storage)
@@ -491,7 +491,7 @@ impl ProofGenerationDal<'_, '_> {
         Ok(row.try_get("present").unwrap())
     }
 
-    pub async fn get_present_batch_bounds_for_tee_proof_inputs(
+    pub async fn get_present_batch_bounds_for_airbender_proof_inputs(
         &mut self,
         min_batch_number: L1BatchNumber,
     ) -> DalResult<Option<(L1BatchNumber, L1BatchNumber)>> {
@@ -509,7 +509,7 @@ impl ProofGenerationDal<'_, '_> {
             "#,
         )
         .bind(i64::from(min_batch_number.0))
-        .instrument("get_present_batch_bounds_for_tee_proof_inputs")
+        .instrument("get_present_batch_bounds_for_airbender_proof_inputs")
         .with_arg("min_batch_number", &min_batch_number)
         .fetch_optional(self.storage)
         .await?

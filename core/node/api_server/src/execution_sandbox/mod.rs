@@ -8,7 +8,8 @@ use rand::{thread_rng, Rng};
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
 use zksync_multivm::utils::get_eth_call_gas_limit;
 use zksync_types::{
-    api, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, U256,
+    api, fee_model::BatchFeeInput, settlement::SettlementLayer, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, U256,
 };
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
@@ -293,8 +294,11 @@ pub struct BlockArgs {
 }
 
 impl BlockArgs {
-    pub async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
-        let inner = BlockInfo::pending(connection).await?;
+    pub async fn pending(
+        connection: &mut Connection<'_, Core>,
+        settlement_layer: SettlementLayer,
+    ) -> anyhow::Result<Self> {
+        let inner = BlockInfo::pending(connection, settlement_layer).await?;
         let resolved = inner.resolve(connection).await?;
         Ok(Self {
             inner,
@@ -316,6 +320,7 @@ impl BlockArgs {
         connection: &mut Connection<'_, Core>,
         block_id: api::BlockId,
         start_info: &BlockStartInfo,
+        settlement_layer: SettlementLayer,
     ) -> Result<Self, BlockArgsError> {
         // We need to check that `block_id` is present in Postgres or can be present in the future
         // (i.e., it does not refer to a pruned block). If called for a pruned block, the returned value
@@ -325,7 +330,7 @@ impl BlockArgs {
             .await?;
 
         if block_id == api::BlockId::Number(api::BlockNumber::Pending) {
-            return Ok(Self::pending(connection).await?);
+            return Ok(Self::pending(connection, settlement_layer).await?);
         }
 
         let resolved_block_number = connection

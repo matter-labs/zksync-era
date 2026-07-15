@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
     api::{L2ToL1Log, L2ToL1LogProof, Log},
-    ethabi,
+    ethabi, BOOTLOADER_ADDRESS,
 };
 use zksync_web3_decl::{
     client::{Client, L2},
@@ -24,6 +24,14 @@ pub struct FinalizeWithdrawalParams {
     pub proof: L2ToL1LogProof,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FinalizeMigrationParams {
+    pub l2_batch_number: U64,
+    pub l2_message_index: U64,
+    pub l2_tx_number_in_block: U64,
+    pub proof: L2ToL1LogProof,
+}
+
 #[async_trait]
 pub trait ZKSProvider {
     async fn get_withdrawal_log(
@@ -36,6 +44,7 @@ pub trait ZKSProvider {
         &self,
         withdrawal_hash: H256,
         index: usize,
+        sender: Address,
     ) -> Result<(u64, L2ToL1Log), ProviderError>;
 
     async fn get_finalize_withdrawal_params(
@@ -43,6 +52,12 @@ pub trait ZKSProvider {
         withdrawal_hash: H256,
         index: usize,
     ) -> Result<FinalizeWithdrawalParams, ProviderError>;
+
+    async fn get_finalize_migration_params(
+        &self,
+        migration_hash: H256,
+        index: usize,
+    ) -> Result<FinalizeMigrationParams, ProviderError>;
 }
 
 #[async_trait]
@@ -96,6 +111,7 @@ where
         &self,
         withdrawal_hash: H256,
         index: usize,
+        sender: Address,
     ) -> Result<(u64, L2ToL1Log), ProviderError> {
         let receipt = <Self as EthNamespaceClient>::get_transaction_receipt(self, withdrawal_hash)
             .await
@@ -114,7 +130,7 @@ where
             .l2_to_l1_logs
             .into_iter()
             .enumerate()
-            .filter(|(_, log)| log.sender == L1_MESSENGER_ADDRESS)
+            .filter(|(_, log)| log.sender == sender)
             .map(|(i, log)| (i as u64, log))
             .collect();
 
@@ -130,7 +146,7 @@ where
     ) -> Result<FinalizeWithdrawalParams, ProviderError> {
         let (log, l1_batch_tx_id) = self.get_withdrawal_log(withdrawal_hash, index).await?;
         let (l2_to_l1_log_index, _) = self
-            .get_withdrawal_l2_to_l1_log(withdrawal_hash, index)
+            .get_withdrawal_l2_to_l1_log(withdrawal_hash, index, L1_MESSENGER_ADDRESS)
             .await?;
         let proof = <Self as ZksNamespaceClient>::get_l2_to_l1_log_proof(
             self,
@@ -152,6 +168,34 @@ where
             l2_tx_number_in_block: l1_batch_tx_id,
             message,
             sender,
+            proof,
+        })
+    }
+
+    async fn get_finalize_migration_params(
+        &self,
+        migration_hash: H256,
+        index: usize,
+    ) -> Result<FinalizeMigrationParams, ProviderError> {
+        let (l2_to_l1_log_index, l2_to_l1_log) = self
+            .get_withdrawal_l2_to_l1_log(migration_hash, index, BOOTLOADER_ADDRESS)
+            .await?;
+        let proof = <Self as ZksNamespaceClient>::get_l2_to_l1_log_proof(
+            self,
+            migration_hash,
+            Some(l2_to_l1_log_index as usize),
+            None,
+        )
+        .await
+        .map_err(|e| {
+            ProviderError::CustomError(format!("Failed to get migration log proof: {}", e))
+        })?
+        .ok_or_else(|| ProviderError::CustomError("Log proof not found!".into()))?;
+
+        Ok(FinalizeMigrationParams {
+            l2_batch_number: l2_to_l1_log.l1_batch_number.unwrap_or_default(),
+            l2_message_index: proof.id.into(),
+            l2_tx_number_in_block: l2_to_l1_log.tx_index_in_l1_batch.unwrap_or_default(),
             proof,
         })
     }

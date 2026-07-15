@@ -10,7 +10,7 @@ use zksync_types::{
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::EthNamespaceServer,
-    types::{Filter, FilterChanges},
+    types::{FillTransaction, FillTransactionRequest, Filter, FilterChanges},
 };
 
 use crate::web3::EthNamespace;
@@ -45,6 +45,12 @@ impl EthNamespaceServer for EthNamespace {
         state_override: Option<StateOverride>,
     ) -> RpcResult<U256> {
         self.estimate_gas_impl(req, block, state_override)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn fill_transaction(&self, req: FillTransactionRequest) -> RpcResult<FillTransaction> {
+        self.fill_transaction_impl(req)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

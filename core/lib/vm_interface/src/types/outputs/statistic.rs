@@ -11,6 +11,8 @@ use zksync_types::{
     ProtocolVersionId,
 };
 
+use super::FeatureVector;
+
 /// Holds information about number of circuits used per circuit type.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct CircuitStatistic {
@@ -127,6 +129,11 @@ pub struct VmExecutionStatistics {
     pub total_log_queries: usize,
     pub pubdata_published: u32,
     pub circuit_statistic: CircuitStatistic,
+    /// Airbender cycle-estimator features observed during the tx. Only populated by
+    /// `vm_latest`; empty otherwise. Lives here (non-`Copy` statistics) rather than
+    /// in the `Copy` [`VmExecutionMetrics`]; the state keeper accumulates it per batch
+    /// for the cycle seal criterion.
+    pub cycle_features: FeatureVector,
 }
 
 /// Oracle metrics reported by legacy VMs.

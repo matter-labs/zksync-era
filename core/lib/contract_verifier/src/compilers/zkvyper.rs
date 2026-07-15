@@ -84,6 +84,7 @@ impl ZkVyper {
                     bytecode,
                     deployed_bytecode: None,
                     immutable_refs: Default::default(),
+                    factory_dependency_refs: Default::default(),
                 });
             }
         }

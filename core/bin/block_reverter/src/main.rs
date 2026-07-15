@@ -8,7 +8,7 @@ use tokio::{
 };
 use zksync_block_reverter::{
     eth_client::{
-        clients::{Client, PKSigningClient, L1},
+        clients::{Client, SigningClient, L1},
         contracts_loader::{get_settlement_layer_from_l1, load_settlement_layer_contracts},
     },
     BlockReverter, BlockReverterEthConfig, NodeRole,
@@ -25,6 +25,7 @@ use zksync_config::{
 use zksync_contracts::getters_facet_contract;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_operator_signer::OperatorSigner;
 use zksync_types::{settlement::SettlementLayer, Address, L1BatchNumber, L2_BRIDGEHUB_ADDRESS};
 
 #[derive(Debug, Parser)]
@@ -254,28 +255,44 @@ async fn main() -> anyhow::Result<()> {
             priority_fee_per_gas,
             nonce,
         } => {
-            let reverter_private_key = if let Some(wallets_config) = wallets_config {
-                wallets_config
+            let operator_signer = if let Some(wallets_config) = wallets_config {
+                let operator = wallets_config
                     .operator
-                    .context("operator private key not present")?
-                    .private_key()
-                    .to_owned()
+                    .context("operator wallet not present")?;
+                if operator.is_gcp_kms() {
+                    OperatorSigner::gcp_kms(
+                        operator
+                            .gcp_kms_resource()
+                            .expect("checked is_gcp_kms")
+                            .to_string(),
+                    )
+                } else {
+                    OperatorSigner::local(operator.private_key().clone())
+                }
             } else {
                 #[allow(deprecated)]
-                eth_sender
+                let pk = eth_sender
                     .get_eth_sender_config_for_sender_layer_data_layer()
                     .private_key()
                     .context("eth_sender_config.private_key")?
-                    .context("eth_sender_config.private_key is not set")?
+                    .context("eth_sender_config.private_key is not set")?;
+                OperatorSigner::local(pk)
             };
 
+            let operator_address = operator_signer
+                .address()
+                .await
+                .context("failed to get operator address")?;
+
             let priority_fee_per_gas = priority_fee_per_gas.unwrap_or(default_priority_fee_per_gas);
-            let sl_client = PKSigningClient::new_raw(
-                reverter_private_key,
-                sl_diamond_proxy,
-                priority_fee_per_gas,
-                chain_id,
+            let sl_client = SigningClient::new(
                 Box::new(client),
+                zksync_contracts::hyperchain_contract(),
+                operator_address,
+                operator_signer,
+                sl_diamond_proxy,
+                priority_fee_per_gas.into(),
+                chain_id,
             );
 
             block_reverter

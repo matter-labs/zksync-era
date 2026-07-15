@@ -4,7 +4,7 @@
 // main_contract.getTotalBatchesCommitted actually checks the number of batches committed.
 // main_contract.getTotalBatchesExecuted actually checks the number of batches executed.
 import { beforeAll, describe, it } from 'vitest';
-import { createChainAndStartServer, TESTED_CHAIN_TYPE, TestChain, getMainWalletPk } from '../src';
+import { createChainAndStartServer, TESTED_CHAIN_TYPE, TestChain, getMainWalletPk, queryJsonRpc } from '../src';
 import * as utils from 'utils';
 import {
     checkRandomTransfer,
@@ -81,13 +81,6 @@ describe('Block reverting test', function () {
 
         await testChain.runExternalNode();
 
-        console.log(`😴 Sleeping for 60 seconds before killing external node to wait for it to sync..`);
-        await new Promise((resolve) => setTimeout(resolve, 60000));
-
-        let ethClientWeb3Url: string;
-        let apiWeb3JsonRpcHttpUrl: string;
-        let enEthClientUrl: string;
-
         const secretsConfig = loadConfig({ pathToHome, chain: chainName, config: 'secrets.yaml' });
         const generalConfig = loadConfig({ pathToHome, chain: chainName, config: 'general.yaml' });
         const contractsConfig = loadConfig({ pathToHome, chain: chainName, config: 'contracts.yaml' });
@@ -99,9 +92,33 @@ describe('Block reverting test', function () {
         });
         const walletsConfig = loadConfig({ pathToHome, chain: chainName, config: 'wallets.yaml' });
 
+        // Wait for EN to sync to the same batch as main node instead of hardcoded sleep
+        const mainNodeRpcUrl = generalConfig.api.web3_json_rpc.http_url;
+        const enRpcUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+        const syncTimeoutMs = 120_000;
+        const syncPollIntervalMs = 2_000;
+        const syncStart = Date.now();
+        console.log(`Waiting for external node to sync (timeout: ${syncTimeoutMs / 1000}s)...`);
+        while (Date.now() - syncStart < syncTimeoutMs) {
+            const mainBatchHex = await queryJsonRpc(mainNodeRpcUrl, 'zks_L1BatchNumber');
+            const enBatchHex = await queryJsonRpc(enRpcUrl, 'zks_L1BatchNumber');
+            const mainBatch = parseInt(mainBatchHex, 16);
+            const enBatch = parseInt(enBatchHex, 16);
+            if (enBatch >= mainBatch) {
+                console.log(`External node synced: EN batch ${enBatch} >= main node batch ${mainBatch}`);
+                break;
+            }
+            console.log(`EN batch ${enBatch} < main node batch ${mainBatch}, waiting...`);
+            await new Promise((resolve) => setTimeout(resolve, syncPollIntervalMs));
+        }
+
+        let ethClientWeb3Url: string;
+        let apiWeb3JsonRpcHttpUrl: string;
+        let enEthClientUrl: string;
+
         ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
-        apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
-        enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+        apiWeb3JsonRpcHttpUrl = mainNodeRpcUrl;
+        enEthClientUrl = enRpcUrl;
         operatorAddress = walletsConfig.operator.address;
 
         mainNodeTester = createTester(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl);

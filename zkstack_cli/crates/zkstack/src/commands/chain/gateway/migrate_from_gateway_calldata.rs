@@ -1,14 +1,11 @@
 use anyhow::Context;
 use clap::Parser;
-use ethers::{
-    abi::{parse_abi, Address},
-    contract::BaseContract,
-    utils::hex,
-};
+use ethers::{abi::Address, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{ethereum::get_ethers_provider, logger};
 use zkstack_cli_config::{traits::ReadConfig, ContractsConfig, ZkStackConfig, ZkStackConfigTrait};
+use zksync_basic_types::commitment::L2DACommitmentScheme;
 
 use super::{
     gateway_common::{
@@ -17,18 +14,14 @@ use super::{
     messages::{message_for_gateway_migration_progress_state, USE_SET_DA_VALIDATOR_COMMAND_INFO},
 };
 use crate::{
-    abi::{BridgehubAbi, ZkChainAbi},
+    abi::{BridgehubAbi, ZkChainAbi, GATEWAYUTILSABI_ABI},
     admin_functions::{start_migrate_chain_from_gateway, AdminScriptMode},
     commands::chain::utils::display_admin_script_output,
 };
 
 lazy_static! {
-    static ref GATEWAY_UTILS_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function finishMigrateChainFromGateway(address bridgehubAddr, uint256 migratingChainId, uint256 gatewayChainId, uint256 l2BatchNumber, uint256 l2MessageIndex, uint16 l2TxNumberInBatch, bytes memory message, bytes32[] memory merkleProof) public",
-        ])
-        .unwrap(),
-    );
+    static ref GATEWAY_UTILS_INTERFACE: BaseContract =
+        BaseContract::from(GATEWAYUTILSABI_ABI.clone());
 }
 
 #[derive(Parser, Debug)]
@@ -103,7 +96,10 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 }
 
                 let zk_chain = ZkChainAbi::new(zk_chain_address, l1_provider);
-                let (l1_da_validator, l2_da_validator) = zk_chain.get_da_validator_pair().await?;
+                let (l1_da_validator, l2_da_validator_commitment_scheme) =
+                    zk_chain.get_da_validator_pair().await?;
+                let l2_da_validator_commitment_scheme =
+                    L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme).unwrap();
 
                 // We always output the original message, but we provide additional helper log in case
                 // the DA validator is not yet set
@@ -113,7 +109,9 @@ pub async fn run(shell: &Shell, params: MigrateFromGatewayCalldataArgs) -> anyho
                 );
                 logger::info(&basic_message);
 
-                if l1_da_validator == Address::zero() || l2_da_validator == Address::zero() {
+                if l1_da_validator == Address::zero()
+                    || l2_da_validator_commitment_scheme == L2DACommitmentScheme::None
+                {
                     logger::warn("The DA validators are not yet set on the diamond proxy.");
                     logger::info(USE_SET_DA_VALIDATOR_COMMAND_INFO);
                 }

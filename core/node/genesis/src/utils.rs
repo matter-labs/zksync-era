@@ -163,6 +163,18 @@ pub(super) async fn save_genesis_l1_batch_metadata(
         .save_l1_batch_commitment_artifacts(L1BatchNumber(0), &commitment_artifacts)
         .await?;
 
+    // For post-Boojum genesis, `aux_commitments` are zero in both variants, so
+    // the Airbender variant's `commitment` and `aux_data_hash` match Boojum's
+    // exactly. Persist them here so the V2 producer can read batch 0's row
+    // when building V2 input for batch 1. Pre-Boojum genesis batches are not
+    // Airbender-provable, so skip persistence in that case.
+    if let Some(airbender_genesis) = commitment.airbender_artifacts()? {
+        transaction
+            .blocks_dal()
+            .save_airbender_batch_commitment(L1BatchNumber(0), &airbender_genesis)
+            .await?;
+    }
+
     transaction.commit().await?;
     Ok(())
 }

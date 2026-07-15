@@ -32,6 +32,7 @@ pub struct StateKeeperPersistence {
     l2_legacy_shared_bridge_addr: Option<Address>,
     pre_insert_txs: bool,
     insert_protective_reads: bool,
+    save_predicted_cycles: bool,
     commands_sender: mpsc::Sender<Completable<L2BlockSealCommand>>,
     l2_block_completion: BTreeMap<L2BlockNumber, oneshot::Receiver<()>>,
     latest_l2_block_submitted: Option<L2BlockNumber>,
@@ -96,6 +97,7 @@ impl StateKeeperPersistence {
             l2_legacy_shared_bridge_addr,
             pre_insert_txs: false,
             insert_protective_reads: true,
+            save_predicted_cycles: false,
             commands_sender,
             l2_block_completion: BTreeMap::new(),
             latest_l2_block_submitted: None,
@@ -113,6 +115,14 @@ impl StateKeeperPersistence {
     /// if the node won't *ever* run a full Merkle tree (such a tree requires protective reads to generate witness inputs).
     pub fn without_protective_reads(mut self) -> Self {
         self.insert_protective_reads = false;
+        self
+    }
+
+    /// Enables persisting the predicted Airbender cycle count when sealing an L1 batch,
+    /// so it can later be compared against the cycle count reported by the prover.
+    /// Intended for the main node; external nodes merely replay batches.
+    pub fn with_predicted_cycles_persistence(mut self) -> Self {
+        self.save_predicted_cycles = true;
         self
     }
 
@@ -254,6 +264,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
                 self.pool.clone(),
                 self.l2_legacy_shared_bridge_addr,
                 self.insert_protective_reads,
+                self.save_predicted_cycles,
             )
             .await
             .with_context(|| format!("cannot persist L1 batch #{batch_number}"))?;
@@ -435,11 +446,11 @@ mod tests {
     use test_casing::{test_casing, Product};
     use zksync_dal::CoreDal;
     use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_node_test_utils::{default_l1_batch_env, default_system_env};
     use zksync_types::{
-        api::TransactionStatus, h256_to_u256, writes::StateDiffRecord, L1BatchNumber,
-        L2BlockNumber, StorageLogKind, H256, U256,
+        api::TransactionStatus, commitment::PubdataParams, h256_to_u256, writes::StateDiffRecord,
+        L1BatchNumber, L2BlockNumber, StorageLogKind, H256, U256,
     };
 
     use super::*;
@@ -455,7 +466,7 @@ mod tests {
         sync_block_data_and_header_persistence: bool,
     ) {
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         let initial_writes_in_genesis_batch = storage
@@ -479,6 +490,7 @@ mod tests {
         )
         .await
         .unwrap();
+        let persistence = persistence.with_predicted_cycles_persistence();
         let mut output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(TreeWritesPersistence::new(pool.clone())));
         tokio::spawn(l2_block_sealer.run());
@@ -534,6 +546,17 @@ mod tests {
         let actual_index = tree_writes[0].leaf_index;
         let expected_index = initial_writes_in_genesis_batch + 1;
         assert_eq!(actual_index, expected_index);
+
+        // The predicted cycle count should be persisted at seal; the real one only
+        // arrives once a prover reports it.
+        let cycle_stats = storage
+            .cycle_stats_dal()
+            .get_cycle_stats(L1BatchNumber(1))
+            .await
+            .unwrap()
+            .expect("no cycle stats for L1 batch #1");
+        assert!(cycle_stats.predicted_cycles.is_some());
+        assert_eq!(cycle_stats.real_cycles, None);
     }
 
     async fn execute_mock_batch(
@@ -549,7 +572,7 @@ mod tests {
             &BatchInitParams {
                 l1_batch_env: l1_batch_env.clone(),
                 system_env: default_system_env(),
-                pubdata_params: Default::default(),
+                pubdata_params: PubdataParams::genesis(),
                 pubdata_limit,
                 timestamp_ms,
             },
@@ -638,7 +661,7 @@ mod tests {
     async fn l2_block_and_l1_batch_processing_on_full_node() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
@@ -685,6 +708,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(protective_reads, HashSet::new());
+
+        // A full node doesn't persist predicted cycles — it merely replays batches.
+        let cycle_stats = storage
+            .cycle_stats_dal()
+            .get_cycle_stats(L1BatchNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(cycle_stats, None);
     }
 
     #[tokio::test]
@@ -768,7 +799,7 @@ mod tests {
         // Preparation
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         storage
@@ -791,7 +822,7 @@ mod tests {
             &BatchInitParams {
                 l1_batch_env: l1_batch_env.clone(),
                 system_env: default_system_env(),
-                pubdata_params: Default::default(),
+                pubdata_params: PubdataParams::genesis(),
                 timestamp_ms,
                 pubdata_limit,
             },

@@ -94,6 +94,7 @@ async fn main() -> anyhow::Result<()> {
         verifier_config.etherscan_api_url.is_some() && etherscan_api_key.is_some();
     let contract_verifier = ContractVerifier::new(
         verifier_config.compilation_timeout,
+        verifier_config.compiler_download_timeout,
         pool.clone(),
         etherscan_verifier_enabled,
     )

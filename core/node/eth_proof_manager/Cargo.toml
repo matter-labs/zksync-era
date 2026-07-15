@@ -29,6 +29,7 @@ zksync_node_fee_model.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_eth_watch.workspace = true
 zksync_eth_signer.workspace = true
+zksync_operator_signer.workspace = true
 zksync_proof_data_handler.workspace = true
 bellman.workspace = true
 circuit_definitions.workspace = true

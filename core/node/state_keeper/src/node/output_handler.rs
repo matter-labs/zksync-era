@@ -41,6 +41,9 @@ pub struct OutputHandlerLayer {
     /// May be set to `false` for nodes that do not participate in the sequencing process (e.g. external nodes)
     /// or run `vm_runner_protective_reads` component.
     protective_reads_persistence_enabled: bool,
+    /// Whether the predicted Airbender cycle count is persisted when an L1 batch is sealed.
+    /// Should only be set on the main node; external nodes merely replay batches.
+    predicted_cycles_persistence_enabled: bool,
 }
 
 #[derive(Debug, FromContext)]
@@ -63,6 +66,7 @@ impl OutputHandlerLayer {
             l2_block_seal_queue_capacity,
             pre_insert_txs: false,
             protective_reads_persistence_enabled: false,
+            predicted_cycles_persistence_enabled: false,
         }
     }
 
@@ -76,6 +80,14 @@ impl OutputHandlerLayer {
         protective_reads_persistence_enabled: bool,
     ) -> Self {
         self.protective_reads_persistence_enabled = protective_reads_persistence_enabled;
+        self
+    }
+
+    pub fn with_predicted_cycles_persistence_enabled(
+        mut self,
+        predicted_cycles_persistence_enabled: bool,
+    ) -> Self {
+        self.predicted_cycles_persistence_enabled = predicted_cycles_persistence_enabled;
         self
     }
 }
@@ -119,6 +131,9 @@ impl WiringLayer for OutputHandlerLayer {
         }
         if !self.protective_reads_persistence_enabled {
             persistence = persistence.without_protective_reads();
+        }
+        if self.predicted_cycles_persistence_enabled {
+            persistence = persistence.with_predicted_cycles_persistence();
         }
 
         let tree_writes_persistence = TreeWritesPersistence::new(persistence_pool);

@@ -19,6 +19,8 @@ pub struct EthProofManagerDal<'a, 'c> {
 
 #[derive(Debug, Clone)]
 pub enum EthProofManagerStatus {
+    Preparing,
+    Submitting,
     Fallbacked,
     Unpicked,
     Sent,
@@ -30,6 +32,8 @@ pub enum EthProofManagerStatus {
 impl EthProofManagerStatus {
     pub fn as_str(&self) -> &str {
         match self {
+            EthProofManagerStatus::Preparing => "preparing",
+            EthProofManagerStatus::Submitting => "submitting",
             EthProofManagerStatus::Fallbacked => "fallbacked",
             EthProofManagerStatus::Unpicked => "unpicked",
             EthProofManagerStatus::Sent => "sent",
@@ -58,6 +62,71 @@ impl ProvingNetwork {
 }
 
 impl EthProofManagerDal<'_, '_> {
+    pub async fn lock_batch_for_proving_network_and_prepare(
+        &mut self,
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let mut transaction = self.storage.start_transaction().await?;
+
+        let batch = sqlx::query!(
+            r#"
+            UPDATE proof_generation_details
+            SET
+                status = 'picked_by_prover',
+                updated_at = NOW(),
+                prover_taken_at = NOW()
+            WHERE
+                l1_batch_number = (
+                    SELECT
+                        l1_batch_number
+                    FROM
+                        proof_generation_details
+                    LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
+                    WHERE
+                        (
+                            vm_run_data_blob_url IS NOT NULL
+                            AND proof_gen_data_blob_url IS NOT NULL
+                            AND l1_batches.hash IS NOT NULL
+                            AND l1_batches.aux_data_hash IS NOT NULL
+                            AND l1_batches.meta_parameters_hash IS NOT NULL
+                            AND status = 'unpicked'
+                            AND proving_mode = 'proving_network'
+                        )
+                    ORDER BY
+                        l1_batch_number ASC
+                    LIMIT
+                        1
+                )
+            RETURNING
+            proof_generation_details.l1_batch_number
+            "#
+        )
+        .instrument("lock_batch_for_proving_network_and_prepare#lock_proof")
+        .fetch_optional(&mut transaction)
+        .await?
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+
+        if let Some(batch_number) = batch {
+            sqlx::query!(
+                r#"
+                INSERT INTO eth_proof_manager (
+                    l1_batch_number, status, created_at, witness_inputs_url, updated_at
+                )
+                VALUES ($1, $2, NOW(), NULL, NOW())
+                "#,
+                i64::from(batch_number.0),
+                EthProofManagerStatus::Preparing.as_str(),
+            )
+            .instrument("lock_batch_for_proving_network_and_prepare#insert_eth_row")
+            .with_arg("batch_number", &batch_number)
+            .execute(&mut transaction)
+            .await?;
+        }
+
+        transaction.commit().await?;
+
+        Ok(batch)
+    }
+
     pub async fn insert_batch(
         &mut self,
         batch_number: L1BatchNumber,
@@ -77,6 +146,32 @@ impl EthProofManagerDal<'_, '_> {
         .instrument("insert_batch")
         .with_arg("batch_number", &batch_number)
         .with_arg("status", &EthProofManagerStatus::Unpicked.as_str())
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn mark_batch_as_submitting(
+        &mut self,
+        batch_number: L1BatchNumber,
+        witness_inputs_url: &str,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE eth_proof_manager SET
+                witness_inputs_url = $2,
+                submission_started_at = NOW(),
+                updated_at = NOW(),
+                status = $3
+            WHERE l1_batch_number = $1
+            "#,
+            i64::from(batch_number.0),
+            witness_inputs_url,
+            EthProofManagerStatus::Submitting.as_str(),
+        )
+        .instrument("mark_batch_as_submitting")
+        .with_arg("batch_number", &batch_number)
         .execute(self.storage)
         .await?;
 
@@ -306,8 +401,9 @@ impl EthProofManagerDal<'_, '_> {
         // 1. The batch was sent but the proof request was not accepted after timeout
         // 2. The batch was acknowledged but the proof wasn't generated on time
         // 3. The batch was proven but the proof was invalid
-        // 4. The batch was picked by prover network, but nothing happened after timeout
-        // 5. The batch was supposed to be picked by prover network, but it wasn't after timeout
+        // 4. The batch submission outcome is uncertain and no acknowledgment was observed after timeout
+        // 5. The batch was picked by prover network and is still preparing after timeout
+        // 6. The batch was supposed to be picked by prover network, but it wasn't after timeout
         let batches: Vec<L1BatchNumber> = sqlx::query!(
             r#"
             UPDATE eth_proof_manager
@@ -319,7 +415,14 @@ impl EthProofManagerDal<'_, '_> {
                     AND submit_proof_request_tx_sent_at < NOW() - $5::INTERVAL
                 )
                 OR (status = $6 AND proof_validation_result IS false)
-                OR (status = $7 AND updated_at < NOW() - $8::INTERVAL)
+                OR (
+                    status = $7
+                    AND submission_started_at < NOW() - $8::INTERVAL
+                )
+                OR (
+                    (status = $9 OR status = $10)
+                    AND updated_at < NOW() - $11::INTERVAL
+                )
             RETURNING l1_batch_number
             "#,
             EthProofManagerStatus::Fallbacked.as_str(),
@@ -328,6 +431,9 @@ impl EthProofManagerDal<'_, '_> {
             EthProofManagerStatus::Acknowledged.as_str(),
             &proving_timeout,
             EthProofManagerStatus::Proven.as_str(),
+            EthProofManagerStatus::Submitting.as_str(),
+            &acknowledgment_timeout,
+            EthProofManagerStatus::Preparing.as_str(),
             EthProofManagerStatus::Unpicked.as_str(),
             &picking_timeout,
         )

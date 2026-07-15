@@ -22,6 +22,31 @@ ignore = [
   "RUSTSEC-2021-0139",
   "RUSTSEC-2024-0388", # `derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it
   "RUSTSEC-2024-0436", # `paste` is an unmaintained dependency of various crates (like alloy-primitives, sqlx-core)
+  "RUSTSEC-2025-0052", # `async-std` is discontinued, transitive dependency
+  "RUSTSEC-2025-0134", # `rustls-pemfile` is unmaintained, transitive dependency via old rustls versions
+  "RUSTSEC-2025-0141", # `bincode` is unmaintained, transitive dependency
+  # The following `rustls-webpki` advisories all affect the old 0.101.7 and/or 0.102.8 versions
+  # still pinned transitively by rustls 0.21/0.22 (via aws-smithy, hyper-rustls, etc.).
+  # Modern 0.103.x is on >=0.103.13 in our lockfile and is unaffected.
+  "RUSTSEC-2026-0049", # CRL distribution point matching; affects 0.102.8 only (0.101.x is unaffected, 0.103.13 patched)
+  "RUSTSEC-2026-0098", # URI name constraints incorrectly accepted; affects 0.101.7 and 0.102.8 (0.103.13 patched)
+  "RUSTSEC-2026-0099", # Name constraints accept wildcard cert names; affects 0.101.7 and 0.102.8 (0.103.13 patched)
+  "RUSTSEC-2026-0104", # Reachable panic in CRL parsing; affects 0.101.7 and 0.102.8 (0.103.13 patched). We don't use CRLs.
+  # `rand` 0.8.x unsoundness in `ThreadRng` reseed under a custom logger calling rand from
+  # log macros. Patch only exists for >=0.9.3 / >=0.10.1; no fix backported to 0.8.x. We
+  # bumped 0.9.x to 0.9.4; rand 0.8.5 remains via many transitive deps (alloy-primitives,
+  # sqlx-postgres, jsonrpsee, boojum, secp256k1, foundry-compilers, ...) that haven't
+  # migrated to rand 0.9. The unsoundness requires a custom logger that calls rand from
+  # logging callbacks, which we don't do.
+  "RUSTSEC-2026-0097",
+  # `quick-xml` <0.41.0 XML-parsing DoS advisories (quadratic attribute-duplicate check and
+  # unbounded namespace-declaration allocation in `NsReader`). Reached only transitively via
+  # sentry -> sentry-contexts -> os_info -> plist, which parses local system `.plist` files to
+  # report OS info -- not untrusted network input, so the DoS vectors are not reachable for us.
+  # No released `plist` depends on the patched quick-xml >=0.41.0 yet (latest 1.9.0 caps at
+  # ^0.39.2, and bumping it pulls in crates requiring Rust 1.88 which our nightly toolchain lacks).
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195",
 ]
 
 [licenses]

@@ -11,13 +11,8 @@ import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import {
-    scaledGasPrice,
-    maxL2GasLimitForPriorityTxs,
-    SYSTEM_CONTEXT_ADDRESS,
-    getTestContract,
-    waitForL2ToL1LogProof
-} from '../src/helpers';
+import { scaledGasPrice, maxL2GasLimitForPriorityTxs, getTestContract, waitForL2ToL1LogProof } from '../src/helpers';
+import { SYSTEM_CONTEXT_ADDRESS } from '../src/constants';
 import { DataAvailabityMode } from '../src/types';
 import { BigNumberish } from 'ethers';
 import { BytesLike } from '@ethersproject/bytes';

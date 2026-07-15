@@ -11,6 +11,12 @@ pub enum SettlementLayer {
     Gateway(SLChainId),
 }
 
+impl Default for SettlementLayer {
+    fn default() -> Self {
+        Self::L1(SLChainId(1))
+    }
+}
+
 impl SettlementLayer {
     pub fn is_gateway(self) -> bool {
         matches!(self, Self::Gateway(_))
@@ -32,13 +38,18 @@ impl SettlementLayer {
 #[derive(Debug, Clone)]
 pub struct WorkingSettlementLayer {
     unsafe_settlement_layer: SettlementLayer,
+    target_settlement_layer: SettlementLayer,
     migration_in_progress: bool,
 }
 
 impl WorkingSettlementLayer {
-    pub fn new(unsafe_settlement_layer: SettlementLayer) -> Self {
+    pub fn new(
+        unsafe_settlement_layer: SettlementLayer,
+        target_settlement_layer: SettlementLayer,
+    ) -> Self {
         Self {
             unsafe_settlement_layer,
+            target_settlement_layer,
             migration_in_progress: false,
         }
     }
@@ -51,11 +62,19 @@ impl WorkingSettlementLayer {
         self.unsafe_settlement_layer
     }
 
+    pub fn target_settlement_layer(&self) -> SettlementLayer {
+        self.target_settlement_layer
+    }
+
     pub fn settlement_layer_for_sending_txs(&self) -> Option<SettlementLayer> {
         if self.migration_in_progress {
             None
         } else {
             Some(self.unsafe_settlement_layer)
         }
+    }
+
+    pub fn for_tests() -> Self {
+        Self::new(SettlementLayer::for_tests(), SettlementLayer::for_tests())
     }
 }

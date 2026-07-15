@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE airbender_proof_generation_details\n            SET\n                status = $1,\n                updated_at = NOW(),\n                snark_taken_at = NOW(),\n                snark_attempts = snark_attempts + 1\n            WHERE\n                l1_batch_number = (\n                    SELECT apgd.l1_batch_number\n                    FROM airbender_proof_generation_details apgd\n                    WHERE\n                        apgd.l1_batch_number >= $3\n                        AND apgd.proof_blob_url IS NOT NULL\n                        AND apgd.snark_attempts < $5\n                        AND (\n                            apgd.status = $2\n                            OR (\n                                apgd.status = $1\n                                AND apgd.snark_taken_at < NOW() - $4::INTERVAL\n                            )\n                        )\n                    ORDER BY apgd.l1_batch_number ASC\n                    LIMIT 1\n                    FOR UPDATE OF apgd SKIP LOCKED\n                )\n            RETURNING l1_batch_number,\n            protocol_version AS \"protocol_version!\",\n            protocol_version_patch,\n            created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "protocol_version!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Interval",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f963c89c1899ec1dd2de168a6abda83ea2bba9559043387fef7048a757427a3f"
+}

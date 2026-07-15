@@ -2,7 +2,10 @@ use std::collections::VecDeque;
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
-    interface::{Call, FinishedL1Batch, VmExecutionMetrics, VmExecutionResultAndLogs},
+    interface::{
+        Call, FeatureVector, FeatureVectorExt, FinishedL1Batch, VmExecutionMetrics,
+        VmExecutionResultAndLogs,
+    },
     utils::{
         get_batch_base_fee, get_bootloader_max_interop_roots_in_batch, get_max_batch_gas_limit,
         get_max_gas_per_pubdata_byte, StorageWritesDeduplicator,
@@ -12,7 +15,8 @@ use zksync_types::{
     block::{build_bloom, L2BlockHeader},
     commitment::PubdataParams,
     fee_model::BatchFeeInput,
-    Address, BloomInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
+    settlement::SettlementLayer,
+    Address, BloomInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 
 pub(crate) use self::{committed_updates::CommittedUpdates, l2_block_updates::L2BlockUpdates};
@@ -42,6 +46,7 @@ pub struct UpdatesManager {
     l1_batch_timestamp: u64,
     fee_account_address: Address,
     batch_fee_input: BatchFeeInput,
+    interop_fee: U256,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
@@ -51,6 +56,7 @@ pub struct UpdatesManager {
     previous_batch_protocol_version: ProtocolVersionId,
     previous_batch_timestamp: u64,
     sync_block_data_and_header_persistence: bool,
+    settlement_layer: SettlementLayer,
 
     // committed state
     committed_updates: CommittedUpdates,
@@ -80,6 +86,7 @@ impl UpdatesManager {
             l1_batch_timestamp: batch_init_params.l1_batch_env.timestamp,
             fee_account_address: batch_init_params.l1_batch_env.fee_account,
             batch_fee_input: batch_init_params.l1_batch_env.fee_input,
+            interop_fee: batch_init_params.l1_batch_env.interop_fee,
             base_fee_per_gas: get_batch_base_fee(
                 &batch_init_params.l1_batch_env,
                 protocol_version.into(),
@@ -94,6 +101,7 @@ impl UpdatesManager {
             previous_batch_protocol_version,
             previous_batch_timestamp,
             sync_block_data_and_header_persistence,
+            settlement_layer: batch_init_params.l1_batch_env.settlement_layer,
             committed_updates: CommittedUpdates::new(),
             last_committed_l2_block_number: L2BlockNumber(
                 batch_init_params.l1_batch_env.first_l2_block.number,
@@ -155,6 +163,7 @@ impl UpdatesManager {
                 prev_l2_block_timestamp: last.timestamp(),
                 l1_batch: self.l1_batch_number,
                 prev_l1_batch_timestamp: self.previous_batch_timestamp(),
+                settlement_layer: self.settlement_layer,
             }
         } else {
             IoCursor {
@@ -163,6 +172,7 @@ impl UpdatesManager {
                 prev_l2_block_timestamp: self.last_committed_l2_block_timestamp.unwrap(),
                 l1_batch: self.l1_batch_number,
                 prev_l1_batch_timestamp: self.previous_batch_timestamp(),
+                settlement_layer: self.settlement_layer,
             }
         }
     }
@@ -189,6 +199,7 @@ impl UpdatesManager {
             insert_header: self.sync_block_data_and_header_persistence
                 || (tx_count_in_last_block == 0),
             rolling_txs_hash: self.rolling_tx_hash_updates.rolling_hash,
+            settlement_layer: self.settlement_layer,
         }
     }
 
@@ -328,6 +339,15 @@ impl UpdatesManager {
                 })
     }
 
+    /// Airbender cycle-estimator features accumulated over the whole pending batch.
+    pub(crate) fn pending_cycle_features(&self) -> FeatureVector {
+        let mut features = self.committed_updates.block_cycle_features.clone();
+        for block in &self.pending_l2_blocks {
+            features.merge(&block.block_cycle_features);
+        }
+        features
+    }
+
     pub(crate) fn pending_txs_encoding_size(&self) -> usize {
         self.committed_updates.txs_encoding_size
             + self
@@ -434,6 +454,10 @@ impl UpdatesManager {
         self.protocol_version
     }
 
+    pub fn settlement_layer(&self) -> SettlementLayer {
+        self.settlement_layer
+    }
+
     pub fn previous_batch_protocol_version(&self) -> ProtocolVersionId {
         self.previous_batch_protocol_version
     }
@@ -456,6 +480,10 @@ impl UpdatesManager {
 
     pub fn batch_fee_input(&self) -> BatchFeeInput {
         self.batch_fee_input
+    }
+
+    pub fn interop_fee(&self) -> U256 {
+        self.interop_fee
     }
 
     pub fn fee_account_address(&self) -> Address {
@@ -502,6 +530,7 @@ pub struct L2BlockSealCommand {
     pub pubdata_params: PubdataParams,
     pub insert_header: bool,
     pub rolling_txs_hash: H256,
+    pub settlement_layer: SettlementLayer,
 }
 
 #[cfg(test)]

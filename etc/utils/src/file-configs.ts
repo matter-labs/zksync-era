@@ -39,6 +39,29 @@ export function loadEcosystem(pathToHome: string) {
     );
 }
 
+export function loadEcosystemConfig({ pathToHome, config }: { pathToHome: string; config: ConfigName }) {
+    const ecosystem = loadEcosystem(pathToHome);
+    if (!ecosystem || !ecosystem.config) {
+        return null;
+    }
+    const configPath = path.join(pathToHome, ecosystem.config, config);
+    if (!fs.existsSync(configPath)) {
+        return null;
+    }
+    return yaml.parse(fs.readFileSync(configPath, { encoding: 'utf-8' }), {
+        customTags: (tags) =>
+            tags.filter((tag) => {
+                if (typeof tag === 'string') {
+                    return true;
+                }
+                if (tag.format !== 'HEX') {
+                    return true;
+                }
+                return false;
+            })
+    });
+}
+
 export function loadChainConfig(pathToHome: string, chain: string) {
     const configPath = path.join(pathToHome, 'chains', chain, '/ZkStack.yaml');
 
@@ -144,6 +167,19 @@ export function replaceL1BatchMinAgeBeforeExecuteSeconds(pathToHome: string, cha
     } else {
         generalConfigObject['eth']['sender']['l1_batch_min_age_before_execute_seconds'] = value;
     }
+    const newGeneralConfig = yaml.stringify(generalConfigObject);
+    fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
+}
+
+// Explicitly pins the account that pays gateway settlement fees for `executeBatches`.
+// The eth_sender defaults this to the zero address when unset, which cannot pay fees on
+// the gateway, so tests that settle on the gateway must point it at the operator (which is
+// registered as an agreed fee payer and holds approved wrapped ZK).
+export function setSettlementFeePayer(pathToHome: string, chain: string, address: string) {
+    const generalConfigPath = getConfigPath({ pathToHome, chain, config: 'general.yaml' });
+    const generalConfig = fsSync.readFileSync(generalConfigPath, 'utf8');
+    const generalConfigObject = yaml.parse(generalConfig);
+    generalConfigObject['eth']['sender']['settlement_fee_payer'] = address;
     const newGeneralConfig = yaml.stringify(generalConfigObject);
     fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
 }

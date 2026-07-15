@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use zksync_health_check::AppHealthCheck;
 use zksync_node_framework::{
@@ -16,6 +16,7 @@ use crate::api_server::TreeApiHttpClient;
 #[derive(Debug)]
 pub struct TreeApiClientLayer {
     url: Option<String>,
+    request_timeout: Duration,
 }
 
 #[derive(Debug, FromContext)]
@@ -32,8 +33,11 @@ pub struct Output {
 }
 
 impl TreeApiClientLayer {
-    pub fn http(url: Option<String>) -> Self {
-        Self { url }
+    pub fn http(url: Option<String>, request_timeout: Duration) -> Self {
+        Self {
+            url,
+            request_timeout,
+        }
     }
 }
 
@@ -61,7 +65,7 @@ impl WiringLayer for TreeApiClientLayer {
             });
         };
 
-        let client = Arc::new(TreeApiHttpClient::new(url));
+        let client = Arc::new(TreeApiHttpClient::new(url, self.request_timeout));
         input
             .app_health
             .insert_custom_component(client.clone())

@@ -77,6 +77,7 @@ impl EthWatch {
             state.last_seen_protocol_version,
             sl_eth_client.clone(),
             l1_client.clone(),
+            chain_id,
         );
         let gateway_migration_processor = GatewayMigrationProcessor::new(chain_id);
 

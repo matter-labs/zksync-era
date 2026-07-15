@@ -10,7 +10,9 @@ use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-pub use zksync_basic_types::commitment::{L1BatchCommitmentMode, PubdataParams, PubdataType};
+pub use zksync_basic_types::commitment::{
+    L1BatchCommitmentMode, L2DACommitmentScheme, L2PubdataValidator, PubdataParams, PubdataType,
+};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -326,6 +328,44 @@ pub struct BlobHash {
     pub linear_hash: H256,
 }
 
+/// Airbender-shape commitment for a single L1 batch. Persisted in
+/// `airbender_batch_commitments`, parallel to the Boojum-shape row in
+/// `l1_batches`. The two variants differ only in `aux_commitments`; the change
+/// cascades into different `aux_data_hash` and `commitment` values.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct AirbenderBatchCommitment {
+    /// Top-level `L1BatchCommitment` hash with Airbender-shape `aux_commitments`.
+    pub commitment: H256,
+    /// Auxiliary output hash with Airbender-shape `aux_commitments`.
+    pub aux_data_hash: H256,
+    /// Always `H256::zero()` in the current verifier; kept in the schema/struct
+    /// so a future verifier can put a non-zero value here without a migration.
+    pub events_queue_commitment: H256,
+    /// `Blake2(expanded_bootloader_memory)` — Airbender's variant of the
+    /// bootloader initial content commitment.
+    pub bootloader_initial_content_commitment: H256,
+}
+
+/// Subset of previous-batch commitment artifacts the Airbender V2 prover
+/// consumes via `CommitmentInput.prev_*`. Aggregated from `l1_batches`
+/// (`meta_parameters_hash`) and `airbender_batch_commitments` (commitment +
+/// `aux_data_hash`) in a single DAL query.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct PrevBatchAirbenderCommitmentInput {
+    pub meta_parameters_hash: H256,
+    pub prev_batch_commitment: H256,
+    pub prev_aux_hash: H256,
+}
+
+/// Selects which `aux_commitments` variant of a `PostBoojum` auxiliary output
+/// to serialize/hash. Used internally to share the serialization path between
+/// the default (Boojum) hash and the Airbender hash.
+#[derive(Debug, Clone, Copy)]
+enum AuxCommitmentsVariant {
+    Boojum,
+    Airbender,
+}
+
 /// Block Output produced by Virtual Machine
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
@@ -344,6 +384,11 @@ pub enum L1BatchAuxiliaryOutput {
         state_diffs_compressed: Vec<u8>,
         state_diffs_hash: H256,
         aux_commitments: AuxCommitments,
+        /// Airbender-shape `aux_commitments`, kept here to derive a parallel
+        /// `aux_data_hash`/commitment without recomputing the rest of the
+        /// auxiliary output. `None` when only the Boojum variant is available.
+        #[cfg_attr(test, serde(default))]
+        airbender_aux_commitments: Option<AuxCommitments>,
         blob_hashes: Vec<BlobHash>,
         aggregation_root: H256,
         local_root: H256,
@@ -397,10 +442,14 @@ impl L1BatchAuxiliaryOutput {
                 common: common_input,
                 system_logs,
                 state_diffs,
-                aux_commitments,
+                aux_commitments_both,
                 blob_hashes,
                 aggregation_root,
             } => {
+                let AuxCommitmentsBoth {
+                    boojum: aux_commitments,
+                    airbender: airbender_aux_commitments,
+                } = aux_commitments_both;
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
                     .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
@@ -481,6 +530,7 @@ impl L1BatchAuxiliaryOutput {
                     state_diffs_compressed,
                     state_diffs_hash,
                     aux_commitments,
+                    airbender_aux_commitments,
                     blob_hashes,
                     local_root,
                     aggregation_root,
@@ -515,6 +565,14 @@ impl L1BatchAuxiliaryOutput {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
+        self.to_bytes_for(AuxCommitmentsVariant::Boojum)
+    }
+
+    /// Serializes the auxiliary output using either the Boojum or Airbender
+    /// `aux_commitments` stored on the `PostBoojum` variant. Pre-Boojum ignores
+    /// the choice. Panics if `Airbender` is requested but the Airbender variant
+    /// is not populated — callers should pre-check via [`Self::airbender_hash`].
+    fn to_bytes_for(&self, variant: AuxCommitmentsVariant) -> Vec<u8> {
         let mut result = Vec::new();
 
         match self {
@@ -534,9 +592,16 @@ impl L1BatchAuxiliaryOutput {
                 system_logs_linear_hash,
                 state_diffs_hash,
                 aux_commitments,
+                airbender_aux_commitments,
                 blob_hashes,
                 ..
             } => {
+                let aux_commitments = match variant {
+                    AuxCommitmentsVariant::Boojum => aux_commitments,
+                    AuxCommitmentsVariant::Airbender => airbender_aux_commitments
+                        .as_ref()
+                        .expect("airbender aux commitments are not populated"),
+                };
                 result.extend(system_logs_linear_hash.as_bytes());
                 result.extend(state_diffs_hash.as_bytes());
                 result.extend(
@@ -560,10 +625,33 @@ impl L1BatchAuxiliaryOutput {
         H256::from_slice(&keccak256(&self.to_bytes()))
     }
 
+    /// Hash of the auxiliary output computed with the stored Airbender-shape
+    /// `aux_commitments`. Returns `None` for pre-Boojum batches or when the
+    /// Airbender variant was not populated.
+    pub fn airbender_hash(&self) -> Option<H256> {
+        self.airbender_aux_commitments()?;
+        Some(H256::from_slice(&keccak256(
+            &self.to_bytes_for(AuxCommitmentsVariant::Airbender),
+        )))
+    }
+
     pub fn common(&self) -> &L1BatchAuxiliaryCommonOutput {
         match self {
             Self::PreBoojum { common, .. } => common,
             Self::PostBoojum { common, .. } => common,
+        }
+    }
+
+    /// Airbender-shape `aux_commitments` stored alongside the Boojum variant
+    /// on `PostBoojum` outputs. Returns `None` for pre-Boojum batches or when
+    /// the Airbender variant was not populated.
+    pub fn airbender_aux_commitments(&self) -> Option<AuxCommitments> {
+        match self {
+            Self::PreBoojum { .. } => None,
+            Self::PostBoojum {
+                airbender_aux_commitments,
+                ..
+            } => *airbender_aux_commitments,
         }
     }
 }
@@ -703,22 +791,56 @@ impl L1BatchCommitment {
         }
     }
 
-    pub fn hash(&self) -> Result<L1BatchCommitmentHash, CommitmentValidationError> {
-        let mut result = vec![];
+    /// Computes the commitment hash for the chosen `aux_commitments` variant.
+    /// Panics if `Airbender` is requested but the Airbender variant is not
+    /// populated — callers should pre-check via [`Self::airbender_artifacts`].
+    fn hash_for(
+        &self,
+        variant: AuxCommitmentsVariant,
+    ) -> Result<L1BatchCommitmentHash, CommitmentValidationError> {
+        let auxiliary_output_hash = match variant {
+            AuxCommitmentsVariant::Boojum => self.auxiliary_output.hash(),
+            AuxCommitmentsVariant::Airbender => self
+                .auxiliary_output
+                .airbender_hash()
+                .expect("airbender aux commitments are not populated"),
+        };
         let pass_through_data_hash = self.pass_through_data.hash()?;
-        result.extend_from_slice(pass_through_data_hash.as_bytes());
-        let metadata_hash = self.meta_parameters.hash();
-        result.extend_from_slice(metadata_hash.as_bytes());
-        let auxiliary_output_hash = self.auxiliary_output.hash();
-        result.extend_from_slice(auxiliary_output_hash.as_bytes());
-        let hash = keccak256(&result);
-        let commitment = H256::from_slice(&hash);
+        let meta_parameters_hash = self.meta_parameters.hash();
+        let mut buf = Vec::with_capacity(32 * 3);
+        buf.extend_from_slice(pass_through_data_hash.as_bytes());
+        buf.extend_from_slice(meta_parameters_hash.as_bytes());
+        buf.extend_from_slice(auxiliary_output_hash.as_bytes());
+        let commitment = H256::from_slice(&keccak256(&buf));
         Ok(L1BatchCommitmentHash {
             pass_through_data: pass_through_data_hash,
             aux_output: auxiliary_output_hash,
-            meta_parameters: metadata_hash,
+            meta_parameters: meta_parameters_hash,
             commitment,
         })
+    }
+
+    pub fn hash(&self) -> Result<L1BatchCommitmentHash, CommitmentValidationError> {
+        self.hash_for(AuxCommitmentsVariant::Boojum)
+    }
+
+    /// Builds the Airbender-shape commitment for this batch, reusing the
+    /// already-computed `pass_through_data` and `meta_parameters` and hashing
+    /// the auxiliary output with the Airbender variant of `aux_commitments`.
+    /// Returns `None` for pre-Boojum batches.
+    pub fn airbender_artifacts(
+        &self,
+    ) -> Result<Option<AirbenderBatchCommitment>, CommitmentValidationError> {
+        let Some(aux) = self.auxiliary_output.airbender_aux_commitments() else {
+            return Ok(None);
+        };
+        let commitment_hash = self.hash_for(AuxCommitmentsVariant::Airbender)?;
+        Ok(Some(AirbenderBatchCommitment {
+            commitment: commitment_hash.commitment,
+            aux_data_hash: commitment_hash.aux_output,
+            events_queue_commitment: aux.events_queue_commitment,
+            bootloader_initial_content_commitment: aux.bootloader_initial_content_commitment,
+        }))
     }
 
     pub fn artifacts(&self) -> Result<L1BatchCommitmentArtifacts, CommitmentValidationError> {
@@ -761,6 +883,34 @@ pub struct AuxCommitments {
     pub bootloader_initial_content_commitment: H256,
 }
 
+/// Both Boojum and Airbender variants of the auxiliary commitments for a single
+/// L1 batch. Airbender uses lighter math for two of the four sub-hashes; the
+/// other two come out identical. `airbender` is `None` when only the Boojum
+/// variant is available (e.g. legacy fixtures without the Airbender commitment).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
+pub struct AuxCommitmentsBoth {
+    pub boojum: AuxCommitments,
+    pub airbender: Option<AuxCommitments>,
+}
+
+/// Deserializes a flat [`AuxCommitments`] JSON object into [`AuxCommitmentsBoth`]
+/// with the Airbender variant set to `None`. Used by tests to keep the
+/// pre-Airbender `aux_commitments` field shape in fixture files.
+#[cfg(test)]
+fn deserialize_aux_commitments_both_legacy<'de, D>(
+    deserializer: D,
+) -> Result<AuxCommitmentsBoth, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let boojum = AuxCommitments::deserialize(deserializer)?;
+    Ok(AuxCommitmentsBoth {
+        boojum,
+        airbender: None,
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct CommitmentCommonInput {
@@ -785,7 +935,14 @@ pub enum CommitmentInput {
         common: CommitmentCommonInput,
         system_logs: Vec<SystemL2ToL1Log>,
         state_diffs: Vec<StateDiffRecord>,
-        aux_commitments: AuxCommitments,
+        #[cfg_attr(
+            test,
+            serde(
+                rename = "aux_commitments",
+                deserialize_with = "deserialize_aux_commitments_both_legacy"
+            )
+        )]
+        aux_commitments_both: AuxCommitmentsBoth,
         blob_hashes: Vec<BlobHash>,
         aggregation_root: H256,
     },
@@ -821,13 +978,17 @@ impl CommitmentInput {
                 repeated_writes: Vec::new(),
             }
         } else {
+            let zero_aux = AuxCommitments {
+                events_queue_commitment: H256::zero(),
+                bootloader_initial_content_commitment: H256::zero(),
+            };
             Self::PostBoojum {
                 common: commitment_common_input,
                 system_logs: Vec::new(),
                 state_diffs: Vec::new(),
-                aux_commitments: AuxCommitments {
-                    events_queue_commitment: H256::zero(),
-                    bootloader_initial_content_commitment: H256::zero(),
+                aux_commitments_both: AuxCommitmentsBoth {
+                    boojum: zero_aux,
+                    airbender: Some(zero_aux),
                 },
                 blob_hashes: {
                     let num_blobs = num_blobs_required(&protocol_version);

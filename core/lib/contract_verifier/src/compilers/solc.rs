@@ -9,8 +9,9 @@ use zksync_types::contract_verification::api::{
 
 use crate::{
     compilers::{
-        has_dangerous_imports, parse_standard_json_output, process_contract_name,
-        sanitize_compiler_stderr, validate_source_paths, Settings, Source, StandardJson,
+        has_unsupported_import_roots, parse_standard_json_output, process_contract_name,
+        sanitize_compiler_stderr, validate_remappings, validate_source_paths, Settings, Source,
+        StandardJson,
     },
     error::ContractVerifierError,
     resolver::Compiler,
@@ -47,9 +48,9 @@ impl Solc {
 
         let standard_json = match req.source_code_data {
             SourceCodeData::SolSingleFile(source_code) => {
-                if has_dangerous_imports(&source_code) {
+                if has_unsupported_import_roots(&source_code) {
                     return Err(ContractVerifierError::InvalidSourcePath(
-                        "import with absolute or traversal path".to_owned(),
+                        "import with absolute path".to_owned(),
                     ));
                 }
                 let source = Source {
@@ -74,6 +75,7 @@ impl Solc {
                 StandardJson {
                     language: "Solidity".to_owned(),
                     sources,
+                    other: serde_json::json!({}),
                     settings,
                 }
             }
@@ -82,10 +84,11 @@ impl Solc {
                     serde_json::from_value(serde_json::Value::Object(map))
                         .map_err(|_| ContractVerifierError::FailedToDeserializeInput)?;
                 validate_source_paths(&compiler_input.sources)?;
+                validate_remappings(&compiler_input.settings.other)?;
                 for source in compiler_input.sources.values() {
-                    if has_dangerous_imports(&source.content) {
+                    if has_unsupported_import_roots(&source.content) {
                         return Err(ContractVerifierError::InvalidSourcePath(
-                            "import with absolute or traversal path".to_owned(),
+                            "import with absolute path".to_owned(),
                         ));
                     }
                 }
@@ -109,6 +112,7 @@ impl Solc {
                 StandardJson {
                     language: "Yul".to_owned(),
                     sources,
+                    other: serde_json::json!({}),
                     settings,
                 }
             }
@@ -120,6 +124,264 @@ impl Solc {
             contract_name,
             file_name,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::contract_verification::api::CompilerVersions;
+
+    use super::*;
+
+    #[test]
+    fn build_input_allows_relative_parent_imports_in_standard_json() {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "src/Counter.sol": {
+                    "content": r#"
+                        pragma solidity ^0.8.20;
+                        import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+                        contract Counter is OwnableUpgradeable {
+                            function initialize(address owner) external initializer {
+                                __Ownable_init(owner);
+                            }
+                        }
+                    "#,
+                },
+                "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol": {
+                    "content": r#"
+                        pragma solidity ^0.8.20;
+                        import "../utils/ContextUpgradeable.sol";
+                        import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+                        abstract contract OwnableUpgradeable is Initializable, ContextUpgradeable {
+                            address private _owner;
+
+                            function __Ownable_init(address initialOwner) internal onlyInitializing {
+                                _owner = initialOwner;
+                            }
+                        }
+                    "#,
+                },
+                "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol": {
+                    "content": r#"
+                        pragma solidity ^0.8.20;
+                        import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+                        abstract contract ContextUpgradeable is Initializable {
+                            function _msgSender() internal view virtual returns (address) {
+                                return msg.sender;
+                            }
+                        }
+                    "#,
+                },
+                "@openzeppelin/contracts/proxy/utils/Initializable.sol": {
+                    "content": r#"
+                        pragma solidity ^0.8.20;
+
+                        abstract contract Initializable {
+                            modifier initializer() {
+                                _;
+                            }
+
+                            modifier onlyInitializing() {
+                                _;
+                            }
+                        }
+                    "#,
+                },
+            },
+            "settings": {
+                "optimizer": {
+                    "enabled": true,
+                },
+            },
+        });
+        let req = VerificationIncomingRequest {
+            contract_address: Default::default(),
+            source_code_data: SourceCodeData::StandardJsonInput(input.as_object().unwrap().clone()),
+            contract_name: "src/Counter.sol:Counter".to_owned(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_solc_version: "0.8.26".to_owned(),
+                compiler_zksolc_version: None,
+            },
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: Default::default(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: Default::default(),
+        };
+
+        let built = Solc::build_input(req).expect("relative parent imports should be allowed");
+
+        assert_eq!(built.file_name, "src/Counter.sol");
+        assert_eq!(built.contract_name, "Counter");
+        assert!(built
+            .standard_json
+            .sources
+            .contains_key("@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol"));
+    }
+
+    fn standard_json_req(input: serde_json::Value, name: &str) -> VerificationIncomingRequest {
+        VerificationIncomingRequest {
+            contract_address: Default::default(),
+            source_code_data: SourceCodeData::StandardJsonInput(input.as_object().unwrap().clone()),
+            contract_name: name.to_owned(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_solc_version: "0.8.26".to_owned(),
+                compiler_zksolc_version: None,
+            },
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: Default::default(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: Default::default(),
+        }
+    }
+
+    #[test]
+    fn build_input_drops_source_url_references() {
+        // A source may only be provided as inline `content`; any `urls` field (which solc would
+        // resolve against the filesystem) must never reach the compiler.
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "src/Test.sol": {
+                    "content": "contract Test {}",
+                    "urls": ["/some/host/path/Evil.sol"],
+                },
+            },
+            "settings": {},
+        });
+
+        let built = Solc::build_input(standard_json_req(input, "src/Test.sol:Test")).unwrap();
+        let serialized = serde_json::to_string(&built.standard_json).unwrap();
+        assert!(
+            !serialized.contains("urls") && !serialized.contains("/some/host/path"),
+            "url references must be stripped before reaching the compiler: {serialized}"
+        );
+    }
+
+    #[test]
+    fn build_input_rejects_source_without_content() {
+        // A source with only `urls` and no inline `content` has no compilable body and is rejected
+        // rather than being handed to the compiler for filesystem resolution.
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "src/Test.sol": {
+                    "urls": ["/some/host/path/Evil.sol"],
+                },
+            },
+            "settings": {},
+        });
+
+        let err = Solc::build_input(standard_json_req(input, "src/Test.sol:Test")).unwrap_err();
+        assert!(
+            matches!(err, ContractVerifierError::FailedToDeserializeInput),
+            "source without inline content must be rejected, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn build_input_rejects_non_hermetic_remapping() {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "src/Test.sol": {
+                    "content": r#"import "@ext/Lib.sol"; contract Test {}"#,
+                },
+            },
+            "settings": {
+                "remappings": ["@ext/=../../../../outside/tree/"],
+            },
+        });
+        let req = VerificationIncomingRequest {
+            contract_address: Default::default(),
+            source_code_data: SourceCodeData::StandardJsonInput(input.as_object().unwrap().clone()),
+            contract_name: "src/Test.sol:Test".to_owned(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_solc_version: "0.8.26".to_owned(),
+                compiler_zksolc_version: None,
+            },
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: Default::default(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: Default::default(),
+        };
+
+        let err = Solc::build_input(req).unwrap_err();
+        assert!(
+            matches!(err, ContractVerifierError::InvalidSourcePath(_)),
+            "non-hermetic remapping must be rejected, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn build_input_uses_evm_bytecode_outputs_for_evm_contracts() {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": {
+                "src/Counter.sol": {
+                    "content": "contract Counter {}",
+                },
+            },
+            "settings": {
+                "outputSelection": {
+                    "*": {
+                        "*": ["metadata"]
+                    }
+                },
+                "optimizer": {
+                    "enabled": true,
+                },
+            },
+        });
+        let req = VerificationIncomingRequest {
+            contract_address: Default::default(),
+            source_code_data: SourceCodeData::StandardJsonInput(input.as_object().unwrap().clone()),
+            contract_name: "src/Counter.sol:Counter".to_owned(),
+            compiler_versions: CompilerVersions::Solc {
+                compiler_solc_version: "0.8.26".to_owned(),
+                compiler_zksolc_version: None,
+            },
+            optimization_used: true,
+            optimizer_mode: None,
+            constructor_arguments: Default::default(),
+            is_system: false,
+            force_evmla: false,
+            evm_specific: Default::default(),
+        };
+
+        let built = Solc::build_input(req).expect("standard JSON input should build");
+        let output_selection = built
+            .standard_json
+            .settings
+            .output_selection
+            .as_ref()
+            .unwrap();
+        let selected_outputs = output_selection["*"]["*"].as_array().unwrap();
+
+        for expected_output in ["abi", "evm.bytecode", "evm.deployedBytecode"] {
+            assert!(
+                selected_outputs
+                    .iter()
+                    .any(|output| output.as_str() == Some(expected_output)),
+                "missing {expected_output:?}: {selected_outputs:?}"
+            );
+        }
+        assert!(
+            !selected_outputs
+                .iter()
+                .any(|output| output.as_str() == Some("evm")),
+            "standalone EVM solc should use explicit bytecode selectors: {selected_outputs:?}"
+        );
     }
 }
 
@@ -135,9 +397,15 @@ impl Compiler<SolcInput> for Solc {
         // not covered by the sources map will therefore fail with "File not found"
         // rather than silently reading an arbitrary host path.
         let compile_dir = tempfile::tempdir().context("failed to create temp dir for solc")?;
+        // Resolve the binary to an absolute path so it stays locatable after `current_dir` is
+        // switched to the empty working directory below.
+        let solc_path = tokio::fs::canonicalize(&self.path)
+            .await
+            .context("failed to canonicalize solc path")?;
 
-        let mut command = tokio::process::Command::new(&self.path);
+        let mut command = tokio::process::Command::new(&solc_path);
         let mut child = command
+            .current_dir(compile_dir.path())
             .arg("--standard-json")
             .arg("--allow-paths")
             .arg(compile_dir.path())

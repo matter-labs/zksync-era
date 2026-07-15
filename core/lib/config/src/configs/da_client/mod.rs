@@ -153,6 +153,7 @@ mod tests {
           client: Avail
           bridge_api_url: https://bridge-api.avail.so
           timeout_ms: 20000
+          api_client_timeout: 90s
           avail_client_type: GasRelay
           gas_relay_api_url: https://lens-turbo-api.availproject.org
           max_retries: 4
@@ -252,6 +253,7 @@ mod tests {
           client: Avail
           bridge_api_url: https://turing-bridge-api.avail.so
           timeout: 20s
+          api_client_timeout: 90s
           dispatch_timeout: 5s
           avail_client_type: FullClient
           api_node_url: wss://turing-rpc.avail.so/ws

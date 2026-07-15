@@ -74,6 +74,7 @@ impl EthWatchLayer {
             contracts.ecosystem_contracts.state_transition_proxy_addr,
             l1_ecosystem_contracts.chain_admin,
             l1_ecosystem_contracts.server_notifier_addr,
+            l1_ecosystem_contracts.bridge_hub,
             self.eth_watch_config.confirmations_for_eth_event,
             self.chain_id,
         )

@@ -176,6 +176,8 @@ enum Web3ErrorKind {
     TransactionTimeout,
     TransactionUnready,
     InvalidTimeout,
+    InvalidTransactionRequest,
+    InvalidFeeHistoryParams,
     Internal,
 }
 
@@ -195,6 +197,8 @@ impl Web3ErrorKind {
             Web3Error::TransactionTimeout(_) => Self::TransactionTimeout,
             Web3Error::TransactionUnready(_) => Self::TransactionUnready,
             Web3Error::InvalidTimeout(_) => Self::InvalidTimeout,
+            Web3Error::InvalidTransactionRequest(_) => Self::InvalidTransactionRequest,
+            Web3Error::InvalidFeeHistoryParams(_) => Self::InvalidFeeHistoryParams,
             Web3Error::InternalError(_)
             | Web3Error::MethodNotImplemented
             | Web3Error::ServerShuttingDown => Self::Internal,

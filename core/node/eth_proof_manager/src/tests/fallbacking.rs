@@ -6,6 +6,21 @@ use zksync_types::{L1BatchNumber, H256};
 
 use crate::tests::TestContext;
 
+async fn prepare_batch_for_proving_network(ctx: &TestContext) -> L1BatchNumber {
+    // This mirrors the sender's first durable step: reserve the batch for
+    // proving-network handling and create the `eth_proof_manager` row in
+    // `preparing`.
+    ctx.connection_pool
+        .connection()
+        .await
+        .unwrap()
+        .eth_proof_manager_dal()
+        .lock_batch_for_proving_network_and_prepare()
+        .await
+        .unwrap()
+        .unwrap()
+}
+
 // test basic flow of proof manager with fallbacking due to acknowledgment timeout
 #[tokio::test]
 async fn test_fallbacking_acknowledgment_timeout() {
@@ -22,20 +37,16 @@ async fn test_fallbacking_acknowledgment_timeout() {
 
     assert_eq!(batch, None);
 
-    let batch = processor.lock_batch_for_proving_network().await.unwrap();
-
-    assert_eq!(batch, Some(L1BatchNumber(1)));
-
-    processor.unlock_batch(L1BatchNumber(1)).await.unwrap();
+    let batch = prepare_batch_for_proving_network(&ctx).await;
+    assert_eq!(batch, L1BatchNumber(1));
 
     let mut connection = ctx.connection_pool.connection().await.unwrap();
 
     connection
         .eth_proof_manager_dal()
-        .insert_batch(L1BatchNumber(1), "url")
+        .mark_batch_as_submitting(L1BatchNumber(1), "url")
         .await
         .unwrap();
-
     connection
         .eth_proof_manager_dal()
         .mark_batch_as_sent(L1BatchNumber(1), H256::zero())
@@ -67,6 +78,57 @@ async fn test_fallbacking_acknowledgment_timeout() {
     assert_eq!(batch, Some(L1BatchNumber(1)));
 }
 
+// test recovery when request submission outcome is uncertain and no acknowledgment arrives
+#[tokio::test]
+async fn test_fallbacking_submitting_timeout() {
+    let ctx = TestContext::new().await.init().await;
+
+    let processor = ctx.processor(ProvingMode::ProvingNetwork).await;
+
+    let batch = processor
+        .lock_batch_for_proving(ctx.config.proof_generation_timeout)
+        .await
+        .unwrap();
+    assert_eq!(batch, None);
+
+    let batch = prepare_batch_for_proving_network(&ctx).await;
+    assert_eq!(batch, L1BatchNumber(1));
+
+    let mut connection = ctx.connection_pool.connection().await.unwrap();
+
+    // Stop right after persisting the uploaded witness-input URL. This models the
+    // "submission may or may not have happened" crash window.
+    connection
+        .eth_proof_manager_dal()
+        .mark_batch_as_submitting(L1BatchNumber(1), "url")
+        .await
+        .unwrap();
+
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    connection
+        .eth_proof_manager_dal()
+        .fallback_batches(
+            ctx.config.acknowledgment_timeout,
+            ctx.config.proof_generation_timeout,
+            ctx.config.picking_timeout,
+        )
+        .await
+        .unwrap();
+
+    // The batch should be recovered away from the proving-network path and become
+    // available to prover-cluster processing instead.
+    let batch = processor.lock_batch_for_proving_network().await.unwrap();
+    assert_eq!(batch, None);
+
+    let batch = processor
+        .lock_batch_for_proving(ctx.config.proof_generation_timeout)
+        .await
+        .unwrap();
+
+    assert_eq!(batch, Some(L1BatchNumber(1)));
+}
+
 // test basic flow of proof manager with fallbacking due to proving timeout
 #[tokio::test]
 async fn test_fallbacking_proving_timeout() {
@@ -84,17 +146,14 @@ async fn test_fallbacking_proving_timeout() {
         .unwrap();
     assert_eq!(batch, None);
 
-    let batch = processor.lock_batch_for_proving_network().await.unwrap();
-
-    assert_eq!(batch, Some(L1BatchNumber(1)));
-
-    processor.unlock_batch(L1BatchNumber(1)).await.unwrap();
+    let batch = prepare_batch_for_proving_network(&ctx).await;
+    assert_eq!(batch, L1BatchNumber(1));
 
     let mut connection = ctx.connection_pool.connection().await.unwrap();
 
     connection
         .eth_proof_manager_dal()
-        .insert_batch(L1BatchNumber(1), "url")
+        .mark_batch_as_submitting(L1BatchNumber(1), "url")
         .await
         .unwrap();
 
@@ -145,10 +204,8 @@ async fn test_fallbacking_picking_timeout() {
 
     assert_eq!(batch, None);
 
-    let batch = processor.lock_batch_for_proving_network().await.unwrap();
-    assert_eq!(batch, Some(L1BatchNumber(1)));
-
-    processor.unlock_batch(L1BatchNumber(1)).await.unwrap();
+    let batch = prepare_batch_for_proving_network(&ctx).await;
+    assert_eq!(batch, L1BatchNumber(1));
 
     // After timeout of picking, batch should be fallbacked, so it will be available for prover cluster, but not for proving network
 
@@ -192,16 +249,14 @@ async fn test_fallbacking_invalid_proof() {
 
     assert_eq!(batch, None);
 
-    let batch = processor.lock_batch_for_proving_network().await.unwrap();
-    assert_eq!(batch, Some(L1BatchNumber(1)));
-
-    processor.unlock_batch(L1BatchNumber(1)).await.unwrap();
+    let batch = prepare_batch_for_proving_network(&ctx).await;
+    assert_eq!(batch, L1BatchNumber(1));
 
     let mut connection = ctx.connection_pool.connection().await.unwrap();
 
     connection
         .eth_proof_manager_dal()
-        .insert_batch(L1BatchNumber(1), "url")
+        .mark_batch_as_submitting(L1BatchNumber(1), "url")
         .await
         .unwrap();
 

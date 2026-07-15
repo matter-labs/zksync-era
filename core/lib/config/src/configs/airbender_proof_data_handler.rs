@@ -1,0 +1,82 @@
+use std::time::Duration;
+
+use smart_config::{de::Serde, metadata::TimeUnit, DescribeConfig, DeserializeConfig};
+use zksync_basic_types::L1BatchNumber;
+
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct AirbenderProofDataHandlerConfig {
+    pub http_port: u16,
+    /// All batches before this one are considered to be processed.
+    #[config(default, with = Serde![int])]
+    pub first_processed_batch: L1BatchNumber,
+    /// Timeout for retrying proof generation if it previously failed or if it was picked by a
+    /// prover but the proof was not submitted within that time. Should be longer than the
+    /// expected proving time to avoid duplicate work.
+    #[config(default_t = 60 * TimeUnit::Minutes)]
+    pub proof_generation_timeout: Duration,
+    /// Timeout for retrying SNARK wrapping if it previously failed or if it was picked by a SNARK
+    /// prover but the proof was not submitted within that time.
+    #[config(default_t = 60 * TimeUnit::Minutes)]
+    pub snark_generation_timeout: Duration,
+    /// Maximum number of attempts to find a batch with available GCS data before giving up.
+    #[config(default_t = 5)]
+    pub max_attempts: usize,
+    /// Maximum number of times a batch is handed out for proving before it is abandoned. Every
+    /// pick counts as an attempt — the initial one and each retry triggered by a reported failure
+    /// or a timeout. Applies independently to the FRI and SNARK stages. Once the limit is reached
+    /// the batch is no longer reclaimed for that stage.
+    #[config(default_t = 10)]
+    pub max_proving_attempts: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use smart_config::{testing::test_complete, Yaml};
+
+    use super::*;
+
+    fn expected_config() -> AirbenderProofDataHandlerConfig {
+        AirbenderProofDataHandlerConfig {
+            http_port: 4320,
+            first_processed_batch: L1BatchNumber(123),
+            proof_generation_timeout: Duration::from_secs(90),
+            snark_generation_timeout: Duration::from_secs(120),
+            max_attempts: 5,
+            max_proving_attempts: 10,
+        }
+    }
+
+    #[test]
+    fn parsing_from_yaml() {
+        let yaml = r#"
+          http_port: 4320
+          first_processed_batch: 123
+          proof_generation_timeout_in_secs: 90
+          snark_generation_timeout_in_secs: 120
+          max_attempts: 5
+          max_proving_attempts: 10
+        "#;
+        let yaml = serde_yaml::from_str(yaml).unwrap();
+        let yaml = Yaml::new("test.yml", yaml).unwrap();
+
+        let config: AirbenderProofDataHandlerConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+
+    #[test]
+    fn parsing_from_idiomatic_yaml() {
+        let yaml = r#"
+          http_port: 4320
+          first_processed_batch: 123
+          proof_generation_timeout: 90s
+          snark_generation_timeout: 120s
+          max_attempts: 5
+          max_proving_attempts: 10
+        "#;
+        let yaml = serde_yaml::from_str(yaml).unwrap();
+        let yaml = Yaml::new("test.yml", yaml).unwrap();
+
+        let config: AirbenderProofDataHandlerConfig = test_complete(yaml).unwrap();
+        assert_eq!(config, expected_config());
+    }
+}

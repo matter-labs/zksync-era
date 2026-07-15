@@ -146,7 +146,7 @@ impl MerkleTreePruningTask {
 mod tests {
     use tempfile::TempDir;
     use test_casing::test_casing;
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_node_test_utils::prepare_recovery_snapshot;
     use zksync_types::{L1BatchNumber, L2BlockNumber, H256};
 
@@ -164,7 +164,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
         let config = mock_config(temp_dir.path());
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         reset_db_state(&pool, 5).await;
@@ -231,7 +231,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
         let config = mock_config(temp_dir.path());
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
 

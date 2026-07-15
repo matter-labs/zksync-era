@@ -12,7 +12,7 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::{Connection, CoreDal};
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block};
 use zksync_types::{
     block::{L2BlockHasher, L2BlockHeader},
@@ -209,7 +209,7 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
             .await
             .unwrap();
     } else {
-        let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         client.l2_block_hashes.insert(
@@ -291,7 +291,7 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
 async fn detector_stops_on_fatal_rpc_error() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -308,7 +308,7 @@ async fn detector_stops_on_fatal_rpc_error() {
 async fn reorg_is_detected_on_batch_hash_mismatch() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     let mut client = MockMainNodeClient::default();
@@ -374,7 +374,7 @@ async fn reorg_is_detected_on_l2_block_hash_mismatch() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
     let mut client = MockMainNodeClient::default();
-    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     client.l2_block_hashes.insert(
@@ -550,7 +550,7 @@ async fn stopping_reorg_detector_while_waiting_for_l1_batch() {
 async fn detector_errors_on_earliest_batch_hash_mismatch() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     assert_ne!(genesis_batch.root_hash, H256::zero());
@@ -614,7 +614,7 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
 async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     // Fill in local storage with some data, so that it's ahead of the main node.
@@ -667,7 +667,7 @@ async fn reorg_is_detected_based_on_l2_block_hashes(last_correct_l1_batch: u32) 
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -774,7 +774,7 @@ impl MainNodeClient for SlowMainNode {
 async fn detector_waits_for_state_hash_on_main_node() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     drop(storage);
@@ -793,7 +793,7 @@ async fn detector_waits_for_state_hash_on_main_node() {
 async fn detector_does_not_deadlock_if_main_node_is_not_available() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     drop(storage);

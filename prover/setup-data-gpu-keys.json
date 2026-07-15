@@ -1,6 +1,6 @@
 {
-  "sha": "2a07143-gpu",
-  "us": "gs://matterlabs-setup-data-us/2a07143-gpu/",
-  "europe": "gs://matterlabs-setup-data-europe/2a07143-gpu/",
-  "asia": "gs://matterlabs-setup-data-asia/2a07143-gpu/"
-}
+            "sha": "3e29e4a08-gpu",
+            "us": "gs://matterlabs-setup-data-us/3e29e4a08-gpu/",
+            "europe": "gs://matterlabs-setup-data-europe/3e29e4a08-gpu/",
+            "asia": "gs://matterlabs-setup-data-asia/3e29e4a08-gpu/"
+        }

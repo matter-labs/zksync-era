@@ -19,6 +19,11 @@ pub struct AvailConfig {
     pub bridge_api_url: String,
     #[config(default_t = Duration::from_secs(30))]
     pub timeout: Duration,
+    /// Total request timeout for the bridge API HTTP client.
+    /// Applies to every request made by the client; individual requests can still
+    /// further restrict via [`Self::timeout`].
+    #[config(default_t = Duration::from_secs(60))]
+    pub api_client_timeout: Duration,
     #[config(flatten)]
     pub config: AvailClientConfig,
 }

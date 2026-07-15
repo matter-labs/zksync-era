@@ -7,7 +7,7 @@ use smart_config::{
     metadata::TimeUnit,
     DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::{pubdata_da::PubdataSendingMode, H256};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, Address, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{utils::Fallback, EthWatchConfig};
@@ -50,6 +50,7 @@ impl EthConfig {
                 time_in_mempool_in_l1_blocks_cap: 1800,
                 is_verifier_pre_fflonk: true,
                 gas_limit_mode: GasLimitMode::Maximum,
+                prover: ProverType::Boojum,
                 max_acceptable_base_fee_in_wei: 100000000000,
                 time_in_mempool_multiplier_cap: None,
                 precommit_params: None,
@@ -57,6 +58,7 @@ impl EthConfig {
                 fusaka_upgrade_block: Some(0),
                 fusaka_upgrade_safety_margin: 0,
                 fusaka_upgrade_timestamp: Some(1),
+                settlement_fee_payer: None,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -117,6 +119,21 @@ impl WellKnown for GasLimitMode {
     const DE: Self::Deserializer = Serde![str];
 }
 
+/// The prover whose proofs are submitted to L1. `Boojum` is the legacy
+/// FRI + plonk/fflonk compression pipeline; `Airbender` is the Airbender
+/// FRI + SNARK-wrapping pipeline served by the airbender proof data handler.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum ProverType {
+    #[default]
+    Boojum,
+    Airbender,
+}
+
+impl WellKnown for ProverType {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
+}
+
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct SenderConfig {
     /// Amount of confirmations required to consider L1 transaction committed.
@@ -168,6 +185,11 @@ pub struct SenderConfig {
     pub is_verifier_pre_fflonk: bool,
     #[config(default)]
     pub gas_limit_mode: GasLimitMode,
+    /// Prover whose proofs are submitted to L1. When set to `Airbender`, the
+    /// aggregator gates commits on the Airbender FRI proof being present and
+    /// submits the Airbender SNARK proof in the prove transaction.
+    #[config(default)]
+    pub prover: ProverType,
     /// Max acceptable base fee the sender is allowed to use to send L1 txs.
     #[config(default_t = u64::MAX)]
     pub max_acceptable_base_fee_in_wei: u64,
@@ -189,6 +211,11 @@ pub struct SenderConfig {
     /// Use this value if block is not set
     #[config(default_t = Some(1764798551))]
     pub fusaka_upgrade_timestamp: Option<u64>,
+    /// Address that pays gateway settlement fees for execute batches.
+    /// Must have approved GWAssetTracker to spend wrapped ZK tokens.
+    /// If not set, defaults to Address::zero().
+    #[config(default)]
+    pub settlement_fee_payer: Option<Address>,
 }
 
 /// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
@@ -306,6 +333,7 @@ mod tests {
                 time_in_mempool_in_l1_blocks_cap: 2000,
                 is_verifier_pre_fflonk: false,
                 gas_limit_mode: GasLimitMode::Calculated,
+                prover: ProverType::Boojum,
                 max_acceptable_base_fee_in_wei: 100_000_000_000,
                 time_in_mempool_multiplier_cap: Some(10),
                 precommit_params: Some(PrecommitParams {
@@ -316,6 +344,7 @@ mod tests {
                 fusaka_upgrade_safety_margin: 100,
                 fusaka_upgrade_block: Some(33582142),
                 fusaka_upgrade_timestamp: Some(1),
+                settlement_fee_payer: None,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -419,12 +448,14 @@ mod tests {
             time_in_mempool_in_l1_blocks_cap: 2000
             is_verifier_pre_fflonk: false
             gas_limit_mode: Calculated
+            prover: Boojum
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
             force_use_validator_timelock: false
             fusaka_upgrade_safety_margin: 100
             fusaka_upgrade_block: 33582142
             fusaka_upgrade_timestamp: 1
+            settlement_fee_payer: null
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec
@@ -479,12 +510,14 @@ mod tests {
             time_in_mempool_in_l1_blocks_cap: 2000
             is_verifier_pre_fflonk: false
             gas_limit_mode: Calculated
+            prover: Boojum
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
             force_use_validator_timelock: false
             fusaka_upgrade_safety_margin: 100
             fusaka_upgrade_block: 33582142
             fusaka_upgrade_timestamp: 1
+            settlement_fee_payer: null
             precommit_params:
               l2_blocks_to_aggregate: 1
               deadline: 1 sec

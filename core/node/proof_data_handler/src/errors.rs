@@ -49,6 +49,7 @@ impl From<DalError> for ProcessorError {
         // We don't want to check if the error is `RowNotFound`: we check that batch exists before
         // processing a request, so it's handled separately.
         // Thus, any unhandled error from DAL is an internal error.
+        tracing::error!("Database error: {:?}", _err);
         Self::Internal
     }
 }
