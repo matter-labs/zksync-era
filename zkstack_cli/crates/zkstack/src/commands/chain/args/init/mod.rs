@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 use zkstack_cli_common::{forge::ForgeScriptArgs, Prompt};
 use zkstack_cli_config::ChainConfig;
-use zkstack_cli_types::{L1BatchCommitmentMode, L1Network};
+use zkstack_cli_types::{L1BatchCommitmentMode, L1Network, VMOption};
 
 use crate::{
     commands::chain::args::{
@@ -13,8 +13,9 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_DEV_ARG_HELP, MSG_L1_RPC_URL_HELP,
-        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
-        MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_L1_RPC_URL_INVALID_ERR, MSG_NO_GENESIS, MSG_NO_PORT_REALLOCATION_HELP,
+        MSG_RPC_URL_PROMPT, MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP,
+        MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -39,31 +40,41 @@ pub struct InitArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
-    #[clap(long)]
-    pub update_submodules: Option<bool>,
-    #[clap(long, default_missing_value = "false", num_args = 0..=1)]
-    pub make_permanent_rollup: Option<bool>,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub make_permanent_rollup: bool,
     #[clap(long, help = MSG_DEV_ARG_HELP)]
     pub dev: bool,
     #[clap(flatten)]
     pub validium_args: da_configs::ValidiumTypeArgs,
     #[clap(long, help = MSG_SERVER_COMMAND_HELP)]
     pub server_command: Option<String>,
+    #[clap(long, short, action, help = MSG_NO_GENESIS)]
+    pub no_genesis: bool,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub skip_priority_txs: bool,
+    #[clap(long, default_value_t = false, default_missing_value = "true")]
+    pub pause_deposits: bool,
 }
 
 impl InitArgs {
-    pub fn get_genesis_args(&self) -> GenesisArgs {
-        GenesisArgs {
+    fn get_genesis_args(&self) -> Option<GenesisArgs> {
+        if self.no_genesis {
+            return None;
+        }
+        Some(GenesisArgs {
             server_db_url: self.server_db_url.clone(),
             server_db_name: self.server_db_name.clone(),
             dev: self.dev,
             dont_drop: self.dont_drop,
             server_command: self.server_command.clone(),
-        }
+        })
     }
 
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> InitArgsFinal {
-        let genesis = self.get_genesis_args();
+        let genesis = match config.vm_option {
+            VMOption::EraVM => self.get_genesis_args(),
+            VMOption::ZKSyncOsVM => None,
+        };
 
         let deploy_paymaster = if self.dev {
             true
@@ -79,7 +90,7 @@ impl InitArgs {
             LOCAL_RPC_URL.to_string()
         } else {
             self.l1_rpc_url.unwrap_or_else(|| {
-                let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
+                let mut prompt = Prompt::new(MSG_RPC_URL_PROMPT);
                 if config.l1_network == L1Network::Localhost {
                     prompt = prompt.default(LOCAL_RPC_URL);
                 }
@@ -95,7 +106,13 @@ impl InitArgs {
 
         let validium_config = match config.l1_batch_commit_data_generator_mode {
             L1BatchCommitmentMode::Validium => match self.validium_args.validium_type {
-                None => Some(ValidiumType::read()),
+                None => {
+                    if self.dev {
+                        Some(ValidiumType::NoDA)
+                    } else {
+                        Some(ValidiumType::read())
+                    }
+                }
                 Some(da_configs::ValidiumTypeInternal::NoDA) => Some(ValidiumType::NoDA),
                 Some(da_configs::ValidiumTypeInternal::Avail) => panic!(
                     "Avail is not supported via CLI args, use interactive mode" // TODO: Add support for configuration via CLI args
@@ -107,12 +124,14 @@ impl InitArgs {
 
         InitArgsFinal {
             forge_args: self.forge_args,
-            genesis_args: genesis.fill_values_with_prompt(config),
+            genesis_args: genesis.map(|genesis| genesis.fill_values_with_prompt(config)),
             deploy_paymaster,
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
             validium_config,
-            make_permanent_rollup: self.make_permanent_rollup.unwrap_or(false),
+            make_permanent_rollup: self.make_permanent_rollup,
+            skip_priority_txs: self.skip_priority_txs,
+            pause_deposits: self.pause_deposits,
         }
     }
 }
@@ -120,10 +139,12 @@ impl InitArgs {
 #[derive(Debug, Clone)]
 pub struct InitArgsFinal {
     pub forge_args: ForgeScriptArgs,
-    pub genesis_args: GenesisArgsFinal,
+    pub genesis_args: Option<GenesisArgsFinal>,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
     pub validium_config: Option<ValidiumType>,
     pub make_permanent_rollup: bool,
+    pub skip_priority_txs: bool,
+    pub pause_deposits: bool,
 }

@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS miniblocks_number_precommit_not_null;

@@ -3,24 +3,22 @@ use itertools::Itertools;
 use utils::{
     chain_id_leaf_preimage, get_chain_count, get_chain_id_from_index, get_chain_root_from_id,
 };
+use zksync_airbender_prover_interface::outputs::L1BatchAirbenderProofForL1;
 use zksync_crypto_primitives::hasher::keccak::KeccakHasher;
-use zksync_dal::{CoreDal, DalError};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_multivm::{
-    interface::VmEvent,
-    zk_evm_latest::ethereum_types::{U256, U64},
-};
+use zksync_multivm::{interface::VmEvent, zk_evm_latest::ethereum_types::U64};
 use zksync_types::{
-    api,
+    aggregated_operations::L1BatchAggregatedActionType,
     api::{
-        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
-        TransactionDetailedResult, TransactionExecutionInfo,
+        self, AirbenderProof, AirbenderProofStatus, ChainAggProof, DataAvailabilityDetails,
+        GatewayMigrationStatus, L1ToL2TxsStatus, TransactionDetailedResult,
+        TransactionExecutionInfo,
     },
-    server_notification::GatewayMigrationState,
-    tee_types::TeeType,
-    web3,
-    web3::Bytes,
-    L1BatchNumber, L2ChainId,
+    eth_sender::EthTxFinalityStatus,
+    server_notification::{GatewayMigrationNotification, GatewayMigrationState},
+    web3::{self, Bytes},
+    L1BatchNumber, L2BlockNumber, L2ChainId,
 };
 use zksync_web3_decl::{error::Web3Error, types::H256};
 
@@ -58,31 +56,48 @@ impl UnstableNamespace {
             .map(|execution_info| TransactionExecutionInfo { execution_info }))
     }
 
-    pub async fn get_tee_proofs_impl(
+    pub async fn get_airbender_proof_impl(
         &self,
         l1_batch_number: L1BatchNumber,
-        tee_type: Option<TeeType>,
-    ) -> Result<Vec<TeeProof>, Web3Error> {
+    ) -> Result<Option<AirbenderProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        let proofs = storage
-            .tee_proof_generation_dal()
-            .get_tee_proofs(l1_batch_number, tee_type)
+        let stored = storage
+            .airbender_proof_generation_dal()
+            .get_airbender_fri_proof(l1_batch_number)
             .await
-            .map_err(DalError::generalize)?
-            .into_iter()
-            .map(|proof| TeeProof {
-                l1_batch_number,
-                tee_type,
-                pubkey: proof.pubkey,
-                signature: proof.signature,
-                proof: proof.proof,
-                proved_at: DateTime::<Utc>::from_naive_utc_and_offset(proof.updated_at, Utc),
-                status: proof.status,
-                attestation: proof.attestation,
-            })
-            .collect::<Vec<_>>();
+            .map_err(DalError::generalize)?;
 
-        Ok(proofs)
+        let Some(stored) = stored else {
+            return Ok(None);
+        };
+
+        let proof_data = if let Some(blob_url) = stored.proof_blob_url {
+            if let Some(object_store) = &self.state.object_store {
+                let proof_for_l1: L1BatchAirbenderProofForL1 = object_store
+                    .get_by_encoded_key(blob_url)
+                    .await
+                    .map_err(|e| {
+                        Web3Error::InternalError(anyhow::anyhow!(
+                            "Failed to load airbender proof from GCS: {e}"
+                        ))
+                    })?;
+                Some(proof_for_l1.proof)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let status = AirbenderProofStatus::try_from(stored.status)
+            .map_err(|e| Web3Error::InternalError(anyhow::anyhow!(e)))?;
+
+        Ok(Some(AirbenderProof {
+            l1_batch_number,
+            proof: proof_data,
+            proved_at: DateTime::<Utc>::from_naive_utc_and_offset(stored.updated_at, Utc),
+            status,
+        }))
     }
 
     pub async fn get_chain_log_proof_impl(
@@ -96,43 +111,24 @@ impl UnstableNamespace {
             .ensure_not_pruned(l1_batch_number, &mut connection)
             .await?;
 
-        let Some((_, l2_block_number)) = connection
+        let l2_block_number = match connection
             .blocks_dal()
             .get_l2_block_range_of_l1_batch(l1_batch_number)
             .await
             .map_err(DalError::generalize)?
-        else {
-            return Ok(None);
-        };
-        let chain_count_integer = get_chain_count(&mut connection, l2_block_number).await?;
-
-        let mut chain_ids = Vec::new();
-        for chain_index in 0..chain_count_integer {
-            chain_ids.push(
-                get_chain_id_from_index(&mut connection, chain_index, l2_block_number).await?,
-            );
-        }
-
-        let Some((chain_id_leaf_proof_mask, _)) = chain_ids
-            .iter()
-            .find_position(|id| **id == H256::from_low_u64_be(l2_chain_id.as_u64()))
-        else {
-            return Ok(None);
+            .map(|(_, end_block)| end_block)
+        {
+            Some(block_num) => block_num,
+            None => return Ok(None),
         };
 
-        let mut leaves = Vec::new();
-        for chain_id in chain_ids {
-            let chain_root =
-                get_chain_root_from_id(&mut connection, chain_id, l2_block_number).await?;
-            leaves.push(chain_id_leaf_preimage(chain_root, chain_id));
-        }
-
-        let chain_merkle_tree =
-            MiniMerkleTree::<[u8; 96], KeccakHasher>::new(leaves.into_iter(), None);
-
-        let mut chain_id_leaf_proof = chain_merkle_tree
-            .merkle_root_and_path(chain_id_leaf_proof_mask)
-            .1;
+        let mut chain_log_proof = match self
+            .get_chain_log_proof_inner(&mut connection, l2_block_number, l2_chain_id)
+            .await?
+        {
+            Some(chain_log_proof) => chain_log_proof,
+            None => return Ok(None),
+        };
 
         let Some(local_root) = connection
             .blocks_dal()
@@ -145,8 +141,62 @@ impl UnstableNamespace {
 
         // Chain tree is the right subtree of the aggregated tree.
         // We append root of the left subtree to form full proof.
-        let chain_id_leaf_proof_mask = chain_id_leaf_proof_mask | (1 << chain_id_leaf_proof.len());
-        chain_id_leaf_proof.push(local_root);
+        chain_log_proof.chain_id_leaf_proof_mask |= 1 << chain_log_proof.chain_id_leaf_proof.len();
+        chain_log_proof.chain_id_leaf_proof.push(local_root);
+
+        Ok(Some(chain_log_proof))
+    }
+
+    pub async fn get_chain_log_proof_until_msg_root_impl(
+        &self,
+        l2_block_number: L2BlockNumber,
+        l2_chain_id: L2ChainId,
+    ) -> Result<Option<ChainAggProof>, Web3Error> {
+        let mut connection = self.state.acquire_connection().await?;
+
+        self.get_chain_log_proof_inner(&mut connection, l2_block_number, l2_chain_id)
+            .await
+    }
+
+    // This method is used for both get_chain_log_proof and get_chain_log_proof_until_msg_root.
+    async fn get_chain_log_proof_inner(
+        &self,
+        connection: &mut Connection<'_, Core>,
+        l2_block_number: L2BlockNumber,
+        l2_chain_id: L2ChainId,
+    ) -> Result<Option<ChainAggProof>, Web3Error> {
+        self.state
+            .start_info
+            .ensure_not_pruned(l2_block_number, connection)
+            .await?;
+
+        let chain_count_integer = get_chain_count(connection, l2_block_number).await?;
+
+        let mut chain_ids = Vec::new();
+        for chain_index in 0..chain_count_integer {
+            chain_ids
+                .push(get_chain_id_from_index(connection, chain_index, l2_block_number).await?);
+        }
+
+        let Some((chain_id_leaf_proof_mask, _)) = chain_ids
+            .iter()
+            .find_position(|id| **id == H256::from_low_u64_be(l2_chain_id.as_u64()))
+        else {
+            return Ok(None);
+        };
+
+        let mut leaves = Vec::new();
+        for chain_id in chain_ids {
+            let chain_root = get_chain_root_from_id(connection, chain_id, l2_block_number).await?;
+            leaves.push(chain_id_leaf_preimage(chain_root, chain_id));
+        }
+
+        let chain_merkle_tree =
+            MiniMerkleTree::<[u8; 96], KeccakHasher>::new(leaves.into_iter(), None);
+
+        let chain_id_leaf_proof = chain_merkle_tree
+            .merkle_root_and_path(chain_id_leaf_proof_mask)
+            .1;
 
         Ok(Some(ChainAggProof {
             chain_id_leaf_proof,
@@ -216,15 +266,74 @@ impl UnstableNamespace {
             .await
             .map_err(DalError::generalize)?;
 
+        let all_batches_with_interop_roots_committed = match connection
+            .interop_root_dal()
+            .get_latest_processed_interop_root_l1_batch_number()
+            .await
+            .map_err(DalError::generalize)?
+        {
+            None => true,
+            Some(latest_processed_l1_batch_number) => {
+                match connection
+                    .eth_sender_dal()
+                    .get_last_sent_successfully_eth_tx_by_batch_and_op(
+                        L1BatchNumber::from(latest_processed_l1_batch_number),
+                        L1BatchAggregatedActionType::Commit,
+                    )
+                    .await
+                {
+                    Some(tx) => tx.eth_tx_finality_status == EthTxFinalityStatus::Finalized,
+                    None => false,
+                }
+            }
+        };
         let state = GatewayMigrationState::from_sl_and_notification(
-            self.state.api_config.settlement_layer,
+            self.state
+                .api_config
+                .settlement_layer
+                .settlement_layer_for_sending_txs(),
             latest_notification,
         );
+
+        let settlement_layer = self.state.api_config.settlement_layer.settlement_layer();
+        let has_uncommitted_batches = connection
+            .blocks_dal()
+            .has_uncommitted_batches_on_settlement_layer(&settlement_layer)
+            .await
+            .map_err(DalError::generalize)?;
+        let latest_sealed_matches_expected = match (
+            latest_notification,
+            connection
+                .blocks_dal()
+                .get_latest_sealed_l1_batch_header()
+                .await
+                .map_err(DalError::generalize)?,
+        ) {
+            (Some(GatewayMigrationNotification::ToGateway), Some(header)) => {
+                header.settlement_layer.is_gateway()
+            }
+            (Some(GatewayMigrationNotification::FromGateway), Some(header)) => {
+                !header.settlement_layer.is_gateway()
+            }
+            (Some(_), None) => false,
+            (None, _) => true,
+        };
+        let all_batches_committed = if state == GatewayMigrationState::InProgress {
+            !has_uncommitted_batches
+        } else {
+            !has_uncommitted_batches && latest_sealed_matches_expected
+        };
 
         Ok(GatewayMigrationStatus {
             latest_notification,
             state,
-            settlement_layer: self.state.api_config.settlement_layer,
+            settlement_layer: self
+                .state
+                .api_config
+                .settlement_layer
+                .settlement_layer_for_sending_txs(),
+            wait_for_batches_to_be_committed: !all_batches_committed
+                || !all_batches_with_interop_roots_committed,
         })
     }
 
@@ -234,7 +343,11 @@ impl UnstableNamespace {
         tx_bytes: Bytes,
     ) -> Result<TransactionDetailedResult, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.settlement_layer(),
+        )
+        .await?;
         drop(connection);
         let (mut tx, tx_hash) = self
             .state
@@ -260,11 +373,6 @@ impl UnstableNamespace {
                 .map(|event| map_event(event, tx_hash))
                 .collect(),
         })
-    }
-
-    pub async fn gas_per_pubdata_impl(&self) -> Result<U256, Web3Error> {
-        let (_, gas_per_pubdata) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
-        Ok(gas_per_pubdata.into())
     }
 }
 

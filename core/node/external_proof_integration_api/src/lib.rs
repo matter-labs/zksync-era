@@ -8,6 +8,7 @@ use axum::{
     Router,
 };
 use tokio::sync::watch;
+use tower_http::compression::predicate::Predicate;
 use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
 use zksync_proof_data_handler::{Processor, ProcessorError, Readonly};
@@ -45,15 +46,24 @@ impl Api {
                     .layer(middleware_factory(Method::GetLatestProofGenerationData)),
             )
             .route(
-                "/proof_generation_data/:l1_batch_number",
+                "/proof_generation_data/{l1_batch_number}",
                 get(Api::generation_data_for_existing_batch)
                     .layer(middleware_factory(Method::GetSpecificProofGenerationData)),
             )
             .route(
-                "/verify_proof/:l1_batch_number",
+                "/verify_proof/{l1_batch_number}",
                 post(Api::verify_proof).layer(middleware_factory(Method::VerifyProof)),
             )
-            .with_state(processor);
+            .with_state(processor)
+            .layer(
+                tower_http::compression::CompressionLayer::new()
+                    .no_br()
+                    .no_deflate()
+                    .compress_when(
+                        tower_http::compression::predicate::DefaultPredicate::new()
+                            .and(tower_http::compression::predicate::SizeAbove::new(1024)),
+                    ),
+            );
 
         Self { router, port }
     }

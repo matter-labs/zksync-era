@@ -74,7 +74,22 @@ pub(super) const MSG_OBSERVABILITY_HELP: &str = "Enable Grafana";
 pub(super) const MSG_OBSERVABILITY_PROMPT: &str = "Do you want to setup observability? (Grafana)";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
     "Do you want to deploy ecosystem contracts? (Not needed if you already have an existing one)";
+pub(super) const MSG_RPC_URL_PROMPT: &str = "What is the RPC URL of the network?";
+pub(super) const MSG_RPC_URL_PROMPT_PROVING_NETWORK: &str =
+    "What is the RPC URL for the proving network(defaults to local L2)?";
 pub(super) const MSG_L1_RPC_URL_PROMPT: &str = "What is the RPC URL of the L1 network?";
+pub(super) const MSG_FERMAH_ADDRESS_PROMPT: &str =
+    "What is Fermah's Proving Network address (allows acknowledging/submitting proofs for Fermah)?";
+pub(super) const MSG_LAGRANGE_ADDRESS_PROMPT: &str =
+    "What is Lagrange's Proving Network address (allows acknowledging/submitting proofs for Lagrange)?";
+pub(super) const MSG_USDC_ADDRESS_PROMPT: &str = "What is the address of the USDC contract?";
+pub(super) const MSG_PROOF_MANAGER_OWNER_ADDRESS_PROMPT: &str = "What is the address of the ProofManager owner(what address is allowed to submit Proof Requests?)?";
+pub(super) const MSG_PROXY_OWNER_ADDRESS_PROMPT: &str =
+    "What is the address of the Proxy owner(who will be able to upgrade the contract)?";
+pub(super) const MSG_TOP_UP_SERVER_WALLETS_PROMPT: &str =
+    "Do you want to top up server wallets(on L2, by 1 ETH)?";
+pub(super) const MSG_TOP_UP_NETWORK_WALLETS_PROMPT: &str =
+    "Do you want to top up proving network wallets(on L2, by 1 ETH)?";
 pub(super) const MSG_DEPLOY_PAYMASTER_PROMPT: &str = "Do you want to deploy Paymaster contract?";
 pub(super) const MSG_VALIDIUM_TYPE_PROMPT: &str = "Select the Validium type";
 pub(super) const MSG_DEPLOY_ERC20_PROMPT: &str = "Do you want to deploy some test ERC20s?";
@@ -85,6 +100,8 @@ pub(super) const MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR: &str = "Invalid path"
 pub(super) const MSG_GENESIS_DATABASE_ERR: &str = "Unable to perform genesis on the database";
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
+pub(super) const MSG_INITIALIZING_CTM: &str = "Initializing CTM";
+pub(super) const MSG_REGISTERING_CTM: &str = "Registering CTM";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
 pub(super) const MSG_CHAIN_CONFIGS_INITIALIZED: &str = "Chain configs were initialized";
@@ -100,8 +117,12 @@ pub(super) const MSG_PREPARING_CONFIG_SPINNER: &str = "Preparing config files...
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
+pub(super) const MSG_DEPLOYING_PROVING_NETWORKS_SPINNER: &str =
+    "Deploying proving networks contracts...";
 pub(super) const MSG_REGISTERING_CHAIN_SPINNER: &str = "Registering chain...";
+pub(super) const MSG_REGISTERING_ON_ALL_CHAINS_SPINNER: &str = "Registering on all chains...";
 pub(super) const MSG_ACCEPTING_ADMIN_SPINNER: &str = "Accepting admin...";
+pub(super) const MSG_UNPAUSING_DEPOSITS_SPINNER: &str = "Unpausing deposits for chain...";
 pub(super) const MSG_DA_PAIR_REGISTRATION_SPINNER: &str = "Registering DA pair...";
 pub(super) const MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER: &str =
     "Updating token multiplier setter...";
@@ -227,6 +248,8 @@ pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop 
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
 pub(super) const MSG_GENESIS_DATABASES_INITIALIZED: &str = "Databases initialized successfully";
+pub(super) const MSG_BRIDGEHUB: &str = "Bridgehub address of existing ecosystem";
+pub(super) const MSG_CTM: &str = "Chain type manager address that has to be registered";
 
 /// Chain update related messages
 pub(super) const MSG_WALLETS_CONFIG_MUST_BE_PRESENT: &str = "Wallets configuration must be present";
@@ -494,6 +517,8 @@ pub(super) const MSG_BELLMAN_CUDA_ORIGIN_SELECT: &str =
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recommended)";
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
 pub(super) const MSG_SETUP_KEYS_PROMPT: &str = "Do you want to setup keys?";
+pub(super) const MSG_WVG_MODE_PROMPT: &str =
+    "Do you want simple WVG picking jobs mode or advanced one?";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")
@@ -576,12 +601,6 @@ pub(super) fn msg_wait_not_healthy(url: &str) -> String {
     format!("Node at `{url}` is not healthy")
 }
 
-pub(super) fn msg_diff_genesis_config(chain: &str) -> String {
-    format!(
-        "Found differences between chain {chain} and era genesis configs. Consider updating the chain {chain} genesis config and re-running genesis. Diff:"
-    )
-}
-
 pub(super) fn msg_diff_contracts_config(chain: &str) -> String {
     format!(
         "Found differences between chain {chain} and era contracts configs. Consider updating the chain {chain} contracts config and re-running genesis. Diff:"
@@ -640,3 +659,6 @@ pub(super) const MSG_AVAIL_BRIDGE_API_URL_PROMPT: &str = "Attestation bridge API
 pub(super) const MSG_AVAIL_SEED_PHRASE_PROMPT: &str = "Seed phrase";
 pub(super) const MSG_AVAIL_GAS_RELAY_API_KEY_PROMPT: &str = "Gas relay API key";
 pub(super) const MSG_INVALID_URL_ERR: &str = "Invalid URL format";
+pub(super) const MSG_NO_GENESIS: &str = "Do not run genesis";
+
+pub(super) const MSG_BUILDING_CONTRACTS: &str = "Building contracts";

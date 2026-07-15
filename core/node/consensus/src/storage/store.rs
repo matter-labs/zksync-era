@@ -52,6 +52,10 @@ fn to_fetched_block(
             .into_iter()
             .map(FetchedTransaction::new)
             .collect(),
+        pubdata_limit: payload.pubdata_limit,
+        interop_roots: payload.interop_roots.clone(),
+        settlement_layer: payload.settlement_layer,
+        interop_fee: payload.interop_fee.map(Into::into),
     })
 }
 
@@ -348,6 +352,10 @@ impl EngineInterface for Store {
             .await
             .wrap("set_replica_state()")
     }
+
+    async fn push_tx(&self, _ctx: &ctx::Ctx, _tx: engine::Transaction) -> ctx::Result<bool> {
+        unimplemented!()
+    }
 }
 
 /// Background task of the `Store`.
@@ -424,7 +432,9 @@ impl StoreRunner {
                             blocks_persisted.advance(cert);
                             break;
                         }
-                        Err(InsertCertificateError::Inner(E::MissingPayload)) => {
+                        Err(InsertCertificateError::Inner(err))
+                            if matches!(err.as_ref(), E::MissingPayload) =>
+                        {
                             // the payload is not in storage, it's either not yet persisted
                             // or already pruned. We will retry after a delay.
                             ctx.sleep(POLL_INTERVAL)
@@ -432,7 +442,7 @@ impl StoreRunner {
                                 .await?;
                         }
                         Err(InsertCertificateError::Canceled(err)) => {
-                            return Err(ctx::Error::Canceled(err))
+                            return Err(ctx::Error::Canceled(*err))
                         }
                         Err(err) => Err(err).context("insert_block_certificate()")?,
                     }

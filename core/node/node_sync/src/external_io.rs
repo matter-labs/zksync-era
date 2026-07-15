@@ -245,7 +245,7 @@ impl StateKeeperIO for ExternalIO {
             pending_l2_block_header.set_protocol_version(protocol_version);
         }
 
-        let (system_env, l1_batch_env, pubdata_params) = self
+        let restored_l1_batch_env = self
             .l1_batch_params_provider
             .load_l1_batch_params(
                 &mut storage,
@@ -263,12 +263,16 @@ impl StateKeeperIO for ExternalIO {
         storage
             .blocks_dal()
             .ensure_unsealed_l1_batch_exists(
-                l1_batch_env
+                restored_l1_batch_env
+                    .l1_batch_env
                     .clone()
-                    .into_unsealed_header(Some(system_env.version)),
+                    .into_unsealed_header(
+                        Some(restored_l1_batch_env.system_env.version),
+                        restored_l1_batch_env.pubdata_limit,
+                    ),
             )
             .await?;
-        let data = load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
+        let data = load_pending_batch(&mut storage, restored_l1_batch_env)
             .await
             .with_context(|| {
                 format!(
@@ -317,9 +321,12 @@ impl StateKeeperIO for ExternalIO {
                         protocol_version: Some(params.protocol_version),
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
+                        interop_fee: params.interop_fee,
+                        pubdata_limit: params.pubdata_limit,
+                        settlement_layer: params.settlement_layer,
                     })
                     .await?;
-                return Ok(Some(params));
+                Ok(Some(params))
             }
             other => {
                 anyhow::bail!("unexpected action in the action queue: {other:?}");
@@ -343,7 +350,7 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {number}",
                     cursor.next_l2_block
                 );
-                return Ok(Some(params));
+                Ok(Some(params))
             }
             other => {
                 anyhow::bail!(
@@ -387,6 +394,18 @@ impl StateKeeperIO for ExternalIO {
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         // We are replaying the already sealed batches so no rollbacks are expected to occur.
         anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
+    }
+
+    async fn rollback_l2_block(&mut self, _txs: Vec<Transaction>) -> anyhow::Result<()> {
+        self.actions.validate_ready_for_next_block();
+        Ok(())
+    }
+
+    async fn advance_mempool(
+        &mut self,
+        _txs: Box<&mut (dyn Iterator<Item = &Transaction> + Send)>,
+    ) {
+        // Do nothing
     }
 
     async fn reject(&mut self, tx: &Transaction, reason: UnexecutableReason) -> anyhow::Result<()> {
@@ -479,11 +498,11 @@ mod tests {
     use std::time::Duration;
 
     use zksync_dal::{ConnectionPool, CoreDal};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_state_keeper::{io::L1BatchParams, L2BlockParams, StateKeeperIO};
     use zksync_types::{
-        api, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
-        H256,
+        api, commitment::PubdataParams, fee_model::BatchFeeInput, settlement::SettlementLayer,
+        L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, U256,
     };
 
     use crate::{sync_action::SyncAction, testonly::MockMainNodeClient, ActionQueue, ExternalIO};
@@ -494,7 +513,7 @@ mod tests {
         // version and make sure that it is present in the DB (i.e. fetch it from main node if not).
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut conn, &GenesisParams::mock())
+        insert_genesis_batch(&mut conn, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         let (actions_sender, action_queue) = ActionQueue::new();
@@ -522,8 +541,11 @@ mod tests {
             validation_computational_gas_limit: u32::MAX,
             operator_address: Default::default(),
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
+            interop_fee: U256::zero(),
             first_l2_block: L2BlockParams::new(1000),
-            pubdata_params: Default::default(),
+            pubdata_params: PubdataParams::genesis(),
+            pubdata_limit: Some(100_000),
+            settlement_layer: SettlementLayer::for_tests(),
         };
         actions_sender
             .push_action_unchecked(SyncAction::OpenBatch {

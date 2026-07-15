@@ -9,18 +9,21 @@ use zksync_prover_fri_types::{
     get_current_pod_name, ProverServiceDataKey,
 };
 use zksync_prover_job_processor::{Backoff, BackoffAndCancellable, JobRunner};
-use zksync_prover_keystore::GoldilocksGpuProverSetupData;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::FriProverJobMetadata};
 
 use crate::{
     gpu_circuit_prover::{
         GpuCircuitProverExecutor, GpuCircuitProverJobPicker, GpuCircuitProverJobSaver,
     },
-    types::witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
+    types::{
+        setup_data::GoldilocksGpuProverSetupData,
+        witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
+    },
     witness_vector_generator::{
         HeavyWitnessVectorMetadataLoader, LightWitnessVectorMetadataLoader,
-        WitnessVectorGeneratorExecutor, WitnessVectorGeneratorJobPicker,
-        WitnessVectorGeneratorJobSaver, WitnessVectorMetadataLoader,
+        SimpleWitnessVectorMetadataLoader, WitnessVectorGeneratorExecutor,
+        WitnessVectorGeneratorJobPicker, WitnessVectorGeneratorJobSaver,
+        WitnessVectorMetadataLoader,
     },
 };
 
@@ -86,6 +89,21 @@ impl WvgRunnerBuilder {
     > {
         let metadata_loader =
             HeavyWitnessVectorMetadataLoader::new(self.pod_name.clone(), self.protocol_version);
+
+        self.wvg_runner(count, metadata_loader)
+    }
+
+    /// Witness Vector Generator runner implementation that will execute any type of job.
+    pub fn simple_wvg_runner(
+        &self,
+        count: usize,
+    ) -> JobRunner<
+        WitnessVectorGeneratorExecutor,
+        WitnessVectorGeneratorJobPicker<SimpleWitnessVectorMetadataLoader>,
+        WitnessVectorGeneratorJobSaver,
+    > {
+        let metadata_loader =
+            SimpleWitnessVectorMetadataLoader::new(self.pod_name.clone(), self.protocol_version);
 
         self.wvg_runner(count, metadata_loader)
     }

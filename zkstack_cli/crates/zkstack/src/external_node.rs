@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_config::{
-    ChainConfig, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE, SECRETS_FILE,
+    ChainConfig, ZkStackConfigTrait, CONSENSUS_CONFIG_FILE, EN_CONFIG_FILE, GENERAL_FILE,
+    SECRETS_FILE,
 };
 
 use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
@@ -33,7 +34,7 @@ impl RunExternalNode {
 
         Ok(Self {
             components,
-            code_path: chain_config.link_to_code.clone(),
+            code_path: chain_config.link_to_code().clone(),
             general_config,
             secrets,
             en_config,

@@ -14,7 +14,7 @@ use smart_config::{testing::Tester, value::ExposeSecret, ByteSize, ConfigSource,
 use zksync_config::{
     configs::{
         api::{MaxResponseSizeOverrides, Namespace},
-        da_client::{avail::AvailClientConfig, eigen::PointsSource},
+        da_client::avail::AvailClientConfig,
         database::MerkleTreeMode,
         object_store::ObjectStoreMode,
         observability::LogFormat,
@@ -58,7 +58,7 @@ fn assert_common_prepared_env(config: &LocalConfig, observability: &Observabilit
 
     assert_eq!(config.api.web3_json_rpc.http_port, 3_060);
     assert_eq!(config.api.web3_json_rpc.ws_port, 3_061);
-    assert_eq!(config.api.healthcheck.port, 3_081);
+    assert_eq!(config.api.healthcheck.port, 3_081.into());
     assert_eq!(
         config.db.state_keeper_db_path.as_os_str(),
         "./db/ext-node/state_keeper"
@@ -221,6 +221,7 @@ fn parsing_from_full_env() {
         EN_ESTIMATE_GAS_SCALE_FACTOR=1.2
         EN_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=2000
         EN_ESTIMATE_GAS_OPTIMIZE_SEARCH=true
+        EN_ETH_CALL_GAS_CAP=""
         EN_GAS_PRICE_SCALE_FACTOR=1.4
 
         # NEW PARAMS: From Web3RpcConfig
@@ -256,6 +257,7 @@ fn parsing_from_full_env() {
 
         EN_L2_BLOCK_SEAL_QUEUE_CAPACITY=20
         EN_PROTECTIVE_READS_PERSISTENCE_ENABLED=true
+        EN_L2_BLOCK_COMMIT_DEADLINE_MS=1000
         # NEW PARAMS: From SharedStateKeeperConfig
         EN_SAVE_CALL_TRACES=false
 
@@ -302,8 +304,12 @@ fn parsing_from_full_env() {
 
         # API component config
         EN_API_TREE_API_REMOTE_URL=http://tree/
+        EN_API_WEB3_JSON_RPC_TREE_API_REQUEST_TIMEOUT_SEC=45
         # Tree component config
         EN_TREE_API_PORT=2955
+
+        EN_API_WEB3_JSON_RPC_SEND_RAW_TX_SYNC_MAX_TIMEOUT_MS=10000
+        EN_API_WEB3_JSON_RPC_SEND_RAW_TX_SYNC_DEFAULT_TIMEOUT_MS=2000
     "#;
     let env = smart_config::Environment::from_dotenv("test.env", env)
         .unwrap()
@@ -377,7 +383,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     let config: HealthCheckConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.slow_time_limit, Some(Duration::from_millis(75)));
     assert_eq!(config.hard_time_limit, Some(Duration::from_millis(2_500)));
-    assert_eq!(config.port, 2_952);
+    assert_eq!(config.port, 2_952.into());
 
     let config: MerkleTreeApiConfig = tester.for_config().test_complete(source.clone()).unwrap();
     assert_eq!(config.port, 2955);
@@ -558,6 +564,7 @@ fn avail_da_client_from_env() {
         EN_DA_AVAIL_CLIENT_TYPE="FullClient"
         EN_DA_BRIDGE_API_URL="localhost:54321"
         EN_DA_TIMEOUT_MS="2000"
+        EN_DA_API_CLIENT_TIMEOUT_SEC="90"
         EN_DA_API_NODE_URL="localhost:12345"
         EN_DA_APP_ID="1"
         EN_DA_FINALITY_STATE="inBlock"
@@ -647,14 +654,11 @@ fn eigen_da_client_from_env() {
     let env = r#"
         EN_DA_CLIENT="Eigen"
         EN_DA_DISPERSER_RPC="http://localhost:8080"
-        EN_DA_SETTLEMENT_LAYER_CONFIRMATION_DEPTH=0
         EN_DA_EIGENDA_ETH_RPC="http://localhost:8545"
-        EN_DA_EIGENDA_SVC_MANAGER_ADDRESS="0x0000000000000000000000000000000000000123"
-        EN_DA_WAIT_FOR_FINALIZATION=true
-        EN_DA_AUTHENTICATED=false
-        EN_DA_POINTS_SOURCE="Path"
-        EN_DA_POINTS_PATH="resources"
-        EN_DA_CUSTOM_QUORUM_NUMBERS="2"
+        EN_DA_CERT_VERIFIER_ROUTER_ADDR="0x0000000000000000000000000000000000000123"
+        EN_DA_OPERATOR_STATE_RETRIEVER_ADDR="0x0000000000000000000000000000000000000124"
+        EN_DA_REGISTRY_COORDINATOR_ADDR="0x0000000000000000000000000000000000000125"
+        EN_DA_BLOB_VERSION="0"
 
         # Secrets
         EN_DA_SECRETS_PRIVATE_KEY="f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
@@ -671,24 +675,23 @@ fn eigen_da_client_from_env() {
         panic!("unexpected config: {config:?}");
     };
     assert_eq!(config.disperser_rpc, "http://localhost:8080");
-    assert_eq!(config.settlement_layer_confirmation_depth, 0);
     assert_eq!(
         config.eigenda_eth_rpc.as_ref().unwrap().expose_str(),
         "http://localhost:8545/"
     );
+    assert_eq!(config.blob_version, 0);
     assert_eq!(
-        config.eigenda_svc_manager_address,
+        config.cert_verifier_router_addr,
         "0x0000000000000000000000000000000000000123"
-            .parse()
-            .unwrap()
     );
-    assert!(config.wait_for_finalization);
-    assert!(!config.authenticated);
-    let PointsSource::Path { path } = &config.points else {
-        panic!("unexpected points: {config:?}");
-    };
-    assert_eq!(path, "resources");
-    assert_eq!(config.custom_quorum_numbers, [2]);
+    assert_eq!(
+        config.operator_state_retriever_addr,
+        "0x0000000000000000000000000000000000000124"
+    );
+    assert_eq!(
+        config.registry_coordinator_addr,
+        "0x0000000000000000000000000000000000000125"
+    );
 
     let secrets: DataAvailabilitySecrets = tester.for_config().test_complete(env.clone()).unwrap();
     let DataAvailabilitySecrets::Eigen(secrets) = secrets else {

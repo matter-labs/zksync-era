@@ -8,32 +8,65 @@ feature-depth = 1
 
 [advisories]
 ignore = [
-    "RUSTSEC-2024-0375", # atty dependency being unmaintained, dependency of clap and criterion, we would need to update to newer major of dependencies
-    "RUSTSEC-2020-0168", # mach dependency being unmaintained, dependency in api server, we should consider moving to mach2 fork
-    "RUSTSEC-2024-0370", # `cs_derive` needs to be updated to not rely on `proc-macro-error`
-    # all below caused by StructOpt which we still use and we should move to clap v4 instead
-    "RUSTSEC-2021-0145",
-    "RUSTSEC-2021-0139",
-    "RUSTSEC-2024-0388", # `derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it
-    "RUSTSEC-2024-0436", # `paste` is an unmaintained dependency of various crates (like alloy-primitives, sqlx-core)
+  # Unsoundness in lru <0.16.3. Waiting for:
+  #  * aws-sdk-s3 to upgrade (https://github.com/smithy-lang/smithy-rs/pull/4470)
+  #  * alloy-provider to upgrade (https://github.com/alloy-rs/alloy/pull/3460)
+  "RUSTSEC-2026-0002",
+  # Vulnerability in `time`, we don't rely on users input in time and it cannot be maliciously crafted. Meanwhile it required to update rust toolset, which could cause more problems, because we use nightly.
+  "RUSTSEC-2026-0009",
+  "RUSTSEC-2024-0375", # atty dependency being unmaintained, dependency of clap and criterion, we would need to update to newer major of dependencies
+  "RUSTSEC-2020-0168", # mach dependency being unmaintained, dependency in api server, we should consider moving to mach2 fork
+  "RUSTSEC-2024-0370", # `cs_derive` needs to be updated to not rely on `proc-macro-error`
+  # all below caused by StructOpt which we still use and we should move to clap v4 instead
+  "RUSTSEC-2021-0145",
+  "RUSTSEC-2021-0139",
+  "RUSTSEC-2024-0388", # `derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it
+  "RUSTSEC-2024-0436", # `paste` is an unmaintained dependency of various crates (like alloy-primitives, sqlx-core)
+  "RUSTSEC-2025-0052", # `async-std` is discontinued, transitive dependency
+  "RUSTSEC-2025-0134", # `rustls-pemfile` is unmaintained, transitive dependency via old rustls versions
+  "RUSTSEC-2025-0141", # `bincode` is unmaintained, transitive dependency
+  # The following `rustls-webpki` advisories all affect the old 0.101.7 and/or 0.102.8 versions
+  # still pinned transitively by rustls 0.21/0.22 (via aws-smithy, hyper-rustls, etc.).
+  # Modern 0.103.x is on >=0.103.13 in our lockfile and is unaffected.
+  "RUSTSEC-2026-0049", # CRL distribution point matching; affects 0.102.8 only (0.101.x is unaffected, 0.103.13 patched)
+  "RUSTSEC-2026-0098", # URI name constraints incorrectly accepted; affects 0.101.7 and 0.102.8 (0.103.13 patched)
+  "RUSTSEC-2026-0099", # Name constraints accept wildcard cert names; affects 0.101.7 and 0.102.8 (0.103.13 patched)
+  "RUSTSEC-2026-0104", # Reachable panic in CRL parsing; affects 0.101.7 and 0.102.8 (0.103.13 patched). We don't use CRLs.
+  # `rand` 0.8.x unsoundness in `ThreadRng` reseed under a custom logger calling rand from
+  # log macros. Patch only exists for >=0.9.3 / >=0.10.1; no fix backported to 0.8.x. We
+  # bumped 0.9.x to 0.9.4; rand 0.8.5 remains via many transitive deps (alloy-primitives,
+  # sqlx-postgres, jsonrpsee, boojum, secp256k1, foundry-compilers, ...) that haven't
+  # migrated to rand 0.9. The unsoundness requires a custom logger that calls rand from
+  # logging callbacks, which we don't do.
+  "RUSTSEC-2026-0097",
+  # `quick-xml` <0.41.0 XML-parsing DoS advisories (quadratic attribute-duplicate check and
+  # unbounded namespace-declaration allocation in `NsReader`). Reached only transitively via
+  # sentry -> sentry-contexts -> os_info -> plist, which parses local system `.plist` files to
+  # report OS info -- not untrusted network input, so the DoS vectors are not reachable for us.
+  # No released `plist` depends on the patched quick-xml >=0.41.0 yet (latest 1.9.0 caps at
+  # ^0.39.2, and bumping it pulls in crates requiring Rust 1.88 which our nightly toolchain lacks).
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195",
 ]
 
 [licenses]
 allow = [
-    "MIT",
-    "Apache-2.0",
-    "ISC",
-    "Unlicense",
-    "MPL-2.0",
-    "CC0-1.0",
-    "BSD-2-Clause",
-    "BSD-3-Clause",
-    "Zlib",
-    "OpenSSL",
-    "Apache-2.0 WITH LLVM-exception",
-    "0BSD",
-    "BSL-1.0",
-    "Unicode-3.0"
+  "MIT",
+  "Apache-2.0",
+  "ISC",
+  "Unlicense",
+  "MPL-2.0",
+  "CC0-1.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "Zlib",
+  "OpenSSL",
+  "Apache-2.0 WITH LLVM-exception",
+  "0BSD",
+  "BSL-1.0",
+  "Unicode-3.0",
+  "BUSL-1.1",
+  "CDLA-Permissive-2.0"
 ]
 confidence-threshold = 0.8
 

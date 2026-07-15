@@ -71,7 +71,7 @@ impl WiringLayer for ValidateChainIdsLayer {
 #[async_trait::async_trait]
 impl Task for ValidateChainIdsTask {
     fn kind(&self) -> TaskKind {
-        TaskKind::Precondition
+        TaskKind::OneshotTask
     }
 
     fn id(&self) -> TaskId {

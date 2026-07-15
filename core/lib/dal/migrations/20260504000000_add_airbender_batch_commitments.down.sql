@@ -1,0 +1,1 @@
+DROP TABLE airbender_batch_commitments;

@@ -7,8 +7,7 @@ use assert_matches::assert_matches;
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::l2_rollup_da_validator_bytecode;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
@@ -25,24 +24,22 @@ use zksync_test_contracts::{
 };
 use zksync_types::{
     block::L2BlockHasher,
-    bytecode::BytecodeHash,
-    commitment::PubdataParams,
+    commitment::{L2DACommitmentScheme, L2PubdataValidator, PubdataParams},
     ethabi::Token,
-    get_code_key, get_known_code_key,
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     system_contracts::get_system_smart_contracts,
     u256_to_h256,
     utils::storage_key_for_standard_token_balance,
     vm::FastVmMode,
-    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId,
-    StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, Address, Execute, L1BatchNumber, L1ChainId, L2BlockNumber, PriorityOpId,
+    ProtocolVersionId, StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
-    testonly::{self, apply_genesis_logs, BASE_SYSTEM_CONTRACTS},
+    testonly::{self, BASE_SYSTEM_CONTRACTS},
     AsyncRocksdbCache,
 };
 
@@ -244,6 +241,7 @@ impl Tester {
             timestamp: current_timestamp,
             prev_block_hash: snapshot.l2_block_hash,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         };
 
         self.create_batch_executor_inner(storage_factory, l1_batch_env, system_env, pubdata_params)
@@ -269,7 +267,16 @@ impl Tester {
             self.config.validation_computational_gas_limit;
         let mut batch_params = default_l1_batch_env(l1_batch_number.0, timestamp, self.fee_account);
         batch_params.previous_batch_hash = Some(H256::zero()); // Not important in this context.
-        (batch_params, system_params, PubdataParams::default())
+        let pubdata_validator = if system_params.version.is_pre_medium_interop() {
+            L2PubdataValidator::Address(Address::repeat_byte(0x23))
+        } else {
+            L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::BlobsAndPubdataKeccak256)
+        };
+        (
+            batch_params,
+            system_params,
+            PubdataParams::new(pubdata_validator, Default::default()).unwrap(),
+        )
     }
 
     /// Performs the genesis in the storage.
@@ -285,12 +292,10 @@ impl Tester {
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
                 Default::default(),
+                L1ChainId(9),
             )
             .await
             .unwrap();
-
-            // Also setting up the DA for tests
-            Self::setup_da(&mut storage).await;
         }
     }
 
@@ -327,33 +332,6 @@ impl Tester {
                     .unwrap();
             }
         }
-    }
-
-    async fn setup_contract(conn: &mut Connection<'_, Core>, address: Address, code: Vec<u8>) {
-        let hash: H256 = BytecodeHash::for_bytecode(&code).value();
-        let known_code_key = get_known_code_key(&hash);
-        let code_key = get_code_key(&address);
-
-        let logs = [
-            StorageLog::new_write_log(known_code_key, H256::from_low_u64_be(1)),
-            StorageLog::new_write_log(code_key, hash),
-        ];
-        apply_genesis_logs(conn, &logs).await;
-
-        let factory_deps = HashMap::from([(hash, code)]);
-        conn.factory_deps_dal()
-            .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-            .await
-            .unwrap();
-    }
-
-    async fn setup_da(conn: &mut Connection<'_, Core>) {
-        Self::setup_contract(
-            conn,
-            Address::repeat_byte(0x23),
-            l2_rollup_da_validator_bytecode(),
-        )
-        .await;
     }
 
     pub(super) async fn wait_for_tasks(&mut self) {
@@ -641,6 +619,7 @@ impl StorageSnapshot {
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             timestamp: 100,
             max_virtual_blocks_to_create: 1,
+            interop_roots: vec![],
         };
         let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
 
@@ -665,7 +644,10 @@ impl StorageSnapshot {
             l2_block_env.number += 1;
             l2_block_env.timestamp += 1;
             l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
-            executor.start_next_l2_block(l2_block_env).await.unwrap();
+            executor
+                .start_next_l2_block(l2_block_env.clone())
+                .await
+                .unwrap();
         }
 
         for _ in 0..transaction_count {
@@ -687,7 +669,10 @@ impl StorageSnapshot {
             l2_block_env.number += 1;
             l2_block_env.timestamp += 1;
             l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
-            executor.start_next_l2_block(l2_block_env).await.unwrap();
+            executor
+                .start_next_l2_block(l2_block_env.clone())
+                .await
+                .unwrap();
         }
 
         let (finished_batch, _) = executor.finish_batch().await.unwrap();

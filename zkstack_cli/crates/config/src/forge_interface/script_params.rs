@@ -24,34 +24,52 @@ impl ForgeScriptParams {
     }
 }
 
-pub const DEPLOY_ECOSYSTEM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+pub const DEPLOY_CTM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/config-deploy-ctm.toml",
+    output: "script-out/output-deploy-ctm.toml",
+    script_path: "deploy-scripts/ctm/DeployCTM.s.sol",
+};
+
+pub const DEPLOY_ECOSYSTEM_CORE_CONTRACTS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-l1.toml",
     output: "script-out/output-deploy-l1.toml",
-    script_path: "deploy-scripts/DeployL1.s.sol",
+    script_path: "deploy-scripts/ecosystem/DeployL1CoreContracts.s.sol",
+};
+
+pub const REGISTER_CTM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/config-register-ctm-l1.toml",
+    output: "script-out/register-ctm-l1.toml",
+    script_path: "deploy-scripts/ecosystem/RegisterCTM.s.sol",
 };
 
 pub const DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-l2-contracts.toml",
     output: "script-out/output-deploy-l2-contracts.toml",
-    script_path: "deploy-scripts/DeployL2Contracts.sol",
+    script_path: "deploy-scripts/chain/DeployL2Contracts.sol",
 };
 
 pub const REGISTER_CHAIN_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/register-zk-chain.toml",
     output: "script-out/output-register-zk-chain.toml",
-    script_path: "deploy-scripts/RegisterZKChain.s.sol",
+    script_path: "deploy-scripts/ctm/RegisterZKChain.s.sol",
+};
+
+pub const REGISTER_ON_ALL_CHAINS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/register-on-all-chains.toml",
+    output: "script-out/output-register-on-all-chains.toml",
+    script_path: "deploy-scripts/ecosystem/RegisterOnAllChains.s.sol",
 };
 
 pub const DEPLOY_ERC20_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-erc20.toml",
     output: "script-out/output-deploy-erc20.toml",
-    script_path: "deploy-scripts/DeployErc20.s.sol",
+    script_path: "deploy-scripts/tokens/DeployErc20.s.sol",
 };
 
 pub const DEPLOY_PAYMASTER_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-paymaster.toml",
     output: "script-out/output-deploy-paymaster.toml",
-    script_path: "deploy-scripts/DeployPaymaster.s.sol",
+    script_path: "deploy-scripts/chain/DeployPaymaster.s.sol",
 };
 
 pub const ACCEPT_GOVERNANCE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
@@ -69,40 +87,52 @@ pub const SETUP_LEGACY_BRIDGE: ForgeScriptParams = ForgeScriptParams {
 pub const ENABLE_EVM_EMULATOR_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/enable-evm-emulator.toml",
     output: "script-out/output-enable-evm-emulator.toml",
-    script_path: "deploy-scripts/EnableEvmEmulator.s.sol",
+    script_path: "deploy-scripts/chain/EnableEvmEmulator.s.sol",
 };
 
-pub const GATEWAY_UTILS_SCRIPT_PATH: &str = "deploy-scripts/GatewayUtils.s.sol";
+pub const GATEWAY_UTILS_SCRIPT_PATH: &str = "deploy-scripts/gateway/GatewayUtils.s.sol";
 
 pub const DEPLOY_GATEWAY_TX_FILTERER: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/deploy-gateway-tx-filterer.toml",
     output: "script-out/deploy-gateway-tx-filterer.toml",
-    script_path: "deploy-scripts/DeployGatewayTransactionFilterer.s.sol",
+    script_path: "deploy-scripts/gateway/DeployGatewayTransactionFilterer.s.sol",
+};
+
+pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-preparation.toml",
+    output: "script-out/gateway-preparation.toml",
+    script_path: "deploy-scripts/gateway/GatewayPreparation.s.sol",
 };
 
 pub const GATEWAY_VOTE_PREPARATION: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/gateway-vote-preparation.toml",
     output: "script-out/gateway-vote-preparation.toml",
-    script_path: "deploy-scripts/GatewayVotePreparation.s.sol",
+    script_path: "deploy-scripts/gateway/GatewayVotePreparation.s.sol",
 };
 
-pub const GATEWAY_GOVERNANCE_TX_PATH1: &str =
-    "contracts/l1-contracts/script-out/gateway-deploy-governance-txs-1.json";
+pub const GATEWAY_MIGRATE_TOKEN_BALANCES_SCRIPT_PATH: &str =
+    "deploy-scripts/gateway/GatewayMigrateTokenBalances.s.sol";
 
-pub const GATEWAY_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/gateway-upgrade-ecosystem.toml",
-    output: "script-out/gateway-upgrade-ecosystem.toml",
-    script_path: "deploy-scripts/upgrade/EcosystemUpgrade.s.sol",
+pub const V29_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/v29-upgrade-ecosystem.toml",
+    output: "script-out/v29-upgrade-ecosystem.toml",
+    script_path: "deploy-scripts/upgrade/v29/EcosystemUpgrade_v29.s.sol",
 };
 
-pub const GATEWAY_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/gateway-upgrade-chain.toml",
-    output: "script-out/gateway-upgrade-chain.toml",
-    script_path: "deploy-scripts/upgrade/ChainUpgrade.s.sol",
+pub const V29_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/v29-upgrade-chain.toml",
+    output: "script-out/v29-upgrade-chain.toml",
+    script_path: "deploy-scripts/upgrade/v29/ChainUpgrade_v29.s.sol",
 };
 
 pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/gateway-finalize-upgrade.toml",
     output: "script-out/gateway-finalize-upgrade.toml",
     script_path: "deploy-scripts/upgrade/FinalizeUpgrade.s.sol",
+};
+
+pub const SET_INTEROP_FEE_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/set-interop-fee.toml",
+    output: "script-out/output-set-interop-fee.toml",
+    script_path: "deploy-scripts/chain/SetInteropFee.s.sol",
 };

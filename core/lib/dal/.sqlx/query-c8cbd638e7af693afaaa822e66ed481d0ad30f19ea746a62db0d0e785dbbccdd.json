@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_proof_manager e\n            SET validation_tx_attempts = e.validation_tx_attempts + 1\n            WHERE\n                e.l1_batch_number = (\n                    SELECT e2.l1_batch_number\n                    FROM eth_proof_manager e2\n                    JOIN proof_generation_details p\n                        ON e2.l1_batch_number = p.l1_batch_number\n                    WHERE\n                        (\n                            (e2.status = $1 AND e2.l1_batch_number <= $2)\n                            OR (e2.status = $3 AND e2.proof_validation_result = false)\n                        )\n                        AND e2.validation_tx_attempts < $4\n                        AND p.proving_mode = 'proving_network'\n                    ORDER BY e2.l1_batch_number ASC\n                    LIMIT 1\n                )\n            RETURNING e.l1_batch_number, e.proof_validation_result;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "proof_validation_result",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "c8cbd638e7af693afaaa822e66ed481d0ad30f19ea746a62db0d0e785dbbccdd"
+}

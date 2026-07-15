@@ -10,18 +10,19 @@ use zksync_dal::{
 };
 use zksync_multivm::{
     interface::{
-        tracer::ValidationTraces, ExecutionResult, TransactionExecutionMetrics,
-        TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
+        tracer::ValidationTraces, BatchTransactionExecutionResult, Call, ExecutionResult,
+        TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus,
+        VmExecutionMetrics,
     },
     utils::{derive_base_fee_and_gas_per_pubdata, StorageWritesDeduplicator},
 };
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::insert_genesis_batch;
 use zksync_node_test_utils::{create_l2_block, default_l1_batch_env, default_system_env};
 use zksync_state::PostgresStorage;
 use zksync_system_constants::{
-    CONTRACT_DEPLOYER_ADDRESS, L2_BASE_TOKEN_ADDRESS, NONCE_HOLDER_ADDRESS,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    BASE_TOKEN_HOLDER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, L2_ASSET_TRACKER_ADDRESS,
+    L2_BASE_TOKEN_ADDRESS, NONCE_HOLDER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
 use zksync_test_contracts::{
     Account, LoadnextContractExecutionParams, TestContract, TestEvmContract,
@@ -42,10 +43,14 @@ use zksync_types::{
     tx::{execute::Create2DeploymentParams, IncludedTxLocation},
     u256_to_h256,
     utils::storage_key_for_eth_balance,
+    web3::keccak256,
     AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey,
     StorageLog, Transaction, EIP_712_TX_TYPE, H256, U256,
 };
-use zksync_vm_executor::{batch::MainBatchExecutorFactory, interface::BatchExecutorFactory};
+use zksync_vm_executor::{
+    batch::{MainBatchExecutorFactory, TraceCalls},
+    interface::BatchExecutorFactory,
+};
 
 use crate::execution_sandbox::testonly::apply_state_overrides;
 
@@ -61,6 +66,13 @@ fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
         )
         .flatten(),
     );
+}
+
+fn h256_mapping_slot_key(key: H256, mapping_slot: u64) -> H256 {
+    let mut input = [0_u8; 64];
+    input[..32].copy_from_slice(key.as_bytes());
+    input[32..].copy_from_slice(H256::from_low_u64_be(mapping_slot).as_bytes());
+    H256(keccak256(&input))
 }
 
 pub(crate) fn default_fee() -> Fee {
@@ -201,6 +213,35 @@ impl StateBuilder {
         self.with_contract(
             Self::INFINITE_LOOP_CONTRACT_ADDRESS,
             TestContract::infinite_loop().bytecode.to_vec(),
+        )
+    }
+
+    /// Initializes minimal L2 asset-tracker state required for L1 `to_mint` processing.
+    pub fn with_l1_base_token_minting(self, base_token_asset_id: H256) -> Self {
+        let base_token_holder_balance_key = storage_key_for_eth_balance(&BASE_TOKEN_HOLDER_ADDRESS);
+        // L2AssetTracker slots mirror `forge inspect ...:L2AssetTracker storageLayout`.
+        self.with_storage_slot(
+            L2_ASSET_TRACKER_ADDRESS,
+            // L2AssetTracker.L1_CHAIN_ID (slot 204)
+            H256::from_low_u64_be(204),
+            H256::from_low_u64_be(1),
+        )
+        .with_storage_slot(
+            L2_ASSET_TRACKER_ADDRESS,
+            // L2AssetTracker.BASE_TOKEN_ASSET_ID (slot 205)
+            H256::from_low_u64_be(205),
+            base_token_asset_id,
+        )
+        .with_storage_slot(
+            L2_ASSET_TRACKER_ADDRESS,
+            // L2AssetTracker.isAssetRegistered[base_token_asset_id] (mapping at slot 203)
+            h256_mapping_slot_key(base_token_asset_id, 203),
+            H256::from_low_u64_be(1),
+        )
+        .with_storage_slot(
+            *base_token_holder_balance_key.address(),
+            *base_token_holder_balance_key.key(),
+            H256::from_low_u64_be(10_u64.pow(19)),
         )
     }
 
@@ -675,7 +716,7 @@ pub(crate) async fn persist_block_with_transactions(
         executor_storage,
         l1_batch_env,
         system_env,
-        PubdataParams::default(),
+        PubdataParams::genesis(),
     );
 
     let mut all_events = vec![];
@@ -728,8 +769,139 @@ pub(crate) async fn persist_block_with_transactions(
         .unwrap();
 }
 
+/// Executes `tx` through a real VM with call tracing, stores it in a sealed L1 batch #1,
+/// and persists the generated call trace in the `call_traces` table.
+///
+/// Returns the `(tx_hash, Call)` pair so the caller can inspect or delete the stored trace.
+///
+/// Precondition: storage must contain exactly genesis (L2 block #0 / L1 batch #0).
+pub(crate) async fn persist_sealed_batch_with_call_trace(
+    pool: &ConnectionPool<Core>,
+    tx: Transaction,
+) -> (H256, Call) {
+    let tx_hash = tx.hash();
+    let mut storage = pool.connection().await.unwrap();
+
+    let prev_block = storage
+        .blocks_dal()
+        .get_last_sealed_l2_block_header()
+        .await
+        .unwrap()
+        .expect("no blocks in storage");
+    assert_eq!(prev_block.number, L2BlockNumber(0));
+
+    let prev_batch_hash = storage
+        .blocks_dal()
+        .get_l1_batch_state_root(L1BatchNumber(0))
+        .await
+        .unwrap()
+        .expect("no root hash for genesis L1 batch");
+
+    let system_env = default_system_env();
+    let mut l1_batch_env = default_l1_batch_env(1, 1, Address::repeat_byte(1));
+    l1_batch_env.first_l2_block.prev_block_hash = prev_block.hash;
+    l1_batch_env.previous_batch_hash = Some(prev_batch_hash);
+
+    let executor_storage = PostgresStorage::new_async(
+        tokio::runtime::Handle::current(),
+        pool.connection().await.unwrap(),
+        L2BlockNumber(0),
+        false,
+    )
+    .await
+    .unwrap();
+
+    let mut batch_executor = MainBatchExecutorFactory::<TraceCalls>::new(true).init_batch(
+        executor_storage,
+        l1_batch_env,
+        system_env,
+        PubdataParams::genesis(),
+    );
+
+    let BatchTransactionExecutionResult {
+        tx_result,
+        call_traces,
+        ..
+    } = batch_executor.execute_tx(tx.clone()).await.unwrap();
+
+    let gas_limit = tx.gas_limit().as_u64();
+    let gas_used = gas_limit.saturating_sub(tx_result.refunds.gas_refunded);
+    let (output, revert_reason) = match tx_result.result {
+        ExecutionResult::Success { output } => (output, None),
+        ExecutionResult::Revert { output } => (vec![], Some(output.to_string())),
+        ExecutionResult::Halt { reason } => (vec![], Some(reason.to_string())),
+    };
+    let call = Call::new_high_level(
+        gas_limit,
+        gas_used,
+        tx.execute.value,
+        tx.execute.calldata.clone(),
+        output,
+        revert_reason,
+        call_traces,
+    );
+
+    drop(batch_executor);
+
+    // The block header must use real system contract hashes so that L1BatchParamsProvider
+    // can reload them from factory_deps during a batch replay triggered by the debug API.
+    // Also set l2_tx_count = 1 to prevent `get_l2_blocks_to_execute_for_l1_batch` from
+    // treating this block as a fictive (empty) block, which would cause a length mismatch error.
+    let real_hashes = zksync_contracts::BaseSystemContracts::load_from_disk().hashes();
+    let mut block_header = create_l2_block(1);
+    block_header.base_system_contracts_hashes = real_hashes;
+    block_header.l2_tx_count = 1;
+
+    let tx_result = mock_execute_transaction(tx);
+    store_custom_l2_block(&mut storage, &block_header, &[tx_result])
+        .await
+        .unwrap();
+
+    storage
+        .transactions_dal()
+        .insert_call_traces(&[(tx_hash, call.clone())], ProtocolVersionId::latest())
+        .await
+        .unwrap();
+
+    // Seal batch #1 and mark the transaction with its L1 batch number so that
+    // `get_tx_trace_metadata` can find it.
+    let batch_header = zksync_node_test_utils::create_l1_batch(1);
+    storage
+        .blocks_dal()
+        .insert_mock_l1_batch(&batch_header)
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(1))
+        .await
+        .unwrap();
+    let metadata = zksync_node_test_utils::create_l1_batch_metadata(1);
+    storage
+        .blocks_dal()
+        .save_l1_batch_tree_data(L1BatchNumber(1), &metadata.tree_data())
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(
+            L1BatchNumber(1),
+            &zksync_node_test_utils::l1_batch_metadata_to_commitment_artifacts(&metadata),
+        )
+        .await
+        .unwrap();
+    storage
+        .transactions_dal()
+        .mark_txs_as_executed_in_l1_batch(L1BatchNumber(1), &[tx_hash])
+        .await
+        .unwrap();
+
+    (tx_hash, call)
+}
+
 #[cfg(test)]
 mod tests {
+    use zksync_node_genesis::GenesisParamsInitials;
     use zksync_test_contracts::TxType;
 
     use super::*;
@@ -771,7 +943,7 @@ mod tests {
 
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         let balance_key = storage_key_for_eth_balance(&alice.address());

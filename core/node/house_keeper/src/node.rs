@@ -1,4 +1,4 @@
-use zksync_config::configs::house_keeper::HouseKeeperConfig;
+use zksync_config::configs::{house_keeper::HouseKeeperConfig, AirbenderProofDataHandlerConfig};
 use zksync_dal::node::{PoolResource, ReplicaPool};
 use zksync_node_framework::{
     service::StopReceiver,
@@ -7,13 +7,14 @@ use zksync_node_framework::{
     FromContext, IntoContext,
 };
 
-use crate::{blocks_state_reporter::L1BatchMetricsReporter, periodic_job::PeriodicJob};
+use crate::{blocks_state_reporter::BlockMetricsReporter, periodic_job::PeriodicJob};
 
 /// Wiring layer for `HouseKeeper` - a component responsible for managing prover jobs
 /// and auxiliary server activities.
 #[derive(Debug)]
 pub struct HouseKeeperLayer {
     house_keeper_config: HouseKeeperConfig,
+    airbender_config: Option<AirbenderProofDataHandlerConfig>,
 }
 
 #[derive(Debug, FromContext)]
@@ -24,13 +25,17 @@ pub struct Input {
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
-    l1_batch_metrics_reporter: L1BatchMetricsReporter,
+    pub l1_batch_metrics_reporter: BlockMetricsReporter,
 }
 
 impl HouseKeeperLayer {
-    pub fn new(house_keeper_config: HouseKeeperConfig) -> Self {
+    pub fn new(
+        house_keeper_config: HouseKeeperConfig,
+        airbender_config: Option<AirbenderProofDataHandlerConfig>,
+    ) -> Self {
         Self {
             house_keeper_config,
+            airbender_config,
         }
     }
 }
@@ -49,9 +54,24 @@ impl WiringLayer for HouseKeeperLayer {
         let replica_pool = input.replica_pool.get().await?;
 
         // Initialize and add tasks
-        let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
+        let first_airbender_batch = self
+            .airbender_config
+            .as_ref()
+            .map(|c| c.first_processed_batch)
+            .unwrap_or_default();
+        // Falls back to the config default when Airbender isn't configured; the value is unused in
+        // that case since there are no Airbender jobs to count.
+        let airbender_max_proving_attempts = self
+            .airbender_config
+            .as_ref()
+            .map(|c| c.max_proving_attempts)
+            .unwrap_or(10);
+
+        let l1_batch_metrics_reporter = BlockMetricsReporter::new(
             self.house_keeper_config.l1_batch_metrics_reporting_interval,
             replica_pool,
+            first_airbender_batch,
+            airbender_max_proving_attempts,
         );
 
         Ok(Output {
@@ -61,7 +81,7 @@ impl WiringLayer for HouseKeeperLayer {
 }
 
 #[async_trait::async_trait]
-impl Task for L1BatchMetricsReporter {
+impl Task for BlockMetricsReporter {
     fn id(&self) -> TaskId {
         "l1_batch_metrics_reporter".into()
     }

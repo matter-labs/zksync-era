@@ -2,9 +2,9 @@ use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
 use zksync_contracts::{
-    chain_admin_contract, hyperchain_contract, state_transition_manager_contract,
+    hyperchain_contract, server_notifier_contract, state_transition_manager_contract,
 };
-use zksync_eth_client::{ContractCallError, EnrichedClientResult};
+use zksync_eth_client::{ContractCallError, EnrichedClientError, EnrichedClientResult};
 use zksync_types::{
     abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData},
     api::{ChainAggProof, Log},
@@ -12,11 +12,12 @@ use zksync_types::{
     ethabi::{self, Token},
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
     u256_to_h256,
     utils::encode_ntv_asset_id,
     web3::{contract::Tokenizable, BlockNumber},
-    Address, L1BatchNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction, H256,
-    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolUpgrade, SLChainId, Transaction,
+    H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
 use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
@@ -30,6 +31,7 @@ pub struct FakeEthClientData {
     chain_id: SLChainId,
     processed_priority_transactions_count: u64,
     chain_log_proofs: HashMap<L1BatchNumber, ChainAggProof>,
+    chain_log_proofs_until_msg_root: HashMap<L2BlockNumber, ChainAggProof>,
     batch_roots: HashMap<u64, Vec<Log>>,
     chain_roots: HashMap<u64, H256>,
     bytecode_preimages: HashMap<H256, Vec<u8>>,
@@ -45,6 +47,7 @@ impl FakeEthClientData {
             chain_id,
             processed_priority_transactions_count: 0,
             chain_log_proofs: Default::default(),
+            chain_log_proofs_until_msg_root: Default::default(),
             batch_roots: Default::default(),
             chain_roots: Default::default(),
             bytecode_preimages: Default::default(),
@@ -63,17 +66,68 @@ impl FakeEthClientData {
     }
 
     fn add_upgrade_timestamp(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
+        // Keep in sync with `setup_db()`: tests start from the previous protocol version.
+        let mut old_protocol_version = ProtocolSemanticVersion {
+            minor: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
+            patch: 0.into(),
+        };
         for (upgrade, eth_block) in upgrades {
             self.upgrade_timestamp
                 .entry(*eth_block)
                 .or_default()
-                .push(upgrade_timestamp_log(*eth_block));
+                .push(upgrade_timestamp_log(
+                    u256_to_h256(old_protocol_version.pack()),
+                    *eth_block,
+                ));
             self.diamond_upgrades
                 .entry(*eth_block)
                 .or_default()
-                .push(diamond_upgrade_log(upgrade.clone(), *eth_block));
+                .push(diamond_upgrade_log(
+                    old_protocol_version,
+                    upgrade.clone(),
+                    *eth_block,
+                ));
             self.add_bytecode_preimages(&upgrade.tx);
+            old_protocol_version = upgrade.version;
         }
+    }
+
+    fn add_upgrade_timestamp_for_chain(
+        &mut self,
+        chain_id: L2ChainId,
+        upgrades: &[(ProtocolUpgrade, u64)],
+    ) {
+        let mut old_protocol_version = ProtocolSemanticVersion {
+            minor: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
+            patch: 0.into(),
+        };
+        for (upgrade, eth_block) in upgrades {
+            self.upgrade_timestamp.entry(*eth_block).or_default().push(
+                upgrade_timestamp_log_for_chain(
+                    chain_id,
+                    u256_to_h256(old_protocol_version.pack()),
+                    *eth_block,
+                ),
+            );
+            old_protocol_version = upgrade.version;
+        }
+    }
+
+    fn add_diamond_cut(
+        &mut self,
+        old_protocol_version: ProtocolSemanticVersion,
+        upgrade: ProtocolUpgrade,
+        eth_block: u64,
+    ) {
+        self.add_bytecode_preimages(&upgrade.tx);
+        self.diamond_upgrades
+            .entry(eth_block)
+            .or_default()
+            .push(diamond_upgrade_log(
+                old_protocol_version,
+                upgrade,
+                eth_block,
+            ));
     }
 
     fn set_last_finalized_block_number(&mut self, number: u64) {
@@ -102,6 +156,15 @@ impl FakeEthClientData {
     fn add_chain_log_proofs(&mut self, chain_log_proofs: Vec<(L1BatchNumber, ChainAggProof)>) {
         for (batch, proof) in chain_log_proofs {
             self.chain_log_proofs.insert(batch, proof);
+        }
+    }
+
+    fn add_chain_log_proofs_until_msg_root(
+        &mut self,
+        chain_log_proofs_until_msg_root: Vec<(L2BlockNumber, ChainAggProof)>,
+    ) {
+        for (block, proof) in chain_log_proofs_until_msg_root {
+            self.chain_log_proofs_until_msg_root.insert(block, proof);
         }
     }
 
@@ -140,6 +203,29 @@ impl MockEthClient {
 
     pub async fn add_upgrade_timestamp(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
         self.inner.write().await.add_upgrade_timestamp(upgrades);
+    }
+
+    pub async fn add_upgrade_timestamp_for_chain(
+        &mut self,
+        chain_id: L2ChainId,
+        upgrades: &[(ProtocolUpgrade, u64)],
+    ) {
+        self.inner
+            .write()
+            .await
+            .add_upgrade_timestamp_for_chain(chain_id, upgrades);
+    }
+
+    pub async fn add_diamond_cut(
+        &mut self,
+        old_protocol_version: ProtocolSemanticVersion,
+        upgrade: ProtocolUpgrade,
+        eth_block: u64,
+    ) {
+        self.inner
+            .write()
+            .await
+            .add_diamond_cut(old_protocol_version, upgrade, eth_block);
     }
 
     pub async fn set_last_finalized_block_number(&mut self, number: u64) {
@@ -183,6 +269,16 @@ impl MockEthClient {
             .write()
             .await
             .add_chain_log_proofs(chain_log_proofs);
+    }
+
+    pub async fn add_chain_log_proofs_until_msg_root(
+        &mut self,
+        chain_log_proofs_until_msg_root: Vec<(L2BlockNumber, ChainAggProof)>,
+    ) {
+        self.inner
+            .write()
+            .await
+            .add_chain_log_proofs_until_msg_root(chain_log_proofs_until_msg_root);
     }
 }
 
@@ -237,31 +333,28 @@ impl EthClient for MockEthClient {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 
-    async fn diamond_cut_by_version(
+    async fn diamond_cut_for_version(
         &self,
-        packed_version: H256,
+        version: ProtocolSemanticVersion,
     ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        let from_block = *self
+        let packed_version = u256_to_h256(version.pack());
+        let from_block = self
             .inner
             .read()
             .await
             .diamond_upgrades
-            .keys()
-            .min()
-            .unwrap_or(&0);
-        let to_block = *self
-            .inner
-            .read()
-            .await
-            .diamond_upgrades
-            .keys()
+            .iter()
+            .filter_map(|(block_number, logs)| {
+                logs.iter()
+                    .any(|log| log.topics.get(1) == Some(&packed_version))
+                    .then_some(*block_number)
+            })
             .max()
-            .unwrap_or(&0);
-
+            .unwrap_or(0);
         let logs = self
             .get_events(
                 U64::from(from_block).into(),
-                U64::from(to_block).into(),
+                U64::from(from_block).into(),
                 Some(
                     state_transition_manager_contract()
                         .event("NewUpgradeCutData")
@@ -273,7 +366,15 @@ impl EthClient for MockEthClient {
             )
             .await?;
 
-        Ok(logs.into_iter().next().map(|log| log.data.0))
+        if logs.len() > 1 {
+            return Err(EnrichedClientError::custom(
+                format!(
+                    "Multiple NewUpgradeCutData events in block {from_block} for version {version}"
+                ),
+                "diamond_cut_for_version",
+            ));
+        }
+        Ok(logs.into_iter().map(|log| log.data.0).next())
     }
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
@@ -325,6 +426,18 @@ impl EthClient for MockEthClient {
         }))
     }
 
+    fn bridgehub_addr(&self) -> Option<Address> {
+        None
+    }
+
+    async fn get_l2_upgrade_tx_data(
+        &self,
+        _init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> Result<Vec<u8>, ContractCallError> {
+        Ok(existing_tx_data)
+    }
+
     async fn fflonk_scheduler_vk_hash(
         &self,
         _verifier_address: Address,
@@ -341,7 +454,7 @@ impl ZkSyncExtentionEthClient for MockEthClient {
 
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_number: L1BatchNumber,
         _chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
         Ok(self
@@ -349,7 +462,21 @@ impl ZkSyncExtentionEthClient for MockEthClient {
             .read()
             .await
             .chain_log_proofs
-            .get(&l1_batch_number)
+            .get(&batch_number)
+            .cloned())
+    }
+
+    async fn get_chain_log_proof_until_msg_root(
+        &self,
+        block_number: L2BlockNumber,
+        _chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        Ok(self
+            .inner
+            .read()
+            .await
+            .chain_log_proofs_until_msg_root
+            .get(&block_number)
             .cloned())
     }
 
@@ -429,18 +556,22 @@ fn init_calldata(protocol_upgrade: ProtocolUpgrade) -> Vec<u8> {
     calldata
 }
 
-fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
+fn diamond_upgrade_log(
+    old_protocol_version: ProtocolSemanticVersion,
+    upgrade: ProtocolUpgrade,
+    eth_block: u64,
+) -> Log {
     // struct DiamondCutData {
     //     FacetCut[] facetCuts;
     //     address initAddress;
     //     bytes initCalldata;
     // }
+    let version = u256_to_h256(old_protocol_version.pack());
     let final_data = ethabi::encode(&[Token::Tuple(vec![
         Token::Array(vec![]),
         Token::Address(Address::zero()),
         Token::Bytes(init_calldata(upgrade.clone())),
     ])]);
-    tracing::info!("{:?}", Token::Bytes(init_calldata(upgrade)));
 
     Log {
         address: Address::repeat_byte(0x1),
@@ -449,7 +580,7 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
                 .event("NewUpgradeCutData")
                 .unwrap()
                 .signature(),
-            H256::from_low_u64_be(eth_block),
+            version,
         ],
         data: final_data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
@@ -464,17 +595,26 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         block_timestamp: None,
     }
 }
-fn upgrade_timestamp_log(eth_block: u64) -> Log {
+fn upgrade_timestamp_log(packed_version: H256, eth_block: u64) -> Log {
+    upgrade_timestamp_log_for_chain(L2ChainId::default(), packed_version, eth_block)
+}
+
+pub(super) fn upgrade_timestamp_log_for_chain(
+    chain_id: L2ChainId,
+    packed_version: H256,
+    eth_block: u64,
+) -> Log {
     let final_data = ethabi::encode(&[U256::from(12345).into_token()]);
 
     Log {
         address: Address::repeat_byte(0x1),
         topics: vec![
-            chain_admin_contract()
-                .event("UpdateUpgradeTimestamp")
-                .expect("UpdateUpgradeTimestamp event is missing in ABI")
+            server_notifier_contract()
+                .event("UpgradeTimestampUpdated")
+                .expect("UpgradeTimestampUpdated event is missing in ABI")
                 .signature(),
-            H256::from_low_u64_be(eth_block),
+            u256_to_h256(chain_id.as_u64().into()),
+            packed_version,
         ],
         data: final_data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
@@ -538,7 +678,7 @@ fn batch_root_to_log(sl_block_number: u64, l2_batch_number: u64, batch_root: H25
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(sl_block_number.into()),
-        l1_batch_number: Some(sl_block_number.into()),
+        l1_batch_number: Some(l2_batch_number.into()),
         transaction_hash: Some(H256::random()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),

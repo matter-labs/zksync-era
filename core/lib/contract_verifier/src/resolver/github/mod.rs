@@ -111,7 +111,7 @@ impl SupportedVersions {
 }
 
 impl GitHubCompilerResolver {
-    pub async fn new() -> anyhow::Result<Self> {
+    pub async fn new(download_timeout: Duration) -> anyhow::Result<Self> {
         let artifacts_dir = tempfile::tempdir().context("failed creating temp dir")?;
         let gh_client = GitHubApi::new();
         let mut supported_versions = SupportedVersions::default();
@@ -125,7 +125,10 @@ impl GitHubCompilerResolver {
         Ok(Self {
             artifacts_dir,
             gh_client,
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .timeout(download_timeout)
+                .build()
+                .expect("Failed to build reqwest client"),
             supported_versions: RwLock::new(supported_versions),
             active_downloads: RwLock::default(),
         })

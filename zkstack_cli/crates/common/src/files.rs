@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{de::DeserializeOwned, Serialize};
 use xshell::Shell;
@@ -64,4 +64,21 @@ pub fn save_json_file(
     let data = serde_json::to_string_pretty(&content)?;
     shell.write_file(file_path, data)?;
     Ok(())
+}
+
+// Find file in all parents repository and return necessary path or an empty error if nothing has been found
+pub fn find_file(shell: &Shell, path_buf: &Path, file_name: &str) -> anyhow::Result<PathBuf> {
+    let _dir = shell.push_dir(path_buf);
+    if shell.path_exists(file_name) {
+        Ok(shell.current_dir())
+    } else {
+        let current_dir = shell.current_dir();
+        let Some(path) = current_dir.parent() else {
+            return Err(anyhow::anyhow!(
+                "Failed to find file `{}` in the current directory or its parents",
+                file_name
+            ));
+        };
+        find_file(shell, path, file_name)
+    }
 }

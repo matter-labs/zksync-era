@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_engine::EngineManager;
 use zksync_consensus_executor::{self as executor};
@@ -55,9 +55,18 @@ pub async fn run_main_node(
             .wrap("Store::new()")?;
         s.spawn_bg(async { Ok(runner.run(ctx).await.context("Store::runner()")?) });
 
-        let (engine_manager, engine_runner) = EngineManager::new(ctx, Box::new(store.clone()))
-            .await
-            .wrap("BlockStore::new()")?;
+        let (engine_manager, engine_runner) = EngineManager::new(
+            ctx,
+            Box::new(store.clone()),
+            time::Duration::seconds(
+                cfg.consensus_registry_read_rate
+                    .as_secs()
+                    .try_into()
+                    .unwrap(),
+            ),
+        )
+        .await
+        .wrap("BlockStore::new()")?;
         s.spawn_bg(async { Ok(engine_runner.run(ctx).await.context("BlockStore::run()")?) });
 
         let executor = executor::Executor {

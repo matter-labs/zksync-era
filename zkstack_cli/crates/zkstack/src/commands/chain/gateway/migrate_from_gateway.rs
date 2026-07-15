@@ -6,7 +6,7 @@ use std::{
 use anyhow::Context;
 use clap::Parser;
 use ethers::{
-    abi::{parse_abi, Address},
+    abi::Address,
     contract::BaseContract,
     providers::{Http, Provider},
     utils::hex,
@@ -15,7 +15,6 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zkstack_cli_common::{
-    config::global_config,
     ethereum::{get_ethers_provider, get_zk_client},
     forge::{Forge, ForgeScriptArgs},
     logger,
@@ -24,24 +23,30 @@ use zkstack_cli_common::{
     zks_provider::{FinalizeWithdrawalParams, ZKSProvider},
 };
 use zkstack_cli_config::{
-    forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH, EcosystemConfig,
+    forge_interface::script_params::GATEWAY_UTILS_SCRIPT_PATH, ZkStackConfig, ZkStackConfigTrait,
 };
-use zksync_basic_types::{H256, U256};
+use zksync_basic_types::{commitment::L2DACommitmentScheme, H256, U256};
+use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_web3_decl::{
     client::{Client, L2},
     namespaces::EthNamespaceClient,
 };
 
 use crate::{
-    abi::ZkChainAbi,
+    abi::{BridgehubAbi, ZkChainAbi, GATEWAYUTILSABI_ABI},
     admin_functions::{set_da_validator_pair, start_migrate_chain_from_gateway},
     commands::chain::{
         admin_call_builder::AdminCallBuilder,
+        args::init::da_configs::ValidiumTypeInternal,
         gateway::{
             constants::DEFAULT_MAX_L1_GAS_PRICE_FOR_PRIORITY_TXS,
-            gateway_common::{extract_and_wait_for_priority_ops, send_tx},
+            gateway_common::{
+                extract_and_wait_for_priority_ops, get_gateway_migration_state,
+                GatewayMigrationProgressState, MigrationDirection,
+            },
         },
         init::get_l1_da_validator,
+        utils::send_tx,
     },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_DA_PAIR_REGISTRATION_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
@@ -56,23 +61,30 @@ pub struct MigrateFromGatewayArgs {
 
     #[clap(long)]
     pub gateway_chain_name: String,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+
+    /// Gateway RPC URL. If not provided, will be read from gateway chain's general config.
+    #[clap(long)]
+    pub gateway_rpc_url: Option<String>,
+
+    /// Validium type for the chain. If not provided, will be read from chain's general config.
+    #[clap(long)]
+    pub validium_type: Option<ValidiumTypeInternal>,
 }
 
 lazy_static! {
-    static ref GATEWAY_UTILS_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function finishMigrateChainFromGateway(address bridgehubAddr, uint256 migratingChainId, uint256 gatewayChainId, uint256 l2BatchNumber, uint256 l2MessageIndex, uint16 l2TxNumberInBatch, bytes memory message, bytes32[] memory merkleProof) public",
-        ])
-        .unwrap(),
-    );
+    static ref GATEWAY_UTILS_INTERFACE: BaseContract =
+        BaseContract::from(GATEWAYUTILSABI_ABI.clone());
 }
 
 pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
-    let chain_name = global_config().chain_name.clone();
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let gateway_chain_config = ecosystem_config
@@ -80,18 +92,53 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
         .context("Gateway not present")?;
     let gateway_chain_id = gateway_chain_config.chain_id.as_u64();
 
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
     let chain_contracts_config = chain_config.get_contracts_config()?;
 
-    let l1_diamond_cut_data = ecosystem_config
+    let l1_diamond_cut_data = chain_config
         .get_contracts_config()?
         .ecosystem_contracts
+        .ctm
         .diamond_cut_data;
+
+    let gw_rpc_url = match args.gateway_rpc_url {
+        Some(url) => url,
+        None => {
+            let general_config = gateway_chain_config.get_general_config().await?;
+            general_config.l2_http_url()?
+        }
+    };
+
+    let state = get_gateway_migration_state(
+        l1_url.clone(),
+        chain_contracts_config
+            .ecosystem_contracts
+            .bridgehub_proxy_addr,
+        chain_config.chain_id.as_u64(),
+        chain_config
+            .get_general_config()
+            .await?
+            .l2_http_url()
+            .context("L2 RPC URL must be provided for cross checking")?,
+        gw_rpc_url.clone(),
+        MigrationDirection::FromGateway,
+    )
+    .await?;
+
+    if state != GatewayMigrationProgressState::ServerReady {
+        anyhow::bail!(
+            "Chain is not ready for starting the migration from Gateway. Current state: {:?}",
+            state
+        );
+    }
 
     let start_migrate_from_gateway_call = start_migrate_chain_from_gateway(
         shell,
         &args.forge_args,
-        &ecosystem_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::OnlySave,
         chain_contracts_config
             .ecosystem_contracts
@@ -111,8 +158,6 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     let (calldata, value) =
         AdminCallBuilder::new(start_migrate_from_gateway_call.calls).compile_full_calldata();
 
-    let general_config = gateway_chain_config.get_general_config().await?;
-    let gw_rpc_url = general_config.l2_http_url()?;
     let gateway_provider = get_ethers_provider(&gw_rpc_url)?;
     let gateway_zk_client = get_zk_client(&gw_rpc_url, chain_config.chain_id.as_u64())?;
 
@@ -142,7 +187,7 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
             .get_contracts_config()?
             .l1
             .diamond_proxy_addr,
-        gateway_provider,
+        gateway_provider.clone(),
     )
     .await?;
 
@@ -171,14 +216,14 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     finish_migrate_chain_from_gateway(
         shell,
         args.forge_args.clone(),
-        &ecosystem_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         ecosystem_config
             .get_wallets()?
             .deployer
             .context("Missing deployer wallet")?,
         ecosystem_config
             .get_contracts_config()?
-            .ecosystem_contracts
+            .core_ecosystem_contracts
             .bridgehub_proxy_addr,
         chain_config.chain_id.as_u64(),
         gateway_chain_id,
@@ -187,15 +232,19 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
     )
     .await?;
 
-    let l1_da_validator_addr = get_l1_da_validator(&chain_config)
+    let l1_da_validator_addr = get_l1_da_validator(&chain_config, args.validium_type.clone())
         .await
         .context("l1_da_validator_addr")?;
-
     let spinner = Spinner::new(MSG_DA_PAIR_REGISTRATION_SPINNER);
+    let (_, l2_da_validator_commitment_scheme) =
+        get_zkchain_da_validator_pair(gateway_provider.clone(), chain_config.chain_id.as_u64())
+            .await
+            .context("Fetching the DA validator pair from Gateway failed")?;
+
     set_da_validator_pair(
         shell,
         &args.forge_args,
-        &ecosystem_config.path_to_l1_foundry(),
+        &chain_config.path_to_foundry_scripts(),
         crate::admin_functions::AdminScriptMode::Broadcast(
             chain_config.get_wallets_config()?.governor,
         ),
@@ -204,24 +253,28 @@ pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<
             .ecosystem_contracts
             .bridgehub_proxy_addr,
         l1_da_validator_addr,
-        chain_contracts_config
-            .l2
-            .da_validator_addr
-            .context("da_validator_addr")?,
+        l2_da_validator_commitment_scheme,
         l1_url.clone(),
     )
     .await?;
+
     spinner.finish();
     Ok(())
 }
 
-const LOOK_WAITING_TIME_MS: u64 = 200;
+const LOOK_WAITING_TIME_MS: u64 = 1600;
+
+pub(crate) enum GatewayTransactionType {
+    Withdrawal,
+    Migration,
+}
 
 pub(crate) async fn check_whether_gw_transaction_is_finalized(
     gateway_provider: &Client<L2>,
     l1_provider: Arc<Provider<Http>>,
     gateway_diamond_proxy: Address,
     hash: H256,
+    transaction_type: GatewayTransactionType,
 ) -> anyhow::Result<bool> {
     let Some(receipt) = gateway_provider.get_transaction_receipt(hash).await? else {
         return Ok(false);
@@ -233,12 +286,25 @@ pub(crate) async fn check_whether_gw_transaction_is_finalized(
 
     let batch_number = receipt.l1_batch_number.unwrap();
 
-    if gateway_provider
-        .get_finalize_withdrawal_params(hash, 0)
-        .await
-        .is_err()
-    {
-        return Ok(false);
+    match transaction_type {
+        GatewayTransactionType::Withdrawal => {
+            if gateway_provider
+                .get_finalize_withdrawal_params(hash, 0)
+                .await
+                .is_err()
+            {
+                return Ok(false);
+            }
+        }
+        GatewayTransactionType::Migration => {
+            if gateway_provider
+                .get_finalize_migration_params(hash, 0)
+                .await
+                .is_err()
+            {
+                return Ok(false);
+            }
+        }
     }
 
     // TODO(PLA-1121): investigate why waiting for the tx proof is not enough.
@@ -258,6 +324,7 @@ async fn await_for_withdrawal_to_finalize(
         l1_provider.clone(),
         gateway_diamond_proxy,
         hash,
+        GatewayTransactionType::Withdrawal,
     )
     .await?
     {
@@ -312,4 +379,23 @@ pub(crate) async fn finish_migrate_chain_from_gateway(
     forge.run(shell)?;
 
     Ok(())
+}
+
+pub async fn get_zkchain_da_validator_pair(
+    gateway_provider: Arc<Provider<Http>>,
+    chain_id: u64,
+) -> anyhow::Result<(Address, L2DACommitmentScheme)> {
+    let bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider.clone());
+    let diamond_proxy = bridgehub.get_zk_chain(chain_id.into()).await?;
+    if diamond_proxy.is_zero() {
+        anyhow::bail!("The chain does not settle on GW yet, the address is unknown");
+    }
+    let zk_chain = ZkChainAbi::new(diamond_proxy, gateway_provider);
+    let (l1_da_validator, l2_da_validator_commitment_scheme) =
+        zk_chain.get_da_validator_pair().await?;
+
+    let l2_da_validator_commitment_scheme =
+        L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme).unwrap();
+
+    Ok((l1_da_validator, l2_da_validator_commitment_scheme))
 }

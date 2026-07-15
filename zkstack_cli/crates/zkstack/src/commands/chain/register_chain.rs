@@ -1,4 +1,6 @@
 use anyhow::Context;
+use ethers::contract::BaseContract;
+use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
     forge::{Forge, ForgeScriptArgs},
@@ -11,29 +13,36 @@ use zkstack_cli_config::{
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    ChainConfig, ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 
 use crate::{
+    abi::{IREGISTERONALLCHAINSABI_ABI, IREGISTERZKCHAINABI_ABI},
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_CHAIN_REGISTERED, MSG_REGISTERING_CHAIN_SPINNER},
     utils::forge::{check_the_balance, fill_forge_private_key, WalletOwner},
 };
 
+lazy_static! {
+    static ref REGISTER_ON_ALL_CHAINS_FUNCTIONS: BaseContract =
+        BaseContract::from(IREGISTERONALLCHAINSABI_ABI.clone());
+}
+
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     let chain_config = ecosystem_config
         .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
-    let mut contracts = chain_config.get_contracts_config()?;
+    let contracts = ecosystem_config.get_contracts_config()?;
     let secrets = chain_config.get_secrets_config().await?;
     let l1_rpc_url = secrets.l1_rpc_url()?;
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
-    register_chain(
+    let contracts = register_chain(
         shell,
         args,
         &ecosystem_config,
         &chain_config,
-        &mut contracts,
+        &contracts,
         l1_rpc_url,
         None,
         true,
@@ -51,20 +60,42 @@ pub async fn register_chain(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
-    contracts: &mut ContractsConfig,
+    contracts: &CoreContractsConfig,
     l1_rpc_url: String,
     sender: Option<String>,
     broadcast: bool,
-) -> anyhow::Result<()> {
-    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.path_to_l1_foundry());
+) -> anyhow::Result<ContractsConfig> {
+    let deploy_config_path =
+        REGISTER_CHAIN_SCRIPT_PARAMS.input(&chain_config.path_to_foundry_scripts());
 
-    let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
+    let deploy_config = RegisterChainL1Config::new(chain_config, contracts.create2_factory_addr)?;
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
+    // Prepare calldata for the register chain script
+    let register_chain_contract = BaseContract::from(IREGISTERZKCHAINABI_ABI.clone());
+
+    let ctm = contracts.ctm(chain_config.vm_option);
+    let calldata = register_chain_contract
+        .encode(
+            "run",
+            (
+                ctm.state_transition_proxy_addr,
+                chain_config.chain_id.as_u64(),
+            ),
+        )
+        .with_context(|| {
+            format!(
+                "Failed to encode calldata for register_chain. CTM address: {:?}, Chain ID: {}",
+                ctm.state_transition_proxy_addr,
+                chain_config.chain_id.as_u64()
+            )
+        })?;
+
+    let mut forge = Forge::new(&chain_config.path_to_foundry_scripts())
         .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
-        .with_rpc_url(l1_rpc_url);
+        .with_rpc_url(l1_rpc_url)
+        .with_calldata(&calldata);
 
     if broadcast {
         forge = forge.with_broadcast();
@@ -85,8 +116,9 @@ pub async fn register_chain(
 
     let register_chain_output = RegisterChainOutput::read(
         shell,
-        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.path_to_l1_foundry()),
+        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.path_to_foundry_scripts()),
     )?;
-    contracts.set_chain_contracts(&register_chain_output);
-    Ok(())
+    let full_contracts =
+        contracts.chain_contracts_from_output(&register_chain_output, chain_config);
+    Ok(full_contracts)
 }

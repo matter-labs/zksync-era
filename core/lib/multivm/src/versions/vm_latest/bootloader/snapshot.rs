@@ -14,6 +14,8 @@ pub(crate) struct BootloaderStateSnapshot {
     pub(crate) free_tx_offset: usize,
     /// Whether the pubdata information has been provided already
     pub(crate) is_pubdata_information_provided: bool,
+    /// The number of applied interop roots
+    pub(crate) number_of_applied_interop_roots: usize,
 }
 
 #[derive(Debug, Clone)]

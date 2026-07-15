@@ -8,7 +8,6 @@ use crate::{config::QueueReportFields, http_client::HttpClient};
 
 pub type Queue = HashMap<(String, QueueReportFields), usize>;
 
-#[derive(Default)]
 pub struct Queuer {
     http_client: HttpClient,
     pub prover_job_monitor_url: String,

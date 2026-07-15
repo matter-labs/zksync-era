@@ -5,7 +5,7 @@ use zksync_shared_resources::tree::TreeApiError;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails,
         L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
@@ -62,7 +62,11 @@ impl ZksNamespace {
         }
 
         let mut connection = self.state.acquire_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.settlement_layer(),
+        )
+        .await?;
         drop(connection);
         let mut tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
@@ -96,7 +100,11 @@ impl ZksNamespace {
         }
 
         let mut connection = self.state.acquire_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
+        let block_args = BlockArgs::pending(
+            &mut connection,
+            self.state.api_config.settlement_layer.settlement_layer(),
+        )
+        .await?;
         drop(connection);
         let tx = L1Tx::from_request(
             request_with_gas_per_pubdata_overridden,
@@ -175,6 +183,7 @@ impl ZksNamespace {
         l1_batch_number: L1BatchNumber,
         index_in_filtered_logs: usize,
         log_filter: impl Fn(&L2ToL1Log) -> bool,
+        interop_mode: Option<InteropMode>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         let all_l1_logs_in_batch = storage
             .blocks_web3_dal()
@@ -207,7 +216,6 @@ impl ZksNamespace {
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
         let tree_size = l2_to_l1_logs_tree_size(protocol_version);
-
         let (local_root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
 
@@ -216,6 +224,7 @@ impl ZksNamespace {
                 proof,
                 root: local_root,
                 id: l1_log_index as u32,
+                batch_number: l1_batch_number,
             }));
         }
 
@@ -239,20 +248,31 @@ impl ZksNamespace {
 
         let (batch_proof_len, batch_chain_proof, is_final_node) =
             if sl_chain_id.0 != self.state.api_config.l1_chain_id.0 {
-                let Some(batch_chain_proof) = storage
-                    .blocks_dal()
-                    .get_l1_batch_chain_merkle_path(l1_batch_number)
-                    .await
-                    .map_err(DalError::generalize)?
-                else {
-                    return Ok(None);
+                let batch_chain_proof = if interop_mode == Some(InteropMode::ProofBasedGateway) {
+                    // Serve a proof to Gateway's MessageRoot
+                    storage
+                        .blocks_dal()
+                        .get_batch_chain_merkle_path_until_msg_root(l1_batch_number)
+                        .await
+                        .map_err(DalError::generalize)
+                } else {
+                    // Serve a proof to Gateway's ChainBatchRoot, used for withdrawals
+                    storage
+                        .blocks_dal()
+                        .get_l1_batch_chain_merkle_path(l1_batch_number)
+                        .await
+                        .map_err(DalError::generalize)
                 };
 
-                (
-                    batch_chain_proof.batch_proof_len,
-                    batch_chain_proof.proof,
-                    false,
-                )
+                if let Ok(Some(batch_chain_proof)) = batch_chain_proof {
+                    (
+                        batch_chain_proof.batch_proof_len,
+                        batch_chain_proof.proof,
+                        false,
+                    )
+                } else {
+                    return Ok(None);
+                }
             } else {
                 (0, Vec::new(), true)
             };
@@ -276,6 +296,7 @@ impl ZksNamespace {
             proof,
             root,
             id: l1_log_index as u32,
+            batch_number: l1_batch_number,
         }))
     }
 
@@ -283,16 +304,18 @@ impl ZksNamespace {
         &self,
         tx_hash: H256,
         index: Option<usize>,
+        interop_mode: Option<InteropMode>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         if let Some(handler) = &self.state.l2_l1_log_proof_handler {
             return handler
-                .get_l2_to_l1_log_proof(tx_hash, index)
+                .get_l2_to_l1_log_proof(tx_hash, index, interop_mode)
                 .rpc_context("get_l2_to_l1_log_proof")
                 .await
                 .map_err(Into::into);
         }
 
         let mut storage = self.state.acquire_connection().await?;
+        // kl todo for precommit based, we need it based on blocks.
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
@@ -313,6 +336,7 @@ impl ZksNamespace {
                 l1_batch_number,
                 index.unwrap_or(0),
                 |log| log.tx_number_in_block == l1_batch_tx_index,
+                interop_mode,
             )
             .await?;
         Ok(log_proof)
@@ -433,12 +457,13 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_fee_params_impl(&self) -> FeeParams {
+    pub async fn get_fee_params_impl(&self) -> FeeParams {
         self.state
             .tx_sender
             .0
             .batch_fee_input_provider
             .get_fee_model_params()
+            .await
     }
 
     #[deprecated]
@@ -549,5 +574,13 @@ impl ZksNamespace {
             .scaled_batch_fee_input()
             .await?
             .into_pubdata_independent())
+    }
+
+    pub async fn gas_per_pubdata_impl(&self) -> Result<U256, Web3Error> {
+        let (_, gas_per_pubdata) = self.state.tx_sender.gas_price_and_gas_per_pubdata().await?;
+        // We don't accept transactions with `gas_per_pubdata=0` so API should always return 1 at the
+        // bare minimum.
+        let gas_per_pubdata = gas_per_pubdata.max(1);
+        Ok(gas_per_pubdata.into())
     }
 }

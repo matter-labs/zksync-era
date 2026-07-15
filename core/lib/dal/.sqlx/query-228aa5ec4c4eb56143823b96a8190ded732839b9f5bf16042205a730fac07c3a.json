@@ -13,7 +13,10 @@
                 "ProtocolUpgrades",
                 "PriorityTransactions",
                 "ChainBatchRoot",
-                "ServerNotification"
+                "ServerNotification",
+                "ProofRequestAcknowledged",
+                "ProofRequestProven",
+                "InteropRoot"
               ]
             }
           }

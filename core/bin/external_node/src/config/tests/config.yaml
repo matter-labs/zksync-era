@@ -74,16 +74,20 @@ api:
     initial_writes_cache_size_mb: 50
     extended_api_tracing: true
     estimate_gas_optimize_search: true
+    eth_call_gas_cap: null
     vm_concurrency_limit: 100
     latest_values_cache_size_mb: 200
     request_timeout_sec: 20
     tree_api_url: http://tree/
+    tree_api_request_timeout_sec: 45
     max_batch_request_size: 50
     websocket_requests_per_minute_limit: 1000
     mempool_cache_size: 1000
     fee_history_limit: 100
     whitelisted_tokens_for_aa:
       - '0x0000000000000000000000000000000000000001'
+    send_raw_tx_sync_max_timeout_ms: 10000
+    send_raw_tx_sync_default_timeout_ms: 2000
 
 contracts:
   l1:
@@ -92,6 +96,7 @@ state_keeper:
   l2_block_seal_queue_capacity: 20
   save_call_traces: false
   protective_reads_persistence_enabled: true
+  l2_block_commit_deadline_ms: 1000
 commitment_generator:
   max_parallelism: 4
 timestamp_asserter:

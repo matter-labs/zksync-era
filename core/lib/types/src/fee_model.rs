@@ -304,26 +304,39 @@ impl FeeParamsV2 {
     /// Returns the fee model config with the minimal L2 gas price denominated in the chain's base token (WEI or equivalent).
     pub fn config(&self) -> FeeModelConfigV2 {
         FeeModelConfigV2 {
-            minimal_l2_gas_price: self.convert_to_base_token(self.config.minimal_l2_gas_price),
+            minimal_l2_gas_price: self.convert_l1_to_base_token(
+                self.config.minimal_l2_gas_price,
+                self.conversion_ratio.l1_conversion_ratio(),
+            ),
             ..self.config
         }
     }
 
     /// Returns the l1 gas price denominated in the chain's base token (WEI or equivalent).
     pub fn l1_gas_price(&self) -> u64 {
-        self.convert_to_base_token(self.l1_gas_price)
+        self.convert_l1_to_base_token(
+            self.l1_gas_price,
+            self.conversion_ratio.sl_conversion_ratio(),
+        )
     }
 
     /// Returns the l1 pubdata price denominated in the chain's base token (WEI or equivalent).
     pub fn l1_pubdata_price(&self) -> u64 {
-        self.convert_to_base_token(self.l1_pubdata_price)
+        self.convert_l1_to_base_token(
+            self.l1_pubdata_price,
+            self.conversion_ratio.sl_conversion_ratio(),
+        )
     }
 
     /// Converts the fee param to the base token.
-    fn convert_to_base_token(&self, price_in_wei: u64) -> u64 {
+    fn convert_l1_to_base_token(
+        &self,
+        price_in_wei: u64,
+        conversion_ratio: ConversionRatio,
+    ) -> u64 {
         let converted_price = u128::from(price_in_wei)
-            * u128::from(self.conversion_ratio.numerator.get())
-            / u128::from(self.conversion_ratio.denominator.get());
+            * u128::from(conversion_ratio.numerator.get())
+            / u128::from(conversion_ratio.denominator.get());
 
         // Match on the converted price to ensure it can be represented as a u64
         match converted_price.try_into() {
@@ -346,19 +359,71 @@ impl FeeParamsV2 {
     }
 }
 
-/// The struct that represents the BaseToken<->ETH conversion ratio.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct BaseTokenConversionRatio {
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct ConversionRatio {
     pub numerator: NonZeroU64,
     pub denominator: NonZeroU64,
 }
 
-impl Default for BaseTokenConversionRatio {
+impl ConversionRatio {
+    pub fn reciprocal(&self) -> Self {
+        Self {
+            numerator: self.denominator,
+            denominator: self.numerator,
+        }
+    }
+}
+
+impl Default for ConversionRatio {
     fn default() -> Self {
         Self {
             numerator: NonZeroU64::new(1).unwrap(),
             denominator: NonZeroU64::new(1).unwrap(),
         }
+    }
+}
+
+/// The struct that represents the BaseToken<->ETH conversion ratio.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct BaseTokenConversionRatio {
+    l1: Option<ConversionRatio>,
+    sl: Option<ConversionRatio>,
+    #[deprecated(note = "backwards compatibility for API")]
+    numerator: NonZeroU64,
+    #[deprecated(note = "backwards compatibility for API")]
+    denominator: NonZeroU64,
+}
+
+#[allow(deprecated)]
+impl BaseTokenConversionRatio {
+    pub fn new_simple(l1_sl: ConversionRatio) -> Self {
+        Self::new(l1_sl, l1_sl)
+    }
+
+    pub fn new(l1: ConversionRatio, sl: ConversionRatio) -> Self {
+        Self {
+            l1: Some(l1),
+            sl: Some(sl),
+            numerator: l1.numerator,
+            denominator: l1.denominator,
+        }
+    }
+
+    pub fn l1_conversion_ratio(&self) -> ConversionRatio {
+        self.l1.unwrap_or(ConversionRatio {
+            numerator: self.numerator,
+            denominator: self.denominator,
+        })
+    }
+
+    pub fn sl_conversion_ratio(&self) -> ConversionRatio {
+        self.sl.unwrap_or_default()
+    }
+}
+
+impl Default for BaseTokenConversionRatio {
+    fn default() -> Self {
+        Self::new_simple(ConversionRatio::default())
     }
 }
 
@@ -803,10 +868,10 @@ mod tests {
             config,
             GWEI,
             2 * GWEI,
-            BaseTokenConversionRatio {
+            BaseTokenConversionRatio::new_simple(ConversionRatio {
                 numerator: NonZeroU64::new(3_000_000).unwrap(),
                 denominator: NonZeroU64::new(1).unwrap(),
-            },
+            }),
         );
 
         let input =
@@ -833,10 +898,10 @@ mod tests {
             config,
             u64::MAX,
             u64::MAX - 1,
-            BaseTokenConversionRatio {
+            BaseTokenConversionRatio::new_simple(ConversionRatio {
                 numerator: NonZeroU64::new(u64::MAX).unwrap(),
                 denominator: NonZeroU64::new(u64::MAX).unwrap(),
-            },
+            }),
         );
         assert_eq!(params.l1_gas_price(), u64::MAX);
         assert_eq!(params.l1_pubdata_price(), u64::MAX - 1);

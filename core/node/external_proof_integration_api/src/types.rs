@@ -85,7 +85,6 @@ impl ExternalProof {
     }
 }
 
-#[async_trait::async_trait]
 impl<S: Send + Sync> FromRequest<S> for ExternalProof {
     type Rejection = ApiError;
 

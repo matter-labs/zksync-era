@@ -22,6 +22,7 @@ keys/setup
 !core/Cargo.lock
 !core/Cargo.toml
 !contracts/
+!proof-manager-contracts/
 !setup_2\^26.key
 !setup_2\^24.key
 !setup_compact.key

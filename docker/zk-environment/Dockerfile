@@ -42,12 +42,12 @@ RUN apt-get update && apt-get install -y \
     git
 
 RUN cargo install --version=0.8.0 sqlx-cli
-RUN cargo install cargo-nextest
+RUN cargo install --locked cargo-nextest
 RUN cargo install cargo-spellcheck
 RUN cargo install sccache
 
 RUN git clone https://github.com/matter-labs/foundry-zksync
-RUN cd foundry-zksync && git reset --hard 27360d4c8d12beddbb730dae07ad33a206b38f4b && cargo build --release --bins
+RUN cd foundry-zksync && git checkout foundry-zksync-v0.1.5 && cargo build --release --bins
 RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
 RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
 
@@ -108,7 +108,7 @@ RUN apt-get update && \
     apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 # Install Node and yarn
-ENV NODE_MAJOR=18
+ENV NODE_MAJOR=20
 RUN mkdir -p /etc/apt/keyrings && \
     wget -c -O - https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \

@@ -442,6 +442,7 @@ pub(crate) struct StorageTransactionDetails {
     pub eth_prove_tx_hash: Option<String>,
     pub eth_execute_tx_hash: Option<String>,
     pub eth_execute_tx_finality_status: Option<String>,
+    pub eth_precommit_tx_hash: Option<String>,
 }
 
 impl StorageTransactionDetails {
@@ -453,13 +454,14 @@ impl StorageTransactionDetails {
 
         if self.error.is_some() {
             TransactionStatus::Failed
-
-        // } else if execute_tx_finality == Some(EthTxFinalityStatus::FastFinalized) {
-        // TransactionStatus::FastFinalized
+        } else if execute_tx_finality == Some(EthTxFinalityStatus::FastFinalized) {
+            TransactionStatus::FastFinalized
         } else if execute_tx_finality == Some(EthTxFinalityStatus::Finalized) {
             TransactionStatus::Verified
         } else if self.miniblock_number.is_some() {
             TransactionStatus::Included
+        } else if self.eth_precommit_tx_hash.is_some() {
+            TransactionStatus::Precommitted
         } else {
             TransactionStatus::Pending
         }
@@ -497,6 +499,10 @@ impl From<StorageTransactionDetails> for TransactionDetails {
             .eth_execute_tx_hash
             .map(|hash| H256::from_str(&hash).unwrap());
 
+        let eth_precommit_tx_hash = tx_details
+            .eth_precommit_tx_hash
+            .map(|hash| H256::from_str(&hash).unwrap());
+
         TransactionDetails {
             is_l1_originated: tx_details.is_priority,
             status,
@@ -507,6 +513,7 @@ impl From<StorageTransactionDetails> for TransactionDetails {
             eth_commit_tx_hash,
             eth_prove_tx_hash,
             eth_execute_tx_hash,
+            eth_precommit_tx_hash,
         }
     }
 }

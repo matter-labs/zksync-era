@@ -5,21 +5,18 @@ use std::sync::Arc;
 use anyhow::Context;
 use chrono::Utc;
 use ethers::{
-    middleware::SignerMiddleware,
     providers::{Http, Middleware, Provider},
-    signers::{LocalWallet, Signer},
-    types::{Filter, TransactionReceipt, TransactionRequest},
+    types::{Filter, TransactionReceipt},
+    utils::keccak256,
 };
 use xshell::Shell;
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client},
     forge::ForgeScriptArgs,
     logger,
-    spinner::Spinner,
 };
-use zkstack_cli_config::EcosystemConfig;
+use zkstack_cli_config::{ZkStackConfig, ZkStackConfigTrait};
 use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_contracts::bridgehub_contract;
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 use zksync_types::{
     server_notification::{GatewayMigrationNotification, GatewayMigrationState},
@@ -29,14 +26,13 @@ use zksync_types::{
 use zksync_web3_decl::namespaces::UnstableNamespaceClient;
 
 use super::{
-    migrate_from_gateway::check_whether_gw_transaction_is_finalized,
+    migrate_from_gateway::{check_whether_gw_transaction_is_finalized, GatewayTransactionType},
     notify_server_calldata::{get_notify_server_calls, NotifyServerCallsArgs},
 };
 use crate::{
-    abi::{BridgehubAbi, ChainTypeManagerAbi, ZkChainAbi},
-    commands::chain::admin_call_builder::AdminCallBuilder,
+    abi::{BridgehubAbi, IChainAssetHandlerAbi, IChainTypeManagerAbi, ZkChainAbi},
+    commands::chain::{admin_call_builder::AdminCallBuilder, utils::send_tx},
     consts::DEFAULT_EVENTS_BLOCK_RANGE,
-    messages::MSG_CHAIN_NOT_INITIALIZED,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -54,8 +50,20 @@ impl MigrationDirection {
     }
 }
 
+#[derive(Debug, clap::Parser)]
+pub struct NotifyServerArgs {
+    /// All ethereum environment related arguments
+    #[clap(flatten)]
+    pub forge_args: ForgeScriptArgs,
+
+    /// L1 RPC URL. If not provided, will be read from chain secrets config.
+    #[clap(long)]
+    pub l1_rpc_url: Option<String>,
+}
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum NotificationReceivedState {
+    NotAllBatchesCommitted,
     NotAllBatchesExecuted(U256, U256),
     UnconfirmedTxs(usize),
 }
@@ -74,6 +82,9 @@ impl std::fmt::Display for NotificationReceivedState {
                     f,
                     "There are some unconfirmed transactions: {unconfirmed_txs}"
                 )
+            }
+            NotificationReceivedState::NotAllBatchesCommitted => {
+                write!(f, "Not all batches have been committed yet")
             }
         }
     }
@@ -121,10 +132,13 @@ pub(crate) async fn get_migration_transaction(
         .expect("Failed to fetch latest block")
         .as_u64();
 
-    let bridgehub_contract = bridgehub_contract();
+    let bridgehub = BridgehubAbi::new(bridgehub_address, provider.clone());
+    let chain_asset_handler_addr = bridgehub.chain_asset_handler().await?;
+    let chain_asset_handler =
+        IChainAssetHandlerAbi::new(chain_asset_handler_addr, provider.clone());
 
     let max_interval_to_search = Utc::now() - MAX_SEARCHING_MIGRATION_TXS_INTERVAL;
-    let latest_event_log = loop {
+    let latest_tx_hash: Option<H256> = loop {
         let lower_bound = search_upper_bound.saturating_sub(DEFAULT_EVENTS_BLOCK_RANGE);
 
         logger::info(format!(
@@ -132,21 +146,15 @@ pub(crate) async fn get_migration_transaction(
             lower_bound, search_upper_bound
         ));
 
-        let filter = Filter::new()
-            .address(bridgehub_address)
-            .topic0(
-                bridgehub_contract
-                    .event("MigrationStarted")
-                    .unwrap()
-                    .signature(),
-            )
+        let ev = chain_asset_handler
+            .migration_started_filter()
+            .topic1(U256::from(l2_chain_id))
             .from_block(lower_bound)
-            .topic1(u256_to_h256(U256::from(l2_chain_id)))
             .to_block(search_upper_bound);
 
-        let result_logs = provider.get_logs(&filter).await?;
-        if !result_logs.is_empty() {
-            break result_logs.last().cloned();
+        let results = ev.query_with_meta().await?;
+        if let Some((_, meta)) = results.last() {
+            break Some(meta.transaction_hash);
         }
 
         if lower_bound == 0 {
@@ -165,11 +173,7 @@ pub(crate) async fn get_migration_transaction(
         search_upper_bound = lower_bound - 1;
     };
 
-    let Some(log) = latest_event_log else {
-        return Ok(None);
-    };
-
-    Ok(log.transaction_hash)
+    Ok(latest_tx_hash)
 }
 
 async fn get_batch_execution_status(
@@ -182,7 +186,7 @@ async fn get_batch_execution_status(
     let zk_chain_address = sl_bridgehub.get_zk_chain(U256::from(l2_chain_id)).await?;
     let zk_chain = ZkChainAbi::new(zk_chain_address, provider);
     let total_committed = zk_chain.get_total_batches_committed().await?;
-    let total_executed = zk_chain.get_total_batches_committed().await?;
+    let total_executed = zk_chain.get_total_batches_executed().await?;
 
     Ok((total_committed, total_executed))
 }
@@ -200,7 +204,7 @@ pub(crate) async fn get_gateway_migration_state(
     let l1_bridgehub = BridgehubAbi::new(l1_bridgehub_addr, l1_provider.clone());
 
     let l1_ctm_address = l1_bridgehub.chain_type_manager(l2_chain_id.into()).await?;
-    let l1_ctm = ChainTypeManagerAbi::new(l1_ctm_address, l1_provider.clone());
+    let l1_ctm = IChainTypeManagerAbi::new(l1_ctm_address, l1_provider.clone());
 
     let current_sl_from_l1 = l1_bridgehub
         .settlement_layer(l2_chain_id.into())
@@ -305,21 +309,31 @@ pub(crate) async fn get_gateway_migration_state(
         anyhow::bail!("Server has seen notification, does not use the settlement layer, but still the migration is not in progress. Status: {:#?}", gateway_migration_status);
     }
 
-    // For migration from Gateway we also require that all batches have been executed
-
-    if direction == MigrationDirection::FromGateway {
-        let (total_batches_committed, total_batches_executed) =
-            get_batch_execution_status(&gw_rpc_url, L2_BRIDGEHUB_ADDRESS, l2_chain_id).await?;
-
-        if total_batches_committed != total_batches_executed {
-            // Server still waits for the batches to get executed
-            return Ok(GatewayMigrationProgressState::NotificationReceived(
-                NotificationReceivedState::NotAllBatchesExecuted(
-                    total_batches_committed,
-                    total_batches_executed,
-                ),
-            ));
+    // For migrations in both directions we require all committed batches to be executed
+    // on the current settlement layer before continuing.
+    let (total_batches_committed, total_batches_executed) = match direction {
+        MigrationDirection::ToGateway => {
+            get_batch_execution_status(&l1_rpc_url, l1_bridgehub_addr, l2_chain_id).await?
         }
+        MigrationDirection::FromGateway => {
+            get_batch_execution_status(&gw_rpc_url, L2_BRIDGEHUB_ADDRESS, l2_chain_id).await?
+        }
+    };
+
+    if total_batches_committed != total_batches_executed {
+        // Server still waits for the batches to get executed
+        return Ok(GatewayMigrationProgressState::NotificationReceived(
+            NotificationReceivedState::NotAllBatchesExecuted(
+                total_batches_committed,
+                total_batches_executed,
+            ),
+        ));
+    }
+
+    if gateway_migration_status.wait_for_batches_to_be_committed {
+        return Ok(GatewayMigrationProgressState::NotificationReceived(
+            NotificationReceivedState::NotAllBatchesCommitted,
+        ));
     }
 
     let unconfirmed_txs = zk_client.get_unconfirmed_txs_count().await?;
@@ -372,6 +386,7 @@ pub(crate) async fn get_gateway_migration_state(
         l1_provider,
         l1_bridgehub.get_zk_chain(gw_chain_id).await?,
         migration_transaction,
+        GatewayTransactionType::Withdrawal,
     )
     .await?;
 
@@ -387,7 +402,7 @@ pub(crate) async fn get_gateway_migration_state(
 
 async fn get_latest_notification_event_from_l1(
     l2_chain_id: u64,
-    l1_ctm: ChainTypeManagerAbi<Provider<Http>>,
+    l1_ctm: IChainTypeManagerAbi<Provider<Http>>,
     l1_provider: Arc<Provider<Http>>,
 ) -> anyhow::Result<Option<GatewayMigrationNotification>> {
     logger::info("Searching for the latest migration notifications...");
@@ -469,22 +484,22 @@ pub(crate) async fn await_for_tx_to_complete(
 }
 
 pub(crate) async fn notify_server(
-    args: ForgeScriptArgs,
+    args: NotifyServerArgs,
     shell: &Shell,
     direction: MigrationDirection,
 ) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
-    let l1_url = chain_config.get_secrets_config().await?.l1_rpc_url()?;
+    let l1_url = match args.l1_rpc_url {
+        Some(url) => url,
+        None => chain_config.get_secrets_config().await?.l1_rpc_url()?,
+    };
     let contracts = chain_config.get_contracts_config()?;
 
     let calls = get_notify_server_calls(
         shell,
-        &args,
-        &chain_config.path_to_l1_foundry(),
+        &args.forge_args,
+        &chain_config.path_to_foundry_scripts(),
         NotifyServerCallsArgs {
             l1_bridgehub_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             l2_chain_id: chain_config.chain_id.as_u64(),
@@ -513,51 +528,6 @@ pub(crate) async fn notify_server(
     Ok(())
 }
 
-pub(crate) async fn send_tx(
-    to: Address,
-    data: Vec<u8>,
-    value: U256,
-    l1_rpc_url: String,
-    private_key: H256,
-    description: &str,
-) -> anyhow::Result<TransactionReceipt> {
-    // 1. Connect to provider
-    let provider = Provider::<Http>::try_from(&l1_rpc_url)?;
-
-    // 2. Set up wallet (signer)
-    let wallet: LocalWallet = LocalWallet::from_bytes(private_key.as_bytes())?;
-    let wallet = wallet.with_chain_id(provider.get_chainid().await?.as_u64()); // Mainnet
-
-    // 3. Create a transaction
-    let tx = TransactionRequest::new().to(to).data(data).value(value);
-
-    let spinner = Spinner::new(&format!("Sending transaction for {description}..."));
-
-    // 4. Sign the transaction
-    let client = SignerMiddleware::new(provider.clone(), wallet.clone());
-    let pending_tx = client.send_transaction(tx, None).await?;
-    spinner.finish();
-
-    logger::info(format!(
-        "Transaction sent! Hash: {:#?}",
-        pending_tx.tx_hash()
-    ));
-
-    let spinner = Spinner::new("Waiting for transaction to complete");
-
-    // 5. Await receipt
-    let receipt: TransactionReceipt = pending_tx.await?.context("Receipt not found")?;
-
-    spinner.finish();
-
-    logger::info(format!(
-        "Transaciton {:#?} completed!",
-        receipt.transaction_hash
-    ));
-
-    Ok(receipt)
-}
-
 pub(crate) async fn extract_and_wait_for_priority_ops(
     receipt: TransactionReceipt,
     expected_diamond_proxy: Address,
@@ -580,8 +550,9 @@ pub(crate) async fn extract_priority_ops(
     receipt: TransactionReceipt,
     expected_diamond_proxy: Address,
 ) -> anyhow::Result<Vec<H256>> {
-    let contract = zksync_contracts::hyperchain_contract();
-    let expected_topic_0 = contract.event("NewPriorityRequest").unwrap().signature();
+    let expected_topic_0: ethers::types::H256 = ethers::types::H256::from(keccak256(
+        b"NewPriorityRequest(uint256,bytes32,uint64,(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256[4],bytes,bytes,uint256[],bytes,bytes),bytes[])",
+    ));
 
     let priority_ops = receipt
         .logs

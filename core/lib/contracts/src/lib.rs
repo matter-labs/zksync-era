@@ -36,10 +36,14 @@ pub enum ContractLanguage {
 const HARDHAT_PATH_PREFIX: &str = "contracts/l1-contracts/artifacts/contracts";
 const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 
-const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
+const HARDHAT_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
+const FORGE_PROOF_MANAGER_PATH_PREFIX: &str = "proof-manager-contracts/out";
+
+const BRIDGEHUB_CONTRACT_FILE: (&str, &str) =
+    ("bridgehub", "IBridgehubBase.sol/IBridgehubBase.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
-    "ChainTypeManager.sol/ChainTypeManager.json",
+    "EraChainTypeManager.sol/EraChainTypeManager.json",
 );
 const BYTECODE_SUPPLIER_CONTRACT_FILE: (&str, &str) =
     ("upgrades", "BytecodesSupplier.sol/BytecodesSupplier.json");
@@ -75,12 +79,19 @@ const L2_WRAPPED_BASE_TOKEN_STORE: (&str, &str) = (
     "bridge",
     "L2WrappedBaseTokenStore.sol/L2WrappedBaseTokenStore.json",
 );
+// Both v31 settlement upgraders expose the same getL2UpgradeTxData ABI.
+const SETTLEMENT_LAYER_V31_UPGRADE_FILE: (&str, &str) = (
+    "upgrades",
+    "EraSettlementLayerV31Upgrade.sol/EraSettlementLayerV31Upgrade.json",
+);
 
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "state-transition/verifiers",
-    "DualVerifier.sol/DualVerifier.json",
+    "EraDualVerifier.sol/EraDualVerifier.json",
 );
+
+const PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = ("", "ProofManagerV1.sol/ProofManagerV1.json");
 
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
@@ -126,6 +137,20 @@ fn load_contract_for_both_compilers(path: (&str, &str)) -> Contract {
     };
 
     load_contract_for_hardhat(path).unwrap_or_else(|| {
+        panic!("Failed to load contract from {:?}", path);
+    })
+}
+
+fn load_proof_manager_contract(path: (&str, &str)) -> Contract {
+    let forge_path = Path::new(FORGE_PROOF_MANAGER_PATH_PREFIX).join(path.1);
+    if let Some(contract) = load_contract_if_present(forge_path) {
+        return contract;
+    };
+
+    let hardhat_path = Path::new(HARDHAT_PROOF_MANAGER_PATH_PREFIX)
+        .join(path.0)
+        .join(path.1);
+    load_contract_if_present(hardhat_path).unwrap_or_else(|| {
         panic!("Failed to load contract from {:?}", path);
     })
 }
@@ -207,6 +232,34 @@ pub fn wrapped_base_token_store_contract() -> Contract {
     load_contract_for_both_compilers(L2_WRAPPED_BASE_TOKEN_STORE)
 }
 
+pub fn settlement_layer_v31_upgrade_contract() -> Contract {
+    load_contract_for_both_compilers(SETTLEMENT_LAYER_V31_UPGRADE_FILE)
+}
+
+pub fn proof_manager_contract() -> Contract {
+    load_proof_manager_contract(PROOF_MANAGER_CONTRACT_FILE)
+}
+
+pub fn validator_timelock_contract() -> Contract {
+    // Create a simple contract definition for ValidatorTimelock with the executionDelay function
+    let abi = r#"[
+        {
+            "inputs": [],
+            "name": "executionDelay",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ]"#;
+    serde_json::from_str(abi).unwrap()
+}
+
 pub fn verifier_contract() -> Contract {
     let path = format!("{}/{}", FORGE_PATH_PREFIX, DUAL_VERIFIER_CONTRACT_FILE.1);
     let zksync_home = home_path();
@@ -228,7 +281,7 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn l2_message_root() -> Contract {
-    load_l1_zk_contract("MessageRoot")
+    load_l1_zk_contract("L2MessageRoot")
 }
 
 pub fn l2_asset_router() -> Contract {
@@ -265,7 +318,7 @@ pub fn read_bytecode(relative_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u
 }
 
 pub fn eth_contract() -> Contract {
-    load_sys_contract("L2BaseToken")
+    load_l1_zk_contract("L2BaseTokenEra")
 }
 
 pub fn known_codes_contract() -> Contract {
@@ -603,6 +656,20 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
+    pub fn playground_interop() -> Self {
+        let bootloader_bytecode: Vec<u8> = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_interop/playground_batch.yul/Bootloader.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn playground_medium_interop() -> Self {
+        let bootloader_bytecode: Vec<u8> = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_medium_interop/playground_batch.yul/Bootloader.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
     pub fn estimate_gas_pre_virtual_blocks() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
@@ -690,6 +757,20 @@ impl BaseSystemContracts {
     pub fn estimate_gas_precompiles() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_precompiles/fee_estimate.yul/Bootloader.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn estimate_gas_interop() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_interop/fee_estimate.yul/Bootloader.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn estimate_gas_medium_interop() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_medium_interop/fee_estimate.yul/Bootloader.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
@@ -1536,5 +1617,104 @@ pub static POST_SHARED_BRIDGE_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
       "stateMutability": "nonpayable",
       "type": "function"
     }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_V26_GATEWAY_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+  {
+      "inputs": [
+          {
+              "internalType": "uint256",
+              "name": "_chainId",
+              "type": "uint256"
+          },
+          {
+              "internalType": "uint256",
+              "name": "_processFrom",
+              "type": "uint256"
+          },
+          {
+              "internalType": "uint256",
+              "name": "_processTo",
+              "type": "uint256"
+          },
+          {
+              "internalType": "bytes",
+              "name": "_commitData",
+              "type": "bytes"
+          }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function",
+      "name": "commitBatchesSharedBridge",
+      "outputs": []
+  }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_V26_GATEWAY_PROVE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+  {
+      "inputs": [
+          {
+              "internalType": "uint256",
+              "name": "_chainId",
+              "type": "uint256"
+          },
+          {
+              "internalType": "uint256",
+              "name": "_processBatchFrom",
+              "type": "uint256"
+          },
+          {
+              "internalType": "uint256",
+              "name": "_processBatchTo",
+              "type": "uint256"
+          },
+          {
+              "internalType": "bytes",
+              "name": "_proofData",
+              "type": "bytes"
+          }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function",
+      "name": "proveBatchesSharedBridge",
+      "outputs": []
+  }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static POST_V26_GATEWAY_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+  {
+    "inputs": [
+        {
+            "internalType": "uint256",
+            "name": "_chainId",
+            "type": "uint256"
+        },
+        {
+            "internalType": "uint256",
+            "name": "_processFrom",
+            "type": "uint256"
+        },
+        {
+            "internalType": "uint256",
+            "name": "_processTo",
+            "type": "uint256"
+        },
+        {
+            "internalType": "bytes",
+            "name": "_executeData",
+            "type": "bytes"
+        }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "executeBatchesSharedBridge",
+    "outputs": []
+  }"#;
     serde_json::from_str(abi).unwrap()
 });

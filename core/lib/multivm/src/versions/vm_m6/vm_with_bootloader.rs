@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use circuit_sequencer_api::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_3_1::{
@@ -425,7 +425,7 @@ pub fn init_vm_inner<S: Storage, H: HistoryMode>(
         execution_mode,
         block_context: block_context.inner_block_context(),
         bootloader_state: BootloaderState::new(),
-        snapshots: Vec::new(),
+        snapshots: VecDeque::new(),
         vm_subversion,
     }
 }

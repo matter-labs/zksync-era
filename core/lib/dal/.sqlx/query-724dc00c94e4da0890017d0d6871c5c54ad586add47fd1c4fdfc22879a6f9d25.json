@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                miniblocks.l1_batch_number,\n                transactions.hash, transactions.error,\n                miniblock_number AS \"miniblock_number!\",\n                miniblocks.timestamp\n            FROM miniblocks\n            JOIN transactions ON miniblocks.number = transactions.miniblock_number\n            WHERE\n                (\n                    miniblocks.l1_batch_number IS NULL\n                    OR miniblocks.l1_batch_number = $1\n                )\n                AND\n                miniblocks.rolling_txs_hash IS NOT NULL\n                AND\n                miniblocks.eth_precommit_tx_id IS NULL\n            ORDER BY miniblock_number, index_in_block\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "error",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "miniblock_number!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "timestamp",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "724dc00c94e4da0890017d0d6871c5c54ad586add47fd1c4fdfc22879a6f9d25"
+}

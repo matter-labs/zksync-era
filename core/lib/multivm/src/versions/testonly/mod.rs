@@ -21,9 +21,12 @@ use zksync_system_constants::{
 use zksync_types::{
     block::L2BlockHasher,
     bytecode::{pad_evm_bytecode, BytecodeHash},
+    commitment::{L2DACommitmentScheme, L2PubdataValidator},
     fee_model::BatchFeeInput,
     get_code_key, get_evm_code_hash_key, get_is_account_key, get_known_code_key, h256_to_address,
-    h256_to_u256, u256_to_h256,
+    h256_to_u256,
+    settlement::SettlementLayer,
+    u256_to_h256,
     utils::storage_key_for_eth_balance,
     web3, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
     U256,
@@ -31,7 +34,7 @@ use zksync_types::{
 
 pub(super) use self::tester::{
     validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
-    TestedVmWithStorageLimit, VmTester, VmTesterBuilder,
+    TestedVmWithCycleTracer, TestedVmWithStorageLimit, VmTester, VmTesterBuilder,
 };
 use crate::{
     interface::{
@@ -53,6 +56,7 @@ pub(super) mod bytecode_publishing;
 pub(super) mod call_tracer;
 pub(super) mod circuits;
 pub(super) mod code_oracle;
+pub(super) mod cycle_estimator;
 pub(super) mod default_aa;
 pub(super) mod evm;
 pub(super) mod gas_limit;
@@ -187,6 +191,7 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
             50_000_000_000, // 50 gwei
             250_000_000,    // 0.25 gwei
         ),
+        interop_fee: U256::zero(),
         fee_account: Address::repeat_byte(1),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {
@@ -194,12 +199,19 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
             timestamp,
             prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
             max_virtual_blocks_to_create: 100,
+            interop_roots: vec![],
         },
+        settlement_layer: SettlementLayer::for_tests(),
     }
 }
 
 pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
-    Rc::new(FullPubdataBuilder::new(Address::zero()))
+    let pubdata_validator = if ProtocolVersionId::latest().is_pre_medium_interop() {
+        L2PubdataValidator::Address(Address::zero())
+    } else {
+        L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::BlobsAndPubdataKeccak256)
+    };
+    Rc::new(FullPubdataBuilder::new(pubdata_validator))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {

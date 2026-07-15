@@ -2,10 +2,10 @@ use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::logger;
 use zkstack_cli_config::{
-    copy_configs, traits::SaveConfigWithBasePath, ChainConfig, ConsensusGenesisSpecs,
-    ContractsConfig, EcosystemConfig, RawConsensusKeys, Weighted,
+    copy_configs, ChainConfig, ConsensusGenesisSpecs, RawConsensusKeys, Weighted, ZkStackConfig,
+    ZkStackConfigTrait,
 };
-use zksync_basic_types::Address;
+use zkstack_cli_types::VMOption;
 
 use crate::{
     commands::{
@@ -15,51 +15,72 @@ use crate::{
                 da_configs::ValidiumType,
             },
             genesis,
-            utils::encode_ntv_asset_id,
         },
         portal::update_portal_config,
     },
-    messages::{
-        MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR,
-        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
-    },
+    messages::{MSG_CHAIN_CONFIGS_INITIALIZED, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR},
     utils::ports::EcosystemPortsScanner,
 };
 
 pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
     let args = args.fill_values_with_prompt(&chain_config);
 
-    init_configs(&args, shell, &ecosystem_config, &chain_config).await?;
+    init_configs(&args, shell, &chain_config).await?;
     logger::outro(MSG_CHAIN_CONFIGS_INITIALIZED);
 
+    Ok(())
+}
+
+pub fn copy_zksync_os_genesis(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<()> {
+    shell.copy_file(
+        chain_config.path_to_default_genesis_config(),
+        chain_config.path_to_genesis_config(),
+    )?;
     Ok(())
 }
 
 pub async fn init_configs(
     init_args: &InitConfigsArgsFinal,
     shell: &Shell,
-    ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<()> {
     // Port scanner should run before copying configs to avoid marking initial ports as assigned
     let mut ecosystem_ports = EcosystemPortsScanner::scan(shell, Some(&chain_config.name))?;
-    copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
+    copy_configs(
+        shell,
+        &chain_config.default_configs_path(),
+        &chain_config.configs,
+    )?;
+
+    if chain_config.vm_option == VMOption::ZKSyncOsVM {
+        copy_zksync_os_genesis(shell, chain_config)?
+    }
 
     if !init_args.no_port_reallocation {
         ecosystem_ports.allocate_ports_in_yaml(
             shell,
             &chain_config.path_to_general_config(),
             chain_config.id,
+            chain_config.tight_ports,
         )?;
     }
 
-    let general_config = chain_config.get_general_config().await?;
+    // Initialize genesis config
+    let mut genesis_config = chain_config.get_genesis_config().await?.patched();
+    let contracts_genesis_config = chain_config.get_contracts_genesis_config().await?;
+    genesis_config.update_from_chain_config(chain_config)?;
+    genesis_config
+        .update_from_contracts_genesis(&contracts_genesis_config, chain_config.vm_option)?;
+    genesis_config.save().await?;
+
+    let Ok(general_config) = chain_config.get_general_config().await else {
+        // If general config does not exist, we don't need to patch it.
+        return Ok(());
+    };
+
     let prover_data_handler_url = general_config.proof_data_handler_url()?;
-    let tee_prover_data_handler_url = general_config.tee_proof_data_handler_url()?;
+    let airbender_prover_data_handler_url = general_config.airbender_proof_data_handler_url()?;
     let prover_gateway_url = general_config.prover_gateway_url()?;
 
     let consensus_keys = RawConsensusKeys::generate();
@@ -68,8 +89,8 @@ pub async fn init_configs(
     if let Some(url) = prover_data_handler_url {
         general_config.set_prover_gateway_url(url)?;
     }
-    if let Some(url) = tee_prover_data_handler_url {
-        general_config.set_tee_prover_gateway_url(url)?;
+    if let Some(url) = airbender_prover_data_handler_url {
+        general_config.set_airbender_prover_gateway_url(url)?;
     }
     if let Some(url) = prover_gateway_url {
         general_config.set_proof_data_handler_url(url)?;
@@ -99,18 +120,6 @@ pub async fn init_configs(
     genesis_config.update_from_chain_config(chain_config)?;
     genesis_config.save().await?;
 
-    // Initialize contracts config
-    let mut contracts_config = ecosystem_config.get_contracts_config()?;
-    contracts_config.l1.diamond_proxy_addr = Address::zero();
-    contracts_config.l1.governance_addr = Address::zero();
-    contracts_config.l1.chain_admin_addr = Address::zero();
-    contracts_config.l1.base_token_addr = chain_config.base_token.address;
-    contracts_config.l1.base_token_asset_id = Some(encode_ntv_asset_id(
-        chain_config.l1_network.chain_id().into(),
-        contracts_config.l1.base_token_addr,
-    ));
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-
     // Initialize secrets config
     let mut secrets = chain_config.get_secrets_config().await?.patched();
     secrets.set_l1_rpc_url(init_args.l1_rpc_url.clone())?;
@@ -124,17 +133,20 @@ pub async fn init_configs(
     secrets.save().await?;
 
     let override_validium_config = false; // We've initialized validium params above.
-    genesis::database::update_configs(
-        init_args.genesis_args.clone(),
-        shell,
-        chain_config,
-        override_validium_config,
-    )
-    .await?;
+    if let Some(genesis_args) = &init_args.genesis_args {
+        // Initialize genesis database if needed
+        genesis::database::update_configs(
+            genesis_args,
+            shell,
+            chain_config,
+            override_validium_config,
+        )
+        .await?;
+    }
 
     update_portal_config(shell, chain_config)
         .await
         .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
 
-    Ok(contracts_config)
+    Ok(())
 }

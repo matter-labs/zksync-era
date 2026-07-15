@@ -7,7 +7,7 @@
 //! zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only
 //! ```
 
-use std::{env, sync::Arc, time::Duration};
+use std::{env, fs, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use zksync_types::{
@@ -33,6 +33,55 @@ const ERA_VM_SOLC_VERSION: &str = "0.8.26-1.0.2";
 const SOLC_VERSION: &str = "0.8.26";
 const VYPER_VERSION: &str = "v0.3.10";
 const ZKVYPER_VERSION: &str = "v1.5.4";
+const UPGRADEABLE_COUNTER_CONTRACT: &str = r#"
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+contract Counter is OwnableUpgradeable {
+    function initialize(address owner) external initializer {
+        __Ownable_init(owner);
+    }
+}
+"#;
+const OWNABLE_UPGRADEABLE_SOURCE: &str = r#"
+pragma solidity ^0.8.20;
+
+import "../utils/ContextUpgradeable.sol";
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+abstract contract OwnableUpgradeable is Initializable, ContextUpgradeable {
+    address private _owner;
+
+    function __Ownable_init(address initialOwner) internal onlyInitializing {
+        _owner = initialOwner;
+    }
+}
+"#;
+const CONTEXT_UPGRADEABLE_SOURCE: &str = r#"
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+abstract contract ContextUpgradeable is Initializable {
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
+}
+"#;
+const INITIALIZABLE_SOURCE: &str = r#"
+pragma solidity ^0.8.20;
+
+abstract contract Initializable {
+    modifier initializer() {
+        _;
+    }
+
+    modifier onlyInitializing() {
+        _;
+    }
+}
+"#;
 
 #[derive(Debug, Clone)]
 struct TestCompilerVersions {
@@ -161,8 +210,9 @@ macro_rules! real_resolver {
 async fn using_real_zksolc(specify_contract_file: bool) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
+    let zksolc_version = supported_compilers.clone().zksolc();
     let compiler = compiler_resolver
-        .resolve_zksolc(&supported_compilers.clone().zksolc())
+        .resolve_zksolc(&zksolc_version)
         .await
         .unwrap();
     let mut req = VerificationIncomingRequest {
@@ -173,7 +223,7 @@ async fn using_real_zksolc(specify_contract_file: bool) {
         set_multi_file_solc_input(&mut req);
     }
 
-    let input = ZkSolc::build_input(req).unwrap();
+    let input = ZkSolc::build_input(req, &zksolc_version.zk).unwrap();
     let output = compiler.compile(input).await.unwrap();
 
     validate_bytecode(&output.bytecode).unwrap();
@@ -197,6 +247,147 @@ fn set_multi_file_solc_input(req: &mut VerificationIncomingRequest) {
     };
     req.source_code_data = SourceCodeData::StandardJsonInput(input);
     req.contract_name = "contracts/test.sol:Counter".to_owned();
+}
+
+fn relative_import_standard_json_input() -> serde_json::Map<String, serde_json::Value> {
+    serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "src/Counter.sol": {
+                "content": UPGRADEABLE_COUNTER_CONTRACT,
+            },
+            "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol": {
+                "content": OWNABLE_UPGRADEABLE_SOURCE,
+            },
+            "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol": {
+                "content": CONTEXT_UPGRADEABLE_SOURCE,
+            },
+            "@openzeppelin/contracts/proxy/utils/Initializable.sol": {
+                "content": INITIALIZABLE_SOURCE,
+            },
+        },
+        "settings": {
+            "optimizer": { "enabled": true },
+        },
+    })
+    .as_object()
+    .unwrap()
+    .clone()
+}
+
+fn unresolved_parent_import_input() -> serde_json::Map<String, serde_json::Value> {
+    serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "src/Counter.sol": {
+                "content": r#"
+                    pragma solidity ^0.8.20;
+                    import "../fixtures/Missing.sol";
+
+                    contract Counter {}
+                "#,
+            },
+        },
+        "settings": {
+            "optimizer": { "enabled": true },
+        },
+    })
+    .as_object()
+    .unwrap()
+    .clone()
+}
+
+fn filesystem_fallback_input(source_dir_name: &str) -> serde_json::Map<String, serde_json::Value> {
+    serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "src/Counter.sol": {
+                "content": format!(r#"
+                    pragma solidity ^0.8.20;
+                    import "../{source_dir_name}/Fallback.sol";
+
+                    contract Counter {{}}
+                "#),
+            },
+        },
+        "settings": {
+            "optimizer": { "enabled": true },
+        },
+    })
+    .as_object()
+    .unwrap()
+    .clone()
+}
+
+fn root_level_suppression_standard_json_input() -> serde_json::Map<String, serde_json::Value> {
+    serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "src/Counter.sol": {
+                "content": r#"
+                    pragma solidity ^0.8.19;
+
+                    contract Counter {
+                        receive() external payable {}
+
+                        function sweep() external {
+                            require(tx.origin == msg.sender);
+                            payable(msg.sender).transfer(address(this).balance);
+                        }
+                    }
+                "#,
+            },
+        },
+        "suppressedErrors": ["sendtransfer"],
+        "suppressedWarnings": ["txorigin"],
+        "settings": {
+            "optimizer": { "enabled": true },
+        },
+    })
+    .as_object()
+    .unwrap()
+    .clone()
+}
+
+async fn compile_standard_json_request(
+    compiler_resolver: &EnvCompilerResolver,
+    supported_compilers: TestCompilerVersions,
+    bytecode_kind: BytecodeMarker,
+    input: serde_json::Map<String, serde_json::Value>,
+    contract_name: &str,
+) -> Result<CompilationArtifacts, ContractVerifierError> {
+    let req = VerificationIncomingRequest {
+        contract_address: Default::default(),
+        source_code_data: SourceCodeData::StandardJsonInput(input),
+        contract_name: contract_name.to_owned(),
+        compiler_versions: supported_compilers.clone().solc_for_api(bytecode_kind),
+        optimization_used: true,
+        optimizer_mode: None,
+        constructor_arguments: Default::default(),
+        is_system: false,
+        force_evmla: false,
+        evm_specific: Default::default(),
+    };
+
+    match bytecode_kind {
+        BytecodeMarker::EraVm => {
+            let zksolc_version = supported_compilers.zksolc();
+            let compiler = compiler_resolver
+                .resolve_zksolc(&zksolc_version)
+                .await
+                .unwrap();
+            let input = ZkSolc::build_input(req, &zksolc_version.zk).unwrap();
+            compiler.compile(input).await
+        }
+        BytecodeMarker::Evm => {
+            let compiler = compiler_resolver
+                .resolve_solc(&supported_compilers.solc)
+                .await
+                .unwrap();
+            let input = Solc::build_input(req).unwrap();
+            compiler.compile(input).await
+        }
+    }
 }
 
 #[test_casing(2, [false, true])]
@@ -224,9 +415,142 @@ async fn using_standalone_solc(specify_contract_file: bool) {
     assert_eq!(output.abi, counter_contract_abi());
 }
 
+#[test_casing(2, BYTECODE_KINDS)]
+#[tokio::test]
+async fn allows_relative_parent_imports_in_standard_json(bytecode_kind: BytecodeMarker) {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let output = compile_standard_json_request(
+        &compiler_resolver,
+        supported_compilers,
+        bytecode_kind,
+        relative_import_standard_json_input(),
+        "src/Counter.sol:Counter",
+    )
+    .await
+    .unwrap();
+
+    assert!(!output.bytecode.is_empty());
+    assert!(
+        output
+            .abi
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| { item["type"] == "function" && item["name"] == "initialize" }),
+        "{:?}",
+        output.abi
+    );
+}
+
+#[test_casing(2, BYTECODE_KINDS)]
+#[tokio::test]
+async fn unresolved_parent_import_is_reported(bytecode_kind: BytecodeMarker) {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let err = compile_standard_json_request(
+        &compiler_resolver,
+        supported_compilers,
+        bytecode_kind,
+        unresolved_parent_import_input(),
+        "src/Counter.sol:Counter",
+    )
+    .await
+    .unwrap_err();
+
+    let ContractVerifierError::CompilationError(serde_json::Value::Array(errors)) = err else {
+        panic!("unexpected error: {err:?}");
+    };
+    let errors: Vec<&str> = errors
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .collect();
+    assert!(
+        errors
+            .iter()
+            .any(|err| err.contains("not found") || err.contains("Source")),
+        "{errors:?}"
+    );
+    assert!(
+        errors.iter().all(|err| !err.contains("Missing.sol:1:")),
+        "{errors:?}"
+    );
+}
+
+#[test_casing(2, BYTECODE_KINDS)]
+#[tokio::test]
+async fn standard_json_resolution_is_hermetic(bytecode_kind: BytecodeMarker) {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+    let current_dir = env::current_dir().unwrap();
+    let source_dir = tempfile::Builder::new()
+        .prefix("contract-verifier-source-root-")
+        .tempdir_in(current_dir)
+        .unwrap();
+    fs::write(
+        source_dir.path().join("Fallback.sol"),
+        "pragma solidity ^0.8.20; library Fallback {}",
+    )
+    .unwrap();
+    let source_dir_name = source_dir.path().file_name().unwrap().to_str().unwrap();
+
+    let err = compile_standard_json_request(
+        &compiler_resolver,
+        supported_compilers,
+        bytecode_kind,
+        filesystem_fallback_input(source_dir_name),
+        "src/Counter.sol:Counter",
+    )
+    .await
+    .unwrap_err();
+
+    let ContractVerifierError::CompilationError(serde_json::Value::Array(errors)) = err else {
+        panic!("unexpected error: {err:?}");
+    };
+    let errors: Vec<&str> = errors
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .collect();
+    assert!(
+        errors
+            .iter()
+            .any(|err| err.to_ascii_lowercase().contains("not found")),
+        "{errors:?}"
+    );
+}
+
+#[tokio::test]
+async fn allows_root_level_standard_json_suppressions_with_zksolc() {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let output = compile_standard_json_request(
+        &compiler_resolver,
+        supported_compilers,
+        BytecodeMarker::EraVm,
+        root_level_suppression_standard_json_input(),
+        "src/Counter.sol:Counter",
+    )
+    .await
+    .unwrap();
+
+    assert!(!output.bytecode.is_empty());
+    assert!(
+        output
+            .abi
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| { item["type"] == "function" && item["name"] == "sweep" }),
+        "{:?}",
+        output.abi
+    );
+}
+
 #[test_casing(3, [(Some(100), None), (None, Some("shanghai")), (Some(200), Some("paris"))])]
 #[tokio::test]
-async fn using_standalone_solc_with_custom_settings(runs: Option<u16>, evm_version: Option<&str>) {
+async fn using_standalone_solc_with_custom_settings(
+    runs: Option<usize>,
+    evm_version: Option<&str>,
+) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let version = &supported_compilers.solc;
@@ -274,8 +598,9 @@ async fn using_standalone_solc_with_incorrect_evm_version_fails() {
 async fn using_zksolc_with_abstract_contract(specify_contract_file: bool) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
+    let zksolc_version = supported_compilers.clone().zksolc();
     let compiler = compiler_resolver
-        .resolve_zksolc(&supported_compilers.clone().zksolc())
+        .resolve_zksolc(&zksolc_version)
         .await
         .unwrap();
     let (source_code_data, contract_name) = if specify_contract_file {
@@ -317,11 +642,14 @@ async fn using_zksolc_with_abstract_contract(specify_contract_file: bool) {
         evm_specific: Default::default(),
     };
 
-    let input = ZkSolc::build_input(req).unwrap();
+    let input = ZkSolc::build_input(req, &zksolc_version.zk).unwrap();
     let err = compiler.compile(input).await.unwrap_err();
     assert_matches!(
         err,
-        ContractVerifierError::AbstractContract(name) if name == "ICounter"
+        ContractVerifierError::MissingCompilerOutput {
+            contract_name,
+            field_path: "/evm/bytecode/object",
+        } if contract_name == "ICounter"
     );
 }
 
@@ -347,7 +675,7 @@ async fn compiling_yul_with_zksolc() {
     let version = supported_compilers.clone().zksolc();
     let compiler = compiler_resolver.resolve_zksolc(&version).await.unwrap();
     let req = test_yul_request(supported_compilers.solc_for_api(BytecodeMarker::EraVm));
-    let input = ZkSolc::build_input(req).unwrap();
+    let input = ZkSolc::build_input(req, &version.zk).unwrap();
     let output = compiler.compile(input).await.unwrap();
     let identifier =
         ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, output.deployed_bytecode());
@@ -358,6 +686,79 @@ async fn compiling_yul_with_zksolc() {
     assert_matches!(
         identifier.detected_metadata,
         Some(DetectedMetadata::Keccak256)
+    );
+}
+
+/// Same check with a real zksolc toolchain: compiles with metadata disabled (`bytecodeHash: "none"`,
+/// `appendCBOR: false`) and verifies a difference in the trailing (functional) word is not treated as
+/// a benign metadata mismatch. Self-skips if the available zksolc still appends metadata (then the
+/// vector isn't reachable for that version).
+#[tokio::test]
+async fn eravm_no_metadata_final_word_is_treated_as_mismatch() {
+    let (compiler_resolver, supported_compilers) = real_resolver!();
+
+    let input = serde_json::json!({
+        "language": "Solidity",
+        "sources": {
+            "Bypass.sol": {
+                "content": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.20;\ncontract Bypass { function value() external pure returns (uint256) { return 1; } }\n",
+            },
+        },
+        "settings": {
+            // `appendCBOR:false` alone (default bytecodeHash) is enough to emit metadata-less bytecode.
+            "metadata": { "appendCBOR": false },
+            "optimizer": { "enabled": true },
+        },
+    })
+    .as_object()
+    .unwrap()
+    .clone();
+    // On a CBOR-capable (>= 1.5.13) zksolc these settings emit no metadata word, which is exactly
+    // how `verify()` derives `trust_keccak_metadata = false`. (Older zksolc ignores `appendCBOR` and
+    // still appends a keccak256 word; in that case the compile below produces metadata and the test
+    // self-skips.)
+    assert!(
+        SourceCodeData::StandardJsonInput(input.clone()).appended_metadata_disabled(Some("1.5.14"))
+    );
+
+    let output = compile_standard_json_request(
+        &compiler_resolver,
+        supported_compilers,
+        BytecodeMarker::EraVm,
+        input,
+        "Bypass.sol:Bypass",
+    )
+    .await
+    .unwrap();
+
+    let original = output.deployed_bytecode().to_vec();
+    let original_id = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &original);
+
+    // The test is only meaningful if this zksolc version actually emits no metadata, so that the
+    // keccak heuristic (not real CBOR metadata) classifies the trailing word. Otherwise there is
+    // nothing to exploit via this vector for that compiler version.
+    if original_id.detected_metadata != Some(DetectedMetadata::Keccak256) {
+        println!(
+            "zksolc produced metadata {:?} despite bytecodeHash=none/appendCBOR=false; \
+             nothing to exploit, skipping",
+            original_id.detected_metadata
+        );
+        return;
+    }
+
+    // The attacker deploys the same bytecode with the trailing (functional) word mutated.
+    let mut mutated = original.clone();
+    let len = mutated.len();
+    mutated[len - 32..].fill(0);
+    assert_ne!(original, mutated);
+    let mutated_id = ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &mutated);
+
+    // Trusting the keccak heuristic, this looks like a benign (metadata-only) partial match...
+    assert_eq!(original_id.matches(&mutated_id), Match::Partial);
+    // ...but since the contract carries no metadata, the difference is a real bytecode mismatch.
+    assert_eq!(
+        original_id.matches_with_metadata_trust(&mutated_id, false),
+        Match::None
     );
 }
 
@@ -564,11 +965,12 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
     let address = Address::repeat_byte(1);
     let output = match (bytecode_kind, toolchain) {
         (BytecodeMarker::EraVm, Toolchain::Solidity) => {
+            let zksolc_version = supported_compilers.zksolc();
             let compiler = compiler_resolver
-                .resolve_zksolc(&supported_compilers.zksolc())
+                .resolve_zksolc(&zksolc_version)
                 .await
                 .unwrap();
-            let input = ZkSolc::build_input(req.clone()).unwrap();
+            let input = ZkSolc::build_input(req.clone(), &zksolc_version.zk).unwrap();
             compiler.compile(input).await.unwrap()
         }
         (BytecodeMarker::Evm, Toolchain::Solidity) => {
@@ -701,11 +1103,12 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
     );
     let contract_name = req.contract_name.clone();
     let address = Address::repeat_byte(1);
+    let zksolc_version = supported_compilers.clone().zksolc();
     let compiler = compiler_resolver
-        .resolve_zksolc(&supported_compilers.clone().zksolc())
+        .resolve_zksolc(&zksolc_version)
         .await
         .unwrap();
-    let input_for_request = ZkSolc::build_input(req.clone()).unwrap();
+    let input_for_request = ZkSolc::build_input(req.clone(), &zksolc_version.zk).unwrap();
 
     let output_for_request = compiler.compile(input_for_request).await.unwrap();
     let identifier_for_request = ContractIdentifier::from_bytecode(
@@ -714,11 +1117,12 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
     );
 
     // Now prepare data for contract verification storage (with different metadata).
+    let zksolc_version = supported_compilers.zksolc();
     let compiler = compiler_resolver
-        .resolve_zksolc(&supported_compilers.zksolc())
+        .resolve_zksolc(&zksolc_version)
         .await
         .unwrap();
-    let mut input_for_storage = ZkSolc::build_input(req.clone()).unwrap();
+    let mut input_for_storage = ZkSolc::build_input(req.clone(), &zksolc_version.zk).unwrap();
     // Change the source file name.
     if let ZkSolcInput::StandardJson {
         input, file_name, ..

@@ -7,13 +7,13 @@ use cliclack::clear_screen;
 use ethers::{
     providers::{Http, Middleware, Provider},
     types::{Filter, H256},
+    utils::keccak256,
 };
 use zkstack_cli_common::{
     ethereum::{get_ethers_provider, get_zk_client_from_url},
     logger,
 };
 use zksync_basic_types::Address;
-use zksync_contracts::hyperchain_contract;
 use zksync_types::l1::L1Tx;
 use zksync_web3_decl::{
     client::{Client, L2},
@@ -92,10 +92,9 @@ async fn get_txs_status(
     l1_tx_hash: Option<H256>,
     l2_tx_hash: Option<H256>,
 ) -> anyhow::Result<Vec<TxStatus>> {
-    let topic = hyperchain_contract()
-        .event("NewPriorityRequest")
-        .unwrap()
-        .signature();
+    let topic: ethers::types::H256 = ethers::types::H256::from(keccak256(
+        b"NewPriorityRequest(uint256,bytes32,uint64,(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256[4],bytes,bytes,uint256[],bytes,bytes),bytes[])",
+    ));
 
     // Get the latest block so we know how far we can go
     let latest_block = l1_provider
@@ -104,13 +103,25 @@ async fn get_txs_status(
         .expect("Failed to fetch latest block")
         .as_u64();
 
-    let filter = Filter::new()
-        .address(diamond_proxy_address)
-        .topic0(topic)
-        .from_block(from_block)
-        .to_block(latest_block);
+    // Instead of querying all logs at once, iterate over blocks in chunks to avoid throttling
+    let mut priority_op_logs = Vec::new();
+    let mut current_from = from_block;
 
-    let priority_op_logs = l1_provider.get_logs(&filter).await?;
+    while current_from <= latest_block {
+        let current_to = std::cmp::min(current_from + DEFAULT_EVENTS_BLOCK_RANGE - 1, latest_block);
+
+        let filter = Filter::new()
+            .address(diamond_proxy_address)
+            .topic0(topic)
+            .from_block(current_from)
+            .to_block(current_to);
+
+        let logs = l1_provider.get_logs(&filter).await?;
+        priority_op_logs.extend(logs);
+
+        current_from = current_to + 1;
+    }
+
     let mut result = vec![];
 
     for log in priority_op_logs.into_iter().rev() {

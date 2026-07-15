@@ -83,4 +83,24 @@ impl ServerNotificationsDal<'_, '_> {
 
         Ok(notification)
     }
+
+    pub async fn get_latest_gateway_migration_notification_and_block_number(
+        &mut self,
+    ) -> DalResult<Option<(GatewayMigrationNotification, L1BlockNumber)>> {
+        let notification = self
+            .get_last_notification_by_topics(
+                &GatewayMigrationNotification::get_server_notifier_topics(),
+            )
+            .await?;
+
+        let notification = notification.map(|notification| {
+            (
+                GatewayMigrationNotification::from_topic(notification.main_topic)
+                    .expect("Invalid topic"),
+                notification.l1_block_number,
+            )
+        });
+
+        Ok(notification)
+    }
 }

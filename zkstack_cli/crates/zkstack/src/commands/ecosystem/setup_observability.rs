@@ -16,7 +16,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER);
     git::clone(
         shell,
-        shell.current_dir(),
+        &shell.current_dir(),
         ERA_OBSERBAVILITY_GIT_REPO,
         ERA_OBSERBAVILITY_DIR,
     )?;

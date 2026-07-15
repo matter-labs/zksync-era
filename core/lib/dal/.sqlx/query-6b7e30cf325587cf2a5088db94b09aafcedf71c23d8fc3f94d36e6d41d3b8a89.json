@@ -82,6 +82,11 @@
         "ordinal": 15,
         "name": "chain_id",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "status",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -106,6 +111,7 @@
       true,
       true,
       false,
+      true,
       true
     ]
   },

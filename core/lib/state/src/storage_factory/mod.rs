@@ -104,9 +104,7 @@ impl CommonStorage<'static> {
         let rocksdb_l1_batch_number = rocksdb.next_l1_batch_number().await;
         if l1_batch_number + 1 != rocksdb_l1_batch_number {
             let err = anyhow::anyhow!(
-                "RocksDB synchronized to L1 batch #{} while #{} was expected",
-                rocksdb_l1_batch_number,
-                l1_batch_number
+                "RocksDB synchronized to L1 batch #{rocksdb_l1_batch_number} while #{l1_batch_number} was expected"
             );
             return Err(err.into());
         }
@@ -161,6 +159,7 @@ impl CommonStorage<'static> {
     /// Creates a storage snapshot. Require protective reads to be persisted for the batch, otherwise
     /// will return `Ok(None)`.
     #[tracing::instrument(skip(connection))]
+    #[allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
     pub async fn snapshot(
         connection: &mut Connection<'static, Core>,
         l1_batch_number: L1BatchNumber,

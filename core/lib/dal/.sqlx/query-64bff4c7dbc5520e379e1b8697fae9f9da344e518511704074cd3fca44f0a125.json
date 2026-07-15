@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE proof_generation_details\n            SET status = 'unpicked', proving_mode = 'prover_cluster', updated_at = NOW()\n            WHERE l1_batch_number = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "64bff4c7dbc5520e379e1b8697fae9f9da344e518511704074cd3fca44f0a125"
+}

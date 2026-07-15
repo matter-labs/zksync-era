@@ -1,5 +1,5 @@
 use zksync_db_connection::{
-    connection::Connection, error::DalResult, instrument::InstrumentExt, metrics::MethodLatency,
+    connection::Connection, error::DalResult, instrument::Instrumented, metrics::MethodLatency,
 };
 use zksync_types::{api::en, L2BlockNumber};
 
@@ -23,13 +23,16 @@ impl SyncDal<'_, '_> {
         if numbers.is_empty() {
             return Ok(vec![]);
         }
-        let blocks = sqlx::query_as!(
+        let query = sqlx::query_as!(
             StorageSyncBlock,
             r#"
-            SELECT
-                miniblocks.number,
-                COALESCE(
-                    miniblocks.l1_batch_number,
+            WITH l1_batch AS (
+                SELECT COALESCE(
+                    (
+                        SELECT miniblocks.l1_batch_number
+                        FROM miniblocks
+                        WHERE number = $1
+                    ),
                     (
                         SELECT
                             (MAX(number) + 1)
@@ -44,7 +47,12 @@ impl SyncDal<'_, '_> {
                         FROM
                             snapshot_recovery
                     )
-                ) AS "l1_batch_number!",
+                ) AS number
+            )
+            
+            SELECT
+                miniblocks.number,
+                l1_batch.number AS "l1_batch_number!",
                 (miniblocks.l1_tx_count + miniblocks.l2_tx_count) AS "tx_count!",
                 miniblocks.timestamp,
                 miniblocks.l1_gas_price,
@@ -57,23 +65,46 @@ impl SyncDal<'_, '_> {
                 miniblocks.hash,
                 miniblocks.protocol_version AS "protocol_version!",
                 miniblocks.fee_account_address AS "fee_account_address!",
-                miniblocks.l2_da_validator_address AS "l2_da_validator_address!",
-                miniblocks.pubdata_type AS "pubdata_type!"
+                miniblocks.l2_da_validator_address,
+                miniblocks.l2_da_commitment_scheme,
+                miniblocks.pubdata_type AS "pubdata_type!",
+                l1_batches.pubdata_limit,
+                l1_batches.settlement_layer_type,
+                l1_batches.settlement_layer_chain_id,
+                l1_batches.interop_fee
             FROM
                 miniblocks
+            INNER JOIN l1_batch ON true
+            INNER JOIN l1_batches ON l1_batches.number = l1_batch.number
             WHERE
                 miniblocks.number BETWEEN $1 AND $2
             "#,
             i64::from(numbers.start.0),
             i64::from(numbers.end.0 - 1),
-        )
-        .try_map(SyncBlock::try_from)
-        .instrument("sync_dal_sync_blocks.block")
-        .with_arg("numbers", &numbers)
-        .fetch_all(self.storage)
-        .await?;
+        );
+        let instrumentation =
+            Instrumented::new("sync_dal_sync_blocks").with_arg("numbers", &numbers);
+        let blocks = instrumentation
+            .clone()
+            .with(query)
+            .fetch_all(self.storage)
+            .await?;
 
-        Ok(blocks)
+        let mut sync_blocks = vec![];
+        for block in &blocks {
+            // Convert the block to the SyncBlock type.
+            let interop_roots = self
+                .storage
+                .interop_root_dal()
+                .get_interop_roots(L2BlockNumber(block.number as u32))
+                .await?;
+            sync_blocks.push(
+                SyncBlock::new(block.clone(), interop_roots)
+                    .map_err(|err| instrumentation.constraint_error(err.into()))?,
+            );
+        }
+
+        Ok(sync_blocks)
     }
 
     pub async fn sync_block(
@@ -111,7 +142,8 @@ impl SyncDal<'_, '_> {
 mod tests {
     use zksync_types::{
         block::{L1BatchHeader, L2BlockHeader},
-        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
+        settlement::SettlementLayer,
+        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction, U256,
     };
     use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
@@ -143,6 +175,7 @@ mod tests {
             0,
             Default::default(),
             ProtocolVersionId::latest(),
+            SettlementLayer::for_tests(),
         );
         conn.blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)
@@ -173,6 +206,12 @@ mod tests {
                 TransactionExecutionMetrics::default(),
                 ValidationTraces::default(),
             )
+            .await
+            .unwrap();
+        l1_batch_header.number = L1BatchNumber(1);
+        l1_batch_header.timestamp = 1;
+        conn.blocks_dal()
+            .insert_l1_batch(l1_batch_header.to_unsealed_header())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -237,11 +276,16 @@ mod tests {
             .insert_l2_block(&miniblock_header)
             .await
             .unwrap();
-
-        l1_batch_header.number = L1BatchNumber(1);
-        l1_batch_header.timestamp = 1;
         conn.blocks_dal()
-            .insert_mock_l1_batch(&l1_batch_header)
+            .mark_l1_batch_as_sealed(
+                &l1_batch_header,
+                &[],
+                &[],
+                &[],
+                Default::default(),
+                1,
+                U256::zero(),
+            )
             .await
             .unwrap();
         conn.blocks_dal()
@@ -283,6 +327,17 @@ mod tests {
             .unwrap()
             .is_none());
 
+        let l1_batch_header = L1BatchHeader::new(
+            L1BatchNumber(snapshot_recovery.l1_batch_number.0 + 1),
+            100,
+            Default::default(),
+            ProtocolVersionId::latest(),
+            SettlementLayer::for_tests(),
+        );
+        conn.blocks_dal()
+            .insert_l1_batch(l1_batch_header.to_unsealed_header())
+            .await
+            .unwrap();
         let miniblock_header = create_l2_block_header(snapshot_recovery.l2_block_number.0 + 1);
         conn.blocks_dal()
             .insert_l2_block(&miniblock_header)

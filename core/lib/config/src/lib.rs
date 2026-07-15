@@ -6,7 +6,7 @@ pub use crate::{
         BaseTokenAdjusterConfig, CelestiaConfig, ContractVerifierConfig, DAClientConfig,
         DADispatcherConfig, DBConfig, EigenConfig, EthConfig, EthWatchConfig,
         ExternalProofIntegrationApiConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig,
-        PostgresConfig, SnapshotsCreatorConfig,
+        PostgresConfig, RemoteENConfig, SnapshotsCreatorConfig,
     },
     repository::{CapturedParams, ConfigRepository},
 };

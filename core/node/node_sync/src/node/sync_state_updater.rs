@@ -186,7 +186,7 @@ impl Task for SyncStateMetricsTask {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_types::{L2BlockNumber, U64};
     use zksync_web3_decl::{client::MockClient, jsonrpsee::core::ClientError};
 
@@ -196,7 +196,7 @@ mod tests {
     async fn sync_state_updater_basics() {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
 
@@ -233,7 +233,7 @@ mod tests {
     async fn sync_state_updater_handles_transient_errors() {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
 

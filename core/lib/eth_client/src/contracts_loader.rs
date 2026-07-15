@@ -1,15 +1,18 @@
 use zksync_config::configs::contracts::{
-    chain::ChainContracts, ecosystem::EcosystemCommonContracts, SettlementLayerSpecificContracts,
+    chain::{ChainContracts, ZkChainOnChainConfig},
+    ecosystem::EcosystemCommonContracts,
+    SettlementLayerSpecificContracts,
 };
 use zksync_contracts::{
     bridgehub_contract, getters_facet_contract, hyperchain_contract,
     state_transition_manager_contract,
 };
 use zksync_types::{
+    commitment::L2DACommitmentScheme,
     ethabi::{Contract, Token},
     protocol_version::ProtocolSemanticVersion,
     settlement::SettlementLayer,
-    Address, L2ChainId, SLChainId, U256,
+    web3, Address, L2ChainId, SLChainId, U256,
 };
 
 use crate::{CallFunctionArgs, ContractCallError, EthInterface};
@@ -19,7 +22,7 @@ pub async fn get_diamond_proxy_contract(
     bridgehub_address: Address,
     l2_chain_id: L2ChainId,
 ) -> Result<Address, ContractCallError> {
-    CallFunctionArgs::new("getHyperchain", Token::Uint(l2_chain_id.as_u64().into()))
+    CallFunctionArgs::new("getZKChain", Token::Uint(l2_chain_id.as_u64().into()))
         .for_contract(bridgehub_address, &bridgehub_contract())
         .call(sl_client)
         .await
@@ -50,13 +53,12 @@ pub async fn load_settlement_layer_contracts(
         return Ok(None);
     }
 
-    if !ProtocolSemanticVersion::try_from_packed(
-        get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client).await?,
-    )
-    .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?
-    .minor
-    .is_post_fflonk()
-    {
+    let protocol_version =
+        get_protocol_version(diamond_proxy, &hyperchain_contract(), sl_client).await?;
+    let protocol_version = ProtocolSemanticVersion::try_from_packed(protocol_version)
+        .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?;
+
+    if !protocol_version.minor.is_post_fflonk() {
         return Ok(None);
     }
 
@@ -66,15 +68,28 @@ pub async fn load_settlement_layer_contracts(
             .call(sl_client)
             .await?;
 
-    let validator_timelock_addr = CallFunctionArgs::new("validatorTimelock", ())
-        .for_contract(ctm_address, &state_transition_manager_contract())
+    let message_root_proxy_addr = CallFunctionArgs::new("messageRoot", ())
+        .for_contract(bridgehub_address, &bridgehub_contract())
         .call(sl_client)
         .await?;
+
+    let validator_timelock_addr = if protocol_version.minor.is_pre_interop_fast_blocks() {
+        CallFunctionArgs::new("validatorTimelock", ())
+            .for_contract(ctm_address, &state_transition_manager_contract())
+            .call(sl_client)
+            .await?
+    } else {
+        CallFunctionArgs::new("validatorTimelockPostV29", ())
+            .for_contract(ctm_address, &state_transition_manager_contract())
+            .call(sl_client)
+            .await?
+    };
 
     Ok(Some(SettlementLayerSpecificContracts {
         ecosystem_contracts: EcosystemCommonContracts {
             bridgehub_proxy_addr: Some(bridgehub_address),
             state_transition_proxy_addr: Some(ctm_address),
+            message_root_proxy_addr: Some(message_root_proxy_addr),
             validator_timelock_addr: Some(validator_timelock_addr),
             multicall3,
         },
@@ -164,4 +179,95 @@ pub async fn is_settlement_layer(
     .call(eth_client)
     .await?;
     Ok(is_settlement_layer)
+}
+
+pub async fn get_zk_chain_on_chain_params(
+    eth_client: &dyn EthInterface,
+    diamond_proxy_addr: Address,
+) -> Result<ZkChainOnChainConfig, ContractCallError> {
+    let protocol_version =
+        get_protocol_version(diamond_proxy_addr, &hyperchain_contract(), eth_client).await?;
+    let protocol_version =
+        ProtocolSemanticVersion::try_from_packed(protocol_version).map_err(|err| {
+            ContractCallError::DetokenizeOutput {
+                signature: "getProtocolVersion():(uint256)".to_owned(),
+                output: vec![],
+                source: web3::contract::Error::InvalidOutputType(format!(
+                    "Failed to unpack protocol version: {err}"
+                )),
+            }
+        })?;
+
+    let l2_da_commitment_scheme = if protocol_version.minor.is_pre_medium_interop() {
+        None
+    } else {
+        let abi = getters_facet_contract();
+        let func = abi
+            .function("getDAValidatorPair")
+            .map_err(ContractCallError::Function)?;
+        let encoded_input =
+            func.encode_input(&[])
+                .map_err(|source| ContractCallError::EncodeInput {
+                    signature: func.signature(),
+                    input: vec![],
+                    source,
+                })?;
+        let request = web3::CallRequest {
+            from: None,
+            to: Some(diamond_proxy_addr),
+            data: Some(web3::Bytes(encoded_input)),
+            gas: None,
+            gas_price: None,
+            value: None,
+            transaction_type: None,
+            access_list: None,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
+        };
+        let encoded_output = eth_client.call_contract_function(request, None).await?;
+        let output_tokens = func.decode_output(&encoded_output.0).map_err(|source| {
+            ContractCallError::DecodeOutput {
+                signature: func.signature(),
+                output: encoded_output,
+                source,
+            }
+        })?;
+
+        match output_tokens.as_slice() {
+            [Token::Address(_), Token::Uint(value)] if *value <= U256::from(u8::MAX) => {
+                let raw = value.as_u64() as u8;
+                Some(L2DACommitmentScheme::try_from(raw).map_err(|_| {
+                    ContractCallError::DetokenizeOutput {
+                        signature: func.signature(),
+                        output: output_tokens.clone(),
+                        source: web3::contract::Error::InvalidOutputType(format!(
+                            "Unsupported L2DACommitmentScheme for Era: {raw}"
+                        )),
+                    }
+                })?)
+            }
+            [Token::Address(_), Token::Uint(raw)] => {
+                return Err(ContractCallError::DetokenizeOutput {
+                    signature: func.signature(),
+                    output: output_tokens.clone(),
+                    source: web3::contract::Error::InvalidOutputType(format!(
+                        "Invalid L2DACommitmentScheme for Era (out of u8 range): {raw}"
+                    )),
+                });
+            }
+            _ => {
+                return Err(ContractCallError::DetokenizeOutput {
+                    signature: func.signature(),
+                    output: output_tokens,
+                    source: web3::contract::Error::InvalidOutputType(
+                        "Unexpected output of getDAValidatorPair".to_owned(),
+                    ),
+                });
+            }
+        }
+    };
+
+    Ok(ZkChainOnChainConfig {
+        l2_da_commitment_scheme,
+    })
 }

@@ -1,15 +1,17 @@
-pub mod batch_status_updater;
+pub mod batch_transaction_fetcher;
 mod client;
 pub mod data_availability_fetcher;
 pub mod external_io;
 pub mod fetcher;
 pub mod genesis;
 mod metrics;
+pub mod miniblock_precommit_fetcher;
 pub mod node;
 pub mod sync_action;
 pub mod testonly;
 #[cfg(test)]
 mod tests;
+pub mod transaction_finality_updater;
 pub mod tree_data_fetcher;
 pub mod validate_chain_ids_task;
 

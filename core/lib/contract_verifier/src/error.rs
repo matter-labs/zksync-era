@@ -24,8 +24,15 @@ pub enum ContractVerifierError {
     MissingSource(String),
     #[error("Contract with {0} name is an abstract and thus is not verifiable")]
     AbstractContract(String),
+    #[error("Compiler output for contract {contract_name} is missing required field {field_path}")]
+    MissingCompilerOutput {
+        contract_name: String,
+        field_path: &'static str,
+    },
     #[error("Failed to deserialize standard JSON input")]
     FailedToDeserializeInput,
+    #[error("Source path is not allowed: {0}")]
+    InvalidSourcePath(String),
 }
 
 impl From<DalError> for ContractVerifierError {

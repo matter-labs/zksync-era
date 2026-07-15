@@ -3,11 +3,10 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus, L1ToL2TxsStatus, TeeProof,
-        TransactionDetailedResult, TransactionExecutionInfo,
+        AirbenderProof, ChainAggProof, DataAvailabilityDetails, GatewayMigrationStatus,
+        L1ToL2TxsStatus, TransactionDetailedResult, TransactionExecutionInfo,
     },
-    tee_types::TeeType,
-    L1BatchNumber, L2ChainId, H256, U256,
+    L1BatchNumber, L2BlockNumber, L2ChainId, H256,
 };
 
 use crate::{
@@ -31,17 +30,23 @@ pub trait UnstableNamespace {
         hash: H256,
     ) -> RpcResult<Option<TransactionExecutionInfo>>;
 
-    #[method(name = "getTeeProofs")]
-    async fn tee_proofs(
+    #[method(name = "getAirbenderProof")]
+    async fn airbender_proof(
         &self,
         l1_batch_number: L1BatchNumber,
-        tee_type: Option<TeeType>,
-    ) -> RpcResult<Vec<TeeProof>>;
+    ) -> RpcResult<Option<AirbenderProof>>;
 
     #[method(name = "getChainLogProof")]
     async fn get_chain_log_proof(
         &self,
         l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> RpcResult<Option<ChainAggProof>>;
+
+    #[method(name = "getChainLogProofUntilMsgRoot")]
+    async fn get_chain_log_proof_until_msg_root(
+        &self,
+        block_number: L2BlockNumber,
         chain_id: L2ChainId,
     ) -> RpcResult<Option<ChainAggProof>>;
 
@@ -68,7 +73,4 @@ pub trait UnstableNamespace {
         &self,
         tx_bytes: Bytes,
     ) -> RpcResult<TransactionDetailedResult>;
-
-    #[method(name = "gasPerPubdata")]
-    async fn gas_per_pubdata(&self) -> RpcResult<U256>;
 }

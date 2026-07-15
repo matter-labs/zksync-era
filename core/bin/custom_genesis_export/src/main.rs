@@ -120,7 +120,7 @@ async fn main() -> anyhow::Result<()> {
             .protocol_version
             .ok_or(anyhow::anyhow!("No bootloader_hash specified"))?
             .minor,
-    );
+    )?;
 
     genesis_config.genesis_root_hash = Some(genesis_batch_params.root_hash);
     genesis_config.rollup_last_leaf_index = Some(genesis_batch_params.rollup_last_leaf_index);

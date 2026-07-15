@@ -3,8 +3,18 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
+import * as path from 'path';
+import { loadConfig } from 'utils/src/file-configs';
+import {
+    GATEWAY_CHAIN_ID,
+    L2_INTEROP_ROOT_STORAGE_ADDRESS,
+    L2_BRIDGEHUB_ADDRESS,
+    ArtifactL2InteropRootStorage,
+    ArtifactIBridgehubBase,
+    ArtifactIGetters
+} from './constants';
 
-export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
+import { log } from 'console';
 
 /**
  * Loads the test contract
@@ -72,10 +82,83 @@ export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.Tran
  *
  * @param wallet Wallet to use to poll the server.
  * @param blockNumber Number of block.
+ * @param timeoutMs Maximum time to wait (default 10 min).
  */
-export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber: number) {
+export async function waitUntilBlockFinalized(
+    wallet: zksync.Wallet,
+    blockNumber: number,
+    timeoutMs: number = 10 * 60 * 1000
+) {
+    const start = Date.now();
+    let printedBlockNumber = 0;
     while (true) {
+        if (Date.now() - start > timeoutMs) {
+            throw new Error(
+                `waitUntilBlockFinalized: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} to be finalized (last finalized: ${printedBlockNumber})`
+            );
+        }
         const block = await wallet.provider.getBlock('finalized');
+        if (blockNumber <= block.number) {
+            break;
+        } else {
+            if (printedBlockNumber < block.number) {
+                printedBlockNumber = block.number;
+            }
+            await zksync.utils.sleep(wallet.provider.pollingInterval);
+        }
+    }
+}
+
+/**
+ * Waits until the requested block is executed on the gateway.
+ *
+ * @param wallet Wallet to use to poll the server.
+ * @param gwWallet Gateway wallet.
+ * @param blockNumber Number of block.
+ * @param timeoutMs Maximum time to wait (default 10 min).
+ */
+export async function waitUntilBlockExecutedOnGateway(
+    wallet: zksync.Wallet,
+    gwWallet: zksync.Wallet,
+    blockNumber: number,
+    timeoutMs: number = 10 * 60 * 1000
+) {
+    const start = Date.now();
+    const bridgehub = new ethers.Contract(L2_BRIDGEHUB_ADDRESS, ArtifactIBridgehubBase.abi, gwWallet);
+    const zkChainAddr = await bridgehub.getZKChain(await wallet.provider.getNetwork().then((net: any) => net.chainId));
+    const gettersFacet = new ethers.Contract(zkChainAddr, ArtifactIGetters.abi, gwWallet);
+
+    let batchNumber = (await wallet.provider.getBlockDetails(blockNumber)).l1BatchNumber;
+    let currentExecutedBatchNumber = 0;
+    while (currentExecutedBatchNumber < batchNumber) {
+        if (Date.now() - start > timeoutMs) {
+            throw new Error(
+                `waitUntilBlockExecutedOnGateway: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} (batch ${batchNumber}, current executed: ${currentExecutedBatchNumber})`
+            );
+        }
+        currentExecutedBatchNumber = await gettersFacet.getTotalBatchesExecuted();
+        if (currentExecutedBatchNumber >= batchNumber) {
+            break;
+        } else {
+            await zksync.utils.sleep(wallet.provider.pollingInterval);
+        }
+    }
+}
+
+export async function waitUntilBlockCommitted(
+    wallet: zksync.Wallet,
+    blockNumber: number,
+    timeoutMs: number = 10 * 60 * 1000
+) {
+    const start = Date.now();
+    console.log('Waiting for block to be committed...', blockNumber);
+    while (true) {
+        if (Date.now() - start > timeoutMs) {
+            throw new Error(
+                `waitUntilBlockCommitted: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for block ${blockNumber} to be committed`
+            );
+        }
+        const block = await wallet.provider.getBlock('committed');
         if (blockNumber <= block.number) {
             break;
         } else {
@@ -84,14 +167,129 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
     }
 }
 
-export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
-    // First, we wait for block to be finalized.
-    await waitUntilBlockFinalized(wallet, blockNumber);
+async function getL1BatchFinalizationStatus(provider: zksync.Provider, number: number) {
+    const result = await provider.send('zks_getL1BatchDetails', [number]);
 
-    // Second, we wait for the log proof.
-    while ((await wallet.provider.getLogProof(txHash)) == null) {
-        await zksync.utils.sleep(wallet.provider.pollingInterval);
+    if (result == null) {
+        return null;
     }
+    if (result.executedAt != null) {
+        return {
+            finalizedHash: result.executeTxHash,
+            finalizedAt: result.executedAt
+        };
+    }
+    return null;
+}
+
+export async function waitForBlockToBeFinalizedOnL1(
+    wallet: zksync.Wallet,
+    blockNumber: number,
+    timeoutMs: number = 10 * 60 * 1000
+) {
+    const start = Date.now();
+    // Waiting for the block to be finalized on the immediate settlement layer.
+    await waitUntilBlockFinalized(wallet, blockNumber, timeoutMs);
+
+    const provider = wallet.provider;
+
+    const batchNumber = (await provider.getBlockDetails(blockNumber)).l1BatchNumber;
+
+    let result = await getL1BatchFinalizationStatus(provider, batchNumber);
+
+    while (result == null) {
+        if (Date.now() - start > timeoutMs) {
+            throw new Error(
+                `waitForBlockToBeFinalizedOnL1: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for batch ${batchNumber} (block ${blockNumber}) to be finalized on L1`
+            );
+        }
+        await zksync.utils.sleep(provider.pollingInterval);
+
+        result = await getL1BatchFinalizationStatus(provider, batchNumber);
+    }
+}
+
+export async function waitForL2ToL1LogProof(
+    wallet: zksync.Wallet,
+    blockNumber: number,
+    txHash: string,
+    timeoutMs: number = 10 * 60 * 1000
+) {
+    const start = Date.now();
+    log('waiting for block to be finalized');
+    // First, we wait for block to be finalized.
+    await waitUntilBlockFinalized(wallet, blockNumber, timeoutMs);
+
+    log('waiting for log proof');
+    // Second, we wait for the log proof.
+    let i = 0;
+    while ((await wallet.provider.getLogProof(txHash)) == null) {
+        if (Date.now() - start > timeoutMs) {
+            throw new Error(
+                `waitForL2ToL1LogProof: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for log proof of tx ${txHash} (block ${blockNumber})`
+            );
+        }
+        log(`Waiting for log proof... ${i}`);
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
+        i++;
+    }
+}
+
+export async function waitForPriorityOp(
+    wallet: zksync.Wallet,
+    l1Receipt: ethers.TransactionReceipt,
+    timeoutMs: number = 10 * 60 * 1000
+) {
+    const start = Date.now();
+    const mainContractAddress = await wallet.provider.getMainContractAddress();
+    const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, mainContractAddress);
+    let l2Receipt: ethers.TransactionReceipt | null = null;
+    while (!l2Receipt) {
+        if (Date.now() - start > timeoutMs) {
+            throw new Error(
+                `waitForPriorityOp: timed out after ${(timeoutMs / 1000).toFixed(0)}s waiting for L2 receipt of priority op ${l2Hash}`
+            );
+        }
+        l2Receipt = await wallet.provider.getTransactionReceipt(l2Hash);
+        if (!l2Receipt) {
+            await zksync.utils.sleep(wallet.provider.pollingInterval);
+        }
+    }
+    await waitUntilBlockFinalized(wallet, l2Receipt.blockNumber, timeoutMs - (Date.now() - start));
+    return l2Receipt;
+}
+
+export async function waitForInteropRootNonZero(
+    provider: zksync.Provider,
+    wallet: zksync.Wallet,
+    l1BatchNumber: number
+) {
+    const interopRootStorageAbi = ArtifactL2InteropRootStorage.abi;
+    const l2InteropRootStorage = new zksync.Contract(L2_INTEROP_ROOT_STORAGE_ADDRESS, interopRootStorageAbi, provider);
+    const baseTokenAddress = await provider.getBaseTokenContractAddress();
+
+    let currentRoot = ethers.ZeroHash;
+    let count = 0;
+    while (currentRoot === ethers.ZeroHash && count < 60) {
+        // We make repeated transactions to force the L2 to update the interop root.
+        const tx = await wallet.transfer({
+            to: wallet.address,
+            amount: 1,
+            token: baseTokenAddress
+        });
+        await tx.wait();
+
+        currentRoot = await l2InteropRootStorage.interopRoots(GATEWAY_CHAIN_ID, l1BatchNumber);
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
+
+        count++;
+    }
+}
+
+export function getGWBlockNumber(params: zksync.types.FinalizeWithdrawalParams): number {
+    /// see hashProof in MessageHashing.sol for this logic.
+    let gwProofIndex = 1 + parseInt(params.proof[0].slice(4, 6), 16) + 1 + parseInt(params.proof[0].slice(6, 8), 16);
+    return parseInt(params.proof[gwProofIndex].slice(2, 34), 16);
 }
 
 export async function getDeploymentNonce(provider: zksync.Provider, address: string): Promise<bigint> {
@@ -151,4 +349,34 @@ export function bigIntMax(...args: bigint[]) {
 
 export function isLocalHost(network: string): boolean {
     return network.toLowerCase() == 'localhost';
+}
+
+export function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: bigint): bigint {
+    // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
+    // using binary search.
+    const overhead = getOverheadForTransaction(
+        // We can just pass 0 as `encodingLength` because the overhead for the transaction's slot
+        // will be greater than `overheadForLength` for a typical transacction
+        0n
+    );
+    return maxGasBodyLimit + overhead;
+}
+
+export function getOverheadForTransaction(encodingLength: bigint): bigint {
+    const TX_SLOT_OVERHEAD_GAS = 10_000n;
+    const TX_LENGTH_BYTE_OVERHEAD_GAS = 10n;
+
+    return bigIntMax(TX_SLOT_OVERHEAD_GAS, TX_LENGTH_BYTE_OVERHEAD_GAS * encodingLength);
+}
+
+// Gets the L2-B provider URL based on the L2-A provider URL: validium (L2-B) for era (L2-A), or era (L2-B) for validium (L2-A)
+export function getL2bUrl(chainName: string) {
+    const pathToHome = path.join(__dirname, '../../../..');
+    const config = loadConfig({
+        pathToHome,
+        chain: chainName,
+        config: 'general.yaml'
+    });
+    const url = config.api.web3_json_rpc.http_url;
+    return url;
 }

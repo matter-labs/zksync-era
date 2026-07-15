@@ -12,7 +12,7 @@ categories.workspace = true
 publish = false
 
 [dependencies]
-zksync_config.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_types.workspace = true
 zksync_dal.workspace = true
 zksync_contracts.workspace = true

@@ -11,19 +11,17 @@ use zksync_eth_client::{
 };
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
-use zksync_shared_metrics::BlockL1Stage;
+use zksync_shared_metrics::L1Stage;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, EthTxFinalityStatus},
+    aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
+    eth_sender::{EthTx, EthTxFinalityStatus, L1BlockNumbers},
     Address, L1BlockNumber, GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, H256,
     L1_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use super::{metrics::METRICS, EthSenderError};
 use crate::{
-    abstract_l1_interface::{
-        AbstractL1Interface, L1BlockNumbers, OperatorNonce, OperatorType, RealL1Interface,
-    },
+    abstract_l1_interface::{AbstractL1Interface, OperatorNonce, OperatorType, RealL1Interface},
     eth_fees_oracle::{EthFees, EthFeesOracle, GasAdjusterFeesOracle},
     health::{EthTxDetails, EthTxManagerHealthDetails},
     metrics::TransactionType,
@@ -300,7 +298,7 @@ impl EthTxManager {
         };
 
         // Adjust gas limit based ob pubdata cost. Commit is the only pubdata intensive part
-        if tx.tx_type == AggregatedActionType::Commit {
+        if tx.tx_type == AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit) {
             match operator_type {
                 OperatorType::Blob | OperatorType::NonBlob => {
                     // Settlement mode is L1.
@@ -311,19 +309,41 @@ impl EthTxManager {
                 }
                 OperatorType::Gateway => {
                     // Settlement mode is Gateway.
-                    if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
-                        (gas_without_pubdata
-                            + ((max_gas_per_pubdata_price
-                                + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS as u64)
-                                * tx.raw_tx.len() as u64))
-                            .into()
-                    } else {
-                        self.config.max_aggregated_tx_gas.into()
-                    }
+                    self.adjust_gateway_pubdata_gas_limit(
+                        tx,
+                        max_gas_per_pubdata_price,
+                        gas_without_pubdata,
+                    )
                 }
             }
+        } else if tx.tx_type == AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute)
+            && operator_type == OperatorType::Gateway
+        {
+            // Execute tx on Gateway can become pubdata intensive due to interop
+            self.adjust_gateway_pubdata_gas_limit(
+                tx,
+                max_gas_per_pubdata_price,
+                gas_without_pubdata,
+            )
         } else {
             gas_without_pubdata.into()
+        }
+    }
+
+    fn adjust_gateway_pubdata_gas_limit(
+        &self,
+        tx: &EthTx,
+        max_gas_per_pubdata_price: Option<u64>,
+        gas_without_pubdata: u64,
+    ) -> U256 {
+        if let Some(max_gas_per_pubdata_price) = max_gas_per_pubdata_price {
+            (gas_without_pubdata
+                + ((max_gas_per_pubdata_price
+                    + GATEWAY_CALLDATA_PROCESSING_ROLLUP_OVERHEAD_GAS as u64)
+                    * tx.raw_tx.len() as u64))
+                .into()
+        } else {
+            self.config.max_aggregated_tx_gas.into()
         }
     }
 
@@ -445,7 +465,7 @@ impl EthTxManager {
 
         // Not confirmed transactions, ordered by nonce
         for tx in inflight_txs {
-            tracing::info!(
+            tracing::trace!(
                 "Checking tx id: {}, operator_nonce: {:?}, tx nonce: {}",
                 tx.id,
                 operator_nonce,
@@ -488,17 +508,12 @@ impl EthTxManager {
 
             tracing::trace!(
                 "Sender's nonce on finalized block is greater than current tx's nonce. \
-                 Checking transaction with id {}. Tx nonce is equal to {}",
+                 Checking transaction with id {} and type {}. Tx nonce is equal to {}",
                 tx.id,
+                tx.tx_type,
                 tx.nonce,
             );
 
-            tracing::info!(
-                "Updating status of tx {} of type {} with nonce {}",
-                tx.id,
-                tx.tx_type,
-                tx.nonce
-            );
             match self.check_all_sending_attempts(storage, &tx).await {
                 Ok(Some(tx_status)) => {
                     self.apply_tx_status(storage, &tx, tx_status, l1_block_numbers)
@@ -601,6 +616,26 @@ impl EthTxManager {
             .mark_failed_transaction(tx.id)
             .await
             .unwrap();
+
+        if let Some(batch_number) = storage
+            .blocks_dal()
+            .get_batch_number_of_prove_tx_id(tx.id)
+            .await
+            .unwrap()
+        {
+            storage
+                .eth_proof_manager_dal()
+                .mark_batch_as_proven(batch_number, false, 0)
+                .await
+                .unwrap();
+            storage
+                .eth_proof_manager_dal()
+                .fallback_batch(batch_number)
+                .await
+                .unwrap();
+            tracing::info!("Batch {} proven with false result", batch_number);
+        }
+
         let failure_reason = self
             .l1_interface
             .failure_reason(tx_status.receipt.transaction_hash, self.operator_type(tx))
@@ -635,7 +670,7 @@ impl EthTxManager {
             .unwrap();
 
         METRICS
-            .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
+            .track_eth_tx_metrics(storage, L1Stage::Mined, tx)
             .await;
 
         tracing::info!(

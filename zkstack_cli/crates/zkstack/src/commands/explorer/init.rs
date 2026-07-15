@@ -12,7 +12,7 @@ use zkstack_cli_config::{
         PrividiumExplorerBackendConfig,
     },
     traits::SaveConfig,
-    ChainConfig, EcosystemConfig, DEFAULT_PRIVATE_RPC_PORT, DEFAULT_PRIVATE_RPC_TOKEN_SECRET,
+    ChainConfig, ZkStackConfig, DEFAULT_PRIVATE_RPC_PORT, DEFAULT_PRIVATE_RPC_TOKEN_SECRET,
     DEFAULT_PRIVIDIUM_EXPLORER_SESSION_MAX_AGE, DEFAULT_PRIVIDIUM_EXPLORER_SESSION_SAME_SITE,
 };
 
@@ -36,7 +36,7 @@ pub struct ExplorerInitArgs {
 }
 
 pub(crate) async fn run(args: ExplorerInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
     // If specific chain is provided, initialize only that chain; otherwise, initialize all chains
     let chains_enabled = match global_config().chain_name {
         Some(ref chain_name) => vec![chain_name.clone()],

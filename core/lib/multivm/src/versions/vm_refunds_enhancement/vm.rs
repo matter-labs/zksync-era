@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::VecDeque, rc::Rc};
 
 use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
@@ -34,7 +34,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
     // Snapshots for the current run
-    pub(crate) snapshots: Vec<VmSnapshot>,
+    pub(crate) snapshots: VecDeque<VmSnapshot>,
     _phantom: std::marker::PhantomData<H>,
 }
 
@@ -153,7 +153,7 @@ impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
             storage,
             system_env,
             batch_env,
-            snapshots: vec![],
+            snapshots: VecDeque::new(),
             _phantom: Default::default(),
         }
     }
@@ -168,12 +168,16 @@ impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, HistoryEnabled> {
     fn rollback_to_the_latest_snapshot(&mut self) {
         let snapshot = self
             .snapshots
-            .pop()
+            .pop_back()
             .expect("Snapshot should be created before rolling it back");
         self.rollback_to_snapshot(snapshot);
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
-        self.snapshots.pop();
+        self.snapshots.pop_back();
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        self.snapshots.pop_front();
     }
 }

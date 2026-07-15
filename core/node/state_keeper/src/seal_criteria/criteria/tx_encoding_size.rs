@@ -2,7 +2,7 @@ use zksync_multivm::utils::get_bootloader_encoding_space;
 use zksync_types::ProtocolVersionId;
 
 use crate::seal_criteria::{
-    SealCriterion, SealData, SealResolution, StateKeeperConfig, UnexecutableReason,
+    SealCriteriaConfig, SealCriterion, SealData, SealResolution, UnexecutableReason,
 };
 
 #[derive(Debug)]
@@ -11,9 +11,10 @@ pub struct TxEncodingSizeCriterion;
 impl SealCriterion for TxEncodingSizeCriterion {
     fn should_seal(
         &self,
-        config: &StateKeeperConfig,
+        config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
         protocol_version_id: ProtocolVersionId,
@@ -40,9 +41,10 @@ impl SealCriterion for TxEncodingSizeCriterion {
 
     fn capacity_filled(
         &self,
-        _config: &StateKeeperConfig,
+        _config: &SealCriteriaConfig,
         _tx_count: usize,
         _l1_tx_count: usize,
+        _interop_roots_count: usize,
         block_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> Option<f64> {
@@ -66,16 +68,17 @@ mod tests {
             get_bootloader_encoding_space(ProtocolVersionId::latest().into());
 
         // Create an empty config and only setup fields relevant for the test.
-        let config = StateKeeperConfig {
+        let config = SealCriteriaConfig {
             reject_tx_at_geometry_percentage: 0.95,
             close_block_at_geometry_percentage: 0.95,
-            ..StateKeeperConfig::for_tests()
+            ..SealCriteriaConfig::for_tests()
         };
 
         let criterion = TxEncodingSizeCriterion;
 
         let empty_block_resolution = criterion.should_seal(
             &config,
+            0,
             0,
             0,
             &SealData::default(),
@@ -86,6 +89,7 @@ mod tests {
 
         let unexecutable_resolution = criterion.should_seal(
             &config,
+            0,
             0,
             0,
             &SealData::default(),
@@ -104,6 +108,7 @@ mod tests {
             &config,
             0,
             0,
+            0,
             &SealData {
                 cumulative_size: bootloader_tx_encoding_space as usize + 1,
                 ..SealData::default()
@@ -118,6 +123,7 @@ mod tests {
 
         let include_and_seal_resolution = criterion.should_seal(
             &config,
+            0,
             0,
             0,
             &SealData {

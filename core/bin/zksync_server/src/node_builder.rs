@@ -4,6 +4,7 @@
 use std::{mem, time::Duration};
 
 use anyhow::{bail, Context};
+use zksync_airbender_proof_data_handler::node::AirbenderProofDataHandlerLayer;
 use zksync_base_token_adjuster::node::{
     BaseTokenRatioPersisterLayer, BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
 };
@@ -16,7 +17,9 @@ use zksync_config::{
         api::Namespace,
         consensus::ConsensusConfig,
         contracts::{
-            chain::L2Contracts, ecosystem::L1SpecificContracts, SettlementLayerSpecificContracts,
+            chain::{L2Contracts, ProofManagerContracts},
+            ecosystem::L1SpecificContracts,
+            SettlementLayerSpecificContracts,
         },
         da_client::DAClientConfig,
         secrets::DataAvailabilitySecrets,
@@ -37,10 +40,11 @@ use zksync_eth_client::{
     node::{BridgeAddressesUpdaterLayer, PKSigningEthClientLayer},
     web3_decl::node::QueryEthClientLayer,
 };
+use zksync_eth_proof_manager::node::EthProofManagerLayer;
 use zksync_eth_sender::node::{EthTxAggregatorLayer, EthTxManagerLayer};
 use zksync_eth_watch::node::EthWatchLayer;
 use zksync_external_proof_integration_api::node::ExternalProofIntegrationApiLayer;
-use zksync_gateway_migrator::node::{GatewayMigratorLayer, MainNodeConfig, SettlementLayerData};
+use zksync_gateway_migrator::node::GatewayMigratorLayer;
 use zksync_house_keeper::node::HouseKeeperLayer;
 use zksync_logs_bloom_backfill::node::LogsBloomBackfillLayer;
 use zksync_metadata_calculator::{
@@ -64,15 +68,15 @@ use zksync_node_storage_init::node::{
 };
 use zksync_object_store::node::ObjectStoreLayer;
 use zksync_proof_data_handler::node::ProofDataHandlerLayer;
+use zksync_settlement_layer_data::{MainNodeConfig, SettlementLayerData};
 use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::node::{
     MainBatchExecutorLayer, MempoolIOLayer, OutputHandlerLayer, StateKeeperLayer,
 };
-use zksync_tee_proof_data_handler::node::TeeProofDataHandlerLayer;
 use zksync_types::{
-    commitment::{L1BatchCommitmentMode, PubdataType},
+    commitment::{L1BatchCommitmentMode, L2DACommitmentScheme, PubdataType},
     pubdata_da::PubdataSendingMode,
-    Address, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    Address, L2ChainId,
 };
 use zksync_vlog::node::{PrometheusExporterLayer, SigintHandlerLayer};
 use zksync_vm_runner::node::{
@@ -102,7 +106,11 @@ pub(crate) struct MainNodeBuilder {
     // if use pre v26 contracts and not all functions are available for loading contracts
     pub l1_sl_contracts: Option<SettlementLayerSpecificContracts>,
     pub l2_contracts: L2Contracts,
+    pub eth_proof_manager_contracts: Option<ProofManagerContracts>,
     pub multicall3: Option<Address>,
+    /// Explicit override for the L2 DA commitment scheme, used before the on-chain getter is
+    /// available (pre medium-interop upgrade) or when the on-chain value is `None`.
+    pub config_l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
 }
 
 impl MainNodeBuilder {
@@ -121,6 +129,44 @@ impl MainNodeBuilder {
                 DAClientConfig::ObjectStore(_) => PubdataType::ObjectStore,
                 DAClientConfig::NoDA => PubdataType::NoDA,
             }),
+        }
+    }
+
+    pub fn l2_da_commitment_scheme(&self) -> L2DACommitmentScheme {
+        // An explicit override always wins. This lets operators pin the scheme before the
+        // on-chain getter (`getDAValidatorPair`) becomes available, i.e. before the
+        // medium-interop upgrade.
+        if let Some(scheme) = self.config_l2_da_commitment_scheme {
+            return scheme;
+        }
+
+        let use_dummy_inclusion_data = self
+            .configs
+            .da_dispatcher_config
+            .as_ref()
+            .map(|a| a.use_dummy_inclusion_data)
+            .unwrap_or_default();
+
+        // For DA clients we have two options verify the pubdata inclusion on SL or not.
+        // If we do not verify it, we can use EmptyNoDA commitment scheme in this case
+        // use_dummy_inclusion_data is true.
+        // If the DA client is not specified, we assume that we publish all data to SL
+        // and we have to verify it
+
+        if use_dummy_inclusion_data {
+            return L2DACommitmentScheme::EmptyNoDA;
+        }
+
+        match &self.configs.da_client_config {
+            Some(DAClientConfig::NoDA) => L2DACommitmentScheme::EmptyNoDA,
+            Some(DAClientConfig::ObjectStore(_)) => L2DACommitmentScheme::EmptyNoDA,
+            Some(DAClientConfig::Avail(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            Some(DAClientConfig::Celestia(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            Some(DAClientConfig::Eigen(_)) => L2DACommitmentScheme::PubdataKeccak256,
+            None => {
+                tracing::info!("DAClientConfig is not specified, setting L2DACommitmentScheme to BlobsAndPubdataKeccak256");
+                L2DACommitmentScheme::BlobsAndPubdataKeccak256
+            }
         }
     }
 
@@ -193,12 +239,10 @@ impl MainNodeBuilder {
     }
 
     fn add_l1_gas_layer(mut self) -> anyhow::Result<Self> {
-        // Ensure the BaseTokenRatioProviderResource is inserted if the base token is not ETH.
-        if self.l1_specific_contracts.base_token_address != SHARED_BRIDGE_ETHER_TOKEN_ADDRESS {
-            let base_token_adjuster_config = self.configs.base_token_adjuster.clone();
-            self.node
-                .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
-        }
+        // We always insert base token ratio persister as its needed for all chains on gateway
+        let base_token_adjuster_config = self.configs.base_token_adjuster.clone();
+        self.node
+            .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
         let api_config = try_load_config!(self.configs.api_config);
         let l1_gas_layer = L1GasLayer::new(
@@ -250,7 +294,8 @@ impl MainNodeBuilder {
             OutputHandlerLayer::new(sk_config.shared.l2_block_seal_queue_capacity)
                 .with_protective_reads_persistence_enabled(
                     sk_config.shared.protective_reads_persistence_enabled,
-                );
+                )
+                .with_predicted_cycles_persistence_enabled(true);
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
@@ -283,6 +328,21 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_eth_proof_manager_layer(mut self) -> anyhow::Result<Self> {
+        let gas_adjuster_config = try_load_config!(self.configs.eth).gas_adjuster;
+        self.node.add_layer(EthProofManagerLayer::new(
+            self.configs.eth_proof_manager.clone(),
+            gas_adjuster_config,
+            self.eth_proof_manager_contracts
+                .clone()
+                .expect("Eth proof manager contracts are required to run eth proof manager"),
+            self.wallets.clone(),
+            L2ChainId::new(self.configs.eth_proof_manager.l2_chain_id).unwrap(),
+            self.genesis_config.l2_chain_id,
+        ));
+        Ok(self)
+    }
+
     fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.configs.eth);
         self.node.add_layer(EthWatchLayer::new(
@@ -304,6 +364,11 @@ impl MainNodeBuilder {
                 eth_sender_config: try_load_config!(self.configs.eth)
                     .get_eth_sender_config_for_sender_layer_data_layer()
                     .clone(),
+                l1_batch_commit_data_generator_mode: self
+                    .genesis_config
+                    .l1_batch_commit_data_generator_mode,
+                dummy_verifier: self.genesis_config.dummy_verifier,
+                config_l2_da_commitment_scheme: self.l2_da_commitment_scheme(),
             }));
         Ok(self)
     }
@@ -317,19 +382,17 @@ impl MainNodeBuilder {
     }
 
     fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
-        let gateway_config = try_load_config!(self.configs.prover_gateway);
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
+            self.configs.eth_proof_manager.clone(),
             self.genesis_config.l2_chain_id,
-            gateway_config.api_mode,
         ));
         Ok(self)
     }
 
-    fn add_tee_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(TeeProofDataHandlerLayer::new(
-            try_load_config!(self.configs.tee_proof_data_handler_config),
-            self.genesis_config.l1_batch_commit_data_generator_mode,
+    fn add_airbender_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(AirbenderProofDataHandlerLayer::new(
+            try_load_config!(self.configs.airbender_proof_data_handler_config),
             self.genesis_config.l2_chain_id,
         ));
         Ok(self)
@@ -408,8 +471,10 @@ impl MainNodeBuilder {
 
     fn add_tree_api_client_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = try_load_config!(self.configs.api_config).web3_json_rpc;
-        self.node
-            .add_layer(TreeApiClientLayer::http(rpc_config.tree_api_url));
+        self.node.add_layer(TreeApiClientLayer::http(
+            rpc_config.tree_api_url,
+            rpc_config.tree_api_request_timeout,
+        ));
         Ok(self)
     }
 
@@ -441,8 +506,9 @@ impl MainNodeBuilder {
             pruning_info_refresh_interval: Duration::from_secs(10),
             polling_interval: rpc_config.pubsub_polling_interval,
         };
-        let base = InternalApiConfigBase::new(&self.genesis_config, &rpc_config)
-            .with_l1_to_l2_txs_paused(self.configs.mempool_config.l1_to_l2_txs_paused);
+        let base =
+            InternalApiConfigBase::new(&self.genesis_config, &rpc_config, &state_keeper_config)
+                .with_l1_to_l2_txs_paused(self.configs.mempool_config.l1_to_l2_txs_paused);
         Ok((base, optional_config))
     }
 
@@ -497,8 +563,9 @@ impl MainNodeBuilder {
 
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = self.configs.house_keeper_config.clone();
+        let airbender_config = self.configs.airbender_proof_data_handler_config.clone();
         self.node
-            .add_layer(HouseKeeperLayer::new(house_keeper_config));
+            .add_layer(HouseKeeperLayer::new(house_keeper_config, airbender_config));
         Ok(self)
     }
 
@@ -806,6 +873,9 @@ impl MainNodeBuilder {
                     );
                     // Do nothing, will be handled by the `Tree` component.
                 }
+                Component::EthProofManager => {
+                    self = self.add_eth_proof_manager_layer()?;
+                }
                 Component::EthWatcher => {
                     self = self.add_eth_watch_layer()?;
                 }
@@ -821,8 +891,8 @@ impl MainNodeBuilder {
                 Component::ProofDataHandler => {
                     self = self.add_proof_data_handler_layer()?;
                 }
-                Component::TeeProofDataHandler => {
-                    self = self.add_tee_proof_data_handler_layer()?;
+                Component::AirbenderProofDataHandler => {
+                    self = self.add_airbender_proof_data_handler_layer()?;
                 }
                 Component::Consensus => {
                     self = self.add_consensus_layer()?;

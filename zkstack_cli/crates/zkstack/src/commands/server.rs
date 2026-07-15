@@ -7,24 +7,20 @@ use zkstack_cli_common::{
     server::{Server, ServerMode},
 };
 use zkstack_cli_config::{
-    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
-    WalletsConfig, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, WalletsConfig, ZkStackConfig,
+    ZkStackConfigTrait,
 };
 
 use crate::{
     commands::args::{RunServerArgs, ServerArgs, ServerCommand, WaitArgs},
     messages::{
-        msg_waiting_for_server_success, MSG_BUILDING_SERVER, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_FAILED_TO_BUILD_SERVER_ERR, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
-        MSG_WAITING_FOR_SERVER,
+        msg_waiting_for_server_success, MSG_BUILDING_SERVER, MSG_FAILED_TO_BUILD_SERVER_ERR,
+        MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER, MSG_WAITING_FOR_SERVER,
     },
 };
 
 pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
     match ServerCommand::from(args) {
         ServerCommand::Run(args) => run_server(args, &chain_config, shell).await,
@@ -34,7 +30,7 @@ pub async fn run(shell: &Shell, args: ServerArgs) -> anyhow::Result<()> {
 }
 
 fn build_server(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(chain_config.link_to_code.join("core"));
+    let _dir_guard = shell.push_dir(chain_config.link_to_code().join("core"));
 
     logger::info(MSG_BUILDING_SERVER);
 
@@ -52,7 +48,7 @@ async fn run_server(
     let server = Server::new(
         args.server_command,
         args.components.clone(),
-        chain_config.link_to_code.clone(),
+        chain_config.link_to_code(),
         args.uring,
     );
 
@@ -66,10 +62,10 @@ async fn run_server(
         .run(
             shell,
             mode,
-            chain_config.configs.join(GENESIS_FILE),
+            chain_config.path_to_genesis_config(),
             WalletsConfig::get_path_with_base_path(&chain_config.configs),
-            chain_config.configs.join(GENERAL_FILE),
-            chain_config.configs.join(SECRETS_FILE),
+            chain_config.path_to_general_config(),
+            chain_config.path_to_secrets_config(),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
             args.additional_args,
         )

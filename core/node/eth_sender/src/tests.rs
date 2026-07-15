@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_contracts::hyperchain_contract;
@@ -12,11 +14,12 @@ use zksync_l1_contract_interface::{
 };
 use zksync_node_test_utils::create_l1_batch;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     api::TransactionRequest,
     block::L1BatchHeader,
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
+        L2DACommitmentScheme,
     },
     eth_sender::EthTxFinalityStatus,
     ethabi::{self, Token},
@@ -29,7 +32,7 @@ use zksync_web3_decl::client::MockClient;
 
 use crate::{
     abstract_l1_interface::{AbstractL1Interface, OperatorType, RealL1Interface},
-    aggregated_operations::AggregatedOperation,
+    aggregated_operations::{AggregatedOperation, L1BatchAggregatedOperation},
     tester::{
         EthSenderTester, TestL1Batch, STATE_TRANSITION_CONTRACT_ADDRESS,
         STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS,
@@ -39,14 +42,18 @@ use crate::{
 };
 
 fn get_dummy_operation(number: u32) -> AggregatedOperation {
-    AggregatedOperation::Execute(ExecuteBatches {
+    AggregatedOperation::L1Batch(L1BatchAggregatedOperation::Execute(ExecuteBatches {
         l1_batches: vec![L1BatchWithMetadata {
             header: create_l1_batch(number),
             metadata: default_l1_batch_metadata(),
             raw_published_factory_deps: Vec::new(),
         }],
         priority_ops_proofs: Vec::new(),
-    })
+        dependency_roots: vec![vec![], vec![]],
+        logs: vec![vec![], vec![]],
+        messages: vec![vec![vec![], vec![]]],
+        message_roots: vec![],
+    }))
 }
 
 const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
@@ -54,7 +61,10 @@ const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
     L1BatchCommitmentMode::Validium,
 ];
 
-pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
+pub(crate) fn mock_multicall_response(
+    call: &web3::CallRequest,
+    protocol_version_id: ProtocolVersionId,
+) -> Token {
     let functions = ZkSyncFunctions::default();
     let evm_emulator_getter_signature = functions
         .get_evm_emulator_bytecode_hash
@@ -82,6 +92,11 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         .function("validatorTimelock")
         .unwrap()
         .short_signature();
+    let valdaitor_timelock_post_v29_short_selector = functions
+        .state_transition_manager_contract
+        .function("validatorTimelockPostV29")
+        .unwrap()
+        .short_signature();
     let prototol_version_short_selector = functions
         .state_transition_manager_contract
         .function("protocolVersion")
@@ -89,6 +104,11 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         .short_signature();
 
     let get_da_validator_pair_selector = functions.get_da_validator_pair.short_signature();
+    let execution_delay_selector = functions
+        .validator_timelock_contract
+        .function("executionDelay")
+        .unwrap()
+        .short_signature();
 
     let calls = tokens.into_iter().map(Multicall3Call::from_token);
     let response = calls.map(|call| {
@@ -116,9 +136,7 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
             }
             selector if selector == functions.get_protocol_version.short_signature() => {
                 assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
-                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
-                    .0
-                    .to_vec()
+                H256::from_low_u64_be(protocol_version_id as u64).0.to_vec()
             }
             selector if selector == validator_timelock_short_selector => {
                 assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
@@ -126,15 +144,37 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
             }
             selector if selector == prototol_version_short_selector => {
                 assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
-                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
-                    .0
-                    .to_vec()
+                H256::from_low_u64_be(protocol_version_id as u64).0.to_vec()
             }
             selector if selector == get_da_validator_pair_selector => {
                 assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
                 let non_zero_address = vec![6u8; 32];
 
-                [non_zero_address.clone(), non_zero_address].concat()
+                if protocol_version_id.is_pre_medium_interop() {
+                    [non_zero_address.clone(), non_zero_address].concat()
+                } else {
+                    [
+                        non_zero_address.clone(),
+                        H256::from_low_u64_be(
+                            L2DACommitmentScheme::BlobsAndPubdataKeccak256 as u64,
+                        )
+                        .0
+                        .to_vec(),
+                    ]
+                    .concat()
+                }
+            }
+            selector if selector == execution_delay_selector => {
+                // The target is config_timelock_contract_address which is a random address in tests
+                // Return a mock execution delay (e.g., 3600 seconds = 1 hour)
+                let execution_delay: u32 = 3600;
+                let mut result = vec![0u8; 32];
+                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
+                result
+            }
+            selector if selector == valdaitor_timelock_post_v29_short_selector => {
+                assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
+                vec![7u8; 32]
             }
             _ => panic!("unexpected call: {call:?}"),
         };
@@ -259,6 +299,7 @@ async fn resend_each_block(commitment_mode: L1BatchCommitmentMode) -> anyhow::Re
             &get_dummy_operation(0),
             Address::random(),
             ProtocolVersionId::latest(),
+            false,
             false,
         )
         .await?;
@@ -389,7 +430,7 @@ async fn dont_resend_already_mined(commitment_mode: L1BatchCommitmentMode) -> an
     tester
         .execute_tx(
             l1_batch.number,
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
             true,
             EthTxFinalityStatus::Pending,
         )
@@ -663,7 +704,11 @@ async fn correct_order_for_confirmations(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, None)
+        .get_ready_for_execute_l1_batches(
+            45,
+            None,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 1);
@@ -674,7 +719,11 @@ async fn correct_order_for_confirmations(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, None)
+        .get_ready_for_execute_l1_batches(
+            45,
+            None,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 0);
@@ -724,7 +773,11 @@ async fn skipped_l1_batch_at_the_start(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
+        .get_ready_for_execute_l1_batches(
+            45,
+            Some(unix_timestamp_ms()),
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 2);
@@ -734,7 +787,11 @@ async fn skipped_l1_batch_at_the_start(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
+        .get_ready_for_execute_l1_batches(
+            45,
+            Some(unix_timestamp_ms()),
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 2);
@@ -780,7 +837,11 @@ async fn skipped_l1_batch_in_the_middle(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, None)
+        .get_ready_for_execute_l1_batches(
+            45,
+            None,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     // We should return all L1 batches including the third one
@@ -792,7 +853,11 @@ async fn skipped_l1_batch_in_the_middle(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, None)
+        .get_ready_for_execute_l1_batches(
+            45,
+            None,
+            zksync_config::configs::eth_sender::ProverType::Boojum,
+        )
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 3);
@@ -834,7 +899,29 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
             ),
         ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![6u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 64])]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                [
+                    vec![7u8; 32],
+                    H256::from_low_u64_be(L2DACommitmentScheme::BlobsAndPubdataKeccak256 as u64)
+                        .0
+                        .to_vec(),
+                ]
+                .concat(),
+            ),
+        ]),
+        // Execution delay response (3600 seconds = 0xe10, padded to 32 bytes)
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes({
+                let execution_delay: u32 = 3600;
+                let mut result = vec![0u8; 32];
+                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
+                result
+            }),
+        ]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 32])]),
     ];
     if with_evm_emulator {
         mock_response.insert(
@@ -868,9 +955,10 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
     );
     assert_eq!(
         parsed.stm_validator_timelock_address,
-        Address::repeat_byte(6)
+        Address::repeat_byte(7)
     );
     assert_eq!(parsed.stm_protocol_version_id, ProtocolVersionId::latest());
+    assert_eq!(parsed.execution_delay, Duration::from_secs(3600));
 }
 
 #[test_log::test(tokio::test)]
@@ -943,13 +1031,14 @@ async fn parsing_multicall_data_errors() {
 #[test_casing(2, COMMITMENT_MODES)]
 #[test_log::test(tokio::test)]
 async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
-    let mut tester = EthSenderTester::new(
+    let mut tester = EthSenderTester::new_with_protocol_version(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         false,
         true,
         commitment_mode,
         SettlementLayer::L1(10.into()),
+        ProtocolVersionId::Version28,
     )
     .await;
 
@@ -962,8 +1051,46 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
         data.base_system_contracts_hashes.default_aa,
         H256::repeat_byte(2)
     );
-    assert_eq!(data.base_system_contracts_hashes.evm_emulator, None);
+    assert_eq!(
+        data.base_system_contracts_hashes.evm_emulator,
+        Some(H256::repeat_byte(3))
+    );
     assert_eq!(data.verifier_address, Address::repeat_byte(5));
+    assert_eq!(data.chain_protocol_version_id, ProtocolVersionId::Version28);
+    assert!(data.da_validator_pair.l2_validator.is_some());
+
+    let commitment_mode = L1BatchCommitmentMode::Rollup;
+    let mut tester = EthSenderTester::new_with_protocol_version(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        true,
+        commitment_mode,
+        SettlementLayer::L1(10.into()),
+        ProtocolVersionId::default(),
+    )
+    .await;
+
+    let data = tester.aggregator.get_multicall_data().await.unwrap();
+    assert_eq!(
+        data.base_system_contracts_hashes.bootloader,
+        H256::repeat_byte(1)
+    );
+    assert_eq!(
+        data.base_system_contracts_hashes.default_aa,
+        H256::repeat_byte(2)
+    );
+    assert_eq!(
+        data.base_system_contracts_hashes.evm_emulator,
+        Some(H256::repeat_byte(3))
+    );
+    assert_eq!(data.verifier_address, Address::repeat_byte(5));
+    if !data.chain_protocol_version_id.is_pre_medium_interop() {
+        assert_eq!(
+            data.da_validator_pair.l2_da_commitment_scheme.unwrap(),
+            L2DACommitmentScheme::BlobsAndPubdataKeccak256
+        );
+    }
     assert_eq!(data.chain_protocol_version_id, ProtocolVersionId::latest());
 }
 
@@ -1058,7 +1185,7 @@ async fn manager_monitors_even_unsuccesfully_sent_txs() {
         .eth_sender_dal()
         .get_last_sent_successfully_eth_tx_by_batch_and_op(
             L1BatchNumber(1),
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
         )
         .await;
     assert!(tx.is_none());
@@ -1078,7 +1205,7 @@ async fn manager_monitors_even_unsuccesfully_sent_txs() {
         .eth_sender_dal()
         .get_last_sent_successfully_eth_tx_by_batch_and_op(
             L1BatchNumber(1),
-            AggregatedActionType::Commit,
+            L1BatchAggregatedActionType::Commit,
         )
         .await
         .unwrap();

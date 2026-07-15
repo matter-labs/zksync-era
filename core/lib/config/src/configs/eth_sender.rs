@@ -7,7 +7,7 @@ use smart_config::{
     metadata::TimeUnit,
     DescribeConfig, DeserializeConfig,
 };
-use zksync_basic_types::{pubdata_da::PubdataSendingMode, H256};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, Address, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{utils::Fallback, EthWatchConfig};
@@ -43,7 +43,6 @@ impl EthConfig {
                 aggregated_block_prove_deadline: Duration::from_secs(10),
                 aggregated_block_execute_deadline: Duration::from_secs(10),
                 timestamp_criteria_max_allowed_lag: 30,
-                l1_batch_min_age_before_execute: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
@@ -51,8 +50,15 @@ impl EthConfig {
                 time_in_mempool_in_l1_blocks_cap: 1800,
                 is_verifier_pre_fflonk: true,
                 gas_limit_mode: GasLimitMode::Maximum,
+                prover: ProverType::Boojum,
                 max_acceptable_base_fee_in_wei: 100000000000,
                 time_in_mempool_multiplier_cap: None,
+                precommit_params: None,
+                force_use_validator_timelock: false,
+                fusaka_upgrade_block: Some(0),
+                fusaka_upgrade_safety_margin: 0,
+                fusaka_upgrade_timestamp: Some(1),
+                settlement_fee_payer: None,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -113,6 +119,21 @@ impl WellKnown for GasLimitMode {
     const DE: Self::Deserializer = Serde![str];
 }
 
+/// The prover whose proofs are submitted to L1. `Boojum` is the legacy
+/// FRI + plonk/fflonk compression pipeline; `Airbender` is the Airbender
+/// FRI + SNARK-wrapping pipeline served by the airbender proof data handler.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum ProverType {
+    #[default]
+    Boojum,
+    Airbender,
+}
+
+impl WellKnown for ProverType {
+    type Deserializer = Serde![str];
+    const DE: Self::Deserializer = Serde![str];
+}
+
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct SenderConfig {
     /// Amount of confirmations required to consider L1 transaction committed.
@@ -144,10 +165,6 @@ pub struct SenderConfig {
     #[config(default_t = 30)]
     pub timestamp_criteria_max_allowed_lag: usize,
 
-    /// L1 batches will only be executed on L1 contract after they are at least this number of seconds old.
-    /// Note that this number must be slightly higher than the one set on the contract,
-    /// because the contract uses `block.timestamp` which lags behind the clock time.
-    pub l1_batch_min_age_before_execute: Option<Duration>,
     /// Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     #[config(default_t = 100_000_000_000)]
     pub max_acceptable_priority_fee_in_gwei: u64,
@@ -168,12 +185,53 @@ pub struct SenderConfig {
     pub is_verifier_pre_fflonk: bool,
     #[config(default)]
     pub gas_limit_mode: GasLimitMode,
+    /// Prover whose proofs are submitted to L1. When set to `Airbender`, the
+    /// aggregator gates commits on the Airbender FRI proof being present and
+    /// submits the Airbender SNARK proof in the prove transaction.
+    #[config(default)]
+    pub prover: ProverType,
     /// Max acceptable base fee the sender is allowed to use to send L1 txs.
     #[config(default_t = u64::MAX)]
     pub max_acceptable_base_fee_in_wei: u64,
     /// Cap for `b ^ time_in_mempool` used for price calculations.
     #[config(default)]
     pub time_in_mempool_multiplier_cap: Option<u32>,
+    /// Parameters for precommit operation.
+    #[config(nest)]
+    pub precommit_params: Option<PrecommitParams>,
+    /// Allow to force change the validator timelock address.
+    #[config(default)]
+    pub force_use_validator_timelock: bool,
+    /// Use fusaka blob tx format if  the block has passed.
+    pub fusaka_upgrade_block: Option<u64>,
+    /// Half an hour safety margin
+    #[config(default_t = 1800)]
+    pub fusaka_upgrade_safety_margin: u64,
+    /// Use fusaka blob tx format if  the timestamp has passed. Default is mainnet upgrade.
+    /// Use this value if block is not set
+    #[config(default_t = Some(1764798551))]
+    pub fusaka_upgrade_timestamp: Option<u64>,
+    /// Address that pays gateway settlement fees for execute batches.
+    /// Must have approved GWAssetTracker to spend wrapped ZK tokens.
+    /// If not set, defaults to Address::zero().
+    #[config(default)]
+    pub settlement_fee_payer: Option<Address>,
+}
+
+/// We send precommit if l2_blocks_to_aggregate OR deadline_sec passed since last precommit or beginning of batch.
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct PrecommitParams {
+    pub l2_blocks_to_aggregate: u32,
+    pub deadline: Duration,
+}
+
+impl PrecommitParams {
+    pub fn fast_precommit() -> Self {
+        Self {
+            l2_blocks_to_aggregate: 100000,
+            deadline: Duration::from_millis(1),
+        }
+    }
 }
 
 impl SenderConfig {
@@ -268,7 +326,6 @@ mod tests {
                 aggregate_tx_poll_period: Duration::from_secs(3),
                 max_txs_in_flight: 3,
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
-                l1_batch_min_age_before_execute: Some(Duration::from_secs(1000)),
                 max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_only_prove_and_execute: false,
@@ -276,8 +333,18 @@ mod tests {
                 time_in_mempool_in_l1_blocks_cap: 2000,
                 is_verifier_pre_fflonk: false,
                 gas_limit_mode: GasLimitMode::Calculated,
+                prover: ProverType::Boojum,
                 max_acceptable_base_fee_in_wei: 100_000_000_000,
                 time_in_mempool_multiplier_cap: Some(10),
+                precommit_params: Some(PrecommitParams {
+                    l2_blocks_to_aggregate: 1,
+                    deadline: Duration::from_secs(1),
+                }),
+                force_use_validator_timelock: false,
+                fusaka_upgrade_safety_margin: 100,
+                fusaka_upgrade_block: Some(33582142),
+                fusaka_upgrade_timestamp: Some(1),
+                settlement_fee_payer: None,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -334,13 +401,20 @@ mod tests {
             ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
             ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_IN_L1_BLOCKS_CAP="2000"
-            ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_L2_BLOCKS_TO_AGGREGATE="1"
+            ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1 sec"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_MULTIPLIER_CAP="10"
+            ETH_SENDER_SENDER_USE_FUSAKA_BLOB_FORMAT="true"
+            ETH_SENDER_SENDER_USE_FUSAKA_BLOB_FORMAT="true"
+            ETH_SENDER_SENDER_FUSAKA_UPGRADE_BLOCK="33582142"
+            ETH_SENDER_SENDER_FUSAKA_UPGRADE_TIMESTAMP="1"
+            ETH_SENDER_SENDER_FUSAKA_UPGRADE_SAFETY_MARGIN="100"
+
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -357,7 +431,6 @@ mod tests {
             wait_confirmations: 1
             tx_poll_period: 3
             aggregate_tx_poll_period: 3
-            l1_batch_min_age_before_execute_seconds: 1000
             max_txs_in_flight: 3
             proof_sending_mode: SKIP_EVERY_PROOF
             max_aggregated_tx_gas: 4000000
@@ -375,8 +448,17 @@ mod tests {
             time_in_mempool_in_l1_blocks_cap: 2000
             is_verifier_pre_fflonk: false
             gas_limit_mode: Calculated
+            prover: Boojum
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            force_use_validator_timelock: false
+            fusaka_upgrade_safety_margin: 100
+            fusaka_upgrade_block: 33582142
+            fusaka_upgrade_timestamp: 1
+            settlement_fee_payer: null
+            precommit_params:
+              l2_blocks_to_aggregate: 1
+              deadline: 1 sec
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000
@@ -411,7 +493,6 @@ mod tests {
             wait_confirmations: 1
             tx_poll_period: 3 seconds
             aggregate_tx_poll_period: 3s
-            l1_batch_min_age_before_execute: 1000s
             max_txs_in_flight: 3
             proof_sending_mode: SKIP_EVERY_PROOF
             max_aggregated_tx_gas: 4000000
@@ -429,8 +510,17 @@ mod tests {
             time_in_mempool_in_l1_blocks_cap: 2000
             is_verifier_pre_fflonk: false
             gas_limit_mode: Calculated
+            prover: Boojum
             max_acceptable_base_fee_in_wei: 100000000000
             time_in_mempool_multiplier_cap: 10
+            force_use_validator_timelock: false
+            fusaka_upgrade_safety_margin: 100
+            fusaka_upgrade_block: 33582142
+            fusaka_upgrade_timestamp: 1
+            settlement_fee_payer: null
+            precommit_params:
+              l2_blocks_to_aggregate: 1
+              deadline: 1 sec
           gas_adjuster:
             default_priority_fee_per_gas: 20000000000
             max_base_fee_samples: 10000

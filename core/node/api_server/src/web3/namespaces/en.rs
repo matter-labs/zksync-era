@@ -5,7 +5,7 @@ use zksync_types::{
     api::{en, ProtocolVersionInfo},
     protocol_version::ProtocolSemanticVersion,
     tokens::TokenInfo,
-    Address, L1BatchNumber, L2BlockNumber,
+    Address, L1BatchNumber, L2BlockNumber, U256,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -125,6 +125,11 @@ impl EnNamespace {
             l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
             l1_wrapped_base_token_store: self.state.api_config.l1_wrapped_base_token_store,
             server_notifier_addr: self.state.api_config.server_notifier_addr,
+            message_root_proxy_addr: self
+                .state
+                .api_config
+                .l1_ecosystem_contracts
+                .message_root_proxy_addr,
         })
     }
 
@@ -217,5 +222,19 @@ impl EnNamespace {
             .await
             .map_err(DalError::generalize)?;
         Ok(protocol_version_info)
+    }
+
+    pub async fn get_interop_fee_impl(&self) -> Result<U256, Web3Error> {
+        let mut storage = self.state.acquire_connection().await?;
+        if let Some(unsealed_batch) = storage
+            .blocks_dal()
+            .get_unsealed_l1_batch()
+            .await
+            .map_err(DalError::generalize)?
+        {
+            return Ok(unsealed_batch.interop_fee);
+        }
+
+        Ok(self.state.tx_sender.current_interop_fee().await)
     }
 }

@@ -1,4 +1,4 @@
-use zksync_contracts::{deployer_contract, load_sys_contract};
+use zksync_contracts::{deployer_contract, load_l1_zk_contract};
 use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
     bytecode::BytecodeHash,
@@ -318,5 +318,5 @@ fn get_complex_upgrade_tx(
 }
 
 fn get_complex_upgrader_abi() -> Contract {
-    load_sys_contract("ComplexUpgrader")
+    load_l1_zk_contract("L2ComplexUpgrader")
 }

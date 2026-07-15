@@ -9,35 +9,48 @@ use zkstack_cli_common::{
     yaml::{merge_yaml, ConfigDiff},
 };
 use zkstack_cli_config::{
-    ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR,
-    GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+    ChainConfig, EcosystemConfig, ZkStackConfig, ZkStackConfigTrait, CONTRACTS_FILE,
+    EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR, GENERAL_FILE, SECRETS_FILE,
 };
+use zkstack_cli_types::VMOption;
 
 use super::args::UpdateArgs;
 use crate::{
     consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
     messages::{
-        msg_diff_contracts_config, msg_diff_genesis_config, msg_diff_secrets, msg_updating_chain,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_EN_GENERAL_CONFIG,
-        MSG_DIFF_GENERAL_CONFIG, MSG_PULLING_ZKSYNC_CODE_SPINNER,
-        MSG_UPDATING_ERA_OBSERVABILITY_SPINNER, MSG_UPDATING_SUBMODULES_SPINNER,
-        MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
+        msg_diff_contracts_config, msg_diff_secrets, msg_updating_chain, MSG_CHAIN_NOT_FOUND_ERR,
+        MSG_DIFF_EN_CONFIG, MSG_DIFF_EN_GENERAL_CONFIG, MSG_DIFF_GENERAL_CONFIG,
+        MSG_PULLING_ZKSYNC_CODE_SPINNER, MSG_UPDATING_ERA_OBSERVABILITY_SPINNER,
+        MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
     },
 };
 
 pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
+    let vm_option = if args.zksync_os {
+        VMOption::ZKSyncOsVM
+    } else {
+        VMOption::EraVM
+    };
+
     logger::info(MSG_UPDATING_ZKSYNC);
-    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let ecosystem = ZkStackConfig::ecosystem(shell)?;
 
     if !args.only_config {
         update_repo(shell, &ecosystem)?;
     }
 
-    let general_config_path = ecosystem.get_default_configs_path().join(GENERAL_FILE);
-    let external_node_config_path = ecosystem.get_default_configs_path().join(EN_CONFIG_FILE);
-    let genesis_config_path = ecosystem.get_default_configs_path().join(GENESIS_FILE);
-    let contracts_config_path = ecosystem.get_default_configs_path().join(CONTRACTS_FILE);
-    let secrets_path = ecosystem.get_default_configs_path().join(SECRETS_FILE);
+    let general_config_path = ecosystem
+        .default_configs_path_for_ctm(vm_option)
+        .join(GENERAL_FILE);
+    let external_node_config_path = ecosystem
+        .default_configs_path_for_ctm(vm_option)
+        .join(EN_CONFIG_FILE);
+    let contracts_config_path = ecosystem
+        .default_configs_path_for_ctm(vm_option)
+        .join(CONTRACTS_FILE);
+    let secrets_path = ecosystem
+        .default_configs_path_for_ctm(vm_option)
+        .join(SECRETS_FILE);
 
     for chain in ecosystem.list_of_chains() {
         logger::step(msg_updating_chain(&chain));
@@ -49,7 +62,6 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
             &chain,
             &general_config_path,
             &external_node_config_path,
-            &genesis_config_path,
             &contracts_config_path,
             &secrets_path,
         )
@@ -59,7 +71,7 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
     let path_to_era_observability = shell.current_dir().join(ERA_OBSERBAVILITY_DIR);
     if shell.path_exists(path_to_era_observability.clone()) {
         let spinner = Spinner::new(MSG_UPDATING_ERA_OBSERVABILITY_SPINNER);
-        git::pull(shell, path_to_era_observability)?;
+        git::pull(shell, &path_to_era_observability)?;
         spinner.finish();
     }
 
@@ -69,13 +81,13 @@ pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
 }
 
 fn update_repo(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::Result<()> {
-    let link_to_code = ecosystem.link_to_code.clone();
+    let link_to_code = &ecosystem.link_to_code();
 
     let spinner = Spinner::new(MSG_PULLING_ZKSYNC_CODE_SPINNER);
-    git::pull(shell, link_to_code.clone())?;
+    git::pull(shell, link_to_code)?;
     spinner.finish();
     let spinner = Spinner::new(MSG_UPDATING_SUBMODULES_SPINNER);
-    git::submodule_update(shell, link_to_code.clone())?;
+    git::submodule_update(shell, link_to_code)?;
     spinner.finish();
 
     Ok(())
@@ -124,7 +136,6 @@ async fn update_chain(
     chain: &ChainConfig,
     general: &Path,
     external_node: &Path,
-    genesis: &Path,
     contracts: &Path,
     secrets: &Path,
 ) -> anyhow::Result<()> {
@@ -142,14 +153,6 @@ async fn update_chain(
         &chain.path_to_external_node_config(),
         true,
         MSG_DIFF_EN_CONFIG,
-    )?;
-
-    update_config(
-        shell.clone(),
-        genesis,
-        &chain.path_to_genesis_config(),
-        false,
-        &msg_diff_genesis_config(&chain.name),
     )?;
 
     update_config(
@@ -184,12 +187,12 @@ async fn update_chain(
 
     let secrets = chain.get_secrets_config().await?;
     if let Some(url) = secrets.core_database_url()? {
-        let path_to_migration = chain.link_to_code.join(SERVER_MIGRATIONS);
-        migrate_db(shell, path_to_migration, &url).await?;
+        let path_to_migration = chain.link_to_code().join(SERVER_MIGRATIONS);
+        migrate_db(shell, &path_to_migration, &url).await?;
     }
     if let Some(url) = secrets.prover_database_url()? {
-        let path_to_migration = chain.link_to_code.join(PROVER_MIGRATIONS);
-        migrate_db(shell, path_to_migration, &url).await?;
+        let path_to_migration = chain.link_to_code().join(PROVER_MIGRATIONS);
+        migrate_db(shell, &path_to_migration, &url).await?;
     }
     Ok(())
 }

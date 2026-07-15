@@ -5,5 +5,5 @@ mod types;
 
 pub use crate::{
     mempool_store::{MempoolInfo, MempoolStats, MempoolStore},
-    types::L2TxFilter,
+    types::{AdvanceInput, L2TxFilter},
 };

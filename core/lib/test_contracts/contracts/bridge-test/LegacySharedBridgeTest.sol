@@ -10,12 +10,12 @@ import {AddressAliasHelper} from "l1-contracts/vendor/AddressAliasHelper.sol";
 import {L2SharedBridgeV25} from "./v25/L2SharedBridgeV25.sol";
 import {L2SharedBridgeLegacy} from "l1-contracts/bridge/L2SharedBridgeLegacy.sol";
 import {SystemContractsHelper} from "./SystemContractsHelper.sol";
-import {SystemContractsCaller} from "l1-contracts/common/libraries/SystemContractsCaller.sol";
-import {L2ContractHelper, IContractDeployer} from "l1-contracts/common/libraries/L2ContractHelper.sol";
+import {SystemContractsCaller} from "l1-contracts/common/l2-helpers/SystemContractsCaller.sol";
+import {L2ContractHelper, IContractDeployer} from "l1-contracts/common/l2-helpers/L2ContractHelper.sol";
 import {BridgedStandardERC20} from "l1-contracts/bridge/BridgedStandardERC20.sol";
 import {DataEncoding} from "l1-contracts/common/libraries/DataEncoding.sol";
 import {ETH_TOKEN_ADDRESS} from "l1-contracts/common/Config.sol";
-import {L2_ASSET_ROUTER_ADDR, L2_NATIVE_TOKEN_VAULT_ADDR, L2_DEPLOYER_SYSTEM_CONTRACT_ADDR} from "l1-contracts/common/L2ContractAddresses.sol";
+import {L2_ASSET_ROUTER_ADDR, L2_NATIVE_TOKEN_VAULT_ADDR, L2_DEPLOYER_SYSTEM_CONTRACT_ADDR} from "l1-contracts/common/l2-helpers/L2ContractAddresses.sol";
 
 /// Test for the compatibility for legacy bridged tokens.
 /// To set up the asset router correctly, we'll need to delegatecall the `ComplexUpgrader`

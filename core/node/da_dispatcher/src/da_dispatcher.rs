@@ -291,6 +291,7 @@ impl DataAvailabilityDispatcher {
             return Ok(());
         };
 
+        tracing::debug!("Getting inclusion data for blob_info: {:?}...", blob_info);
         let inclusion_data = if self.config.use_dummy_inclusion_data {
             Some(InclusionData { data: vec![] })
         } else {

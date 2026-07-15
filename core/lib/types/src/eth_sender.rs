@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::SLChainId;
+use zksync_basic_types::{L1BlockNumber, SLChainId};
 
 use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 
@@ -13,11 +13,18 @@ use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub enum EthTxBlobSidecar {
     EthTxBlobSidecarV1(EthTxBlobSidecarV1),
+    EthTxBlobSidecarV2(EthTxBlobSidecarV2),
 }
 
 impl From<EthTxBlobSidecarV1> for EthTxBlobSidecar {
     fn from(value: EthTxBlobSidecarV1) -> Self {
         Self::EthTxBlobSidecarV1(value)
+    }
+}
+
+impl From<EthTxBlobSidecarV2> for EthTxBlobSidecar {
+    fn from(value: EthTxBlobSidecarV2) -> Self {
+        Self::EthTxBlobSidecarV2(value)
     }
 }
 
@@ -34,11 +41,31 @@ pub struct SidecarBlobV1 {
     pub versioned_hash: Vec<u8>,
 }
 
+/// All sidecar data for a single blob for the EIP7594 transaction.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SidecarBlobV2 {
+    /// Blob itself
+    pub blob: Vec<u8>,
+    /// Blob commitment
+    pub commitment: Vec<u8>,
+    /// Blob commitment versioned hash
+    pub versioned_hash: Vec<u8>,
+    /// The KZG proofs for each of the cells in the blob.
+    pub cell_proofs: Vec<Vec<u8>>,
+}
+
 /// A first version of sidecars for blob transactions as they are described in EIP4844.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct EthTxBlobSidecarV1 {
     /// A vector of blobs for this tx and their commitments and proofs.
     pub blobs: Vec<SidecarBlobV1>,
+}
+
+/// Second version of sidecars for blob transactions as they are described in EIP7594.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct EthTxBlobSidecarV2 {
+    /// A vector of blobs for this tx and their commitments and proofs.
+    pub blobs: Vec<SidecarBlobV2>,
 }
 
 #[derive(Clone)]
@@ -78,6 +105,8 @@ impl std::fmt::Debug for EthTx {
 pub struct TxHistory {
     pub id: u32,
     pub eth_tx_id: u32,
+    pub chain_id: Option<SLChainId>,
+    pub tx_type: AggregatedActionType,
     pub base_fee_per_gas: u64,
     pub priority_fee_per_gas: u64,
     pub blob_base_fee_per_gas: Option<u64>,
@@ -85,7 +114,7 @@ pub struct TxHistory {
     pub signed_raw_tx: Vec<u8>,
     pub sent_at_block: Option<u32>,
     pub max_gas_per_pubdata: Option<u64>,
-    pub eth_tx_finality_status: Option<EthTxFinalityStatus>,
+    pub eth_tx_finality_status: EthTxFinalityStatus,
     pub sent_successfully: bool,
 }
 
@@ -117,5 +146,37 @@ impl Display for EthTxFinalityStatus {
             Self::Finalized => write!(f, "finalized"),
             Self::Pending => write!(f, "pending"),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct L1BlockNumbers {
+    pub fast_finality: L1BlockNumber,
+    pub finalized: L1BlockNumber,
+    pub latest: L1BlockNumber,
+}
+
+impl L1BlockNumbers {
+    pub fn get_finality_status_for_block(&self, block_number: u32) -> EthTxFinalityStatus {
+        if block_number <= self.finalized.0 {
+            EthTxFinalityStatus::Finalized
+        } else if block_number <= self.fast_finality.0 {
+            EthTxFinalityStatus::FastFinalized
+        } else {
+            EthTxFinalityStatus::Pending
+        }
+    }
+
+    /// returns new finality status if finality status changed
+    pub fn get_finality_update(
+        &self,
+        current_status: EthTxFinalityStatus,
+        included_at_block: u32,
+    ) -> Option<EthTxFinalityStatus> {
+        let finality_status = self.get_finality_status_for_block(included_at_block);
+        if finality_status == current_status {
+            return None;
+        }
+        Some(finality_status)
     }
 }

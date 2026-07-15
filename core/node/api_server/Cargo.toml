@@ -11,6 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_airbender_prover_interface.workspace = true
 zksync_circuit_breaker = { workspace = true, features = ["node_framework"] }
 zksync_crypto_primitives.workspace = true
 zksync_config.workspace = true
@@ -54,7 +55,7 @@ hex.workspace = true
 http.workspace = true
 tower.workspace = true
 strum = { workspace = true, features = ["derive"] }
-tower-http = { workspace = true, features = ["cors", "metrics"] }
+tower-http = { workspace = true, features = ["cors", "metrics", "compression-gzip", "compression-zstd"] }
 lru.workspace = true
 reqwest.workspace = true
 
@@ -65,4 +66,7 @@ zksync_node_test_utils.workspace = true
 zksync_test_contracts.workspace = true
 
 assert_matches.workspace = true
+http-body-util.workspace = true
+hyper-util.workspace = true
+tempfile.workspace = true
 test-casing.workspace = true

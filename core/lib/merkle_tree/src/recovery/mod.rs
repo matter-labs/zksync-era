@@ -173,6 +173,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             %entries.key_range = entries_key_range(&entries),
         ),
     )]
+    #[allow(clippy::missing_errors_doc)]
     pub fn extend_linear(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
         tracing::debug!("Started extending tree");
         RECOVERY_METRICS.chunk_size.observe(entries.len());
@@ -200,6 +201,7 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
             entries.len = entries.len(),
         ),
     )]
+    #[allow(clippy::missing_errors_doc)]
     pub fn extend_random(&mut self, entries: Vec<TreeEntry>) -> anyhow::Result<()> {
         tracing::debug!("Started extending tree");
         RECOVERY_METRICS.chunk_size.observe(entries.len());
@@ -223,7 +225,11 @@ impl<DB: PruneDatabase, H: HashTree> MerkleTreeRecovery<DB, H> {
         skip_all,
         fields(recovered_version = self.recovered_version),
     )]
-    #[allow(clippy::missing_panics_doc, clippy::range_plus_one)]
+    #[allow(
+        clippy::missing_panics_doc,
+        clippy::range_plus_one,
+        clippy::missing_errors_doc
+    )]
     pub fn finalize(mut self) -> anyhow::Result<DB> {
         let mut manifest = self.db.manifest().unwrap();
         // ^ `unwrap()` is safe: manifest is inserted into the DB on creation

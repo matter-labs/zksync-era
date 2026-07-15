@@ -26,6 +26,10 @@ eth_client_url = "http://127.0.0.1:8545"
 
 api_namespaces = ["eth", "web3", "net", "pubsub", "zks", "en", "debug"]
 
+# Gas cap for eth_call requests (uncomment to enable)
+# Similar to geth's --rpc.gascap option
+# eth_call_gas_cap = 50000000  # 50M gas limit
+
 # Note:
 # `bootloader_hash` and `default_aa_hash` are overridden from the `.init.env` values by `zk` tool.
 bootloader_hash = "0x0100038581be3d0e201b3cc45d151ef5cc59eb3a0f146ad44f0f72abf00b594c"

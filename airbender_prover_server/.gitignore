@@ -1,0 +1,11 @@
+/target
+
+# The guest program and verification keys are downloaded at build time by
+# `build.rs` from the matching `zksync_airbender_verifier` release — never
+# committed. The repo-wide .gitignore already excludes `dist`; we additionally
+# exclude the downloaded VKs and the per-file `.tag` cache markers `build.rs`
+# writes.
+/vks/fri_vk.bin
+/vks/snark_vk.json
+/vks/*.tag
+/guest/dist/app/*.tag

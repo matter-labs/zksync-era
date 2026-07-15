@@ -16,7 +16,7 @@ use zksync_da_client::{
 use zksync_types::{
     ethabi::{self, Token},
     web3::contract::Tokenize,
-    H256, U256,
+    SLChainId, H256, U256,
 };
 
 use crate::{
@@ -36,6 +36,7 @@ pub struct AvailClient {
     config: AvailConfig,
     sdk_client: Arc<AvailClientMode>,
     api_client: Arc<reqwest::Client>, // bridge API reqwest client
+    sl_chain_id: SLChainId,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -123,9 +124,18 @@ impl Tokenize for MerkleProofInput {
 }
 
 impl AvailClient {
-    pub async fn new(config: AvailConfig, secrets: AvailSecrets) -> anyhow::Result<Self> {
-        let api_client = Arc::new(reqwest::Client::new());
-        match config.config.clone() {
+    pub async fn new(
+        config: AvailConfig,
+        secrets: AvailSecrets,
+        sl_chain_id: SLChainId,
+    ) -> anyhow::Result<Self> {
+        let api_client = Arc::new(
+            reqwest::Client::builder()
+                .timeout(config.api_client_timeout)
+                .build()
+                .expect("Failed to build reqwest client"),
+        );
+        let sdk_client = match config.config.clone() {
             AvailClientConfig::GasRelay(conf) => {
                 let gas_relay_api_key = secrets
                     .gas_relay_api_key
@@ -134,14 +144,12 @@ impl AvailClient {
                     &conf.gas_relay_api_url,
                     gas_relay_api_key.0.expose_secret(),
                     conf.max_retries,
+                    &conf.referer_header,
                     Arc::clone(&api_client),
                 )
                 .await?;
-                Ok(Self {
-                    config,
-                    sdk_client: Arc::new(AvailClientMode::GasRelay(gas_relay_client)),
-                    api_client,
-                })
+
+                Arc::new(AvailClientMode::GasRelay(gas_relay_client))
             }
             AvailClientConfig::FullClient(conf) => {
                 let seed_phrase = secrets.seed_phrase.context("Seed phrase is missing")?;
@@ -153,13 +161,16 @@ impl AvailClient {
                 )
                 .await?;
 
-                Ok(Self {
-                    config,
-                    sdk_client: Arc::new(AvailClientMode::Default(Box::new(sdk_client))),
-                    api_client,
-                })
+                Arc::new(AvailClientMode::Default(Box::new(sdk_client)))
             }
-        }
+        };
+
+        Ok(Self {
+            config,
+            sdk_client,
+            api_client,
+            sl_chain_id,
+        })
     }
 }
 
@@ -249,6 +260,23 @@ impl DataAvailabilityClient for AvailClient {
                     })
             }
             AvailClientMode::GasRelay(client) => {
+                let config = match &self.config.config {
+                    AvailClientConfig::GasRelay(conf) => conf,
+                    _ => unreachable!(), // validated in protobuf config
+                };
+
+                if Utc::now()
+                    .signed_duration_since(dispatched_at)
+                    .to_std()
+                    .map_err(to_retriable_da_error)?
+                    > config.dispatch_timeout
+                {
+                    return Err(DAError {
+                        error: anyhow!("Dispatch timeout exceeded"),
+                        is_retriable: false,
+                    });
+                }
+
                 let Some((block_hash, extrinsic_index)) = client
                     .check_finality(dispatch_request_id)
                     .await
@@ -277,11 +305,18 @@ impl DataAvailabilityClient for AvailClient {
                 error: anyhow!("Invalid URL"),
                 is_retriable: false,
             })?
-            .join(format!("/eth/proof/{}?index={}", block_hash, tx_idx).as_str())
+            .join(
+                format!(
+                    "/v1/proof/{}?block_hash={}&index={}",
+                    self.sl_chain_id, block_hash, tx_idx
+                )
+                .as_str(),
+            )
             .map_err(|_| DAError {
                 error: anyhow!("Unable to join to URL"),
                 is_retriable: false,
             })?;
+        tracing::debug!("Fetching inclusion data from Bridge API: {}", url);
 
         let response = self
             .api_client
@@ -290,6 +325,11 @@ impl DataAvailabilityClient for AvailClient {
             .send()
             .await
             .map_err(to_retriable_da_error)?;
+
+        tracing::debug!(
+            "Bridge API HTTP Response size: {:?}",
+            response.content_length()
+        );
 
         // 404 means that the blob is not included in the bridge yet
         if response.status() == StatusCode::NOT_FOUND {

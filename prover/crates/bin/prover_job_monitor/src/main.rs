@@ -154,6 +154,7 @@ fn get_tasks(
     let prover_jobs_archiver = ProverJobsArchiver::new(
         connection_pool.clone(),
         prover_job_monitor_config.prover_jobs_archiver_archive_jobs_after,
+        prover_job_monitor_config.prover_jobs_archiver_delete_archived_jobs_after,
     );
     task_runner.add(
         "ProverJobsArchiver",

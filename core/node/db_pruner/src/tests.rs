@@ -6,14 +6,14 @@ use test_log::test;
 use zksync_dal::pruning_dal::PruningInfo;
 use zksync_db_connection::connection::Connection;
 use zksync_health_check::CheckHealth;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block,
     l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, eth_sender::EthTxFinalityStatus, L2BlockNumber,
-    ProtocolVersion, H256,
+    aggregated_operations::L1BatchAggregatedActionType, eth_sender::EthTxFinalityStatus,
+    L2BlockNumber, ProtocolVersion, SLChainId, H256, U256,
 };
 
 use super::*;
@@ -385,16 +385,21 @@ async fn save_l1_batch_metadata(storage: &mut Connection<'_, Core>, number: u32)
 }
 
 async fn mark_l1_batch_as_executed(storage: &mut Connection<'_, Core>, number: u32) {
+    let tx_hash = H256::from_low_u64_be(number.into());
     storage
         .eth_sender_dal()
-        .insert_bogus_confirmed_eth_tx(
+        .insert_pending_received_eth_tx(
             L1BatchNumber(number),
-            AggregatedActionType::Execute,
-            H256::from_low_u64_be(number.into()),
-            chrono::Utc::now(),
-            None,
-            EthTxFinalityStatus::Finalized,
+            L1BatchAggregatedActionType::Execute,
+            tx_hash,
+            Some(SLChainId(1)),
         )
+        .await
+        .unwrap();
+
+    storage
+        .eth_sender_dal()
+        .confirm_tx(tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
         .await
         .unwrap();
 }
@@ -422,7 +427,7 @@ async fn collect_conditions_output(
 async fn real_conditions_work_as_expected() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -479,7 +484,7 @@ async fn real_conditions_work_as_expected() {
 async fn pruner_with_real_conditions() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 

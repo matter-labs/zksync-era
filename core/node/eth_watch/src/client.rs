@@ -3,7 +3,8 @@ use std::{collections::HashMap, fmt, sync::Arc};
 use anyhow::Context;
 use zksync_contracts::{
     bytecode_supplier_contract, getters_facet_contract, l1_asset_router_contract, l2_message_root,
-    state_transition_manager_contract, verifier_contract, wrapped_base_token_store_contract,
+    settlement_layer_v31_upgrade_contract, state_transition_manager_contract, verifier_contract,
+    wrapped_base_token_store_contract,
 };
 use zksync_eth_client::{
     clients::{DynClient, L1},
@@ -15,10 +16,12 @@ use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
     ethabi::{decode, Contract, ParamType},
+    protocol_version::ProtocolSemanticVersion,
+    u256_to_h256,
     utils::encode_ntv_asset_id,
     web3::{BlockId, BlockNumber, Filter, FilterBuilder},
-    Address, L1BatchNumber, L2ChainId, SLChainId, H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256,
-    U64,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, SLChainId, H256,
+    SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::{
     client::{Network, L2},
@@ -54,10 +57,11 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         &self,
         verifier_address: Address,
     ) -> Result<Option<H256>, ContractCallError>;
-    /// Returns upgrade diamond cut by packed protocol version.
-    async fn diamond_cut_by_version(
+
+    /// Returns the latest upgrade diamond cut for the old/from protocol version.
+    async fn diamond_cut_for_version(
         &self,
-        packed_version: H256,
+        version: ProtocolSemanticVersion,
     ) -> EnrichedClientResult<Option<Vec<u8>>>;
 
     async fn get_published_preimages(
@@ -68,6 +72,17 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     async fn get_chain_gateway_upgrade_info(
         &self,
     ) -> Result<Option<ZkChainSpecificUpgradeData>, ContractCallError>;
+
+    /// Returns the Bridgehub proxy address saved at startup, if available.
+    fn bridgehub_addr(&self) -> Option<Address>;
+
+    /// Calls `getL2UpgradeTxData` on the settlement-layer upgrade helper contract to obtain
+    /// chain-specific L2 upgrade tx calldata.
+    async fn get_l2_upgrade_tx_data(
+        &self,
+        init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> Result<Vec<u8>, ContractCallError>;
 
     /// Returns ID of the chain.
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId>;
@@ -83,7 +98,7 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
 }
 
 // This constant is used for reading auxiliary events
-const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
+const LOOK_BACK_BLOCK_RANGE: u64 = 2_500_000;
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
@@ -102,14 +117,18 @@ pub struct EthHttpQueryClient<Net: Network> {
     bytecode_supplier_addr: Option<Address>,
     wrapped_base_token_store: Option<Address>,
     l1_shared_bridge_addr: Option<Address>,
+    l1_message_root_address: Option<Address>,
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
     server_notifier_address: Option<Address>,
     chain_admin_address: Option<Address>,
+    bridgehub_proxy_addr: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
+    chain_type_manager_abi: Contract,
     message_root_abi: Contract,
     l1_asset_router_abi: Contract,
+    settlement_layer_v31_upgrade_abi: Contract,
     wrapped_base_token_store_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
     l2_chain_id: L2ChainId,
@@ -126,9 +145,11 @@ where
         bytecode_supplier_addr: Option<Address>,
         wrapped_base_token_store: Option<Address>,
         l1_shared_bridge_addr: Option<Address>,
+        l1_message_root_address: Option<Address>,
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
         server_notifier_address: Option<Address>,
+        bridgehub_proxy_addr: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
         l2_chain_id: L2ChainId,
     ) -> Self {
@@ -143,6 +164,7 @@ where
             state_transition_manager_address,
             server_notifier_address,
             chain_admin_address,
+            bridgehub_proxy_addr,
             bytecode_supplier_addr,
             new_upgrade_cut_data_signature: state_transition_manager_contract()
                 .event("NewUpgradeCutData")
@@ -156,27 +178,29 @@ where
                 .signature(),
             verifier_contract_abi: verifier_contract(),
             getters_facet_contract_abi: getters_facet_contract(),
+            chain_type_manager_abi: state_transition_manager_contract(),
             message_root_abi: l2_message_root(),
             l1_asset_router_abi: l1_asset_router_contract(),
+            settlement_layer_v31_upgrade_abi: settlement_layer_v31_upgrade_contract(),
             wrapped_base_token_store_abi: wrapped_base_token_store_contract(),
             confirmations_for_eth_event,
             wrapped_base_token_store,
             l1_shared_bridge_addr,
+            l1_message_root_address,
             l2_chain_id,
         }
     }
 
     fn get_default_address_list(&self) -> Vec<Address> {
-        [
+        let addresses = [
             Some(self.diamond_proxy_addr),
             self.state_transition_manager_address,
             self.chain_admin_address,
             self.server_notifier_address,
             Some(L2_MESSAGE_ROOT_ADDRESS),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
+            self.l1_message_root_address,
+        ];
+        addresses.into_iter().flatten().collect()
     }
 
     #[async_recursion::async_recursion]
@@ -285,6 +309,27 @@ where
         }
 
         result
+    }
+
+    async fn block_for_diamond_cut_for_version(
+        &self,
+        packed_version: U256,
+    ) -> Result<Option<U64>, ContractCallError> {
+        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
+            return Ok(None);
+        };
+
+        let result: U256 = CallFunctionArgs::new("upgradeCutDataBlock", packed_version)
+            .for_contract(
+                state_transition_manager_address,
+                &self.chain_type_manager_abi,
+            )
+            .call(&self.client)
+            .await?;
+        if result.is_zero() {
+            return Ok(None);
+        }
+        Ok(Some(U64::from(result.as_u64())))
     }
 }
 
@@ -419,31 +464,48 @@ where
         }
     }
 
-    async fn diamond_cut_by_version(
+    async fn diamond_cut_for_version(
         &self,
-        packed_version: H256,
+        version: ProtocolSemanticVersion,
     ) -> EnrichedClientResult<Option<Vec<u8>>> {
         let Some(state_transition_manager_address) = self.state_transition_manager_address else {
             return Ok(None);
         };
 
-        let to_block = self.client.block_number().await?;
-        let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
+        let Some(from_block) = self
+            .block_for_diamond_cut_for_version(version.pack())
+            .await
+            .map_err(|e| {
+                EnrichedClientError::custom(
+                    format!("Failed to get block for diamond cut for version {version}: err {e}"),
+                    "diamond_cut_for_version",
+                )
+            })?
+        else {
+            return Ok(None);
+        };
 
         let logs = self
             .get_events_inner(
                 from_block.into(),
-                to_block.into(),
+                from_block.into(),
                 Some(vec![self.new_upgrade_cut_data_signature]),
-                Some(vec![packed_version]),
+                Some(vec![u256_to_h256(version.pack())]),
                 Some(vec![state_transition_manager_address]),
                 RETRY_LIMIT,
             )
             .await?;
 
-        Ok(logs.into_iter().next().map(|log| log.data.0))
+        if logs.len() > 1 {
+            return Err(EnrichedClientError::custom(
+                format!(
+                    "Multiple NewUpgradeCutData events in block {from_block} for version {version}"
+                ),
+                "diamond_cut_for_version",
+            ));
+        }
+        Ok(logs.into_iter().map(|log| log.data.0).next())
     }
-
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
         self.client.fetch_chain_id().await
     }
@@ -536,6 +598,38 @@ where
             base_token_symbol,
         }))
     }
+
+    fn bridgehub_addr(&self) -> Option<Address> {
+        self.bridgehub_proxy_addr
+    }
+
+    async fn get_l2_upgrade_tx_data(
+        &self,
+        init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> Result<Vec<u8>, ContractCallError> {
+        let bridgehub_addr = self.bridgehub_addr().ok_or_else(|| {
+            ContractCallError::EthereumGateway(EnrichedClientError::custom(
+                "Bridgehub address is required for v31 upgrade",
+                "get_l2_upgrade_tx_data",
+            ))
+        })?;
+
+        CallFunctionArgs::new(
+            "getL2UpgradeTxData",
+            (
+                bridgehub_addr,
+                U256::from(self.l2_chain_id.as_u64()),
+                // eth_watch in this binary is bound to an Era chain; Era diamonds
+                // pass `false` for the shared v31 settlement-layer helper.
+                false,
+                existing_tx_data,
+            ),
+        )
+        .for_contract(init_address, &self.settlement_layer_v31_upgrade_abi)
+        .call(&self.client)
+        .await
+    }
 }
 
 /// Encapsulates `eth_getLogs` calls.
@@ -575,7 +669,13 @@ pub trait ZkSyncExtentionEthClient: EthClient {
 
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>>;
+
+    async fn get_chain_log_proof_until_msg_root(
+        &self,
+        block_number: L2BlockNumber,
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>>;
 
@@ -594,13 +694,25 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L1> {
 
     async fn get_chain_log_proof(
         &self,
-        _l1_batch_number: L1BatchNumber,
+        _batch_number: L1BatchNumber,
         _chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
         //TODO(EVM-959): Implement it using l1 contracts
         Err(EnrichedClientError::custom(
             "Method is not supported",
             "get_chain_log_proof",
+        ))
+    }
+
+    async fn get_chain_log_proof_until_msg_root(
+        &self,
+        _block_number: L2BlockNumber,
+        _chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        //TODO(EVM-959): Implement it using l1 contracts
+        Err(EnrichedClientError::custom(
+            "Method is not supported",
+            "get_chain_log_proof_until_msg_root",
         ))
     }
 
@@ -624,13 +736,24 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
 
     async fn get_chain_log_proof(
         &self,
-        l1_batch_number: L1BatchNumber,
+        batch_number: L1BatchNumber,
         chain_id: L2ChainId,
     ) -> EnrichedClientResult<Option<ChainAggProof>> {
         self.client
-            .get_chain_log_proof(l1_batch_number, chain_id)
+            .get_chain_log_proof(batch_number, chain_id)
             .await
             .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProof"))
+    }
+
+    async fn get_chain_log_proof_until_msg_root(
+        &self,
+        block_number: L2BlockNumber,
+        chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        self.client
+            .get_chain_log_proof_until_msg_root(block_number, chain_id)
+            .await
+            .map_err(|err| EnrichedClientError::new(err, "unstable_getChainLogProofUntilMsgRoot"))
     }
 
     async fn get_chain_root_l2(

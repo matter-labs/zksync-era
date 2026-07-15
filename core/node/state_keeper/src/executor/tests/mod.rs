@@ -1,18 +1,26 @@
+use anyhow::Context;
 use assert_matches::assert_matches;
 use rand::{thread_rng, Rng};
 use test_casing::{test_casing, Product};
 use zksync_contracts::l2_message_root;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_multivm::interface::{
-    BatchTransactionExecutionResult, Call, CallType, ExecutionResult, Halt, VmEvent,
+    BatchTransactionExecutionResult, Call, CallType, ExecutionResult, Halt, L2BlockEnv, VmEvent,
 };
-use zksync_system_constants::{COMPRESSOR_ADDRESS, L1_MESSENGER_ADDRESS};
+use zksync_system_constants::{
+    COMPLEX_UPGRADER_ADDRESS, COMPRESSOR_ADDRESS, L1_MESSENGER_ADDRESS,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+};
 use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
-    address_to_h256, get_nonce_key,
+    abi, address_to_h256, address_to_u256,
+    block::L2BlockHasher,
+    ethabi::Token,
+    get_nonce_key,
     utils::{deployed_address_create, storage_key_for_eth_balance},
     vm::FastVmMode,
-    web3, Execute, PriorityOpId, H256, L2_MESSAGE_ROOT_ADDRESS, U256,
+    web3, PriorityOpId, ProtocolVersionId, Transaction, H256, L2_MESSAGE_ROOT_ADDRESS,
+    PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_vm_executor::whitelist::{DeploymentTxFilter, SharedAllowList};
 
@@ -33,6 +41,50 @@ fn assert_executed(execution_result: &BatchTransactionExecutionResult) {
 fn assert_succeeded(execution_result: &BatchTransactionExecutionResult) {
     let result = &execution_result.tx_result.result;
     assert_matches!(result, ExecutionResult::Success { .. })
+}
+
+fn message_root_init_txn() -> Transaction {
+    let calldata = l2_message_root()
+        .function("initL2")
+        .unwrap()
+        .encode_input(&[
+            Token::Uint(U256::from(9u32)),
+            Token::Uint(U256::from(506u32)),
+        ])
+        .unwrap();
+
+    Transaction::from_abi(
+        abi::Transaction::L1 {
+            tx: abi::L2CanonicalTransaction {
+                tx_type: PROTOCOL_UPGRADE_TX_TYPE.into(),
+                from: address_to_u256(&COMPLEX_UPGRADER_ADDRESS),
+                to: address_to_u256(&L2_MESSAGE_ROOT_ADDRESS),
+                gas_limit: U256::from(20_000_000u32),
+                gas_per_pubdata_byte_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
+                max_fee_per_gas: U256::zero(),
+                max_priority_fee_per_gas: U256::zero(),
+                paymaster: U256::zero(),
+                nonce: U256::from(ProtocolVersionId::latest() as u16),
+                value: U256::zero(),
+                reserved: [
+                    U256::zero(),
+                    address_to_u256(&COMPLEX_UPGRADER_ADDRESS),
+                    U256::zero(),
+                    U256::zero(),
+                ],
+                data: calldata,
+                signature: vec![],
+                factory_deps: vec![],
+                paymaster_input: vec![],
+                reserved_dynamic: vec![],
+            }
+            .into(),
+            factory_deps: vec![],
+            eth_block: 0,
+        },
+        false,
+    )
+    .unwrap()
 }
 
 /// Ensures that the transaction was rejected by the VM.
@@ -69,23 +121,7 @@ async fn execute_l2_tx(storage_type: StorageType, vm_mode: FastVmMode) {
     let mut tester = Tester::new(connection_pool, vm_mode);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    let message_root_init_txn = message_root_init_txn();
 
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
@@ -134,23 +170,7 @@ async fn execute_l2_tx_after_snapshot_recovery(
 ) {
     let mut alice = Account::random();
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    let message_root_init_txn = message_root_init_txn();
 
     let mut storage_snapshot =
         StorageSnapshot::new(&connection_pool, &mut alice, 10, &[message_root_init_txn]).await;
@@ -185,23 +205,7 @@ async fn execute_l1_tx(vm_mode: FastVmMode) {
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    let message_root_init_txn = message_root_init_txn();
 
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
@@ -228,23 +232,7 @@ async fn execute_l2_and_l1_txs(vm_mode: FastVmMode) {
     let mut tester = Tester::new(connection_pool, vm_mode);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    let message_root_init_txn = message_root_init_txn();
 
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
@@ -324,7 +312,7 @@ async fn decommitting_contract() {
 /// Checks that we can successfully rollback the transaction and execute it once again.
 #[test_casing(3, FAST_VM_MODES)]
 #[tokio::test]
-async fn rollback(vm_mode: FastVmMode) {
+async fn rollback_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
@@ -332,23 +320,7 @@ async fn rollback(vm_mode: FastVmMode) {
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    let message_root_init_txn = message_root_init_txn();
 
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
@@ -375,6 +347,160 @@ async fn rollback(vm_mode: FastVmMode) {
     );
 
     executor.finish_batch().await.unwrap();
+}
+
+/// Checks that we can successfully rollback blocks and execute them once again.
+#[tokio::test]
+async fn complex_rollback_test() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+
+    let mut tester = Tester::new(connection_pool, FastVmMode::Old);
+
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+    let message_root_init_txn = message_root_init_txn();
+
+    let txs2 = vec![alice.execute(), alice.execute()];
+    let txs3 = vec![alice.execute(), alice.execute()];
+
+    #[derive(Debug)]
+    enum Item {
+        RunBlock(usize),
+        RunTx(usize, usize),
+        RollbackLastBlock,
+        RollbackLastTx,
+        FinishBlock,
+    }
+
+    let scenarios = vec![
+        vec![
+            Item::RunBlock(0),
+            Item::RollbackLastBlock,
+            Item::RunBlock(0),
+            Item::RunBlock(1),
+            Item::RollbackLastBlock,
+            Item::RunBlock(1),
+            Item::FinishBlock,
+        ],
+        vec![
+            Item::RunBlock(0),
+            Item::RunBlock(1),
+            Item::RollbackLastBlock,
+            Item::RollbackLastBlock,
+            Item::RunBlock(0),
+            Item::RunBlock(1),
+            Item::FinishBlock,
+        ],
+        vec![
+            Item::RunBlock(0),
+            Item::RunBlock(1),
+            Item::RollbackLastTx,
+            Item::RollbackLastBlock,
+            Item::RollbackLastBlock,
+        ],
+        vec![
+            Item::RunBlock(0),
+            Item::RunBlock(1),
+            Item::RollbackLastTx,
+            Item::RunTx(1, 1),
+            Item::RollbackLastBlock,
+            Item::RunBlock(1),
+            Item::FinishBlock,
+        ],
+    ];
+
+    let block_hash0 = L2BlockHasher::legacy_hash(0u32.into());
+
+    let mut block_hasher = L2BlockHasher::new(1u32.into(), 100, block_hash0);
+    block_hasher.push_tx_hash(message_root_init_txn.hash());
+    let block_hash1 = block_hasher.finalize(ProtocolVersionId::latest());
+
+    let mut block_hasher = L2BlockHasher::new(2u32.into(), 102, block_hash1);
+    block_hasher.push_tx_hash(txs2[0].hash());
+    block_hasher.push_tx_hash(txs2[1].hash());
+    let block_hash2 = block_hasher.finalize(ProtocolVersionId::latest());
+
+    let blocks = [
+        (
+            L2BlockEnv {
+                number: 2,
+                timestamp: 102,
+                prev_block_hash: block_hash1,
+                max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
+            },
+            txs2,
+        ),
+        (
+            L2BlockEnv {
+                number: 3,
+                timestamp: 103,
+                prev_block_hash: block_hash2,
+                max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
+            },
+            txs3,
+        ),
+    ];
+    for scenario in scenarios {
+        let mut executor = tester
+            .create_batch_executor_with_init_transactions(
+                StorageType::Postgres,
+                &[message_root_init_txn.clone()],
+            )
+            .await;
+        let scenario_str = format!("{scenario:?}");
+        for (i, item) in scenario.into_iter().enumerate() {
+            let context_str = format!("Scenario: {scenario_str}, item index: {i}");
+            match item {
+                Item::RunBlock(i) => {
+                    executor
+                        .start_next_l2_block(blocks[i].0.clone())
+                        .await
+                        .unwrap();
+                    for tx in &blocks[i].1 {
+                        let res = executor
+                            .execute_tx(tx.clone())
+                            .await
+                            .context(context_str.clone())
+                            .unwrap();
+                        assert_executed(&res);
+                    }
+                }
+                Item::RunTx(block_i, tx_i) => {
+                    let res = executor
+                        .execute_tx(blocks[block_i].1[tx_i].clone())
+                        .await
+                        .context(context_str.clone())
+                        .unwrap();
+                    assert_executed(&res);
+                }
+                Item::RollbackLastBlock => {
+                    executor
+                        .rollback_l2_block()
+                        .await
+                        .context(context_str.clone())
+                        .unwrap();
+                }
+                Item::RollbackLastTx => {
+                    executor
+                        .rollback_last_tx()
+                        .await
+                        .context(context_str.clone())
+                        .unwrap();
+                }
+                Item::FinishBlock => {
+                    executor
+                        .finish_batch()
+                        .await
+                        .context(context_str.clone())
+                        .unwrap();
+                    break;
+                }
+            }
+        }
+    }
 }
 
 /// Checks that incorrect transactions are marked as rejected.
@@ -407,23 +533,7 @@ async fn too_big_gas_limit(vm_mode: FastVmMode) {
     let mut tester = Tester::new(connection_pool, vm_mode);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    let message_root_init_txn = message_root_init_txn();
 
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
@@ -449,23 +559,7 @@ async fn check_deployment_allow_list() {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     tester.fund(&[bob.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    let message_root_init_txn = message_root_init_txn();
 
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
@@ -540,23 +634,7 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
     let mut tester = Tester::new(connection_pool, vm_mode);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    let message_root_init_txn = message_root_init_txn();
 
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
@@ -609,29 +687,12 @@ async fn deploy_failedcall(vm_mode: FastVmMode) {
 async fn execute_reverted_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
-    let mut bob = Account::random();
 
     let mut tester = Tester::new(connection_pool, vm_mode);
 
     tester.genesis().await;
-    tester.fund(&[alice.address(), bob.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = bob.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    tester.fund(&[alice.address()]).await;
+    let message_root_init_txn = message_root_init_txn();
 
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
@@ -669,23 +730,7 @@ async fn execute_realistic_scenario(vm_mode: FastVmMode) {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     tester.fund(&[bob.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    let message_root_init_txn = message_root_init_txn();
 
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
@@ -829,23 +874,7 @@ async fn catchup_rocksdb_cache() {
 
     tester.genesis().await;
     tester.fund(&[alice.address(), bob.address()]).await;
-
-    let l2_message_root = l2_message_root();
-    let encoded_data = l2_message_root
-        .function("initialize")
-        .unwrap()
-        .encode_input(&[])
-        .unwrap();
-
-    let message_root_init_txn = alice.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
-            calldata: encoded_data,
-            value: U256::zero(),
-            factory_deps: vec![],
-        },
-        None,
-    );
+    let message_root_init_txn = message_root_init_txn();
 
     // Execute a bunch of transactions to populate Postgres-based storage (note that RocksDB stays empty)
     let mut executor = tester

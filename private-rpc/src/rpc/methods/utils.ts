@@ -111,7 +111,7 @@ const callReqSchema = z
             })
             .optional()
     })
-    .strict();
+    .passthrough();
 
 const callResponseSchema = z.object({
     jsonrpc: z.literal('2.0'),

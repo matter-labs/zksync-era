@@ -1,7 +1,8 @@
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_node_framework::resource::{self, Resource};
+use zksync_web3_decl::node::SettlementLayerClient;
 
-use crate::BoundEthInterface;
+use crate::{BoundEthInterface, EthInterface};
 
 // FIXME: clearly out of place here. Probably remove, replacing by `SettlementModeResource` + patching config
 #[derive(Debug, Clone)]
@@ -35,5 +36,14 @@ pub struct BoundEthInterfaceForL2Resource(pub Box<dyn BoundEthInterface>);
 impl Resource for BoundEthInterfaceForL2Resource {
     fn name() -> String {
         "common/bound_eth_interface_for_l2".into()
+    }
+}
+
+impl From<SettlementLayerClient> for Box<dyn EthInterface> {
+    fn from(client: SettlementLayerClient) -> Self {
+        match client {
+            SettlementLayerClient::L1(client) => Box::new(client),
+            SettlementLayerClient::Gateway(client) => Box::new(client),
+        }
     }
 }

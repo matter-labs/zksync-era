@@ -74,4 +74,4 @@ The final `blobCommitment` is calculated as the hash between the `blobVersionedH
 
 ## Structure of the pubdata
 
-Rollups maintain the same structure of pubdata and apply the same rules for compression as those that were used in the previous versions of the system. These can be read [here](./state_diff_compression_v1_spec.md).
+Rollups maintain the same structure of pubdata and apply the same rules for compression as those that were used in the previous versions of the system. These can be read [here](./compression.md).

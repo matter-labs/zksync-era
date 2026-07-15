@@ -15,6 +15,8 @@ fn loading_historic_estimation_base_contracts() {
         BaseSystemContracts::estimate_gas_post_protocol_defense,
         BaseSystemContracts::estimate_gas_gateway,
         BaseSystemContracts::estimate_gas_evm_emulator,
+        BaseSystemContracts::estimate_gas_interop,
+        BaseSystemContracts::estimate_gas_medium_interop,
     ];
     for (i, load_fn) in load_fns.into_iter().enumerate() {
         println!("Testing base contracts #{i}");
@@ -39,6 +41,8 @@ fn loading_historic_playground_contracts() {
         BaseSystemContracts::playground_post_protocol_defense,
         BaseSystemContracts::playground_gateway,
         BaseSystemContracts::playground_evm_emulator,
+        BaseSystemContracts::playground_interop,
+        BaseSystemContracts::playground_medium_interop,
     ];
     for (i, load_fn) in load_fns.into_iter().enumerate() {
         println!("Testing base contracts #{i}");

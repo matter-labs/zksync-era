@@ -105,6 +105,7 @@ enum BlockIdLabel {
     Earliest,
     Pending,
     Number,
+    Precommitted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
@@ -143,6 +144,7 @@ impl From<&MethodMetadata> for MethodLabels {
             api::BlockId::Number(api::BlockNumber::L1Committed) => BlockIdLabel::L1Committed,
             api::BlockId::Number(api::BlockNumber::Earliest) => BlockIdLabel::Earliest,
             api::BlockId::Number(api::BlockNumber::Pending) => BlockIdLabel::Pending,
+            api::BlockId::Number(api::BlockNumber::Precommitted) => BlockIdLabel::Precommitted,
         });
         let block_diff = meta.block_diff.map(|block_diff| match block_diff {
             0..=2 => BlockDiffLabel::Exact(block_diff),
@@ -171,6 +173,11 @@ enum Web3ErrorKind {
     LogsLimitExceeded,
     InvalidFilterBlockHash,
     TreeApiUnavailable,
+    TransactionTimeout,
+    TransactionUnready,
+    InvalidTimeout,
+    InvalidTransactionRequest,
+    InvalidFeeHistoryParams,
     Internal,
 }
 
@@ -187,6 +194,11 @@ impl Web3ErrorKind {
             Web3Error::LogsLimitExceeded(..) => Self::LogsLimitExceeded,
             Web3Error::InvalidFilterBlockHash => Self::InvalidFilterBlockHash,
             Web3Error::TreeApiUnavailable => Self::TreeApiUnavailable,
+            Web3Error::TransactionTimeout(_) => Self::TransactionTimeout,
+            Web3Error::TransactionUnready(_) => Self::TransactionUnready,
+            Web3Error::InvalidTimeout(_) => Self::InvalidTimeout,
+            Web3Error::InvalidTransactionRequest(_) => Self::InvalidTransactionRequest,
+            Web3Error::InvalidFeeHistoryParams(_) => Self::InvalidFeeHistoryParams,
             Web3Error::InternalError(_)
             | Web3Error::MethodNotImplemented
             | Web3Error::ServerShuttingDown => Self::Internal,
@@ -508,6 +520,29 @@ pub(super) struct TxReceiptMetrics {
 
 #[vise::register]
 pub(super) static TX_RECEIPT_METRICS: vise::Global<TxReceiptMetrics> = vise::Global::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
+pub(super) enum SendRawTxSyncStage {
+    Submit,
+    PollReceipt,
+    Timeout,
+}
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "api_send_raw_tx_sync")]
+pub(super) struct SendRawTxSyncMetrics {
+    /// Latency of each stage of `eth_sendRawTransactionSync`.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub latency: Family<SendRawTxSyncStage, Histogram<Duration>>,
+    /// Number of poll iterations until completion or timeout.
+    #[metrics(buckets = Buckets::exponential(1.0..=256.0, 2.0))]
+    pub polls: Family<SendRawTxSyncStage, Histogram<u64>>,
+}
+
+#[vise::register]
+pub(super) static SEND_RAW_TX_SYNC_METRICS: vise::Global<SendRawTxSyncMetrics> =
+    vise::Global::new();
 
 #[cfg(test)]
 mod tests {

@@ -4,11 +4,14 @@ use zksync_config::configs::{base_token_adjuster::BaseTokenAdjusterConfig, walle
 use zksync_contracts::{chain_admin_contract, getters_facet_contract};
 use zksync_dal::node::{MasterPool, PoolResource};
 use zksync_eth_client::{
-    clients::PKSigningClient,
+    clients::SigningClient,
     node::contracts::{L1ChainContractsResource, L1EcosystemContractsResource},
-    web3_decl::client::{DynClient, L1},
+    web3_decl::{
+        client::{DynClient, L1},
+        node::SettlementModeResource,
+    },
 };
-use zksync_external_price_api::{NoOpPriceApiClient, PriceApiClient};
+use zksync_external_price_api::{APIToken, NoOpPriceApiClient, PriceApiClient};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
 use zksync_node_framework::{
     service::StopReceiver,
@@ -16,7 +19,8 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
-use zksync_types::L1ChainId;
+use zksync_operator_signer::OperatorSigner;
+use zksync_types::{settlement::SettlementLayer, L1ChainId};
 
 use crate::{BaseTokenL1Behaviour, BaseTokenRatioPersister, UpdateOnL1Params};
 
@@ -39,6 +43,7 @@ pub struct Input {
     tx_params: Arc<dyn TxParamsProvider>,
     l1_contracts: L1ChainContractsResource,
     l1_ecosystem_contracts: L1EcosystemContractsResource,
+    settlement_mode: SettlementModeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -76,47 +81,71 @@ impl WiringLayer for BaseTokenRatioPersisterLayer {
         let price_api_client = input
             .price_api_client
             .unwrap_or_else(|| Arc::new(NoOpPriceApiClient));
-        let base_token_addr = input.l1_ecosystem_contracts.0.base_token_address;
+        let base_token_addr = self
+            .config
+            .base_token_addr_override
+            .unwrap_or(input.l1_ecosystem_contracts.0.base_token_address);
+        let base_token = APIToken::from_config_address(base_token_addr);
 
-        let l1_behaviour = self
-            .wallets_config
-            .token_multiplier_setter
-            .map(|token_multiplier_setter| {
-                let tms_private_key = token_multiplier_setter.private_key();
-                let tms_address = token_multiplier_setter.address();
-                let l1_diamond_proxy_addr = input
-                    .l1_contracts
-                    .0
-                    .chain_contracts_config
-                    .diamond_proxy_addr;
-
-                let signing_client = PKSigningClient::new_raw(
-                    tms_private_key.clone(),
-                    l1_diamond_proxy_addr,
-                    self.config.default_priority_fee_per_gas,
-                    self.l1_chain_id.into(),
-                    input.eth_client.for_component("base_token_adjuster"),
-                );
-                BaseTokenL1Behaviour::UpdateOnL1 {
-                    params: UpdateOnL1Params {
-                        eth_client: Box::new(signing_client),
-                        gas_adjuster: input.tx_params,
-                        token_multiplier_setter_account_address: tms_address,
-                        chain_admin_contract: chain_admin_contract(),
-                        getters_facet_contract: getters_facet_contract(),
-                        diamond_proxy_contract_address: l1_diamond_proxy_addr,
-                        chain_admin_contract_address: input.l1_ecosystem_contracts.0.chain_admin,
-                        config: self.config.clone(),
-                    },
-                    last_persisted_l1_ratio: None,
+        let sl_token = match input.settlement_mode.settlement_layer() {
+            SettlementLayer::L1 { .. } => APIToken::Eth,
+            SettlementLayer::Gateway { .. } => {
+                if let Some(address) = self.config.gateway_base_token_addr_override {
+                    APIToken::ERC20(address)
+                } else {
+                    APIToken::ZK
                 }
-            })
-            .unwrap_or(BaseTokenL1Behaviour::NoOp);
+            }
+        };
+
+        let l1_behaviour = if let Some(ref token_multiplier_setter) =
+            self.wallets_config.token_multiplier_setter
+        {
+            let operator_signer = OperatorSigner::from_wallet(token_multiplier_setter);
+            let tms_address = operator_signer
+                .address()
+                .await
+                .map_err(|e| WiringError::Internal(e.into()))?;
+            tracing::info!("Token multiplier setter address: {tms_address:?}");
+
+            let l1_diamond_proxy_addr = input
+                .l1_contracts
+                .0
+                .chain_contracts_config
+                .diamond_proxy_addr;
+
+            let signing_client = SigningClient::new(
+                input.eth_client.for_component("base_token_adjuster"),
+                zksync_contracts::hyperchain_contract(),
+                tms_address,
+                operator_signer,
+                l1_diamond_proxy_addr,
+                self.config.default_priority_fee_per_gas.into(),
+                self.l1_chain_id.into(),
+            );
+
+            BaseTokenL1Behaviour::UpdateOnL1 {
+                params: UpdateOnL1Params {
+                    eth_client: Box::new(signing_client),
+                    gas_adjuster: input.tx_params,
+                    token_multiplier_setter_account_address: tms_address,
+                    chain_admin_contract: chain_admin_contract(),
+                    getters_facet_contract: getters_facet_contract(),
+                    diamond_proxy_contract_address: l1_diamond_proxy_addr,
+                    chain_admin_contract_address: input.l1_ecosystem_contracts.0.chain_admin,
+                    config: self.config.clone(),
+                },
+                last_persisted_l1_ratio: None,
+            }
+        } else {
+            BaseTokenL1Behaviour::NoOp
+        };
 
         let persister = BaseTokenRatioPersister::new(
             master_pool,
             self.config,
-            base_token_addr,
+            base_token,
+            sl_token,
             price_api_client,
             l1_behaviour,
         );

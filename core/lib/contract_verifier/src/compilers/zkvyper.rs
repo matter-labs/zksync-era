@@ -5,7 +5,7 @@ use tokio::{fs, io::AsyncWriteExt};
 use zksync_queued_job_processor::async_trait;
 use zksync_types::contract_verification::api::CompilationArtifacts;
 
-use super::VyperInput;
+use super::{sanitize_compiler_stderr, VyperInput};
 use crate::{
     error::ContractVerifierError,
     resolver::{Compiler, CompilerPaths},
@@ -84,6 +84,7 @@ impl ZkVyper {
                     bytecode,
                     deployed_bytecode: None,
                     immutable_refs: Default::default(),
+                    factory_dependency_refs: Default::default(),
                 });
             }
         }
@@ -128,7 +129,7 @@ impl Compiler<VyperInput> for ZkVyper {
         } else {
             Err(ContractVerifierError::CompilerError(
                 "zkvyper",
-                String::from_utf8_lossy(&output.stderr).to_string(),
+                sanitize_compiler_stderr(&String::from_utf8_lossy(&output.stderr)),
             ))
         }
     }

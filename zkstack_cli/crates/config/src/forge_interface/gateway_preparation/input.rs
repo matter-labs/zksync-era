@@ -3,7 +3,7 @@ use ethers::utils::hex;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Bytes, Address};
 
-use crate::{gateway::GatewayConfig, traits::ZkStackConfig, ChainConfig, ContractsConfig};
+use crate::{gateway::GatewayConfig, traits::FileConfigTrait, ChainConfig, ContractsConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayPreparationConfig {
@@ -21,7 +21,7 @@ pub struct GatewayPreparationConfig {
     pub l1_nullifier_proxy_addr: Address,
 }
 
-impl ZkStackConfig for GatewayPreparationConfig {}
+impl FileConfigTrait for GatewayPreparationConfig {}
 
 impl GatewayPreparationConfig {
     pub fn new(
@@ -41,6 +41,7 @@ impl GatewayPreparationConfig {
                 .context("stm_deployment_tracker_proxy_addr")?,
             chain_type_manager_proxy_addr: contracts
                 .ecosystem_contracts
+                .ctm
                 .state_transition_proxy_addr,
             shared_bridge_proxy_addr: contracts.bridges.shared.l1_address,
             governance: ecosystem_contracts_config.l1.governance_addr,
@@ -59,7 +60,10 @@ impl GatewayPreparationConfig {
                 .l1_nullifier_addr
                 .context("l1_nullifier_addr")?,
             l1_diamond_cut_data: hex::decode(
-                &chain_contracts_config.ecosystem_contracts.diamond_cut_data,
+                &chain_contracts_config
+                    .ecosystem_contracts
+                    .ctm
+                    .diamond_cut_data,
             )
             .context("diamond_cut_data")?
             .into(),

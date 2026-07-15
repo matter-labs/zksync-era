@@ -1,21 +1,13 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::traits::ZkStackConfig;
+use crate::traits::FileConfigTrait;
 
-impl ZkStackConfig for InitializeBridgeOutput {}
-impl ZkStackConfig for DefaultL2UpgradeOutput {}
-impl ZkStackConfig for ConsensusRegistryOutput {}
-impl ZkStackConfig for Multicall3Output {}
+impl FileConfigTrait for DefaultL2UpgradeOutput {}
+impl FileConfigTrait for ConsensusRegistryOutput {}
+impl FileConfigTrait for Multicall3Output {}
 
-impl ZkStackConfig for TimestampAsserterOutput {}
-
-impl ZkStackConfig for L2DAValidatorAddressOutput {}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InitializeBridgeOutput {
-    pub l2_da_validator_address: Address,
-}
+impl FileConfigTrait for TimestampAsserterOutput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefaultL2UpgradeOutput {
@@ -24,7 +16,6 @@ pub struct DefaultL2UpgradeOutput {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusRegistryOutput {
-    pub consensus_registry_implementation: Address,
     pub consensus_registry_proxy: Address,
 }
 
@@ -36,9 +27,4 @@ pub struct Multicall3Output {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimestampAsserterOutput {
     pub timestamp_asserter: Address,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct L2DAValidatorAddressOutput {
-    pub l2_da_validator_address: Address,
 }

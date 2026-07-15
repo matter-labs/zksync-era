@@ -13,8 +13,8 @@ use zksync_types::{
 use crate::{
     client::{ForWeb3Network, L2},
     types::{
-        Block, Bytes, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt, U64Number,
-        U256, U64,
+        Block, Bytes, FillTransaction, FillTransactionRequest, Filter, FilterChanges, Index, Log,
+        SyncState, TransactionReceipt, U64Number, U256, U64,
     },
 };
 
@@ -48,6 +48,9 @@ pub trait EthNamespace {
         _block: Option<BlockNumber>,
         state_override: Option<StateOverride>,
     ) -> RpcResult<U256>;
+
+    #[method(name = "fillTransaction")]
+    async fn fill_transaction(&self, req: FillTransactionRequest) -> RpcResult<FillTransaction>;
 
     #[method(name = "gasPrice")]
     async fn gas_price(&self) -> RpcResult<U256>;
@@ -152,6 +155,13 @@ pub trait EthNamespace {
 
     #[method(name = "sendRawTransaction")]
     async fn send_raw_transaction(&self, tx_bytes: Bytes) -> RpcResult<H256>;
+
+    #[method(name = "sendRawTransactionSync")]
+    async fn send_raw_transaction_sync(
+        &self,
+        tx_bytes: Bytes,
+        max_wait_ms: Option<U256>,
+    ) -> RpcResult<TransactionReceipt>;
 
     #[method(name = "syncing")]
     async fn syncing(&self) -> RpcResult<SyncState>;

@@ -38,6 +38,7 @@ zksync_node_sync.workspace = true
 zksync_node_api_server.workspace = true
 zksync_node_consensus.workspace = true
 zksync_node_framework.workspace = true
+zksync_settlement_layer_data.workspace = true
 zksync_vlog = { workspace = true, features = ["node_framework"] }
 
 zksync_consensus_roles.workspace = true

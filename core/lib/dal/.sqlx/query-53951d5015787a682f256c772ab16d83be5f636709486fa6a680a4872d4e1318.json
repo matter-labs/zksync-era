@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                pubdata_input\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pubdata_input",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "53951d5015787a682f256c772ab16d83be5f636709486fa6a680a4872d4e1318"
+}

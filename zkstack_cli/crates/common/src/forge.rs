@@ -9,7 +9,7 @@ use ethers::{
     middleware::Middleware,
     prelude::{LocalWallet, Signer},
     types::{Address, H256, U256},
-    utils::{hex, hex::ToHex},
+    utils::{hex, hex::ToHexExt},
 };
 use serde::{Deserialize, Serialize};
 use strum::Display;
@@ -56,9 +56,9 @@ pub struct ForgeScript {
 impl ForgeScript {
     /// Run the forge script command.
     pub fn run(mut self, shell: &Shell) -> anyhow::Result<()> {
-        // When running the DeployL1 script, we skip recompiling the Bridgehub
+        // When running the DeployCTM script, we skip recompiling the Bridgehub
         // because it must be compiled with a low optimizer-runs value.
-        if self.script_path == Path::new("deploy-scripts/DeployL1.s.sol") {
+        if self.script_path == Path::new("deploy-scripts/DeployCTM.s.sol") {
             let skip_path: String = String::from("contracts/bridgehub/*");
             self.args.add_arg(ForgeScriptArg::Skip { skip_path });
         }
@@ -152,6 +152,12 @@ impl ForgeScript {
 
     pub fn with_gas_limit(mut self, gas_limit: u64) -> Self {
         self.args.add_arg(ForgeScriptArg::GasLimit { gas_limit });
+        self
+    }
+
+    pub fn with_gas_per_pubdata(mut self, gas_per_pubdata: u64) -> Self {
+        self.args
+            .add_arg(ForgeScriptArg::GasPerPubdata { gas_per_pubdata });
         self
     }
 
@@ -283,6 +289,10 @@ pub enum ForgeScriptArg {
     #[strum(to_string = "gas-limit={gas_limit}")]
     GasLimit {
         gas_limit: u64,
+    },
+    #[strum(to_string = "zk-gas-per-pubdata={gas_per_pubdata}")]
+    GasPerPubdata {
+        gas_per_pubdata: u64,
     },
     Zksync,
     #[strum(to_string = "skip={skip_path}")]

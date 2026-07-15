@@ -1,19 +1,22 @@
-#[cfg(feature = "v28_precompiles")]
 use std::path::Path;
 
-#[cfg(feature = "v28_precompiles")]
-use ethers::types::Bytes;
 use ethers::{
-    abi::{decode, ParamType, Token},
+    abi::{decode, Abi, Function, Param, ParamType, StateMutability, Token},
+    types::Bytes,
     utils::hex,
 };
 use serde::Serialize;
-#[cfg(feature = "v28_precompiles")]
 use xshell::Shell;
-#[cfg(feature = "v28_precompiles")]
 use zkstack_cli_common::forge::ForgeScriptArgs;
-use zksync_contracts::chain_admin_contract;
-use zksync_types::{ethabi, Address, U256};
+use zksync_types::{Address, ProtocolVersionId, U256};
+
+use crate::{
+    abi::{
+        ADMINABI_ABI as ADMIN_ABI, CHAINADMINOWNABLEABI_ABI as CHAIN_ADMIN_OWNABLE_ABI,
+        DIAMONDCUTABI_ABI as DIAMOND_CUT_ABI,
+    },
+    utils::protocol_version::get_minor_protocol_version,
+};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AdminCall {
@@ -87,18 +90,21 @@ where
 #[derive(Debug, Clone)]
 pub struct AdminCallBuilder {
     calls: Vec<AdminCall>,
-    chain_admin_abi: ethabi::Contract,
+    chain_admin_abi: Abi,
 }
 
 impl AdminCallBuilder {
     pub fn new(calls: Vec<AdminCall>) -> Self {
         Self {
             calls,
-            chain_admin_abi: chain_admin_contract(),
+            chain_admin_abi: CHAIN_ADMIN_OWNABLE_ABI.clone(),
         }
     }
 
-    #[cfg(feature = "v28_precompiles")]
+    pub fn is_empty(&self) -> bool {
+        self.calls.is_empty()
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn prepare_upgrade_chain_on_gateway_calls(
         &mut self,
@@ -144,26 +150,74 @@ impl AdminCallBuilder {
         }
     }
 
-    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
     pub fn append_execute_upgrade(
         &mut self,
         hyperchain_addr: Address,
         protocol_version: u64,
         diamond_cut_data: zksync_types::web3::Bytes,
     ) {
-        let diamond_cut = zksync_contracts::DIAMOND_CUT
-            .decode_input(&diamond_cut_data.0)
-            .unwrap()[0]
-            .clone();
-        let zkchain_abi = zksync_contracts::hyperchain_contract();
+        let diamond_cut_fn = DIAMOND_CUT_ABI
+            .function("diamondCut")
+            .expect("diamondCut ABI not found");
 
-        let data = zkchain_abi
+        let upgrade_fn = ADMIN_ABI
             .function("upgradeChainFromVersion")
-            .unwrap()
-            .encode_input(&[Token::Uint(protocol_version.into()), diamond_cut])
-            .unwrap();
-        let description = "Executing upgrade:".to_string();
+            .expect("upgradeChainFromVersion ABI not found");
 
+        // Get the parameter type for DiamondCutData from the diamondCut function
+        let diamond_cut_param_type = diamond_cut_fn
+            .inputs
+            .first()
+            .expect("diamondCut function has no parameters")
+            .kind
+            .clone();
+
+        // Decode the raw diamond_cut_data bytes directly as DiamondCutData struct
+        let diamond_cut_token = decode(
+            std::slice::from_ref(&diamond_cut_param_type),
+            &diamond_cut_data.0,
+        )
+        .expect("Failed to decode diamond_cut_data")
+        .into_iter()
+        .next()
+        .expect("Failed to extract DiamondCutData token");
+
+        let old_minor = get_minor_protocol_version(U256::from(protocol_version))
+            .expect("Failed to unpack old protocol version");
+        let data = if old_minor < ProtocolVersionId::Version31 {
+            #[allow(deprecated)]
+            let legacy_upgrade_fn = Function {
+                name: "upgradeChainFromVersion".to_string(),
+                inputs: vec![
+                    Param {
+                        name: "_protocolVersion".to_string(),
+                        kind: ParamType::Uint(256),
+                        internal_type: None,
+                    },
+                    Param {
+                        name: "_cutData".to_string(),
+                        kind: diamond_cut_param_type,
+                        internal_type: None,
+                    },
+                ],
+                outputs: Vec::new(),
+                constant: None,
+                state_mutability: StateMutability::NonPayable,
+            };
+            legacy_upgrade_fn
+                .encode_input(&[Token::Uint(U256::from(protocol_version)), diamond_cut_token])
+                .expect("encode legacy upgradeChainFromVersion failed")
+        } else {
+            upgrade_fn
+                .encode_input(&[
+                    Token::Address(hyperchain_addr),
+                    Token::Uint(U256::from(protocol_version)),
+                    diamond_cut_token,
+                ])
+                .expect("encode upgradeChainFromVersion failed")
+        };
+
+        let description = "Executing upgrade:".to_string();
         let call = AdminCall {
             description,
             data: data.to_vec(),
@@ -179,7 +233,6 @@ impl AdminCallBuilder {
         serde_json::to_string_pretty(&self.calls).unwrap()
     }
 
-    #[cfg(any(feature = "v27_evm_interpreter", feature = "v28_precompiles"))]
     pub fn display(&self) {
         // Serialize with pretty printing
         let serialized = serde_json::to_string_pretty(&self.calls).unwrap();

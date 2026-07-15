@@ -1,6 +1,6 @@
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails,
         L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
@@ -67,8 +67,9 @@ impl ZksNamespaceServer for ZksNamespace {
         &self,
         tx_hash: H256,
         index: Option<usize>,
+        interop_mode: Option<InteropMode>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        self.get_l2_to_l1_log_proof_impl(tx_hash, index)
+        self.get_l2_to_l1_log_proof_impl(tx_hash, index, interop_mode)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -133,7 +134,7 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_fee_params(&self) -> RpcResult<FeeParams> {
-        Ok(self.get_fee_params_impl())
+        Ok(self.get_fee_params_impl().await)
     }
 
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput> {
@@ -170,6 +171,12 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_l2_multicall3(&self) -> RpcResult<Option<Address>> {
         self.get_l2_multicall3_impl()
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn gas_per_pubdata(&self) -> RpcResult<U256> {
+        self.gas_per_pubdata_impl()
+            .await
             .map_err(|err| self.current_method().map_err(err))
     }
 }

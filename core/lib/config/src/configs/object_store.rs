@@ -21,6 +21,12 @@ pub struct ObjectStoreConfig {
     pub local_mirror_path: Option<PathBuf>,
 }
 
+impl Default for ObjectStoreConfig {
+    fn default() -> Self {
+        Self::for_tests()
+    }
+}
+
 impl ObjectStoreConfig {
     pub fn for_tests() -> Self {
         Self {

@@ -1,5 +1,8 @@
-use smart_config::{ConfigSchema, DescribeConfig, DeserializeConfig};
-use zksync_basic_types::{Address, H256};
+use smart_config::{
+    de::{Optional, Serde},
+    ConfigSchema, DescribeConfig, DeserializeConfig,
+};
+use zksync_basic_types::{commitment::L2DACommitmentScheme, Address, H256};
 
 use super::{
     ecosystem::L1SpecificContracts, EcosystemCommonContracts, SettlementLayerSpecificContracts,
@@ -13,6 +16,7 @@ pub struct EcosystemContracts {
     pub l1_bytecodes_supplier_addr: Option<Address>,
     pub l1_wrapped_base_token_store: Option<Address>,
     pub server_notifier_addr: Option<Address>,
+    pub message_root_proxy_addr: Option<Address>,
 }
 
 impl EcosystemContracts {
@@ -24,6 +28,7 @@ impl EcosystemContracts {
             l1_bytecodes_supplier_addr: Some(Address::repeat_byte(0x16)),
             l1_wrapped_base_token_store: Some(Address::repeat_byte(0x17)),
             server_notifier_addr: Some(Address::repeat_byte(0x18)),
+            message_root_proxy_addr: Some(Address::repeat_byte(0x19)),
         }
     }
 }
@@ -70,6 +75,12 @@ pub struct L2Contracts {
     pub da_validator_addr: Option<Address>,
     pub testnet_paymaster_addr: Option<Address>,
     pub multicall3: Option<Address>,
+}
+
+/// Configuration for the ZKChain from on chain parameters.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ZkChainOnChainConfig {
+    pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
 }
 
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
@@ -138,6 +149,36 @@ impl BridgesConfig {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+pub struct ProofManagerContracts {
+    #[config(alias = "proof_manager_addr")]
+    pub proof_manager_addr: Address,
+    #[config(alias = "proxy_addr")]
+    pub proxy_addr: Address,
+    #[config(alias = "proxy_admin_addr")]
+    pub proxy_admin_addr: Address,
+}
+
+impl Default for ProofManagerContracts {
+    fn default() -> Self {
+        Self {
+            proof_manager_addr: Address::zero(),
+            proxy_addr: Address::zero(),
+            proxy_admin_addr: Address::zero(),
+        }
+    }
+}
+
+impl ProofManagerContracts {
+    fn for_tests() -> Self {
+        Self {
+            proof_manager_addr: Address::repeat_byte(0x1d),
+            proxy_addr: Address::repeat_byte(0x1e),
+            proxy_admin_addr: Address::repeat_byte(0x1f),
+        }
+    }
+}
+
 /// Data about deployed contracts.
 #[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
 pub struct ContractsConfig {
@@ -149,6 +190,16 @@ pub struct ContractsConfig {
     pub bridges: BridgesConfig,
     #[config(nest)]
     pub ecosystem_contracts: EcosystemContracts,
+    // Setting default values to zero(for backwards compatibility)
+    #[config(nest, default)]
+    pub proof_manager_contracts: ProofManagerContracts,
+    /// Explicit override for the L2 DA commitment scheme.
+    ///
+    /// The scheme is normally read from the chain via `getDAValidatorPair`, but that getter only
+    /// exists from the medium-interop upgrade onwards. This config makes it possible to pin the
+    /// scheme before that upgrade is applied (or when the on-chain value is `None`).
+    #[config(with = Optional(Serde![str]))]
+    pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
 }
 
 impl ContractsConfig {
@@ -158,6 +209,8 @@ impl ContractsConfig {
             l2: L2ContractsConfig::for_tests(),
             bridges: BridgesConfig::for_tests(),
             ecosystem_contracts: EcosystemContracts::for_tests(),
+            proof_manager_contracts: ProofManagerContracts::for_tests(),
+            l2_da_commitment_scheme: None,
         }
     }
 
@@ -167,6 +220,7 @@ impl ContractsConfig {
             wrapped_base_token_store: self.ecosystem_contracts.l1_wrapped_base_token_store,
             bridge_hub: Some(self.ecosystem_contracts.bridgehub_proxy_addr),
             shared_bridge: self.bridges.shared.l1_address,
+            message_root: self.ecosystem_contracts.message_root_proxy_addr,
             erc_20_bridge: self.bridges.erc20.l1_address,
             base_token_address: self.l1.base_token_addr,
             chain_admin: Some(self.l1.chain_admin_addr),
@@ -198,6 +252,7 @@ impl ContractsConfig {
             ecosystem_contracts: EcosystemCommonContracts {
                 bridgehub_proxy_addr: Some(ecosystem.bridgehub_proxy_addr),
                 state_transition_proxy_addr: Some(ecosystem.state_transition_proxy_addr),
+                message_root_proxy_addr: ecosystem.message_root_proxy_addr,
                 multicall3: Some(self.l1.multicall3_addr),
                 validator_timelock_addr: Some(self.l1.validator_timelock_addr),
             },
@@ -205,6 +260,10 @@ impl ContractsConfig {
                 diamond_proxy_addr: self.l1.diamond_proxy_addr,
             },
         }
+    }
+
+    pub fn eth_proof_manager_contracts(&self) -> ProofManagerContracts {
+        self.proof_manager_contracts.clone()
     }
 
     pub(crate) fn insert_into_schema(schema: &mut ConfigSchema) {
@@ -290,7 +349,14 @@ mod tests {
                     "0x35ea7f92f4c5f433efe15284e99c040110cf6297",
                 )),
                 server_notifier_addr: Some(addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a")),
+                message_root_proxy_addr: Some(addr("0x9a2cd573e8142a5435539f0688f106affcc1a8a6")),
             },
+            proof_manager_contracts: ProofManagerContracts {
+                proof_manager_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
+                proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
+                proxy_admin_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
+            },
+            l2_da_commitment_scheme: Some(L2DACommitmentScheme::PubdataKeccak256),
         }
     }
 
@@ -307,6 +373,7 @@ mod tests {
             CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
             CONTRACTS_L2_LEGACY_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
             CONTRACTS_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_MESSAGE_ROOT_PROXY_ADDR="0x9a2cd573e8142a5435539f0688f106affcc1a8a6"
             CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
             CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
             CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
@@ -327,6 +394,12 @@ mod tests {
             CONTRACTS_BRIDGES_ERC20_L2_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
             CONTRACTS_BRIDGES_WETH_L1_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
             CONTRACTS_BRIDGES_WETH_L2_ADDRESS="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+
+            CONTRACTS_PROOF_MANAGER_CONTRACTS_PROOF_MANAGER_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_PROOF_MANAGER_CONTRACTS_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+            CONTRACTS_PROOF_MANAGER_CONTRACTS_PROXY_ADMIN_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
+
+            CONTRACTS_L2_DA_COMMITMENT_SCHEME="PubdataKeccak256"
         "#;
         let env = Environment::from_dotenv("test.env", env).unwrap();
 
@@ -342,6 +415,7 @@ mod tests {
           contracts:
             ecosystem_contracts:
               bridgehub_proxy_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
+              message_root_proxy_addr: 0x9a2cd573e8142a5435539f0688f106affcc1a8a6
               state_transition_proxy_addr: 0xd90f1c081c6117241624e97cb6147257c3cb2097
               transparent_proxy_admin_addr: 0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5
               l1_bytecodes_supplier_addr: F00B988a98Ca742e7958DeF9F7823b5908715f4a
@@ -378,6 +452,11 @@ mod tests {
               timestamp_asserter_addr: '0x0000000000000000000000000000000000000002'
               da_validator_addr: 0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff
               multicall3: '0x0000000000000000000000000000000000010002'
+            proof_manager_contracts:
+              proof_manager_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
+              proxy_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
+              proxy_admin_addr: 0x35ea7f92f4c5f433efe15284e99c040110cf6297
+            l2_da_commitment_scheme: PubdataKeccak256
         "#;
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
 

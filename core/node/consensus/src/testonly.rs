@@ -19,7 +19,10 @@ use zksync_consensus_network as network;
 use zksync_consensus_roles::{validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
 use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
-use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
+use zksync_node_api_server::web3::{
+    state::{InternalApiConfig, InternalApiConfigBase},
+    testonly::TestServerBuilder,
+};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
     fetcher::{FetchedTransaction, IoCursorExt as _},
@@ -39,11 +42,12 @@ use zksync_state_keeper::{
 };
 use zksync_test_contracts::Account;
 use zksync_types::{
+    commitment::PubdataParams,
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},
-    settlement::SettlementLayer,
+    settlement::{SettlementLayer, WorkingSettlementLayer},
     Address, Execute, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
-    Transaction,
+    Transaction, U256,
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
@@ -135,6 +139,7 @@ fn make_config(
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: u64::MAX.into(),
+        max_transaction_size: u64::MAX.into(),
         max_batch_size: u64::MAX.into(),
         view_timeout: Duration::from_secs(2),
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
@@ -158,6 +163,7 @@ fn make_config(
         genesis_spec,
         rpc: RpcConfig::default(),
         debug_page_addr: None,
+        consensus_registry_read_rate: Duration::from_secs(1),
     }
 }
 
@@ -258,8 +264,12 @@ impl StateKeeper {
                         fair_l2_gas_price: 10,
                         l1_gas_price: 100,
                     }),
+                    interop_fee: U256::zero(),
                     first_l2_block: L2BlockParams::new(self.last_timestamp * 1000),
-                    pubdata_params: Default::default(),
+                    pubdata_params: PubdataParams::genesis(),
+                    pubdata_limit: (self.protocol_version >= ProtocolVersionId::Version29)
+                        .then_some(100_000),
+                    settlement_layer: SettlementLayer::for_tests(),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -575,14 +585,17 @@ impl StateKeeperRunner {
             s.spawn_bg(async {
                 // Spawn HTTP server.
                 let contracts_config = configs::ContractsConfig::for_tests();
+                let state_keeper_config = configs::chain::StateKeeperConfig::for_tests();
+                let genesis_config = configs::GenesisConfig::for_tests();
+                let web3_config = &configs::api::Web3JsonRpcConfig::for_tests();
                 let cfg = InternalApiConfig::new(
-                    &configs::api::Web3JsonRpcConfig::for_tests(),
+                    InternalApiConfigBase::new(&genesis_config, web3_config, &state_keeper_config)
+                        .with_l1_to_l2_txs_paused(false),
                     &contracts_config.settlement_layer_specific_contracts(),
                     &contracts_config.l1_specific_contracts(),
                     &contracts_config.l2_contracts(),
-                    &configs::GenesisConfig::for_tests(),
-                    false,
-                    SettlementLayer::for_tests(),
+                    &genesis_config,
+                    WorkingSettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)
@@ -668,14 +681,17 @@ impl StateKeeperRunner {
             s.spawn_bg(async {
                 // Spawn HTTP server.
                 let contracts_config = configs::ContractsConfig::for_tests();
+                let state_keeper_config = configs::chain::StateKeeperConfig::for_tests();
+                let genesis_config = configs::GenesisConfig::for_tests();
+                let web3_config = &configs::api::Web3JsonRpcConfig::for_tests();
                 let cfg = InternalApiConfig::new(
-                    &configs::api::Web3JsonRpcConfig::for_tests(),
+                    InternalApiConfigBase::new(&genesis_config, web3_config, &state_keeper_config)
+                        .with_l1_to_l2_txs_paused(false),
                     &contracts_config.settlement_layer_specific_contracts(),
                     &contracts_config.l1_specific_contracts(),
                     &contracts_config.l2_contracts(),
-                    &configs::GenesisConfig::for_tests(),
-                    false,
-                    SettlementLayer::for_tests(),
+                    &genesis_config,
+                    WorkingSettlementLayer::for_tests(),
                 );
                 let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
                     .build_http(stop_recv)

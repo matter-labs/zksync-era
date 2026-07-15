@@ -12,6 +12,8 @@ pub(crate) enum Component {
     Tree,
     /// Merkle tree API.
     TreeApi,
+    /// Eth proof manager. Component for interacting with proof manager (proof distribution contracts)
+    EthProofManager,
     EthWatcher,
     /// Eth tx generator.
     EthTxAggregator,
@@ -23,8 +25,8 @@ pub(crate) enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
-    /// Component for exposing APIs to TEE prover for providing proof generation data and accepting proofs.
-    TeeProofDataHandler,
+    /// Component for exposing APIs to Airbender prover for providing proof generation data and accepting proofs.
+    AirbenderProofDataHandler,
     /// Component generating BFT consensus certificates for L2 blocks.
     Consensus,
     /// Component generating commitment for L1 batches.
@@ -63,6 +65,7 @@ impl FromStr for Components {
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
+            "eth_proof_manager" => Ok(Components(vec![Component::EthProofManager])),
             "eth" => Ok(Components(vec![
                 Component::EthWatcher,
                 Component::EthTxAggregator,
@@ -72,7 +75,9 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
-            "tee_proof_data_handler" => Ok(Components(vec![Component::TeeProofDataHandler])),
+            "airbender_proof_data_handler" | "tee_proof_data_handler" => {
+                Ok(Components(vec![Component::AirbenderProofDataHandler]))
+            }
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
             "da_dispatcher" => Ok(Components(vec![Component::DADispatcher])),

@@ -1,0 +1,234 @@
+use std::sync::Arc;
+
+use tokio::sync::watch;
+use zksync_config::configs::{
+    eth_proof_manager::EthProofManagerConfig, proof_data_handler::ProvingMode,
+};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_object_store::{Bucket, ObjectStore};
+use zksync_proof_data_handler::{Locking, Processor};
+use zksync_prover_interface::inputs::PublicWitnessInputData;
+use zksync_types::{L1BatchId, L1BatchNumber, L2ChainId};
+
+use crate::{
+    client::EthProofManagerClient,
+    metrics::{TxType, METRICS},
+    types::{ProofRequestIdentifier, ProofRequestParams},
+};
+
+#[derive(Debug, thiserror::Error)]
+enum SubmitRequestError {
+    #[error("pre-submit failure: {0}")]
+    Preparing(#[source] anyhow::Error),
+    #[error("submission outcome is uncertain: {0}")]
+    Submitting(#[source] anyhow::Error),
+}
+
+pub struct ProofRequestSubmitter {
+    client: Box<dyn EthProofManagerClient>,
+    connection_pool: ConnectionPool<Core>,
+    public_blob_store: Arc<dyn ObjectStore>,
+    config: EthProofManagerConfig,
+    processor: Processor<Locking>,
+}
+
+impl ProofRequestSubmitter {
+    pub fn new(
+        client: Box<dyn EthProofManagerClient>,
+        blob_store: Arc<dyn ObjectStore>,
+        public_blob_store: Arc<dyn ObjectStore>,
+        connection_pool: ConnectionPool<Core>,
+        config: EthProofManagerConfig,
+        l2_chain_id: L2ChainId,
+    ) -> Self {
+        let processor = Processor::<Locking>::new(
+            blob_store.clone(),
+            connection_pool.clone(),
+            config.proof_generation_timeout,
+            l2_chain_id,
+            ProvingMode::ProvingNetwork,
+        );
+        Self {
+            client,
+            connection_pool,
+            public_blob_store,
+            config,
+            processor,
+        }
+    }
+
+    pub async fn run(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        loop {
+            if *stop_receiver.borrow() {
+                tracing::info!("Stop request received, eth proof sender is shutting down");
+                return Ok(());
+            }
+
+            if let Err(e) = self.loop_iteration().await {
+                tracing::error!("Error submitting proof request: {e}");
+            }
+
+            tracing::info!(
+                "Sleeping for {} seconds",
+                self.config.request_sending_interval.as_secs()
+            );
+            tokio::time::sleep(self.config.request_sending_interval).await;
+        }
+    }
+
+    pub async fn loop_iteration(&self) -> anyhow::Result<()> {
+        let batch_id = self
+            .connection_pool
+            .connection()
+            .await?
+            .eth_proof_manager_dal()
+            .lock_batch_for_proving_network_and_prepare()
+            .await?;
+        if let Some(batch_id) = batch_id {
+            tracing::info!(
+                "Locked batch {} for proving-network submission and persisted preparing state",
+                batch_id
+            );
+            match self.submit_request(batch_id).await {
+                Ok(_) => {
+                    tracing::info!("Submitted proof request for batch {}", batch_id);
+                }
+                Err(SubmitRequestError::Preparing(e)) => {
+                    tracing::error!(
+                        "Failed to submit proof request for batch {}, moving to prover cluster, error: {}",
+                        batch_id,
+                        e
+                    );
+                    METRICS.fallbacked_batches.inc();
+                    self.connection_pool
+                        .connection()
+                        .await?
+                        .eth_proof_manager_dal()
+                        .fallback_batch(batch_id)
+                        .await?;
+                }
+                Err(SubmitRequestError::Submitting(e)) => {
+                    tracing::error!(
+                        "Failed to finish proving-network submission for batch {}, leaving it for watcher/recovery, error: {}",
+                        batch_id,
+                        e
+                    );
+                }
+            }
+        } else {
+            tracing::info!("No batches to submit proof request for");
+        }
+
+        Ok(())
+    }
+
+    async fn submit_request(&self, batch_id: L1BatchNumber) -> Result<(), SubmitRequestError> {
+        let proof_generation_data = self
+            .processor
+            .proof_generation_data_for_existing_batch(batch_id)
+            .await
+            .map_err(anyhow::Error::from)
+            .map_err(SubmitRequestError::Preparing)?;
+
+        tracing::info!("Need to send proof request for batch {}", batch_id);
+
+        let witness_input_data =
+            PublicWitnessInputData::new(proof_generation_data.witness_input_data.clone());
+
+        let bucket = Bucket::PublicWitnessInputs;
+        let key = self
+            .public_blob_store
+            .put(
+                L1BatchId::new(self.processor.chain_id(), batch_id),
+                &witness_input_data,
+            )
+            .await
+            .map_err(|e| {
+                SubmitRequestError::Preparing(anyhow::anyhow!(
+                    "Failed to put proof generation data into blob store: {}",
+                    e
+                ))
+            })?;
+
+        tracing::info!(
+            "Uploaded public witness input for batch {} to {}/{}",
+            batch_id,
+            bucket.as_str(),
+            key
+        );
+
+        let url = format!(
+            "{}/{}/{}",
+            self.config.public_object_store_url,
+            bucket.as_str(),
+            key
+        );
+
+        self.connection_pool
+            .connection()
+            .await
+            .map_err(anyhow::Error::from)
+            .map_err(SubmitRequestError::Preparing)?
+            .eth_proof_manager_dal()
+            .mark_batch_as_submitting(batch_id, &url)
+            .await
+            .map_err(anyhow::Error::from)
+            .map_err(SubmitRequestError::Preparing)?;
+
+        tracing::info!(
+            "Marked batch {} as submitting with witness input URL {}",
+            batch_id,
+            url
+        );
+
+        let proof_request_identifier = ProofRequestIdentifier {
+            chain_id: proof_generation_data.chain_id.as_u64(),
+            block_number: proof_generation_data.l1_batch_number.0 as u64,
+        };
+
+        let proof_request_parameters = ProofRequestParams {
+            protocol_major: 0,
+            protocol_minor: proof_generation_data.protocol_version.minor as u32,
+            protocol_patch: proof_generation_data.protocol_version.patch.0,
+            proof_inputs_url: url,
+            timeout_after: self.config.proof_generation_timeout.as_secs(),
+            max_reward: self.config.max_reward,
+        };
+
+        match self
+            .client
+            .submit_proof_request(proof_request_identifier, proof_request_parameters)
+            .await
+        {
+            Ok(tx_hash) => {
+                self.connection_pool
+                    .connection()
+                    .await
+                    .map_err(anyhow::Error::from)
+                    .map_err(SubmitRequestError::Submitting)?
+                    .eth_proof_manager_dal()
+                    .mark_batch_as_sent(batch_id, tx_hash)
+                    .await
+                    .map_err(anyhow::Error::from)
+                    .map_err(SubmitRequestError::Submitting)?;
+
+                tracing::info!(
+                    "Submitted proof request for batch {}, chain_id: {}, with tx hash {}",
+                    proof_generation_data.l1_batch_number,
+                    proof_generation_data.chain_id,
+                    tx_hash
+                );
+            }
+            Err(e) => {
+                METRICS.reached_max_attempts[&TxType::ProofRequest].inc_by(1);
+                return Err(SubmitRequestError::Submitting(anyhow::anyhow!(
+                    "Failed to submit proof request for batch {}, error: {}",
+                    batch_id,
+                    e
+                )));
+            }
+        }
+
+        Ok(())
+    }
+}

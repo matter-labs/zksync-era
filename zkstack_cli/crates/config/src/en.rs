@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use xshell::Shell;
 use zksync_basic_types::{L1ChainId, L2ChainId, SLChainId};
@@ -9,7 +9,7 @@ use crate::raw::PatchedConfig;
 pub struct ExternalNodeConfigPatch(PatchedConfig);
 
 impl ExternalNodeConfigPatch {
-    pub fn empty(shell: &Shell, path: PathBuf) -> Self {
+    pub fn empty(shell: &Shell, path: &Path) -> Self {
         Self(PatchedConfig::empty(shell, path))
     }
 

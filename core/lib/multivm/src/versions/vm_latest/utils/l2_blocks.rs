@@ -32,7 +32,7 @@ pub(crate) fn assert_next_block(
         assert!(prev_block.timestamp <= next_block.timestamp);
     } else {
         assert_eq!(prev_block.number + 1, next_block.number);
-        if protocol_version.is_pre_fast_blocks() {
+        if protocol_version.is_pre_interop_fast_blocks() {
             assert!(prev_block.timestamp < next_block.timestamp);
         } else {
             assert!(prev_block.timestamp <= next_block.timestamp);

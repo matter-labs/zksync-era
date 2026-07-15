@@ -35,9 +35,12 @@ COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
 COPY contracts/l1-contracts/out/ /contracts/l1-contracts/out/
 COPY contracts/l1-contracts/zkout/ /contracts/l1-contracts/zkout/
 COPY contracts/l2-contracts/zkout/ /contracts/l2-contracts/zkout/
+COPY proof-manager-contracts/out/ /proof-manager-contracts/out/
+COPY proof-manager-contracts/zkout/ /proof-manager-contracts/zkout/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
 COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
 COPY core/lib/dal/migrations/ /migrations
+COPY prover/data/keys/fflonk_verification_snark_key.json /keys/fflonk_verification_snark_key.json
 
 ENTRYPOINT ["zksync_server"]

@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use anyhow::Context;
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
-use zksync_types::{commitment::PubdataParams, L1BatchNumber, L2BlockNumber, H256};
+use zksync_types::{settlement::SettlementLayer, L1BatchNumber, L2BlockNumber, H256};
+use zksync_vm_executor::storage::RestoredL1BatchEnv;
 
 use super::PendingBatchData;
 
@@ -27,6 +27,7 @@ pub struct IoCursor {
     pub prev_l2_block_timestamp: u64,
     pub l1_batch: L1BatchNumber,
     pub prev_l1_batch_timestamp: u64,
+    pub settlement_layer: SettlementLayer,
 }
 
 impl IoCursor {
@@ -40,6 +41,20 @@ impl IoCursor {
             .blocks_dal()
             .get_last_sealed_l2_block_header()
             .await?;
+        let settlement_layer =
+            if let Some(unsealed_batch) = storage.blocks_dal().get_unsealed_l1_batch().await? {
+                unsealed_batch.settlement_layer
+            } else if let Some((l1_batch_number, _)) = last_sealed_l1_batch_number_and_timestamp {
+                storage
+                    .blocks_dal()
+                    .get_l1_batch_header(l1_batch_number)
+                    .await?
+                    .context("sealed L1 batch is expected to exist")?
+                    .settlement_layer
+            } else {
+                // Legacy fallback for snapshot-only DBs where settlement-layer data isn't present in batches.
+                SettlementLayer::default()
+            };
 
         if let (Some((l1_batch_number, l1_batch_timestamp)), Some(l2_block_header)) = (
             last_sealed_l1_batch_number_and_timestamp,
@@ -51,6 +66,7 @@ impl IoCursor {
                 prev_l2_block_timestamp: l2_block_header.timestamp,
                 l1_batch: l1_batch_number + 1,
                 prev_l1_batch_timestamp: l1_batch_timestamp,
+                settlement_layer,
             })
         } else {
             let snapshot_recovery = storage
@@ -87,6 +103,7 @@ impl IoCursor {
                 prev_l2_block_timestamp,
                 l1_batch,
                 prev_l1_batch_timestamp,
+                settlement_layer,
             })
         }
     }
@@ -99,9 +116,7 @@ impl IoCursor {
 /// Propagates DB errors. Also returns an error if environment doesn't correspond to a pending L1 batch.
 pub async fn load_pending_batch(
     storage: &mut Connection<'_, Core>,
-    system_env: SystemEnv,
-    l1_batch_env: L1BatchEnv,
-    pubdata_params: PubdataParams,
+    restored_l1_batch_env: RestoredL1BatchEnv,
 ) -> anyhow::Result<PendingBatchData> {
     let pending_l2_blocks = storage
         .transactions_dal()
@@ -110,18 +125,20 @@ pub async fn load_pending_batch(
     let first_pending_l2_block = pending_l2_blocks
         .first()
         .context("no pending L2 blocks; was environment loaded for a correct L1 batch number?")?;
-    let expected_pending_l2_block_number = L2BlockNumber(l1_batch_env.first_l2_block.number);
+    let expected_pending_l2_block_number =
+        L2BlockNumber(restored_l1_batch_env.l1_batch_env.first_l2_block.number);
     anyhow::ensure!(
         first_pending_l2_block.number == expected_pending_l2_block_number,
         "Invalid `L1BatchEnv` supplied: its L1 batch #{} is not pending; \
          first pending L2 block: {first_pending_l2_block:?}, first L2 block in batch: {:?}",
-        l1_batch_env.number,
-        l1_batch_env.first_l2_block
+        restored_l1_batch_env.l1_batch_env.number,
+        restored_l1_batch_env.l1_batch_env.first_l2_block
     );
     Ok(PendingBatchData {
-        l1_batch_env,
-        system_env,
-        pubdata_params,
+        l1_batch_env: restored_l1_batch_env.l1_batch_env,
+        system_env: restored_l1_batch_env.system_env,
+        pubdata_params: restored_l1_batch_env.pubdata_params,
+        pubdata_limit: restored_l1_batch_env.pubdata_limit,
         pending_l2_blocks,
     })
 }

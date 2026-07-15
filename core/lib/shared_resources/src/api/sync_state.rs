@@ -134,7 +134,7 @@ impl From<&SyncStateData> for Health {
         } else if block_diff.is_some() {
             HealthStatus::Affected
         } else {
-            return HealthStatus::NotReady.into(); // `state` isn't initialized yet
+            return HealthStatus::Affected.into(); // `state` isn't initialized yet
         };
         Health::from(status).with_details(SyncStateHealthDetails {
             is_synced,
@@ -158,7 +158,7 @@ mod tests {
         assert!(!sync_state.borrow().is_synced());
 
         let health = sync_state.check_health().await;
-        assert_matches!(health.status(), HealthStatus::NotReady);
+        assert_matches!(health.status(), HealthStatus::Affected);
 
         // The gap is too big, still not synced.
         sync_state.set_local_block(L2BlockNumber(0));

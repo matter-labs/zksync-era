@@ -376,6 +376,7 @@ impl TxSink for TxProxy {
                 eth_commit_tx_hash: None,
                 eth_prove_tx_hash: None,
                 eth_execute_tx_hash: None,
+                eth_precommit_tx_hash: None,
             }));
         }
         Ok(None)
@@ -399,7 +400,9 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
         let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
-        insert_genesis_batch(&mut storage, &params).await.unwrap();
+        insert_genesis_batch(&mut storage, &params.into())
+            .await
+            .unwrap();
 
         let tx = create_l2_transaction(10, 100);
         let send_tx_called = Arc::new(AtomicBool::new(false));
@@ -519,7 +522,9 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
         let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
-        insert_genesis_batch(&mut storage, &params).await.unwrap();
+        insert_genesis_batch(&mut storage, &params.into())
+            .await
+            .unwrap();
 
         let tx = create_l2_transaction(10, 100);
         let main_node_client = MockClient::builder(L2::default())
@@ -584,7 +589,9 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
         let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
-        insert_genesis_batch(&mut storage, &params).await.unwrap();
+        insert_genesis_batch(&mut storage, &params.into())
+            .await
+            .unwrap();
 
         let tx = create_l2_transaction(10, 100);
         let main_node_client = MockClient::builder(L2::default())
@@ -660,7 +667,9 @@ mod tests {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
         let params = GenesisParams::load_genesis_params(mock_genesis_config()).unwrap();
-        insert_genesis_batch(&mut storage, &params).await.unwrap();
+        insert_genesis_batch(&mut storage, &params.into())
+            .await
+            .unwrap();
 
         let tx = create_l2_transaction(10, 100);
         let mut replacing_tx = create_l2_transaction(10, 100);

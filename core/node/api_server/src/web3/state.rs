@@ -15,6 +15,7 @@ use vise::GaugeGuard;
 use zksync_config::{
     configs::{
         api::Web3JsonRpcConfig,
+        chain::StateKeeperConfig,
         contracts::{
             chain::L2Contracts,
             ecosystem::{EcosystemCommonContracts, L1SpecificContracts},
@@ -24,12 +25,13 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_object_store::ObjectStore;
 use zksync_shared_resources::{
     api::{BridgeAddressesHandle, SyncState},
     tree::TreeApiClient,
 };
 use zksync_types::{
-    api, commitment::L1BatchCommitmentMode, l2::L2Tx, settlement::SettlementLayer,
+    api, commitment::L1BatchCommitmentMode, l2::L2Tx, settlement::WorkingSettlementLayer,
     transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
     H256, U256, U64,
 };
@@ -113,8 +115,6 @@ pub struct InternalApiConfigBase {
     /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
     pub l1_chain_id: L1ChainId,
     pub l2_chain_id: L2ChainId,
-    pub dummy_verifier: bool,
-    pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub max_tx_size: usize,
     pub estimate_gas_scale_factor: f64,
     pub estimate_gas_acceptable_overestimation: u32,
@@ -123,15 +123,21 @@ pub struct InternalApiConfigBase {
     pub fee_history_limit: u64,
     pub filters_disabled: bool,
     pub l1_to_l2_txs_paused: bool,
+    pub eth_call_gas_cap: Option<u64>,
+    pub send_raw_tx_sync_default_timeout_ms: u64,
+    pub send_raw_tx_sync_max_timeout_ms: u64,
+    pub send_raw_tx_sync_poll_interval_ms: u64,
 }
 
 impl InternalApiConfigBase {
-    pub fn new(genesis: &GenesisConfig, web3_config: &Web3JsonRpcConfig) -> Self {
+    pub fn new(
+        genesis: &GenesisConfig,
+        web3_config: &Web3JsonRpcConfig,
+        state_keeper_config: &StateKeeperConfig,
+    ) -> Self {
         Self {
             l1_chain_id: genesis.l1_chain_id,
             l2_chain_id: genesis.l2_chain_id,
-            dummy_verifier: genesis.dummy_verifier,
-            l1_batch_commit_data_generator_mode: genesis.l1_batch_commit_data_generator_mode,
             max_tx_size: web3_config.max_tx_size.0 as usize,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
@@ -141,6 +147,13 @@ impl InternalApiConfigBase {
             fee_history_limit: web3_config.fee_history_limit,
             filters_disabled: web3_config.filters_disabled,
             l1_to_l2_txs_paused: false,
+            eth_call_gas_cap: web3_config.eth_call_gas_cap,
+            send_raw_tx_sync_default_timeout_ms: web3_config.send_raw_tx_sync_default_timeout_ms,
+            send_raw_tx_sync_max_timeout_ms: web3_config.send_raw_tx_sync_max_timeout_ms,
+            send_raw_tx_sync_poll_interval_ms: state_keeper_config
+                .shared
+                .l2_block_commit_deadline
+                .as_millis() as u64,
         }
     }
 
@@ -180,7 +193,11 @@ pub struct InternalApiConfig {
     pub timestamp_asserter_address: Option<Address>,
     pub l2_multicall3: Option<Address>,
     pub l1_to_l2_txs_paused: bool,
-    pub settlement_layer: Option<SettlementLayer>,
+    pub settlement_layer: WorkingSettlementLayer,
+    pub eth_call_gas_cap: Option<u64>,
+    pub send_raw_tx_sync_default_timeout_ms: u64,
+    pub send_raw_tx_sync_max_timeout_ms: u64,
+    pub send_raw_tx_sync_poll_interval_ms: u64,
 }
 
 impl InternalApiConfig {
@@ -189,7 +206,9 @@ impl InternalApiConfig {
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
-        settlement_layer: Option<SettlementLayer>,
+        settlement_layer: WorkingSettlementLayer,
+        dummy_verifier: bool,
+        l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     ) -> Self {
         Self {
             l1_chain_id: base.l1_chain_id,
@@ -220,32 +239,35 @@ impl InternalApiConfig {
             fee_history_limit: base.fee_history_limit,
             base_token_address: Some(l1_ecosystem_contracts.base_token_address),
             filters_disabled: base.filters_disabled,
-            dummy_verifier: base.dummy_verifier,
-            l1_batch_commit_data_generator_mode: base.l1_batch_commit_data_generator_mode,
+            dummy_verifier,
+            l1_batch_commit_data_generator_mode,
             timestamp_asserter_address: l2_contracts.timestamp_asserter_addr,
             l2_multicall3: l2_contracts.multicall3,
             l1_to_l2_txs_paused: base.l1_to_l2_txs_paused,
             settlement_layer,
+            eth_call_gas_cap: base.eth_call_gas_cap,
+            send_raw_tx_sync_default_timeout_ms: base.send_raw_tx_sync_default_timeout_ms,
+            send_raw_tx_sync_max_timeout_ms: base.send_raw_tx_sync_max_timeout_ms,
+            send_raw_tx_sync_poll_interval_ms: base.send_raw_tx_sync_poll_interval_ms,
         }
     }
 
     pub fn new(
-        web3_config: &Web3JsonRpcConfig,
+        base: InternalApiConfigBase,
         l1_contracts_config: &SettlementLayerSpecificContracts,
         l1_ecosystem_contracts: &L1SpecificContracts,
         l2_contracts: &L2Contracts,
         genesis_config: &GenesisConfig,
-        l1_to_l2_txs_paused: bool,
-        settlement_layer: SettlementLayer,
+        settlement_layer: WorkingSettlementLayer,
     ) -> Self {
-        let base = InternalApiConfigBase::new(genesis_config, web3_config)
-            .with_l1_to_l2_txs_paused(l1_to_l2_txs_paused);
         Self::from_base_and_contracts(
             base,
             l1_contracts_config,
             l1_ecosystem_contracts,
             l2_contracts,
-            Some(settlement_layer),
+            settlement_layer,
+            genesis_config.dummy_verifier,
+            genesis_config.l1_batch_commit_data_generator_mode,
         )
     }
 }
@@ -306,6 +328,7 @@ pub(crate) struct RpcState {
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
     pub(super) bridge_addresses_handle: BridgeAddressesHandle,
     pub(super) l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
+    pub(super) object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 impl RpcState {
@@ -396,13 +419,18 @@ impl RpcState {
         connection: &mut Connection<'_, Core>,
         block: api::BlockId,
     ) -> Result<BlockArgs, Web3Error> {
-        BlockArgs::new(connection, block, &self.start_info)
-            .await
-            .map_err(|err| match err {
-                BlockArgsError::Pruned(number) => Web3Error::PrunedBlock(number),
-                BlockArgsError::Missing => Web3Error::NoBlock,
-                BlockArgsError::Database(err) => Web3Error::InternalError(err),
-            })
+        BlockArgs::new(
+            connection,
+            block,
+            &self.start_info,
+            self.api_config.settlement_layer.settlement_layer(),
+        )
+        .await
+        .map_err(|err| match err {
+            BlockArgsError::Pruned(number) => Web3Error::PrunedBlock(number),
+            BlockArgsError::Missing => Web3Error::NoBlock,
+            BlockArgsError::Database(err) => Web3Error::InternalError(err),
+        })
     }
 
     pub async fn resolve_filter_block_number(

@@ -4,23 +4,21 @@ use zkstack_cli_common::{
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     spinner::Spinner,
 };
-use zkstack_cli_config::{ChainConfig, EcosystemConfig, SecretsConfig, SECRETS_FILE};
+use zkstack_cli_config::{
+    ChainConfig, SecretsConfig, ZkStackConfig, ZkStackConfigTrait, SECRETS_FILE,
+};
 
 use crate::{
     consts::SERVER_MIGRATIONS,
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED,
-        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_INITIALIZING_DATABASES_SPINNER,
+        MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
+        MSG_INITIALIZING_DATABASES_SPINNER,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::current_chain(shell)?;
 
     init(shell, &chain_config).await
 }
@@ -32,7 +30,7 @@ pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<(
         .as_ref()
         .context(MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED)?
         .join(SECRETS_FILE);
-    let secrets = SecretsConfig::read(shell, secrets_path).await?;
+    let secrets = SecretsConfig::read(shell, &secrets_path).await?;
     let db_url = secrets
         .core_database_url()?
         .context("missing core database URL")?;
@@ -46,8 +44,8 @@ pub async fn init(shell: &Shell, chain_config: &ChainConfig) -> anyhow::Result<(
         &chain_config.rocks_db_path,
         RocksDBDirOption::ExternalNode,
     )?;
-    let path_to_server_migration = chain_config.link_to_code.join(SERVER_MIGRATIONS);
-    migrate_db(shell, path_to_server_migration, &db_config.full_url()).await?;
+    let path_to_server_migration = chain_config.link_to_code().join(SERVER_MIGRATIONS);
+    migrate_db(shell, &path_to_server_migration, &db_config.full_url()).await?;
     spin.finish();
     Ok(())
 }

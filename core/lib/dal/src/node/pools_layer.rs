@@ -1,5 +1,6 @@
 use zksync_config::configs::{PostgresConfig, PostgresSecrets};
 use zksync_node_framework::{
+    service::ShutdownHook,
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
@@ -51,6 +52,7 @@ impl PoolsLayer {
 pub struct Output {
     master_pool: Option<PoolResource<MasterPool>>,
     replica_pool: Option<PoolResource<ReplicaPool>>,
+    pool_shutdown_hook: ShutdownHook,
 }
 
 #[async_trait::async_trait]
@@ -106,9 +108,28 @@ impl WiringLayer for PoolsLayer {
             None
         };
 
+        let master_pool_for_hook = master_pool.clone();
+        let replica_pool_for_hook = replica_pool.clone();
+        let pool_shutdown_hook = ShutdownHook::new("connection_pools", async move {
+            if let Some(pool_resource) = master_pool_for_hook {
+                if let Some(pool) = pool_resource.take().await {
+                    tracing::info!("Closing master connection pool");
+                    pool.close().await;
+                }
+            }
+            if let Some(pool_resource) = replica_pool_for_hook {
+                if let Some(pool) = pool_resource.take().await {
+                    tracing::info!("Closing replica connection pool");
+                    pool.close().await;
+                }
+            }
+            Ok(())
+        });
+
         Ok(Output {
             master_pool,
             replica_pool,
+            pool_shutdown_hook,
         })
     }
 }

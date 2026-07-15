@@ -52,7 +52,7 @@ pub enum CloudConnectionMode {
 pub struct GeneralConfig(RawConfig);
 
 impl GeneralConfig {
-    pub async fn read(shell: &Shell, path: PathBuf) -> anyhow::Result<Self> {
+    pub async fn read(shell: &Shell, path: &Path) -> anyhow::Result<Self> {
         RawConfig::read(shell, path).await.map(Self)
     }
 
@@ -89,8 +89,10 @@ impl GeneralConfig {
         Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
     }
 
-    pub fn tee_proof_data_handler_url(&self) -> anyhow::Result<Option<String>> {
-        let port = self.0.get_opt::<u16>("tee_proof_data_handler.http_port")?;
+    pub fn airbender_proof_data_handler_url(&self) -> anyhow::Result<Option<String>> {
+        let port = self
+            .0
+            .get_opt::<u16>("airbender_proof_data_handler.http_port")?;
         Ok(port.map(|port| format!("http://127.0.0.1:{port}")))
     }
 
@@ -168,7 +170,7 @@ impl GeneralConfigPatch {
     pub fn extract_consensus(
         &mut self,
         shell: &Shell,
-        path: PathBuf,
+        path: &Path,
     ) -> anyhow::Result<ConsensusConfigPatch> {
         let raw_consensus: serde_yaml::Mapping = self.0.base().get("consensus")?;
         self.0.remove("consensus");
@@ -193,22 +195,27 @@ impl GeneralConfigPatch {
         self.0.insert("prover_gateway.api_url", url)
     }
 
-    pub fn set_tee_prover_gateway_url(&mut self, url: String) -> anyhow::Result<()> {
-        self.0.insert("tee_prover_gateway.api_url", url)
+    pub fn set_airbender_prover_gateway_url(&mut self, url: String) -> anyhow::Result<()> {
+        self.0.insert("airbender_prover_gateway.api_url", url)
     }
 
     pub fn set_proof_data_handler_url(&mut self, url: String) -> anyhow::Result<()> {
         self.0.insert("data_handler.gateway_api_url", url)
     }
 
-    pub fn set_tee_proof_data_handler_url(&mut self, url: String) -> anyhow::Result<()> {
-        self.0.insert("tee_proof_data_handler.gateway_api_url", url)
+    pub fn set_airbender_proof_data_handler_url(&mut self, url: String) -> anyhow::Result<()> {
+        self.0
+            .insert("airbender_proof_data_handler.gateway_api_url", url)
     }
 
     pub fn proof_compressor_setup_download_url(&self) -> anyhow::Result<String> {
         self.0
             .base()
             .get("proof_compressor.universal_setup_download_url")
+    }
+
+    pub fn proof_compressor_setup_path(&self) -> anyhow::Result<PathBuf> {
+        self.0.base().get("proof_compressor.universal_setup_path")
     }
 
     pub fn set_proof_compressor_setup_path(&mut self, path: &Path) -> anyhow::Result<()> {
@@ -313,7 +320,7 @@ fn set_file_backed_path_if_selected(
     Ok(())
 }
 
-pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> anyhow::Result<()> {
+pub fn override_config(shell: &Shell, path: &Path, chain: &ChainConfig) -> anyhow::Result<()> {
     let chain_config_path = chain.path_to_general_config();
     let override_config = serde_yaml::from_str(&shell.read_file(path)?)?;
     let mut chain_config = serde_yaml::from_str(&shell.read_file(chain_config_path.clone())?)?;

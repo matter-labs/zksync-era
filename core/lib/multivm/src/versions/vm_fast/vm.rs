@@ -127,7 +127,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             &system_env.base_system_smart_contracts.bootloader,
             true,
         );
-        let bootloader_memory = BootloaderState::initial_memory(&batch_env);
+        let bootloader_memory = BootloaderState::initial_memory(vm_version.into(), &batch_env);
 
         let mut inner = VirtualMachine::new(
             BOOTLOADER_ADDRESS,
@@ -156,7 +156,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
                 bootloader_memory.clone(),
-                batch_env.first_l2_block,
+                batch_env.first_l2_block.clone(),
                 system_env.version,
             ),
             system_env,
@@ -576,10 +576,17 @@ where
                 }
                 VmHook::FinalBatchInfo => {
                     // set fictive l2 block
+                    let new_block_config = self.bootloader_state.get_new_block_config();
                     let txs_index = self.bootloader_state.free_tx_index();
                     let l2_block = self.bootloader_state.insert_fictive_l2_block();
                     let mut memory = vec![];
-                    apply_l2_block(&mut memory, l2_block, txs_index, self.vm_version.into());
+                    apply_l2_block(
+                        &mut memory,
+                        l2_block,
+                        txs_index,
+                        self.vm_version.into(),
+                        Some(new_block_config),
+                    );
                     self.write_to_bootloader_heap(memory);
                 }
                 VmHook::PubdataRequested => {
@@ -753,6 +760,7 @@ where
                 computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
                 pubdata_published: result.pubdata_published,
                 circuit_statistic,
+                cycle_features: Default::default(),
                 contracts_used: 0,
                 cycles_used: 0,
                 total_log_queries: 0,
@@ -892,6 +900,10 @@ where
     fn pop_snapshot_no_rollback(&mut self) {
         self.inner.pop_snapshot();
         self.snapshot = None;
+    }
+
+    fn pop_front_snapshot_no_rollback(&mut self) {
+        unimplemented!();
     }
 }
 

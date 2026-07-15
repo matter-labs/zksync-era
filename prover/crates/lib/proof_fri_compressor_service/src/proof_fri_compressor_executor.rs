@@ -5,9 +5,8 @@ use zksync_prover_fri_types::circuit_definitions::{
     boojum::field::goldilocks::GoldilocksField,
     zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
 };
-use zksync_prover_interface::{
-    outputs::{FflonkL1BatchProofForL1, L1BatchProofForL1, PlonkL1BatchProofForL1},
-    CBOR,
+use zksync_prover_interface::outputs::{
+    FflonkL1BatchProofForL1, L1BatchProofForL1, PlonkL1BatchProofForL1,
 };
 use zksync_prover_job_processor::Executor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchId};
@@ -48,7 +47,7 @@ impl ProofFriCompressorExecutor {
 
 impl Executor for ProofFriCompressorExecutor {
     type Input = ProofFriCompressorPayload;
-    type Output = L1BatchProofForL1<CBOR>;
+    type Output = L1BatchProofForL1;
     type Metadata = L1BatchId;
 
     #[tracing::instrument(
@@ -84,7 +83,7 @@ impl Executor for ProofFriCompressorExecutor {
         let aggregation_result_coords =
             Self::aux_output_witness_to_array(input.aux_output_witness_wrapper.0);
 
-        let l1_batch_proof: L1BatchProofForL1<CBOR> = match proof_wrapper {
+        let l1_batch_proof: L1BatchProofForL1 = match proof_wrapper {
             SnarkWrapperProof::Plonk(proof) => {
                 L1BatchProofForL1::new_plonk(PlonkL1BatchProofForL1 {
                     aggregation_result_coords,

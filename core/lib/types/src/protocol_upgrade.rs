@@ -90,20 +90,32 @@ impl From<abi::VerifierParams> for VerifierParams {
     }
 }
 
-/// Protocol upgrade transactions do not contain preimages within them.
-/// Instead, they are expected to be known and need to be fetched, typically from L1.
+/// Protocol upgrade transactions do not contain all data needed to execute them on L2.
+/// Factory-dep preimages and version-specific calldata rewrites are fetched from L1.
 #[async_trait::async_trait]
 pub trait ProtocolUpgradePreimageOracle: Send + Sync {
     async fn get_protocol_upgrade_preimages(
         &self,
         hashes: Vec<H256>,
     ) -> anyhow::Result<Vec<Vec<u8>>>;
+
+    /// Prepares chain-specific L2 upgrade tx data.
+    /// The default no-op is used by implementations that do not require on-chain preparation.
+    async fn prepare_l2_upgrade_tx_data(
+        &self,
+        _init_address: Address,
+        existing_tx_data: Vec<u8>,
+    ) -> anyhow::Result<Vec<u8>> {
+        Ok(existing_tx_data)
+    }
 }
 
 /// Some upgrades have chain-dependent calldata that has to be prepared properly.
 async fn prepare_upgrade_call(
     proposed_upgrade: &abi::ProposedUpgrade,
+    init_address: Address,
     chain_specific: Option<ZkChainSpecificUpgradeData>,
+    preimage_oracle: &impl ProtocolUpgradePreimageOracle,
 ) -> anyhow::Result<Vec<u8>> {
     // No upgrade
     if proposed_upgrade.l2_protocol_upgrade_tx.tx_type == U256::zero() {
@@ -111,10 +123,18 @@ async fn prepare_upgrade_call(
     }
 
     let minor_version = proposed_upgrade.l2_protocol_upgrade_tx.nonce;
-    if ProtocolVersionId::try_from(minor_version.as_u32() as u16).unwrap()
-        != ProtocolVersionId::gateway_upgrade()
-    {
-        // We'll just keep it the same for non-Gateway upgrades
+    let version = ProtocolVersionId::try_from(minor_version.as_u32() as u16).unwrap();
+
+    if version == ProtocolVersionId::Version31 {
+        return preimage_oracle
+            .prepare_l2_upgrade_tx_data(
+                init_address,
+                proposed_upgrade.l2_protocol_upgrade_tx.data.clone(),
+            )
+            .await;
+    }
+
+    if version != ProtocolVersionId::gateway_upgrade() {
         return Ok(proposed_upgrade.l2_protocol_upgrade_tx.data.clone());
     }
 
@@ -166,8 +186,13 @@ impl ProtocolUpgrade {
             .clone()
             .into_tuple()
             .unwrap();
+        let init_address = diamond_cut_tokens[1]
+            .clone()
+            .into_address()
+            .context("DiamondCutData.initAddress")?;
         Self::try_from_init_calldata(
             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
+            init_address,
             preimage_oracle,
             chain_specific,
         )
@@ -177,6 +202,7 @@ impl ProtocolUpgrade {
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
     async fn try_from_init_calldata(
         init_calldata: &[u8],
+        init_address: Address,
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
@@ -207,7 +233,8 @@ impl ProtocolUpgrade {
             };
 
             upgrade.l2_protocol_upgrade_tx.data =
-                prepare_upgrade_call(&upgrade, chain_specific).await?;
+                prepare_upgrade_call(&upgrade, init_address, chain_specific, &preimage_oracle)
+                    .await?;
 
             Some(
                 Transaction::from_abi(

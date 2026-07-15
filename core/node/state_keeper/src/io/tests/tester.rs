@@ -10,6 +10,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::{DynClient, MockSettlementLayer, L1},
+    web3_decl::node::SettlementModeResource,
     BaseFees,
 };
 use zksync_multivm::{
@@ -28,14 +29,15 @@ use zksync_node_test_utils::{
 };
 use zksync_types::{
     block::L2BlockHeader,
-    commitment::L1BatchCommitmentMode,
+    commitment::{L1BatchCommitmentMode, L2DACommitmentScheme},
     fee_model::{BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
+    settlement::WorkingSettlementLayer,
     system_contracts::get_system_smart_contracts,
-    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, TransactionTimeRangeConstraint,
-    H256,
+    L1ChainId, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
+    TransactionTimeRangeConstraint, H256, U256,
 };
 
 use crate::{MempoolGuard, MempoolIO};
@@ -86,6 +88,8 @@ impl Tester {
             max_blob_base_fee: u64::MAX,
         };
 
+        let pool = ConnectionPool::<Core>::test_pool().await;
+
         let client: Box<DynClient<L1>> = Box::new(eth_client.into_client());
 
         GasAdjuster::new(
@@ -93,6 +97,7 @@ impl Tester {
             gas_adjuster_config,
             PubdataSendingMode::Calldata,
             self.commitment_mode,
+            pool,
         )
         .await
         .unwrap()
@@ -112,6 +117,7 @@ impl Tester {
                 max_gas_per_batch: 500_000_000_000,
                 max_pubdata_per_batch: 100_000_000_000,
             }),
+            U256::zero(),
         )
     }
 
@@ -123,6 +129,15 @@ impl Tester {
     pub(super) async fn create_test_mempool_io(
         &self,
         pool: ConnectionPool<Core>,
+    ) -> (MempoolIO, MempoolGuard) {
+        self.create_test_mempool_io_with_settlement_mode(pool, WorkingSettlementLayer::for_tests())
+            .await
+    }
+
+    pub(super) async fn create_test_mempool_io_with_settlement_mode(
+        &self,
+        pool: ConnectionPool<Core>,
+        settlement_mode: WorkingSettlementLayer,
     ) -> (MempoolIO, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
@@ -136,9 +151,10 @@ impl Tester {
                 max_gas_per_batch: 500_000_000_000,
                 max_pubdata_per_batch: 100_000_000_000,
             }),
+            U256::zero(),
         );
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(PriorityOpId(0), 100, None, None);
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -154,7 +170,9 @@ impl Tester {
             Duration::from_secs(1),
             L2ChainId::from(270),
             Some(Default::default()),
+            Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
             Default::default(),
+            SettlementModeResource::new(settlement_mode),
         )
         .unwrap();
 
@@ -177,6 +195,7 @@ impl Tester {
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
                 L1VerifierConfig::default(),
+                L1ChainId(9),
             )
             .await
             .unwrap();
@@ -233,7 +252,8 @@ impl Tester {
         number: u32,
         tx_hashes: &[H256],
     ) {
-        let batch_header = create_l1_batch(number);
+        let mut batch_header = create_l1_batch(number);
+        batch_header.timestamp = self.current_timestamp;
         let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
         storage
             .blocks_dal()
@@ -253,6 +273,22 @@ impl Tester {
         storage
             .blocks_dal()
             .set_l1_batch_hash(batch_header.number, H256::default())
+            .await
+            .unwrap();
+    }
+
+    pub(super) async fn insert_unsealed_batch(
+        &self,
+        pool: &ConnectionPool<Core>,
+        number: u32,
+        fee_input: BatchFeeInput,
+    ) {
+        let mut batch_header = create_l1_batch(number);
+        batch_header.batch_fee_input = fee_input;
+        let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
+        storage
+            .blocks_dal()
+            .insert_l1_batch(batch_header.to_unsealed_header())
             .await
             .unwrap();
     }

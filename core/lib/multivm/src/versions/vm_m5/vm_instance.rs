@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, fmt::Debug};
+use std::{collections::VecDeque, convert::TryFrom, fmt::Debug};
 
 use zk_evm_1_3_1::{
     aux_structures::Timestamp,
@@ -96,7 +96,7 @@ pub struct VmInstance<S: Storage> {
     pub block_context: DerivedBlockContext,
     pub(crate) bootloader_state: BootloaderState,
 
-    pub snapshots: Vec<VmSnapshot>,
+    pub snapshots: VecDeque<VmSnapshot>,
 
     /// MultiVM-specific addition. See enum doc-comment for details.
     pub(crate) refund_state: MultiVmSubversion,
@@ -384,7 +384,7 @@ impl<S: Storage> VmInstance<S> {
     /// Saves the snapshot of the current state of the VM that can be used
     /// to roll back its state later on.
     pub fn save_current_vm_as_snapshot(&mut self) {
-        self.snapshots.push(VmSnapshot {
+        self.snapshots.push_back(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).
             // The only "expensive" copying here is copying of the call stack.
             // It will take `O(callstack_depth)` to copy it.
@@ -426,15 +426,9 @@ impl<S: Storage> VmInstance<S> {
     }
 
     /// Rollbacks the state of the VM to the state of the latest snapshot.
-    pub fn rollback_to_latest_snapshot(&mut self) {
-        let snapshot = self.snapshots.last().cloned().unwrap();
-        self.rollback_to_snapshot(snapshot);
-    }
-
-    /// Rollbacks the state of the VM to the state of the latest snapshot.
     /// Removes that snapshot from the list.
     pub fn rollback_to_latest_snapshot_popping(&mut self) {
-        let snapshot = self.snapshots.pop().unwrap();
+        let snapshot = self.snapshots.pop_back().unwrap();
         self.rollback_to_snapshot(snapshot);
     }
 

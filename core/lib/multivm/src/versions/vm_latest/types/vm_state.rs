@@ -83,7 +83,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         &l1_batch_env.first_l2_block,
         system_env.version,
     );
-    let first_l2_block = l1_batch_env.first_l2_block;
+    let first_l2_block = l1_batch_env.first_l2_block.clone();
     let storage_oracle: StorageOracle<S, H> = StorageOracle::new(storage.clone());
     let mut memory = SimpleMemory::default();
     let event_sink = InMemoryEventSink::default();
@@ -111,7 +111,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         Timestamp(0),
     );
 
-    let bootloader_initial_memory = BootloaderState::initial_memory(l1_batch_env);
+    let bootloader_initial_memory = BootloaderState::initial_memory(subversion, l1_batch_env);
     memory.populate_page(
         BOOTLOADER_HEAP_PAGE as usize,
         bootloader_initial_memory.clone(),

@@ -3,7 +3,7 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails,
         L2ToL1LogProof, Proof, ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
@@ -66,6 +66,7 @@ pub trait ZksNamespace {
         &self,
         tx_hash: H256,
         index: Option<usize>,
+        interop_mode: Option<InteropMode>,
     ) -> RpcResult<Option<L2ToL1LogProof>>;
 
     #[method(name = "L1BatchNumber")]
@@ -120,4 +121,7 @@ pub trait ZksNamespace {
 
     #[method(name = "getBatchFeeInput")]
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput>;
+
+    #[method(name = "gasPerPubdata")]
+    async fn gas_per_pubdata(&self) -> RpcResult<U256>;
 }

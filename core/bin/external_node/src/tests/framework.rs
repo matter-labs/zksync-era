@@ -23,6 +23,7 @@ pub(super) fn inject_test_layers(
     l2_client: MockClient<L2>,
 ) {
     node.node
+        .add_layer(MockL2ClientLayer { client: l2_client })
         .add_layer(TestSigintLayer {
             receiver: sigint_receiver,
         })
@@ -31,8 +32,7 @@ pub(super) fn inject_test_layers(
         })
         .add_layer(MockL1ClientLayer {
             client: l1_client.clone(),
-        })
-        .add_layer(MockL2ClientLayer { client: l2_client });
+        });
 }
 
 /// A test layer that would stop the node upon request.

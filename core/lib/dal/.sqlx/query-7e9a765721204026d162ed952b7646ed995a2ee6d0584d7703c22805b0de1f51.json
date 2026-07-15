@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            airbender_proof_generation_details (\n                l1_batch_number, status, protocol_version, protocol_version_patch,\n                created_at, updated_at\n            )\n            VALUES\n            (\n                $1,\n                $2,\n                (SELECT minor FROM protocol_patches ORDER BY minor DESC, patch DESC LIMIT 1\n                ),\n                COALESCE(\n                    (\n                        SELECT patch\n                        FROM protocol_patches\n                        ORDER BY minor DESC, patch DESC\n                        LIMIT 1\n                    ),\n                    0\n                ),\n                NOW(),\n                NOW()\n            )\n            ON CONFLICT (l1_batch_number) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7e9a765721204026d162ed952b7646ed995a2ee6d0584d7703c22805b0de1f51"
+}

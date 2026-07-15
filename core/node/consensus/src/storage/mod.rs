@@ -22,16 +22,28 @@ pub(crate) mod testonly;
 #[derive(thiserror::Error, Debug)]
 pub enum InsertCertificateError {
     #[error(transparent)]
-    Canceled(#[from] ctx::Canceled),
+    Canceled(Box<ctx::Canceled>),
     #[error(transparent)]
-    Inner(#[from] consensus_dal::InsertCertificateError),
+    Inner(Box<consensus_dal::InsertCertificateError>),
+}
+
+impl From<ctx::Canceled> for InsertCertificateError {
+    fn from(err: ctx::Canceled) -> Self {
+        Self::Canceled(Box::new(err))
+    }
+}
+
+impl From<consensus_dal::InsertCertificateError> for InsertCertificateError {
+    fn from(err: consensus_dal::InsertCertificateError) -> Self {
+        Self::Inner(Box::new(err))
+    }
 }
 
 impl From<ctx::Error> for InsertCertificateError {
     fn from(err: ctx::Error) -> Self {
         match err {
-            ctx::Error::Canceled(err) => Self::Canceled(err),
-            ctx::Error::Internal(err) => Self::Inner(err.into()),
+            ctx::Error::Canceled(err) => Self::Canceled(Box::new(err)),
+            ctx::Error::Internal(err) => Self::Inner(Box::new(err.into())),
         }
     }
 }

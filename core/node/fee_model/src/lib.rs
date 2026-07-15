@@ -3,8 +3,12 @@ use std::{fmt, sync::Arc};
 use anyhow::Context;
 use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::fee_model::{
-    BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeParams, FeeParamsV1, FeeParamsV2,
+use zksync_types::{
+    fee_model::{
+        BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeParams, FeeParamsV1,
+        FeeParamsV2,
+    },
+    U256,
 };
 
 use crate::l1_gas_price::GasAdjuster;
@@ -36,12 +40,15 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
         l1_gas_price_scale_factor: f64,
         l1_pubdata_price_scale_factor: f64,
     ) -> anyhow::Result<BatchFeeInput> {
-        let params = self.get_fee_model_params();
+        let params = self.get_fee_model_params().await;
         Ok(params.scale(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor))
     }
 
     /// Returns the fee model parameters using the denomination of the base token used (WEI for ETH).
-    fn get_fee_model_params(&self) -> FeeParams;
+    async fn get_fee_model_params(&self) -> FeeParams;
+
+    /// Returns the interop fee for the current batch.
+    async fn get_interop_fee(&self) -> U256;
 }
 
 impl dyn BatchFeeModelInputProvider {
@@ -60,11 +67,12 @@ pub struct MainNodeFeeInputProvider {
     provider: Arc<GasAdjuster>,
     base_token_ratio_provider: Arc<dyn BaseTokenRatioProvider>,
     config: FeeModelConfig,
+    configured_interop_fee: U256,
 }
 
 #[async_trait]
 impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
-    fn get_fee_model_params(&self) -> FeeParams {
+    async fn get_fee_model_params(&self) -> FeeParams {
         match self.config {
             FeeModelConfig::V1(config) => FeeParams::V1(FeeParamsV1 {
                 config,
@@ -73,10 +81,14 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
             FeeModelConfig::V2(config) => FeeParams::V2(FeeParamsV2::new(
                 config,
                 self.provider.estimate_effective_gas_price(),
-                self.provider.estimate_effective_pubdata_price(),
+                self.provider.estimate_effective_pubdata_price().await,
                 self.base_token_ratio_provider.get_conversion_ratio(),
             )),
         }
+    }
+
+    async fn get_interop_fee(&self) -> U256 {
+        self.configured_interop_fee
     }
 }
 
@@ -85,11 +97,13 @@ impl MainNodeFeeInputProvider {
         provider: Arc<GasAdjuster>,
         base_token_ratio_provider: Arc<dyn BaseTokenRatioProvider>,
         config: FeeModelConfig,
+        configured_interop_fee: U256,
     ) -> Self {
         Self {
             provider,
             base_token_ratio_provider,
             config,
+            configured_interop_fee,
         }
     }
 }
@@ -162,8 +176,12 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
     }
 
     /// Returns the fee model parameters.
-    fn get_fee_model_params(&self) -> FeeParams {
-        self.inner.get_fee_model_params()
+    async fn get_fee_model_params(&self) -> FeeParams {
+        self.inner.get_fee_model_params().await
+    }
+
+    async fn get_interop_fee(&self) -> U256 {
+        self.inner.get_interop_fee().await
     }
 }
 
@@ -180,8 +198,12 @@ impl Default for MockBatchFeeParamsProvider {
 
 #[async_trait]
 impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
-    fn get_fee_model_params(&self) -> FeeParams {
+    async fn get_fee_model_params(&self) -> FeeParams {
         self.0
+    }
+
+    async fn get_interop_fee(&self) -> U256 {
+        U256::zero()
     }
 }
 
@@ -192,12 +214,12 @@ mod tests {
     use l1_gas_price::GasAdjusterClient;
     use zksync_config::GasAdjusterConfig;
     use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_node_test_utils::create_l1_batch;
     use zksync_types::{
         commitment::L1BatchCommitmentMode,
         eth_sender::EthTxFinalityStatus,
-        fee_model::{BaseTokenConversionRatio, FeeModelConfigV2},
+        fee_model::{BaseTokenConversionRatio, ConversionRatio, FeeModelConfigV2},
         pubdata_da::PubdataSendingMode,
         U256,
     };
@@ -238,10 +260,10 @@ mod tests {
         let test_cases = vec![
             TestCase {
                 name: "1 ETH = 2 BaseToken",
-                conversion_ratio: BaseTokenConversionRatio {
+                conversion_ratio: BaseTokenConversionRatio::new_simple(ConversionRatio {
                     numerator: NonZeroU64::new(2).unwrap(),
                     denominator: NonZeroU64::new(1).unwrap(),
-                },
+                }),
                 input_minimal_l2_gas_price: 1000,
                 input_l1_gas_price: 2000,
                 input_l1_pubdata_price: 3000,
@@ -251,10 +273,10 @@ mod tests {
             },
             TestCase {
                 name: "1 ETH = 0.5 BaseToken",
-                conversion_ratio: BaseTokenConversionRatio {
+                conversion_ratio: BaseTokenConversionRatio::new_simple(ConversionRatio {
                     numerator: NonZeroU64::new(1).unwrap(),
                     denominator: NonZeroU64::new(2).unwrap(),
-                },
+                }),
                 input_minimal_l2_gas_price: 1000,
                 input_l1_gas_price: 2000,
                 input_l1_pubdata_price: 3000,
@@ -264,10 +286,10 @@ mod tests {
             },
             TestCase {
                 name: "1 ETH = 1 BaseToken",
-                conversion_ratio: BaseTokenConversionRatio {
+                conversion_ratio: BaseTokenConversionRatio::new_simple(ConversionRatio {
                     numerator: NonZeroU64::new(1).unwrap(),
                     denominator: NonZeroU64::new(1).unwrap(),
-                },
+                }),
                 input_minimal_l2_gas_price: 1000,
                 input_l1_gas_price: 2000,
                 input_l1_pubdata_price: 3000,
@@ -277,10 +299,10 @@ mod tests {
             },
             TestCase {
                 name: "Large conversion - 1 ETH = 1_000_000 BaseToken",
-                conversion_ratio: BaseTokenConversionRatio {
+                conversion_ratio: BaseTokenConversionRatio::new_simple(ConversionRatio {
                     numerator: NonZeroU64::new(1_000_000).unwrap(),
                     denominator: NonZeroU64::new(1).unwrap(),
-                },
+                }),
                 input_minimal_l2_gas_price: 1_000_000,
                 input_l1_gas_price: 2_000_000,
                 input_l1_pubdata_price: 3_000_000,
@@ -290,10 +312,10 @@ mod tests {
             },
             TestCase {
                 name: "Small conversion - 1 ETH = 0.001 BaseToken",
-                conversion_ratio: BaseTokenConversionRatio {
+                conversion_ratio: BaseTokenConversionRatio::new_simple(ConversionRatio {
                     numerator: NonZeroU64::new(1).unwrap(),
                     denominator: NonZeroU64::new(1_000).unwrap(),
-                },
+                }),
                 input_minimal_l2_gas_price: 1_000_000,
                 input_l1_gas_price: 2_000_000,
                 input_l1_pubdata_price: 3_000_000,
@@ -303,10 +325,10 @@ mod tests {
             },
             TestCase {
                 name: "Fractional conversion ratio 123456789",
-                conversion_ratio: BaseTokenConversionRatio {
+                conversion_ratio: BaseTokenConversionRatio::new_simple(ConversionRatio {
                     numerator: NonZeroU64::new(1123456789).unwrap(),
                     denominator: NonZeroU64::new(1_000_000_000).unwrap(),
-                },
+                }),
                 input_minimal_l2_gas_price: 1_000_000,
                 input_l1_gas_price: 2_000_000,
                 input_l1_pubdata_price: 3_000_000,
@@ -316,10 +338,10 @@ mod tests {
             },
             TestCase {
                 name: "Conversion ratio too large so clamp down to u64::MAX",
-                conversion_ratio: BaseTokenConversionRatio {
+                conversion_ratio: BaseTokenConversionRatio::new_simple(ConversionRatio {
                     numerator: NonZeroU64::new(u64::MAX).unwrap(),
                     denominator: NonZeroU64::new(1).unwrap(),
-                },
+                }),
                 input_minimal_l2_gas_price: 2,
                 input_l1_gas_price: 2,
                 input_l1_pubdata_price: 2,
@@ -330,8 +352,14 @@ mod tests {
         ];
 
         for case in test_cases {
-            let gas_adjuster =
-                setup_gas_adjuster(case.input_l1_gas_price, case.input_l1_pubdata_price).await;
+            let pool = ConnectionPool::<Core>::test_pool().await;
+
+            let gas_adjuster = setup_gas_adjuster(
+                case.input_l1_gas_price,
+                case.input_l1_pubdata_price,
+                pool.clone(),
+            )
+            .await;
 
             let base_token_ratio_provider = DummyTokenRatioProvider::new(case.conversion_ratio);
 
@@ -348,9 +376,10 @@ mod tests {
                 Arc::new(gas_adjuster),
                 Arc::new(base_token_ratio_provider),
                 config,
+                U256::zero(),
             );
 
-            let fee_params = fee_provider.get_fee_model_params();
+            let fee_params = fee_provider.get_fee_model_params().await;
 
             if let FeeParams::V2(params) = fee_params {
                 assert_eq!(
@@ -387,7 +416,11 @@ mod tests {
     }
 
     // Helper function to setup the GasAdjuster.
-    async fn setup_gas_adjuster(l1_gas_price: u64, l1_pubdata_price: u64) -> GasAdjuster {
+    async fn setup_gas_adjuster(
+        l1_gas_price: u64,
+        l1_pubdata_price: u64,
+        pool: ConnectionPool<Core>,
+    ) -> GasAdjuster {
         let mock = MockSettlementLayer::builder()
             .with_fee_history(vec![
                 test_base_fees(0, U256::from(4), U256::from(0)),
@@ -411,6 +444,7 @@ mod tests {
             gas_adjuster_config,
             PubdataSendingMode::Blobs,
             L1BatchCommitmentMode::Rollup,
+            pool,
         )
         .await
         .expect("Failed to create GasAdjuster")
@@ -423,7 +457,7 @@ mod tests {
 
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut conn, &GenesisParams::mock())
+        insert_genesis_batch(&mut conn, &GenesisParamsInitials::mock())
             .await
             .unwrap();
 

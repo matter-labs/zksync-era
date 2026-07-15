@@ -18,7 +18,7 @@ import YAML from 'yaml';
 
 const publicSchema = z.object({ type: z.literal('public') });
 const closedSchema = z.object({ type: z.literal('closed') });
-const groupSchema = z.object({
+const groupSchemaRaw = z.object({
     type: z.literal('group'),
     groups: z.array(z.string())
 });
@@ -28,10 +28,10 @@ const checkArgumentSchema = z.object({
 });
 const oneOfSchema = z.object({
     type: z.literal('oneOf'),
-    rules: z.array(z.union([publicSchema, groupSchema, checkArgumentSchema]))
+    rules: z.array(z.union([publicSchema, groupSchemaRaw, checkArgumentSchema]))
 });
 
-const ruleSchema = z.union([publicSchema, closedSchema, groupSchema, checkArgumentSchema, oneOfSchema]);
+const ruleSchema = z.union([publicSchema, closedSchema, groupSchemaRaw, checkArgumentSchema, oneOfSchema]);
 type Rule = z.infer<typeof ruleSchema>;
 
 const methodSchema = z.object({
@@ -42,20 +42,26 @@ const methodSchema = z.object({
 });
 type RawMethod = z.infer<typeof methodSchema>;
 
-const yamlSchema = z.object({
-    groups: z.array(
-        z.object({
-            name: z.string(),
-            members: z.array(addressSchema)
-        })
-    ),
+const groupSchema = z.object({
+    name: z.string(),
+    members: z.array(addressSchema)
+});
+type RawGroup = z.infer<typeof groupSchema>;
 
-    contracts: z.array(
-        z.object({
-            address: addressSchema,
-            methods: z.array(methodSchema)
-        })
-    )
+const contractSchema = z.object({
+    address: addressSchema,
+    methods: z.array(methodSchema)
+});
+
+const yamlSchema = z.object({
+    whitelisted_wallets: z.union([
+        z.array(addressSchema).nonempty({
+            message: 'whitelisted_wallets array cannot be empty. To allow all wallets, use the literal "all".'
+        }),
+        z.literal('all')
+    ]),
+    groups: z.array(groupSchema),
+    contracts: z.array(contractSchema)
 });
 
 export class YamlParser {
@@ -66,7 +72,11 @@ export class YamlParser {
         const buf = readFileSync(filePath);
         const raw = YAML.parse(buf.toString());
         this.yaml = yamlSchema.parse(raw);
-        this.groups = this.yaml.groups.map(({ name, members }) => new Group(name, members));
+        this.groups = this.yaml.groups.map(({ name, members }: RawGroup) => new Group(name, members));
+    }
+
+    getWhitelistedWallets(): Address[] | 'all' {
+        return this.yaml.whitelisted_wallets;
     }
 
     private extractSelector(method: RawMethod): Hex {

@@ -11,23 +11,25 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
-use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction};
+use zksync_types::{get_nonce_key, Address, Nonce, ProtocolVersionId};
 
-use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
+use super::{mempool_guard::MempoolGuard, metrics::KEEPER_METRICS};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
 /// to process them.
 pub async fn l2_tx_filter(
     batch_fee_input_provider: &dyn BatchFeeModelInputProvider,
-    vm_version: VmVersion,
+    protocol_version: ProtocolVersionId,
 ) -> anyhow::Result<L2TxFilter> {
     let fee_input = batch_fee_input_provider.get_batch_fee_input().await?;
-    let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(fee_input, vm_version);
+    let (base_fee, gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, protocol_version.into());
     Ok(L2TxFilter {
         fee_input,
         fee_per_gas: base_fee,
         gas_per_pubdata: gas_per_pubdata as u32,
+        protocol_version,
     })
 }
 
@@ -111,12 +113,9 @@ impl MempoolFetcher {
                 );
                 (fee_per_gas, gas_per_pubdata as u32)
             } else {
-                let filter = l2_tx_filter(
-                    self.batch_fee_input_provider.as_ref(),
-                    protocol_version.into(),
-                )
-                .await
-                .context("failed creating L2 transaction filter")?;
+                let filter = l2_tx_filter(self.batch_fee_input_provider.as_ref(), protocol_version)
+                    .await
+                    .context("failed creating L2 transaction filter")?;
 
                 (filter.fee_per_gas, filter.gas_per_pubdata)
             };
@@ -133,24 +132,36 @@ impl MempoolFetcher {
                 )
                 .await
                 .context("failed syncing mempool")?;
-
-            let transactions: Vec<_> = transactions_with_constraints
-                .iter()
-                .map(|(t, _c)| t)
-                .collect();
-
-            let nonces = get_transaction_nonces(&mut storage_transaction, &transactions).await?;
-
             storage_transaction.commit().await?;
+
+            #[cfg(test)]
+            let transaction_hashes: Vec<_> = transactions_with_constraints
+                .iter()
+                .map(|(t, _c)| t.hash())
+                .collect();
+            let all_transactions_loaded =
+                transactions_with_constraints.len() < self.sync_batch_size;
+
+            // We should be careful about what nonces we provide for mempool.
+            // There are 2 actions that must be done sequentially so that the nonces in mempool are always correct:
+            // a) "load nonces from postgres and insert to mempool", it's done in the loop below
+            // b) "update nonces in mempool after processed block", it's done in state keeper right after block is fully sealed.
+            // This is why `self.mempool.enter_critical()` is called.
+            // We also insert txs in small chunks, so that it doesn't block state keeper code for too long.
+            const CHUNK_SIZE: usize = 100;
+            for chunk in transactions_with_constraints.chunks(CHUNK_SIZE) {
+                let chunk = chunk.to_vec();
+                let addresses: Vec<_> =
+                    chunk.iter().map(|(tx, _)| tx.initiator_account()).collect();
+
+                let _guard = self.mempool.enter_critical().await;
+                let nonces = get_nonces(&mut connection, &addresses).await?;
+                self.mempool.insert(chunk, nonces);
+            }
             drop(connection);
 
             #[cfg(test)]
-            {
-                let transaction_hashes = transactions.iter().map(|x| x.hash()).collect();
-                self.transaction_hashes_sender.send(transaction_hashes).ok();
-            }
-            let all_transactions_loaded = transactions.len() < self.sync_batch_size;
-            self.mempool.insert(transactions_with_constraints, nonces);
+            self.transaction_hashes_sender.send(transaction_hashes).ok();
             latency.observe();
 
             if all_transactions_loaded {
@@ -161,17 +172,16 @@ impl MempoolFetcher {
     }
 }
 
-/// Loads nonces for all distinct `transactions` initiators from the storage.
-async fn get_transaction_nonces(
+/// Loads nonces for all addresses from the storage.
+async fn get_nonces(
     storage: &mut Connection<'_, Core>,
-    transactions: &[&Transaction],
+    addresses: &[Address],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
-    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
+    let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = addresses
         .iter()
-        .map(|tx| {
-            let address = tx.initiator_account();
-            let nonce_key = get_nonce_key(&address).hashed_key();
-            (nonce_key, (nonce_key, address))
+        .map(|address| {
+            let nonce_key = get_nonce_key(address).hashed_key();
+            (nonce_key, (nonce_key, *address))
         })
         .unzip();
 
@@ -196,7 +206,7 @@ async fn get_transaction_nonces(
 mod tests {
     use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
     use zksync_node_fee_model::MockBatchFeeParamsProvider;
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
     use zksync_node_test_utils::create_l2_transaction;
     use zksync_types::{
         u256_to_h256, L2BlockNumber, PriorityOpId, ProtocolVersionId, StorageLog, H256,
@@ -212,13 +222,15 @@ mod tests {
         remove_stuck_txs: false,
         delay_interval: Duration::from_millis(10),
         l1_to_l2_txs_paused: false,
+        high_priority_l2_tx_initiator: None,
+        high_priority_l2_tx_protocol_version: Some(29),
     };
 
     #[tokio::test]
     async fn getting_transaction_nonces() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
 
@@ -236,9 +248,9 @@ mod tests {
         let other_transaction_initiator = other_transaction.initiator_account();
         assert_ne!(other_transaction_initiator, transaction_initiator);
 
-        let nonces = get_transaction_nonces(
+        let nonces = get_nonces(
             &mut storage,
-            &[&transaction.into(), &other_transaction.into()],
+            &[transaction_initiator, other_transaction_initiator],
         )
         .await
         .unwrap();
@@ -255,12 +267,19 @@ mod tests {
     async fn syncing_mempool_basics() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         drop(storage);
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(
+            PriorityOpId(0),
+            100,
+            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+        );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
         let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
@@ -318,12 +337,19 @@ mod tests {
     async fn ignoring_transaction_with_insufficient_fee() {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         drop(storage);
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(
+            PriorityOpId(0),
+            100,
+            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+        );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
         let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
@@ -364,12 +390,19 @@ mod tests {
     async fn ignoring_transaction_with_old_nonce() {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
         let mut storage = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
         drop(storage);
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100);
+        let mempool = MempoolGuard::new(
+            PriorityOpId(0),
+            100,
+            TEST_MEMPOOL_CONFIG.high_priority_l2_tx_initiator,
+            TEST_MEMPOOL_CONFIG
+                .high_priority_l2_tx_protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+        );
         let fee_params_provider: Arc<dyn BatchFeeModelInputProvider> =
             Arc::new(MockBatchFeeParamsProvider::default());
         let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();

@@ -10,15 +10,17 @@ use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockSettlementLayer, EthInterface, Options};
 use zksync_l1_contract_interface::{i_executor::methods::CommitBatches, Tokenizable, Tokenize};
-use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
+use zksync_node_genesis::{
+    insert_genesis_batch, mock_genesis_config, GenesisParams, GenesisParamsInitials,
+};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block,
     l1_batch_metadata_to_commitment_artifacts,
 };
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
+    aggregated_operations::L1BatchAggregatedActionType,
     block::L2BlockHeader,
-    commitment::{L1BatchWithMetadata, PubdataType},
+    commitment::{L1BatchWithMetadata, PubdataParams, PubdataType},
     eth_sender::EthTxFinalityStatus,
     protocol_version::ProtocolSemanticVersion,
     web3::Log,
@@ -86,9 +88,20 @@ pub(crate) fn build_commit_tx_input_data(
         PRE_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
     } else if protocol_version.is_pre_shared_bridge() {
         POST_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
-    } else {
+    } else if protocol_version.is_pre_interop_fast_blocks() {
         // Post shared bridge transactions also require chain id
         let tokens: Vec<_> = vec![Token::Uint(ERA_CHAIN_ID.into())]
+            .into_iter()
+            .chain(tokens)
+            .collect();
+        contract
+            .function("commitBatchesSharedBridge")
+            .unwrap()
+            .encode_input(&tokens)
+            .unwrap()
+    } else {
+        // Post interop transactions require address of the diamond proxy
+        let tokens: Vec<_> = vec![Token::Address(L1_DIAMOND_PROXY_ADDR)]
             .into_iter()
             .chain(tokens)
             .collect();
@@ -200,6 +213,15 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
                 .protocol_version
                 .map(|v| v.is_pre_gateway())
                 .unwrap_or(true),
+            batch
+                .header
+                .protocol_version
+                .map(|v| v.is_pre_interop_fast_blocks())
+                .unwrap_or(false),
+            batch
+                .header
+                .protocol_version
+                .map_or(EncodingVersion::PreInterop.value(), get_encoding_version),
         )
         .unwrap();
         assert_eq!(
@@ -221,6 +243,8 @@ fn extracting_commit_data_for_boojum_batch() {
         commit_function,
         L1BatchNumber(4_470),
         true,
+        true,
+        0,
     )
     .unwrap();
 
@@ -235,6 +259,8 @@ fn extracting_commit_data_for_boojum_batch() {
             commit_function,
             L1BatchNumber(bogus_l1_batch),
             true,
+            true,
+            0,
         )
         .unwrap_err();
     }
@@ -253,6 +279,8 @@ fn extracting_commit_data_for_multiple_batches() {
             commit_function,
             L1BatchNumber(l1_batch),
             true,
+            true,
+            0,
         )
         .unwrap();
 
@@ -268,6 +296,8 @@ fn extracting_commit_data_for_multiple_batches() {
             commit_function,
             L1BatchNumber(bogus_l1_batch),
             true,
+            true,
+            0,
         )
         .unwrap_err();
     }
@@ -284,6 +314,8 @@ fn extracting_commit_data_for_pre_boojum_batch() {
         &PRE_BOOJUM_COMMIT_FUNCTION,
         L1BatchNumber(200_000),
         true,
+        true,
+        0,
     )
     .unwrap();
 
@@ -320,7 +352,7 @@ impl SaveAction<'_> {
                     .await
                     .unwrap();
 
-                if L1BatchCommitmentMode::from(l2_block.pubdata_params.pubdata_type)
+                if L1BatchCommitmentMode::from(l2_block.pubdata_params.pubdata_type())
                     == L1BatchCommitmentMode::Validium
                 {
                     storage
@@ -363,14 +395,17 @@ impl SaveAction<'_> {
                 let chain_id = chain_id_by_l1_batch.get(&l1_batch_number).copied();
                 storage
                     .eth_sender_dal()
-                    .insert_bogus_confirmed_eth_tx(
+                    .insert_pending_received_eth_tx(
                         l1_batch_number,
-                        AggregatedActionType::Commit,
+                        L1BatchAggregatedActionType::Commit,
                         commit_tx_hash,
-                        chrono::Utc::now(),
                         chain_id,
-                        EthTxFinalityStatus::Finalized,
                     )
+                    .await
+                    .unwrap();
+                storage
+                    .eth_sender_dal()
+                    .confirm_tx(commit_tx_hash, EthTxFinalityStatus::Finalized, U256::zero())
                     .await
                     .unwrap();
             }
@@ -479,7 +514,7 @@ async fn normal_checker_function(
 
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -524,7 +559,11 @@ async fn normal_checker_function(
         .map(|batch| {
             let mut l2_block = create_l2_block(batch_to_block_number(batch));
             if commitment_mode == L1BatchCommitmentMode::Validium {
-                l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+                l2_block.pubdata_params = PubdataParams::new(
+                    l2_block.pubdata_params.pubdata_validator(),
+                    PubdataType::NoDA,
+                )
+                .unwrap()
             }
             (batch.to_owned(), l2_block)
         })
@@ -573,7 +612,7 @@ async fn checker_processes_pre_boojum_batches(
         ..mock_genesis_config()
     })
     .unwrap();
-    insert_genesis_batch(&mut storage, &genesis_params)
+    insert_genesis_batch(&mut storage, &genesis_params.clone().into())
         .await
         .unwrap();
     storage
@@ -622,7 +661,11 @@ async fn checker_processes_pre_boojum_batches(
         .map(|batch| {
             let mut l2_block = create_l2_block(batch_to_block_number(batch));
             if commitment_mode == L1BatchCommitmentMode::Validium {
-                l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+                l2_block.pubdata_params = PubdataParams::new(
+                    l2_block.pubdata_params.pubdata_validator(),
+                    PubdataType::NoDA,
+                )
+                .unwrap()
             }
             (batch.to_owned(), l2_block)
         })
@@ -670,7 +713,11 @@ async fn checker_functions_after_snapshot_recovery(
     let l1_batch = create_l1_batch_with_metadata(99);
     let mut l2_block = create_l2_block(batch_to_block_number(&l1_batch));
     if commitment_mode == L1BatchCommitmentMode::Validium {
-        l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+        l2_block.pubdata_params = PubdataParams::new(
+            l2_block.pubdata_params.pubdata_validator(),
+            PubdataType::NoDA,
+        )
+        .unwrap()
     }
 
     let commit_tx_input_data =
@@ -881,7 +928,7 @@ async fn checker_detects_incorrect_tx_data(
             .await
             .unwrap();
     } else {
-        insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
             .await
             .unwrap();
     }
@@ -889,7 +936,11 @@ async fn checker_detects_incorrect_tx_data(
     let l1_batch = create_l1_batch_with_metadata(if snapshot_recovery { 99 } else { 1 });
     let mut l2_block = create_l2_block(batch_to_block_number(&l1_batch));
     if commitment_mode == L1BatchCommitmentMode::Validium {
-        l2_block.pubdata_params.pubdata_type = PubdataType::NoDA;
+        l2_block.pubdata_params = PubdataParams::new(
+            l2_block.pubdata_params.pubdata_validator(),
+            PubdataType::NoDA,
+        )
+        .unwrap()
     }
 
     let client = create_mock_ethereum();

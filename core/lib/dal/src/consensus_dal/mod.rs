@@ -507,6 +507,7 @@ impl ConsensusDal<'_, '_> {
             .transactions_web3_dal()
             .get_raw_l2_blocks_transactions(numbers)
             .await?;
+
         Ok(blocks
             .into_iter()
             .map(|b| {

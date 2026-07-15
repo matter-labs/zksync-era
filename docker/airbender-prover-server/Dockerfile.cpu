@@ -1,0 +1,103 @@
+# syntax=docker/dockerfile:1
+#
+# CPU-only image for the Airbender prover server (snark-only pipeline; no CUDA).
+#
+# IMPORTANT: the build context for this Dockerfile is the `airbender_prover_server/`
+# workspace directory, NOT the repo root:
+#
+#   docker build -f docker/airbender-prover-server/Dockerfile.cpu airbender_prover_server
+#
+FROM ubuntu:22.04 AS builder
+
+ARG RUST_TOOLCHAIN=nightly-2026-02-10
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:${PATH} \
+    CARGO_TERM_COLOR=always
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        clang \
+        cmake \
+        curl \
+        git \
+        libssl-dev \
+        lld \
+        pkg-config \
+        wget && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- -y --no-modify-path --default-toolchain "${RUST_TOOLCHAIN}"
+
+WORKDIR /workspace
+
+# Pre-fetch the CPU SNARK trusted setup so the runtime image ships with it in
+# place. The CPU wrapper uses the standard 2^25 monomial CRS (`setup_2^25.key`),
+# NOT the GPU build's `setup_compact.key`. Above `COPY . .` so repo edits don't
+# re-fetch this (hundreds of MB).
+ARG SNARK_TRUSTED_SETUP_URL="https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^25.key"
+RUN mkdir -p /setup \
+    && curl --fail --location --retry 5 --retry-delay 5 \
+        "${SNARK_TRUSTED_SETUP_URL}" -o /setup/setup.key
+
+# Bring the workspace in. Everything below busts the layer cache on any source
+# change.
+COPY . .
+
+# The guest program (`guest/dist/app/{app.bin,app.text}`) and verification keys
+# (`vks/`) are NOT in the build context — they are gitignored and downloaded by
+# the server crate's `build.rs` from the pinned `zksync_airbender_verifier`
+# GitHub release during the `cargo build` below, so no guard/vendoring step is
+# needed here. A failed download fails `cargo build` loudly.
+
+# Build the CPU SNARK server. `--no-default-features` keeps `gpu_fri` (CUDA)
+# off; we add no `gpu_snark` either, so the wrapper stays on CPU.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/workspace/target \
+    cargo build --release --locked --no-default-features \
+        -p eravm-prover-server \
+    && mkdir -p /out \
+    && cp /workspace/target/release/eravm-prover-server /out/
+
+# ─── Runtime stage ────────────────────────────────────────────────────────────
+# No CUDA runtime needed — the binary links no CUDA libraries.
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /out/eravm-prover-server /usr/local/bin/eravm-prover-server
+COPY --from=builder /workspace/guest/dist/app /guest-program
+COPY --from=builder /workspace/vks /vks
+COPY --from=builder /setup/setup.key /setup/setup.key
+
+ENV PROVER_GUEST_DIST_DIR=/guest-program
+
+ENV FRI_VK=/vks/fri_vk.bin
+ENV SNARK_VK=/vks/snark_vk.json
+
+ENV SNARK_TRUSTED_SETUP_FILE=/setup/setup.key
+
+# This image only supports the snark-only pipeline (no GPU FRI prover compiled
+# in). Operators must still set PROVER_SERVER_URL at run time.
+ENV PROVER_MODE=snark-only
+
+# Default stack size for Rust-spawned threads. The SNARK wrapper's recursion
+# blows past Rust's 2 MB default.
+ENV RUST_MIN_STACK=134217728
+
+# Optional Prometheus metrics port
+EXPOSE 3000
+
+# SNARK wrapper recursion needs an unbounded stack — see README.md.
+ENTRYPOINT ["/bin/sh", "-c", "ulimit -s unlimited; exec /usr/local/bin/eravm-prover-server \"$@\"", "--"]

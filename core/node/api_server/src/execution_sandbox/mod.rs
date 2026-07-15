@@ -8,7 +8,8 @@ use rand::{thread_rng, Rng};
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
 use zksync_multivm::utils::get_eth_call_gas_limit;
 use zksync_types::{
-    api, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, U256,
+    api, fee_model::BatchFeeInput, settlement::SettlementLayer, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, U256,
 };
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
@@ -286,15 +287,18 @@ pub enum BlockArgsError {
 
 /// Information about a block provided to VM.
 #[derive(Debug, Clone)]
-pub(crate) struct BlockArgs {
+pub struct BlockArgs {
     inner: BlockInfo,
     resolved: ResolvedBlockInfo,
     block_id: api::BlockId,
 }
 
 impl BlockArgs {
-    pub async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
-        let inner = BlockInfo::pending(connection).await?;
+    pub async fn pending(
+        connection: &mut Connection<'_, Core>,
+        settlement_layer: SettlementLayer,
+    ) -> anyhow::Result<Self> {
+        let inner = BlockInfo::pending(connection, settlement_layer).await?;
         let resolved = inner.resolve(connection).await?;
         Ok(Self {
             inner,
@@ -316,6 +320,7 @@ impl BlockArgs {
         connection: &mut Connection<'_, Core>,
         block_id: api::BlockId,
         start_info: &BlockStartInfo,
+        settlement_layer: SettlementLayer,
     ) -> Result<Self, BlockArgsError> {
         // We need to check that `block_id` is present in Postgres or can be present in the future
         // (i.e., it does not refer to a pruned block). If called for a pruned block, the returned value
@@ -325,7 +330,7 @@ impl BlockArgs {
             .await?;
 
         if block_id == api::BlockId::Number(api::BlockNumber::Pending) {
-            return Ok(Self::pending(connection).await?);
+            return Ok(Self::pending(connection, settlement_layer).await?);
         }
 
         let resolved_block_number = connection
@@ -372,9 +377,26 @@ impl BlockArgs {
         self.inner.historical_fee_input(connection).await
     }
 
+    /// Calculates the effective gas limit applying the gas cap if specified.
+    /// Returns the minimum of protocol default and gas cap (if cap is set and > 0).
+    pub fn calculate_effective_gas_limit(
+        protocol_version: ProtocolVersionId,
+        gas_cap: Option<u64>,
+    ) -> u64 {
+        let default_gas_limit = get_eth_call_gas_limit(protocol_version.into());
+
+        // Apply gas cap if specified (0 means no cap)
+        if let Some(cap) = gas_cap.filter(|&cap| cap > 0) {
+            std::cmp::min(default_gas_limit, cap)
+        } else {
+            default_gas_limit
+        }
+    }
+
     pub async fn default_eth_call_gas(
         &self,
         connection: &mut Connection<'_, Core>,
+        gas_cap: Option<u64>,
     ) -> anyhow::Result<U256> {
         let protocol_version = if self.is_pending() {
             connection.blocks_dal().pending_protocol_version().await?
@@ -388,6 +410,59 @@ impl BlockArgs {
                 .protocol_version
                 .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
         };
-        Ok(get_eth_call_gas_limit(protocol_version.into()).into())
+
+        let effective_gas_limit = Self::calculate_effective_gas_limit(protocol_version, gas_cap);
+        Ok(effective_gas_limit.into())
+    }
+}
+
+#[cfg(test)]
+mod gas_cap_tests {
+    use zksync_types::ProtocolVersionId;
+
+    use super::BlockArgs;
+
+    #[test]
+    fn test_gas_cap_logic() {
+        // Get a sample protocol version
+        let protocol_version = ProtocolVersionId::latest();
+
+        // Test 1: No gas cap (should use protocol default)
+        let result_no_cap = BlockArgs::calculate_effective_gas_limit(protocol_version, None);
+        let expected_default =
+            zksync_multivm::utils::get_eth_call_gas_limit(protocol_version.into());
+        assert_eq!(
+            result_no_cap, expected_default,
+            "No gas cap should use protocol default"
+        );
+
+        // Test 2: Gas cap of 0 (should use protocol default)
+        let result_zero_cap = BlockArgs::calculate_effective_gas_limit(protocol_version, Some(0));
+        assert_eq!(
+            result_zero_cap, expected_default,
+            "Zero gas cap should use protocol default"
+        );
+
+        // Test 3: Gas cap larger than protocol default (should use protocol default)
+        let large_gas_cap = expected_default + 1_000_000;
+        let result_large_cap =
+            BlockArgs::calculate_effective_gas_limit(protocol_version, Some(large_gas_cap));
+        assert_eq!(
+            result_large_cap, expected_default,
+            "Large gas cap should not exceed protocol default"
+        );
+
+        // Test 4: Gas cap smaller than protocol default (should use gas cap)
+        let small_gas_cap = 100_000u64;
+        let result_small_cap =
+            BlockArgs::calculate_effective_gas_limit(protocol_version, Some(small_gas_cap));
+        assert_eq!(
+            result_small_cap, small_gas_cap,
+            "Small gas cap should limit the gas"
+        );
+        assert!(
+            result_small_cap < expected_default,
+            "Capped gas should be less than uncapped"
+        );
     }
 }

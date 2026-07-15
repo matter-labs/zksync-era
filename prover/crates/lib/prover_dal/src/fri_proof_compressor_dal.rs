@@ -228,6 +228,30 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
+    pub async fn protocol_version_for_successful_proof(
+        &mut self,
+        batch_id: L1BatchId,
+    ) -> Option<ProtocolSemanticVersion> {
+        sqlx::query!(
+            r#"
+            SELECT protocol_version, protocol_version_patch
+            FROM proof_compression_jobs_fri
+            WHERE l1_batch_number = $1 AND chain_id = $2 AND status = 'successful'
+            "#,
+            batch_id.batch_number().0 as i64,
+            batch_id.chain_id().inner() as i64,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| {
+            ProtocolSemanticVersion::new(
+                ProtocolVersionId::try_from(row.protocol_version.unwrap() as u16).unwrap(),
+                VersionPatch(row.protocol_version_patch as u32),
+            )
+        })
+    }
+
     pub async fn mark_proof_sent_to_server(&mut self, batch_id: L1BatchId) -> Result<(), DalError> {
         sqlx::query!(
             r#"

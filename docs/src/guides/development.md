@@ -123,6 +123,12 @@ Commands:
 
 ### Running unit tests
 
+Unit tests require preprocessed artifacts from the contracts submodule. These can be prepared by running:
+
+```bash
+zkstack dev contracts
+```
+
 You can run unit tests for the Rust crates in the project by running:
 
 ```bash

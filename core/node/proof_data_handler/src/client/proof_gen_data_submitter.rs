@@ -25,15 +25,16 @@ impl ProofGenDataSubmitter {
         let processor = Processor::new(
             blob_store.clone(),
             pool.clone(),
-            config.clone(),
+            config.proof_generation_timeout,
             l2_chain_id,
+            config.proving_mode.clone(),
         );
 
         let Some(api_url) = config.gateway_api_url.clone() else {
             panic!("Gateway API URL should be set if running in prover cluster mode");
         };
 
-        let client = HttpClient::new(api_url);
+        let client = HttpClient::new(api_url, config.gateway_api_request_timeout);
         Self {
             processor,
             config,
@@ -58,6 +59,10 @@ impl ProofGenDataSubmitter {
                 .await
                 .map_err(|e| anyhow::anyhow!(e))?
             {
+                tracing::info!(
+                    "Sending proof generation data to gateway for batch {}",
+                    data.l1_batch_number
+                );
                 match self.client.send_proof_generation_data(data.clone()).await {
                     Ok(_) => {
                         tracing::info!(
