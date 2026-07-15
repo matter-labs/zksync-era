@@ -40,8 +40,8 @@ You can enable pruning by setting the environment variable
 EN_PRUNING_ENABLED: 'true'
 ```
 
-By default, the node will keep L1 batch data for 4 hours determined by the batch timestamp (always equal to the timestamp
-of the first block in the batch). You can configure the retention period using:
+By default, the node will keep L1 batch data for 4 hours determined by the batch timestamp (always equal to the
+timestamp of the first block in the batch). You can configure the retention period using:
 
 ```yaml
 EN_PRUNING_DATA_RETENTION_SEC: '259200' # 3 days

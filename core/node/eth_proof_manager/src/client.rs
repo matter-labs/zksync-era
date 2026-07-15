@@ -135,13 +135,7 @@ impl ProofManagerClient {
             // already broadcast have been confirmed in the meantime. If one was, we are
             // done — there is no need to send more transactions.
             for &hash in &broadcast_hashes {
-                match self
-                    .client
-                    .deref()
-                    .as_ref()
-                    .tx_receipt(hash)
-                    .await
-                {
+                match self.client.deref().as_ref().tx_receipt(hash).await {
                     Ok(Some(receipt)) if receipt.status == Some(1.into()) => {
                         tracing::info!(
                             "Previously broadcast transaction {} was confirmed on retry check",
@@ -186,13 +180,7 @@ impl ProofManagerClient {
         // Final pass: the last attempt may have broadcast a tx that was confirmed while
         // we were about to give up.
         for &hash in &broadcast_hashes {
-            match self
-                .client
-                .deref()
-                .as_ref()
-                .tx_receipt(hash)
-                .await
-            {
+            match self.client.deref().as_ref().tx_receipt(hash).await {
                 Ok(Some(receipt)) if receipt.status == Some(1.into()) => {
                     tracing::info!(
                         "Previously broadcast transaction {} was confirmed on final check",
