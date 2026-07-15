@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
+use zksync_prover_interface::outputs::SnarkWrapperProof;
 
 use crate::inputs::AirbenderVerifierInput;
 
@@ -43,22 +44,35 @@ pub enum SubmitAirbenderSnarkProofResponse {
 
 // Structs to hold data necessary for making HTTP requests
 
+/// FRI submission payload. Carries either a proof (success) or an `error` (the prover could not
+/// produce the proof), which releases the batch for retry — bounded by the configured attempts
+/// limit — without waiting for the proving timeout to elapse. Exactly one of `proof`/`error` is
+/// expected.
 #[serde_as]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitAirbenderProofRequest {
     pub l1_batch_number: u32,
     pub prover_id: String,
-    #[serde_as(as = "Hex")]
-    pub proof: Vec<u8>,
+    #[serde_as(as = "Option<Hex>")]
+    #[serde(default)]
+    pub proof: Option<Vec<u8>>,
+    #[serde(default)]
+    pub error: Option<String>,
+    /// Guest cycles actually executed for the batch, as measured by the prover's
+    /// RISC-V run. Optional so older provers that don't report it keep working;
+    /// stored next to the sealer's prediction for cost-model calibration.
+    #[serde(default)]
+    pub cycles_used: Option<u64>,
 }
 
-/// SNARK submission payload. The wrapper VK is resolved at prover startup and
-/// is not transmitted per proof.
-#[serde_as]
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+/// SNARK submission payload. Like [`SubmitAirbenderProofRequest`], carries either a proof or an
+/// `error`. The wrapper VK is resolved at prover startup and is not transmitted per proof.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SubmitAirbenderSnarkProofRequest {
     pub l1_batch_number: u32,
     pub prover_id: String,
-    #[serde_as(as = "Hex")]
-    pub snark_proof: Vec<u8>,
+    #[serde(default)]
+    pub snark_proof: Option<SnarkWrapperProof>,
+    #[serde(default)]
+    pub error: Option<String>,
 }

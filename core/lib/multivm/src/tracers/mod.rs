@@ -1,5 +1,6 @@
 pub use self::{
     call_tracer::CallTracer,
+    cycle_estimator::CycleFeatureTracer,
     multivm_dispatcher::TracerDispatcher,
     prestate_tracer::PrestateTracer,
     storage_invocation::StorageInvocations,
@@ -7,6 +8,7 @@ pub use self::{
 };
 
 mod call_tracer;
+pub mod cycle_estimator;
 pub mod dynamic;
 mod multivm_dispatcher;
 pub mod old;

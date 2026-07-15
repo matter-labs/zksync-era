@@ -42,6 +42,7 @@ impl MethodTracer {
             | Web3Error::InvalidFilterBlockHash
             | Web3Error::InvalidTimeout(_)
             | Web3Error::InvalidTransactionRequest(_)
+            | Web3Error::InvalidFeeHistoryParams(_)
             | Web3Error::LogsLimitExceeded(_, _, _) => ErrorCode::InvalidParams.code(),
             Web3Error::SubmitTransactionError(_, _)
             | Web3Error::SerializationError(_)

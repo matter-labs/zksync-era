@@ -17,6 +17,7 @@ on:
       - core-v**
       - prover-v**
       - contract_verifier-v**
+      - airbender_prover_server-v**
 
 concurrency: docker-build
 
@@ -79,6 +80,18 @@ jobs:
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      action: "push"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  build-push-airbender-prover-server-images:
+    name: Build and push image
+    needs: [setup]
+    uses: ./.github/workflows/build-airbender-prover-server-template.yml
+    if: contains(github.ref_name, 'airbender_prover_server')
+    with:
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "push"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}

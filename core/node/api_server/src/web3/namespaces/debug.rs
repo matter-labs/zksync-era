@@ -413,21 +413,32 @@ impl DebugNamespace {
             .await
             .context("failed to create L1BatchParamsProvider")?;
 
-        let Some(RestoredL1BatchEnv {
-            l1_batch_env,
-            system_env,
-            pubdata_params,
-            ..
-        }) = l1_batch_params_provider
-            .load_l1_batch_env(&mut connection, l1_batch_number, u32::MAX, chain_id)
+        let Some(mut first_l2_block) = l1_batch_params_provider
+            .load_first_l2_block_in_batch(&mut connection, l1_batch_number)
             .await
-            .context("failed to load L1 batch env")?
+            .context("failed to load first L2 block of L1 batch")?
         else {
             return Err(anyhow::anyhow!(
                 "L1 batch #{l1_batch_number} not found in storage while replaying trace"
             )
             .into());
         };
+
+        // Historical L2 blocks may have a NULL `protocol_version` in the `miniblocks` table (e.g.
+        // blocks predating protocol versioning).
+        if !first_l2_block.has_protocol_version() {
+            first_l2_block.set_protocol_version(protocol_version);
+        }
+
+        let RestoredL1BatchEnv {
+            l1_batch_env,
+            system_env,
+            pubdata_params,
+            ..
+        } = l1_batch_params_provider
+            .load_l1_batch_params(&mut connection, &first_l2_block, u32::MAX, chain_id)
+            .await
+            .context("failed to load L1 batch env")?;
 
         let l2_blocks = connection
             .transactions_dal()

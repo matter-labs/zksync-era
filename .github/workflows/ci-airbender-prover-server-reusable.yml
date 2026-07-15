@@ -1,0 +1,45 @@
+name: Workflow template for CI jobs for the Airbender Prover Server
+on:
+  workflow_call:
+
+jobs:
+  build-and-test:
+    runs-on: [matterlabs-ci-runner-highmem-long]
+    env:
+      RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
+
+      - name: Init
+        run: |
+          # The workspace pins its own nightly via `airbender_prover_server/rust-toolchain`;
+          # `rustup show` inside the workspace installs it on demand.
+          ci_run run_retried bash -lc "cd airbender_prover_server && rustup show"
+
+      - name: Formatting
+        run: |
+          ci_run bash -lc "cd airbender_prover_server && cargo fmt --check"
+
+      - name: Lints
+        run: |
+          # CUDA-free clippy (matches the build/test lane); fail on any warning,
+          # consistent with the rest of the repo. `--all-targets` also lints the
+          # (otherwise `#[ignore]`d) integration test.
+          ci_run bash -lc "cd airbender_prover_server && CARGO_PROFILE_DEV_DEBUG=0 cargo clippy --no-default-features --all-targets --locked -- -D warnings"
+
+      - name: Build and unit/integration tests (CUDA-free)
+        run: |
+          # `--no-default-features` drops the CUDA `gpu_prover`, so the lane runs
+          # on a CPU runner; it exercises the crate's unit and integration tests.
+          # `CARGO_PROFILE_DEV_DEBUG=0` skips DWARF generation for the large
+          # Airbender circuit dependencies — faster, and it sidesteps a rustc
+          # stack overflow seen during debug-info codegen on the pinned nightly.
+          ci_run bash -lc "cd airbender_prover_server && CARGO_PROFILE_DEV_DEBUG=0 cargo test --no-default-features --locked -p eravm-prover-server"

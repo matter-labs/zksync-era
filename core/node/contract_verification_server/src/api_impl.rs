@@ -520,6 +520,33 @@ async fn get_partial_match_verification_info(
             anyhow::bail!("Internal error: bogus verification info detected");
         }
 
+        // If the stored contract is a metadata-disabled EraVM contract, its trailing word is
+        // functional code, so any partial match against it is a real bytecode difference and serving
+        // its source would mislead consumers. Keyed on the stored contract, not the queried bytecode
+        // which the attacker controls (e.g. EVM-marked bytes can be crafted to collide here).
+        let stored_is_eravm = info
+            .request
+            .req
+            .compiler_versions
+            .zk_compiler_version()
+            .is_some();
+        if stored_is_eravm
+            && info
+                .request
+                .req
+                .source_code_data
+                .appended_metadata_disabled(
+                    info.request.req.compiler_versions.zk_compiler_version(),
+                )
+        {
+            tracing::debug!(
+                contract_address = ?address,
+                stored_contract_address = ?info.request.req.contract_address,
+                "Suppressing partial match against a metadata-disabled contract",
+            );
+            return Ok(None);
+        }
+
         // Mark the contract as partial match (regardless of other issues).
         info.verification_problems = vec![VerificationProblem::IncorrectMetadata];
     }
