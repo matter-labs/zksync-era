@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: checkout base branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -39,16 +39,6 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
-
-      - name: (TEMPORARY) Update Node in ci_run container
-        shell: bash
-        run: |
-          ci_run bash -lc "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -"
-          ci_run apt-get install -y nodejs
-          echo "Node version after update:"
-          ci_run node -v
-          ci_run npm -v
-          (ci_run yarn -v || ci_run npm install -g yarn) && ci_run yarn -v
 
       - name: run benchmarks on base branch
         shell: bash

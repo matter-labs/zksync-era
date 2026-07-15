@@ -16,33 +16,9 @@ jobs:
       CUDAARCHS: "75;80;89;90"
       PASSED_ENV_VARS: "CUDA_ARCH,CUDAARCHS"
     steps:
-      # ci_run (docker exec as root) leaves root-owned files on this persistent runner; reclaim
-      # ownership so the unprivileged checkout can clean them.
-      - name: Reclaim workspace from prior runs
-        run: |
-          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
-          ${SUDO} chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}" || true
-
-      - name: Clean stale root-owned workspace files
-        run: sudo rm -rf airbender_fixture airbender_prover_logs airbender_prover_server
-     
-     
-      - name: Free the GPU from orphaned provers
-        run: |
-          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
-          ${SUDO} pkill -f eravm-prover-server || true
-          for _ in $(seq 1 20); do
-            used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
-            echo "GPU memory used: ${used:-unknown} MiB"
-            [ -n "$used" ] && [ "$used" -lt 2000 ] && break
-            ${SUDO} pkill -9 -f eravm-prover-server || true
-            sleep 3
-          done
-      
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: "recursive"
-          fetch-depth: 0
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
