@@ -563,6 +563,7 @@ async fn no_governance_stage_2(
 fn get_ecosystem_upgrade_params(upgrade_version: &UpgradeVersion) -> ForgeScriptParams {
     match upgrade_version {
         UpgradeVersion::V29InteropAFf => V29_UPGRADE_ECOSYSTEM_PARAMS,
+        UpgradeVersion::V29_2 => unreachable!("V29_2 does not support ecosystem upgrade"),
         UpgradeVersion::V29_3 => unreachable!("V29_3 does not support ecosystem upgrade"),
         UpgradeVersion::V29_4 => unreachable!("V29_4 does not support ecosystem upgrade"),
         UpgradeVersion::V31InteropB => {
