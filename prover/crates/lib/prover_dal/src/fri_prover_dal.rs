@@ -814,6 +814,26 @@ impl FriProverDal<'_, '_> {
         .unwrap_or(0) as usize
     }
 
+    pub async fn delete_old_archived_jobs(&mut self, retention_interval: Duration) -> usize {
+        let retention_interval_secs = pg_interval_from_duration(retention_interval);
+
+        sqlx::query_scalar!(
+            r#"
+            WITH deleted AS (
+                DELETE FROM prover_jobs_fri_archive
+                WHERE updated_at < NOW() - $1::INTERVAL
+                RETURNING *
+            )
+            SELECT COUNT(*) FROM deleted
+            "#,
+            &retention_interval_secs,
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .unwrap_or(0) as usize
+    }
+
     pub async fn get_final_node_proof_job_ids_for(
         &mut self,
         batch_id: L1BatchId,

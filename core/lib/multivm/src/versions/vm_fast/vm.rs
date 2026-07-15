@@ -127,7 +127,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             &system_env.base_system_smart_contracts.bootloader,
             true,
         );
-        let bootloader_memory = BootloaderState::initial_memory(&batch_env);
+        let bootloader_memory = BootloaderState::initial_memory(vm_version.into(), &batch_env);
 
         let mut inner = VirtualMachine::new(
             BOOTLOADER_ADDRESS,
@@ -760,6 +760,7 @@ where
                 computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
                 pubdata_published: result.pubdata_published,
                 circuit_statistic,
+                cycle_features: Default::default(),
                 contracts_used: 0,
                 cycles_used: 0,
                 total_log_queries: 0,

@@ -7,7 +7,7 @@ use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
-        Halt, L1BatchEnv, SystemEnv,
+        FeatureVectorExt, Halt, L1BatchEnv, SystemEnv,
     },
     utils::StorageWritesDeduplicator,
 };
@@ -826,11 +826,16 @@ impl StateKeeperInner {
                 let tx_writes_metrics =
                     StorageWritesDeduplicator::apply_on_empty_state(logs_to_apply_iter);
 
+                let tx_cycle_features = tx_result.statistics.cycle_features.clone();
+                let mut block_cycle_features = updates_manager.pending_cycle_features();
+                block_cycle_features.merge(&tx_cycle_features);
+
                 let tx_data = SealData {
                     execution_metrics: **tx_execution_metrics,
                     cumulative_size: encoding_len,
                     writes_metrics: tx_writes_metrics,
                     gas_remaining: *gas_remaining,
+                    cycle_features: tx_cycle_features,
                 };
                 let block_data = SealData {
                     execution_metrics: tx_data.execution_metrics
@@ -839,6 +844,7 @@ impl StateKeeperInner {
                         + updates_manager.pending_txs_encoding_size(),
                     writes_metrics: block_writes_metrics,
                     gas_remaining: *gas_remaining,
+                    cycle_features: block_cycle_features,
                 };
                 let is_tx_l1 = tx.is_l1() as usize;
 
@@ -865,6 +871,7 @@ impl StateKeeperInner {
             cumulative_size: manager.pending_txs_encoding_size(),
             writes_metrics: block_writes_metrics,
             gas_remaining: u32::MAX, // not used
+            cycle_features: manager.pending_cycle_features(),
         };
 
         let capacities = self.sealer.capacity_filled(

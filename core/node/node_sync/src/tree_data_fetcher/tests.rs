@@ -11,7 +11,7 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use test_casing::test_casing;
 use zksync_dal::Connection;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, StorageLog, H256};
 use zksync_web3_decl::jsonrpsee::core::ClientError;
@@ -136,7 +136,7 @@ impl FetcherHarness {
 async fn tree_data_fetcher_steps() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -233,7 +233,7 @@ async fn tree_data_fetcher_steps_after_snapshot_recovery() {
 async fn tree_data_fetcher_recovers_from_transient_errors() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
 
@@ -330,7 +330,7 @@ impl TreeDataProvider for SlowMainNode {
 async fn tree_data_fetcher_with_missing_remote_hash(delayed_insertion: bool) {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let genesis = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis = insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
         .await
         .unwrap();
     if !delayed_insertion {

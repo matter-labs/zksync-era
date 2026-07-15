@@ -90,6 +90,12 @@ impl<P: PoolKind> PoolResource<P> {
         Ok(pool)
     }
 
+    /// Takes the unbound pool out of this resource, if one was created.
+    /// Used during shutdown to close the pool and release all connections.
+    pub async fn take(&self) -> Option<ConnectionPool<P::DbMarker>> {
+        self.unbound_pool.lock().await.take()
+    }
+
     pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool<P::DbMarker>> {
         self.get_custom(1).await
     }

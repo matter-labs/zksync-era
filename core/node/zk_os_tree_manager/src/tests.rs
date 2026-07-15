@@ -11,7 +11,7 @@ use zk_os_merkle_tree::{
 };
 use zksync_dal::{Connection, CoreDal};
 use zksync_health_check::HealthStatus;
-use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+use zksync_node_genesis::{insert_genesis_batch, GenesisParamsInitials};
 use zksync_node_test_utils::{
     create_l1_batch, create_l2_block, generate_storage_logs, insert_initial_writes_for_batch,
 };
@@ -31,7 +31,7 @@ pub(crate) async fn setup_tree_manager(db_path: &Path, pool: ConnectionPool<Core
             .await
             .unwrap();
 
-        insert_genesis_batch(&mut conn, &GenesisParams::mock())
+        insert_genesis_batch(&mut conn, &GenesisParamsInitials::mock())
             .await
             .unwrap();
     }

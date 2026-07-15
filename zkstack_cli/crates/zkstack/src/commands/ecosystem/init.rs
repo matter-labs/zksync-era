@@ -1,6 +1,5 @@
 use std::{path::PathBuf, str::FromStr};
 
-use anyhow::Context;
 use xshell::Shell;
 use zkstack_cli_common::{
     contracts::rebuild_all_contracts, forge::ForgeScriptArgs, logger, spinner::Spinner, Prompt,
@@ -11,7 +10,7 @@ use zkstack_cli_config::{
     ContractsConfig, CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
 use zkstack_cli_types::{L1Network, VMOption};
-use zksync_basic_types::Address;
+use zksync_basic_types::{Address, H256};
 
 use super::{
     args::init::{EcosystemInitArgs, EcosystemInitArgsFinal},
@@ -19,7 +18,7 @@ use super::{
     setup_observability,
 };
 use crate::{
-    admin_functions::{accept_admin, accept_owner},
+    admin_functions::{accept_admin, accept_owner_aggregated},
     commands::{
         ctm::commands::init_new_ctm::deploy_new_ctm_and_accept_admin,
         ecosystem::{
@@ -39,10 +38,18 @@ use crate::{
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = ZkStackConfig::ecosystem(shell)?;
 
-    let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
+    let mut initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
+
+    // The CREATE2 salt is persisted in `initial_deployments.yaml` and is otherwise reused across
+    // runs. Reusing it means a repeated `zkstack init` (e.g. `--dev`) redeploys the ecosystem
+    // contracts to the *same* CREATE2 addresses, colliding with the previous deployment and
+    // breaking ownership. Regenerate it on every init so that each init deploys fresh contracts,
+    // preserving any other customizations already present in the file.
+    initial_deployment_config.create2_factory_salt = H256::random();
+    initial_deployment_config.save_with_base_path(shell, &ecosystem_config.config)?;
 
     let final_ecosystem_args = args
         .fill_values_with_prompt(ecosystem_config.l1_network)
@@ -131,10 +138,7 @@ async fn init_ecosystem(
         .await?;
 
         // If we are deploying non-zksync os ecosystem, but zksync os ecosystem config exists
-        if !init_args.vm_option.is_zksync_os()
-            && ecosystem_config.zksync_os_exist()
-            && init_args.dev
-        {
+        if !init_args.vm_option.is_zksync_os() && init_args.dev {
             rebuild_all_contracts(
                 shell,
                 &ecosystem_config.contracts_path_for_ctm(VMOption::ZKSyncOsVM),
@@ -280,18 +284,6 @@ async fn deploy_ecosystem(
     .await?;
     spinner.finish();
 
-    accept_owner(
-        shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        contracts_config.l1.governance_addr,
-        &ecosystem_config.get_wallets()?.governor,
-        contracts_config
-            .core_ecosystem_contracts
-            .bridgehub_proxy_addr,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
     accept_admin(
         shell,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
@@ -305,28 +297,14 @@ async fn deploy_ecosystem(
     )
     .await?;
 
-    // Note, that there is no admin in L1 asset router, so we do
-    // need to accept it
-    accept_owner(
-        shell,
-        ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
-        contracts_config.l1.governance_addr,
-        &ecosystem_config.get_wallets()?.governor,
-        contracts_config.bridges.shared.l1_address,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
-
-    accept_owner(
+    accept_owner_aggregated(
         shell,
         ecosystem_config.path_to_foundry_scripts_for_ctm(vm_option),
         contracts_config.l1.governance_addr,
         &ecosystem_config.get_wallets()?.governor,
         contracts_config
             .core_ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr
-            .context("stm_deployment_tracker_proxy_addr")?,
+            .bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
     )

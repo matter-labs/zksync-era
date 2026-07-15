@@ -9,6 +9,9 @@ pub struct ProofDataHandlerConfig {
     #[config(default_t = 1 * TimeUnit::Minutes)]
     pub proof_generation_timeout: Duration,
     pub gateway_api_url: Option<String>,
+    /// Total request timeout for HTTP calls to the proof data gateway.
+    #[config(default_t = Duration::from_secs(60))]
+    pub gateway_api_request_timeout: Duration,
     #[config(default_t = Duration::from_secs(10))]
     pub proof_fetch_interval: Duration,
     #[config(default_t = Duration::from_secs(10))]
@@ -50,6 +53,7 @@ mod tests {
             http_port: 3320,
             proof_generation_timeout: Duration::from_secs(18000),
             gateway_api_url: Some("http://gateway/".to_owned()),
+            gateway_api_request_timeout: Duration::from_secs(120),
             proof_fetch_interval: Duration::from_secs(15),
             proof_gen_data_submit_interval: Duration::from_secs(20),
             fetch_zero_chain_id_proofs: false,
@@ -63,6 +67,7 @@ mod tests {
             PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="18000"
             PROOF_DATA_HANDLER_HTTP_PORT="3320"
             PROOF_DATA_HANDLER_GATEWAY_API_URL="http://gateway/"
+            PROOF_DATA_HANDLER_GATEWAY_API_REQUEST_TIMEOUT_IN_SECS=120
             PROOF_DATA_HANDLER_PROOF_FETCH_INTERVAL_IN_SECS=15
             PROOF_DATA_HANDLER_PROOF_GEN_DATA_SUBMIT_INTERVAL_IN_SECS=20
             PROOF_DATA_HANDLER_FETCH_ZERO_CHAIN_ID_PROOFS=false
@@ -82,6 +87,7 @@ mod tests {
           http_port: 3320
           proof_generation_timeout_in_secs: 18000
           gateway_api_url: "http://gateway/"
+          gateway_api_request_timeout_in_secs: 120
           proof_fetch_interval_in_secs: 15
           proof_gen_data_submit_interval_in_secs: 20
           fetch_zero_chain_id_proofs: false
@@ -98,6 +104,7 @@ mod tests {
           http_port: 3320
           proof_generation_timeout: 5 hours
           gateway_api_url: "http://gateway/"
+          gateway_api_request_timeout: 2 min
           proof_fetch_interval: 15s
           proof_gen_data_submit_interval: 20 secs
           fetch_zero_chain_id_proofs: false

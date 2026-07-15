@@ -29,6 +29,9 @@ pub struct ProverJobMonitorConfig {
     /// The amount of time after which completed jobs (that belong to completed batches) can be archived.
     #[config(default_t = 2 * TimeUnit::Days)]
     pub prover_jobs_archiver_archive_jobs_after: Duration,
+    /// The amount of time to retain archived prover jobs before deleting them permanently.
+    #[config(default_t = 7 * TimeUnit::Days)]
+    pub prover_jobs_archiver_delete_archived_jobs_after: Duration,
     /// The interval between runs for Proof Compressor Job Requeuer.
     #[config(default_t = Duration::from_secs(10))]
     pub proof_compressor_job_requeuer_run_interval: Duration,
@@ -69,6 +72,7 @@ mod tests {
             gpu_prover_archiver_archive_prover_after: Duration::from_secs(172800),
             prover_jobs_archiver_run_interval: Duration::from_secs(1800),
             prover_jobs_archiver_archive_jobs_after: Duration::from_secs(172800),
+            prover_jobs_archiver_delete_archived_jobs_after: Duration::from_secs(604800),
             proof_compressor_job_requeuer_run_interval: Duration::from_secs(10),
             prover_job_requeuer_run_interval: Duration::from_secs(10),
             witness_generator_job_requeuer_run_interval: Duration::from_secs(10),
@@ -90,6 +94,7 @@ mod tests {
             PROVER_JOB_MONITOR_GPU_PROVER_ARCHIVER_ARCHIVE_PROVER_AFTER_MS=172800000
             PROVER_JOB_MONITOR_PROVER_JOBS_ARCHIVER_RUN_INTERVAL_MS=1800000
             PROVER_JOB_MONITOR_PROVER_JOBS_ARCHIVER_ARCHIVE_JOBS_AFTER_MS=172800000
+            PROVER_JOB_MONITOR_PROVER_JOBS_ARCHIVER_DELETE_ARCHIVED_JOBS_AFTER_MS=604800000
             PROVER_JOB_MONITOR_PROOF_COMPRESSOR_JOB_REQUEUER_RUN_INTERVAL_MS=10000
             PROVER_JOB_MONITOR_PROVER_JOB_REQUEUER_RUN_INTERVAL_MS=10000
             PROVER_JOB_MONITOR_WITNESS_GENERATOR_JOB_REQUEUER_RUN_INTERVAL_MS=10000
@@ -117,6 +122,7 @@ mod tests {
           gpu_prover_archiver_archive_prover_after_ms: 172800000
           prover_jobs_archiver_run_interval_ms: 1800000
           prover_jobs_archiver_archive_jobs_after_ms: 172800000
+          prover_jobs_archiver_delete_archived_jobs_after_ms: 604800000
           proof_compressor_job_requeuer_run_interval_ms: 10000
           prover_job_requeuer_run_interval_ms: 10000
           witness_generator_job_requeuer_run_interval_ms: 10000
@@ -141,6 +147,7 @@ mod tests {
           gpu_prover_archiver_archive_prover_after: '2 days'
           prover_jobs_archiver_run_interval: '30 min'
           prover_jobs_archiver_archive_jobs_after: '2 days'
+          prover_jobs_archiver_delete_archived_jobs_after: '7 days'
           proof_compressor_job_requeuer_run_interval: '10s'
           prover_job_requeuer_run_interval: '10s'
           witness_generator_job_requeuer_run_interval: '10 seconds'

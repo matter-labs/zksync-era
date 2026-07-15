@@ -1,4 +1,5 @@
 use zksync_types::{
+    commitment::{L2DACommitmentScheme, L2PubdataValidator},
     ethabi,
     ethabi::{ParamType, Token},
     l2_to_l1_log::l2_to_l1_logs_tree_size,
@@ -14,18 +15,30 @@ use crate::interface::pubdata::{PubdataBuilder, PubdataInput};
 
 #[derive(Debug, Clone, Copy)]
 pub struct HashedPubdataBuilder {
-    pub l2_da_validator: Address,
+    l2_pubdata_validator: L2PubdataValidator,
 }
 
 impl HashedPubdataBuilder {
-    pub fn new(l2_da_validator: Address) -> Self {
-        Self { l2_da_validator }
+    pub fn new(l2_pubdata_validator: L2PubdataValidator) -> Self {
+        Self {
+            l2_pubdata_validator,
+        }
     }
 }
 
 impl PubdataBuilder for HashedPubdataBuilder {
-    fn l2_da_validator(&self) -> Address {
-        self.l2_da_validator
+    fn l2_da_validator(&self) -> Option<Address> {
+        match self.l2_pubdata_validator {
+            L2PubdataValidator::Address(addr) => Some(addr),
+            L2PubdataValidator::CommitmentScheme(_) => None,
+        }
+    }
+
+    fn l2_da_commitment_scheme(&self) -> Option<L2DACommitmentScheme> {
+        match self.l2_pubdata_validator {
+            L2PubdataValidator::Address(_) => None,
+            L2PubdataValidator::CommitmentScheme(scheme) => Some(scheme),
+        }
     }
 
     fn l1_messenger_operator_input(

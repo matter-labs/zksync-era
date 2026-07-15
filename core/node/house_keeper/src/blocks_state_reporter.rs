@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{BlockStage, L1Stage, L1StageLatencyLabel, L2BlockStage, APP_METRICS};
-use zksync_types::{aggregated_operations::AggregatedActionType, L2BlockNumber};
+use zksync_types::{aggregated_operations::AggregatedActionType, L1BatchNumber, L2BlockNumber};
 
 use crate::{metrics::FRI_PROVER_METRICS, periodic_job::PeriodicJob};
 
@@ -12,13 +12,22 @@ use crate::{metrics::FRI_PROVER_METRICS, periodic_job::PeriodicJob};
 pub struct BlockMetricsReporter {
     reporting_interval: Duration,
     connection_pool: ConnectionPool<Core>,
+    first_airbender_batch: L1BatchNumber,
+    airbender_max_proving_attempts: u32,
 }
 
 impl BlockMetricsReporter {
-    pub fn new(reporting_interval: Duration, connection_pool: ConnectionPool<Core>) -> Self {
+    pub fn new(
+        reporting_interval: Duration,
+        connection_pool: ConnectionPool<Core>,
+        first_airbender_batch: L1BatchNumber,
+        airbender_max_proving_attempts: u32,
+    ) -> Self {
         Self {
             reporting_interval,
             connection_pool,
+            first_airbender_batch,
+            airbender_max_proving_attempts,
         }
     }
 
@@ -131,6 +140,29 @@ impl BlockMetricsReporter {
                 .oldest_not_generated_batch
                 .set(l1_batch_number.0 as u64);
         }
+
+        let ready_count = conn
+            .airbender_proof_generation_dal()
+            .get_ready_for_proving_count(
+                self.first_airbender_batch,
+                self.airbender_max_proving_attempts,
+            )
+            .await?;
+        FRI_PROVER_METRICS
+            .airbender_batches_ready_for_proving
+            .set(ready_count as u64);
+
+        let ready_for_snark_count = conn
+            .airbender_proof_generation_dal()
+            .get_ready_for_snark_count(
+                self.first_airbender_batch,
+                self.airbender_max_proving_attempts,
+            )
+            .await?;
+        FRI_PROVER_METRICS
+            .airbender_batches_ready_for_snark
+            .set(ready_for_snark_count as u64);
+
         Ok(())
     }
 }

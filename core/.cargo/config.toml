@@ -1,0 +1,2 @@
+[env]
+SVM_RELEASES_LIST_JSON = { value = "../etc/svm_release_list.json", relative = true }

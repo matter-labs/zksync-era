@@ -129,7 +129,12 @@ impl AvailClient {
         secrets: AvailSecrets,
         sl_chain_id: SLChainId,
     ) -> anyhow::Result<Self> {
-        let api_client = Arc::new(reqwest::Client::new());
+        let api_client = Arc::new(
+            reqwest::Client::builder()
+                .timeout(config.api_client_timeout)
+                .build()
+                .expect("Failed to build reqwest client"),
+        );
         let sdk_client = match config.config.clone() {
             AvailClientConfig::GasRelay(conf) => {
                 let gas_relay_api_key = secrets
@@ -139,6 +144,7 @@ impl AvailClient {
                     &conf.gas_relay_api_url,
                     gas_relay_api_key.0.expose_secret(),
                     conf.max_retries,
+                    &conf.referer_header,
                     Arc::clone(&api_client),
                 )
                 .await?;
@@ -254,6 +260,23 @@ impl DataAvailabilityClient for AvailClient {
                     })
             }
             AvailClientMode::GasRelay(client) => {
+                let config = match &self.config.config {
+                    AvailClientConfig::GasRelay(conf) => conf,
+                    _ => unreachable!(), // validated in protobuf config
+                };
+
+                if Utc::now()
+                    .signed_duration_since(dispatched_at)
+                    .to_std()
+                    .map_err(to_retriable_da_error)?
+                    > config.dispatch_timeout
+                {
+                    return Err(DAError {
+                        error: anyhow!("Dispatch timeout exceeded"),
+                        is_retriable: false,
+                    });
+                }
+
                 let Some((block_hash, extrinsic_index)) = client
                     .check_finality(dispatch_request_id)
                     .await

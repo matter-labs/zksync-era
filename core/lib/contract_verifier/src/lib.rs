@@ -122,14 +122,40 @@ pub struct ContractVerifier {
 }
 
 impl ContractVerifier {
+    fn deployed_evm_bytecode(
+        deployed_contract: &DeployedContractData,
+    ) -> Result<&[u8], ContractVerifierError> {
+        let bytecode_hash = BytecodeHash::try_from(deployed_contract.bytecode_hash)
+            .context("Invalid bytecode hash")?;
+
+        match trim_padded_evm_bytecode(bytecode_hash, &deployed_contract.bytecode) {
+            Ok(bytecode) => Ok(bytecode),
+            Err(err) => {
+                if BytecodeHash::for_raw_evm_bytecode(&deployed_contract.bytecode).value()
+                    == deployed_contract.bytecode_hash
+                {
+                    tracing::warn!(
+                        contract_address = ?deployed_contract.contract_address,
+                        bytecode_hash = ?deployed_contract.bytecode_hash,
+                        "raw EVM bytecode found in factory_deps; using compatibility fallback"
+                    );
+                    Ok(deployed_contract.bytecode.as_slice())
+                } else {
+                    Err(anyhow::format_err!("invalid stored EVM bytecode: {err:#}").into())
+                }
+            }
+        }
+    }
+
     /// Creates a new verifier instance.
     pub async fn new(
         compilation_timeout: Duration,
+        compiler_download_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
         etherscan_verifier_enabled: bool,
     ) -> anyhow::Result<Self> {
         let env_resolver = Arc::<EnvCompilerResolver>::default();
-        let gh_resolver = Arc::new(GitHubCompilerResolver::new().await?);
+        let gh_resolver = Arc::new(GitHubCompilerResolver::new(compiler_download_timeout).await?);
         let mut resolver = ResolverMultiplexer::new(env_resolver);
 
         // Killer switch: if anything goes wrong with GH resolver, we can disable it without having to rollback.
@@ -260,35 +286,18 @@ impl ContractVerifier {
             .context("unknown bytecode kind")?;
         let deployed_bytecode = match bytecode_marker {
             BytecodeMarker::EraVm => deployed_contract.bytecode.as_slice(),
-            BytecodeMarker::Evm => trim_padded_evm_bytecode(
-                BytecodeHash::try_from(deployed_contract.bytecode_hash)
-                    .context("Invalid bytecode hash")?,
-                &deployed_contract.bytecode,
-            )
-            .context("invalid stored EVM bytecode")?,
+            BytecodeMarker::Evm => Self::deployed_evm_bytecode(&deployed_contract)?,
         };
-        let mut deployed_code = deployed_bytecode.to_vec();
+        let deployed_code = deployed_bytecode.to_vec();
         let deployed_identifier =
             ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
 
         let artifacts = self
-            .get_compilation_artifacts(&mut request, &deployed_identifier)
+            .get_compilation_artifacts(&mut request, &deployed_identifier, &deployed_code)
             .await?;
 
-        let mut compiled_code = artifacts.deployed_bytecode().to_vec();
-
-        // If contract contains immutable references (e.g. places to be filled during constructor execution),
-        // rewrite them with zeroes, as we can't know the values just yet.
-        // We're checking the constructor arguments as well, so assuming tha constructor arguments
-        // are the same, the immutable values should also be the same.
-        artifacts.patch_immutable_bytecodes(&mut compiled_code, &mut deployed_code);
-
-        let compiled_identifier =
-            ContractIdentifier::from_bytecode(bytecode_marker, &compiled_code);
-
-        // regenerate the deployed identifier after patching the immutable bytecode
-        let deployed_identifier =
-            ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code);
+        let (compiled_identifier, deployed_identifier) =
+            Self::patched_identifiers(bytecode_marker, &artifacts, deployed_code);
 
         let constructor_args = match bytecode_marker {
             BytecodeMarker::EraVm => self
@@ -304,13 +313,22 @@ impl ContractVerifier {
 
         let mut verification_problems = Vec::new();
 
-        match compiled_identifier.matches(&deployed_identifier) {
+        // A partial match trusts the heuristic that the trailing EraVM word is metadata. If the
+        // source disables metadata, that word is functional code, so the heuristic can't be trusted
+        // (only standard-JSON input can disable metadata).
+        let trust_keccak_metadata = !request
+            .req
+            .source_code_data
+            .appended_metadata_disabled(request.req.compiler_versions.zk_compiler_version());
+        match compiled_identifier
+            .matches_with_metadata_trust(&deployed_identifier, trust_keccak_metadata)
+        {
             Match::Full => {}
             Match::Partial => {
                 tracing::info!(
                     request_id = request.id,
-                    deployed = hex::encode(deployed_bytecode),
-                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    deployed_keccak256 = ?deployed_identifier.bytecode_keccak256,
+                    compiled_keccak256 = ?compiled_identifier.bytecode_keccak256,
                     "Partial bytecode match",
                 );
                 verification_problems.push(VerificationProblem::IncorrectMetadata);
@@ -318,8 +336,8 @@ impl ContractVerifier {
             Match::None => {
                 tracing::info!(
                     request_id = request.id,
-                    deployed = hex::encode(deployed_bytecode),
-                    compiled = hex::encode(artifacts.deployed_bytecode()),
+                    deployed_keccak256 = ?deployed_identifier.bytecode_keccak256,
+                    compiled_keccak256 = ?compiled_identifier.bytecode_keccak256,
                     "Deployed (runtime) bytecode mismatch",
                 );
                 return Err(ContractVerifierError::BytecodeMismatch);
@@ -366,6 +384,7 @@ impl ContractVerifier {
         &self,
         request: &mut VerificationRequest,
         deployed_identifier: &ContractIdentifier,
+        deployed_code: &[u8],
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         // If compiler versions from the metadata don't match with the request,
         // we'll first try to use info from metadata.
@@ -389,13 +408,14 @@ impl ContractVerifier {
                 .await;
 
             if let Ok(artifacts) = artifacts {
-                let compiled_identifier = ContractIdentifier::from_bytecode(
+                let (compiled_identifier, deployed_identifier) = Self::patched_identifiers(
                     deployed_identifier.bytecode_marker,
-                    artifacts.deployed_bytecode(),
+                    &artifacts,
+                    deployed_code.to_vec(),
                 );
                 // Check if the compiled bytecode matches the deployed bytecode
                 if matches!(
-                    compiled_identifier.matches(deployed_identifier),
+                    compiled_identifier.matches(&deployed_identifier),
                     Match::Full | Match::Partial
                 ) {
                     tracing::info!(
@@ -431,6 +451,25 @@ impl ContractVerifier {
             .await
     }
 
+    fn patched_identifiers(
+        bytecode_marker: BytecodeMarker,
+        artifacts: &CompilationArtifacts,
+        mut deployed_code: Vec<u8>,
+    ) -> (ContractIdentifier, ContractIdentifier) {
+        let mut compiled_code = artifacts.deployed_bytecode().to_vec();
+
+        // If contract contains immutable references (e.g. places to be filled during constructor execution),
+        // rewrite them with zeroes, as we can't know the values just yet.
+        // We're checking the constructor arguments as well, so assuming the constructor arguments
+        // are the same, the immutable values should also be the same.
+        artifacts.patch_immutable_bytecodes(&mut compiled_code, &mut deployed_code);
+
+        (
+            ContractIdentifier::from_bytecode(bytecode_marker, &compiled_code),
+            ContractIdentifier::from_bytecode(bytecode_marker, &deployed_code),
+        )
+    }
+
     // Updates request compiler versions in the DB.
     async fn update_request_compiler_versions(
         &self,
@@ -462,7 +501,7 @@ impl ContractVerifier {
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         let zksolc = self.compiler_resolver.resolve_zksolc(version).await?;
         tracing::debug!(?zksolc, ?version, "resolved compiler");
-        let input = ZkSolc::build_input(req)?;
+        let input = ZkSolc::build_input(req, &version.zk)?;
 
         time::timeout(self.compilation_timeout, zksolc.compile(input))
             .await
@@ -774,7 +813,7 @@ impl ContractVerifier {
                 let error_message = match &error {
                     ContractVerifierError::Internal(err) => {
                         // Do not expose the error externally, but log it.
-                        tracing::warn!(request_id, "internal error processing request: {err}");
+                        tracing::warn!(request_id, "internal error processing request: {err:#}");
                         "internal error".to_owned()
                     }
                     _ => error.to_string(),

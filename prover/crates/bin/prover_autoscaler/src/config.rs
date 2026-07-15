@@ -32,6 +32,10 @@ pub struct ProverAutoscalerConfig {
     /// Amount of time ProverJobMonitor will wait all it's tasks to finish.
     #[config(default_t = Duration::from_secs(5))]
     pub graceful_shutdown_timeout: Duration,
+    /// Total request timeout for the shared HTTP client used to talk to Agents
+    /// and the prover job monitor.
+    #[config(default_t = Duration::from_secs(60))]
+    pub http_client_timeout: Duration,
     #[config(nest)]
     pub agent_config: Option<ProverAutoscalerAgentConfig>,
     #[config(nest)]
@@ -80,6 +84,15 @@ pub struct ProverAutoscalerScalerConfig {
     /// Time window for including scale errors in Autoscaler calculations. Clusters will be sorted by number of the errors.
     #[config(default_t = 1 * TimeUnit::Hours)]
     pub scale_errors_duration: Duration,
+    /// Percentage (0-100) of pools with GCE out of resources errors to trigger aggressive mode.
+    /// 0 = disabled (default), 50 = trigger when 50% of ALL pools have resource errors.
+    /// When triggered, scaler adds missing pods to ALL pools simultaneously.
+    #[config(default_t = 0)]
+    pub aggressive_mode_threshold: usize,
+    /// Duration to stay in aggressive mode after successfully getting resources.
+    /// This cooldown prevents oscillation between modes.
+    #[config(default_t = 10 * TimeUnit::Minutes)]
+    pub aggressive_mode_cooldown: Duration,
     /// List of simple autoscaler targets.
     pub scaler_targets: Vec<ScalerTarget>,
     /// If dry-run enabled don't send any scale requests.
@@ -165,6 +178,14 @@ pub struct ScalerTarget {
     /// The queue will be divided by the speed and rounded up to get number of replicas.
     #[serde(default = "ScalerTarget::default_speed")]
     pub speed: ScalarOrMap,
+    /// Optional hard cap for the total running capacity across all watched namespaces.
+    /// The cap is expressed in the same units as `speed`.
+    #[serde(default, alias = "max_total_weight")]
+    pub max_running_weight: Option<usize>,
+    /// Optional extra desired capacity above `max_running_weight` to tolerate temporary sourcing
+    /// churn in aggressive mode.
+    #[serde(default)]
+    pub max_desired_burst_weight: usize,
     /// Optional priority list that overrides global cluster_priorities.
     /// For GPU targets, this is a list of (ClusterName, GpuKey) tuples.
     /// For Simple targets, this is a list of ClusterName.
@@ -199,6 +220,7 @@ mod tests {
     fn deserializing_config() {
         let yaml = r#"
             graceful_shutdown_timeout: 10s
+            http_client_timeout: 90s
             agent_config:
               prometheus_port: 8080
               http_port: 8081
@@ -222,6 +244,8 @@ mod tests {
               apply_min_to_namespace: prover-blue
               long_pending_duration: 10m
               scale_errors_duration: 2h
+              aggressive_mode_threshold: 50
+              aggressive_mode_cooldown: 10m
               need_to_move_duration: 5m
               scaler_targets:
                 - queue_report_field: prover_jobs
@@ -242,6 +266,8 @@ mod tests {
                   max_replicas:
                     zksync-era-gateway-stage: 150
                   speed: 4
+                  max_running_weight: 100
+                  max_desired_burst_weight: 20
                 - queue_report_field: leaf_witness_jobs
                   deployment: witness-generator-leaf-fri
                   max_replicas:
@@ -307,5 +333,10 @@ mod tests {
             Duration::from_secs(600)
         );
         assert_eq!(scaler_config.scaler_targets.len(), 7);
+        assert_eq!(scaler_config.aggressive_mode_threshold, 50);
+        assert_eq!(
+            scaler_config.aggressive_mode_cooldown,
+            Duration::from_secs(600)
+        );
     }
 }

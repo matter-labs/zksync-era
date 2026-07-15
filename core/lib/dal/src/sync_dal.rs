@@ -65,9 +65,13 @@ impl SyncDal<'_, '_> {
                 miniblocks.hash,
                 miniblocks.protocol_version AS "protocol_version!",
                 miniblocks.fee_account_address AS "fee_account_address!",
-                miniblocks.l2_da_validator_address AS "l2_da_validator_address!",
+                miniblocks.l2_da_validator_address,
+                miniblocks.l2_da_commitment_scheme,
                 miniblocks.pubdata_type AS "pubdata_type!",
-                l1_batches.pubdata_limit
+                l1_batches.pubdata_limit,
+                l1_batches.settlement_layer_type,
+                l1_batches.settlement_layer_chain_id,
+                l1_batches.interop_fee
             FROM
                 miniblocks
             INNER JOIN l1_batch ON true
@@ -138,7 +142,8 @@ impl SyncDal<'_, '_> {
 mod tests {
     use zksync_types::{
         block::{L1BatchHeader, L2BlockHeader},
-        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
+        settlement::SettlementLayer,
+        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction, U256,
     };
     use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
@@ -170,6 +175,7 @@ mod tests {
             0,
             Default::default(),
             ProtocolVersionId::latest(),
+            SettlementLayer::for_tests(),
         );
         conn.blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)
@@ -271,7 +277,15 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .mark_l1_batch_as_sealed(&l1_batch_header, &[], &[], &[], Default::default(), 1)
+            .mark_l1_batch_as_sealed(
+                &l1_batch_header,
+                &[],
+                &[],
+                &[],
+                Default::default(),
+                1,
+                U256::zero(),
+            )
             .await
             .unwrap();
         conn.blocks_dal()
@@ -318,6 +332,7 @@ mod tests {
             100,
             Default::default(),
             ProtocolVersionId::latest(),
+            SettlementLayer::for_tests(),
         );
         conn.blocks_dal()
             .insert_l1_batch(l1_batch_header.to_unsealed_header())

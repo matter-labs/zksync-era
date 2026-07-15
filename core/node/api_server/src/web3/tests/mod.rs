@@ -35,7 +35,7 @@ use zksync_types::{
     eth_sender::EthTxFinalityStatus,
     fee_model::{BatchFeeInput, FeeParams},
     get_deployer_key, get_nonce_key,
-    settlement::SettlementLayer,
+    settlement::WorkingSettlementLayer,
     storage::get_code_key,
     system_contracts::get_system_smart_contracts,
     tx::IncludedTxLocation,
@@ -60,7 +60,9 @@ use zksync_web3_decl::{
 
 use super::*;
 use crate::{
-    testonly::{mock_execute_transaction, store_custom_l2_block},
+    testonly::{
+        mock_execute_transaction, persist_sealed_batch_with_call_trace, store_custom_l2_block,
+    },
     tx_sender::SandboxExecutorOptions,
     web3::{state::InternalApiConfigBase, testonly::TestServerBuilder},
 };
@@ -212,7 +214,7 @@ impl StorageInitialization {
                 .unwrap();
 
                 if storage.blocks_dal().is_genesis_needed().await? {
-                    insert_genesis_batch(storage, &params).await?;
+                    insert_genesis_batch(storage, &params.into()).await?;
                 }
                 if evm_emulator {
                     // Enable EVM contract deployment in `ContractDeployer` storage.
@@ -286,7 +288,7 @@ async fn test_http_server(test: impl HttpTest) {
         &contracts_config.l1_specific_contracts(),
         &contracts_config.l2_contracts(),
         &genesis,
-        SettlementLayer::for_tests(),
+        WorkingSettlementLayer::for_tests(),
     );
 
     let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)
@@ -1291,6 +1293,46 @@ impl HttpTest for FeeHistoryTest {
             err,
             ClientError::Call(err) if err.code() == INVALID_PARAMS_CODE
         );
+
+        // Percentiles up to the limit are accepted, yielding a reward matrix of the requested width.
+        const LIMIT: usize = crate::web3::namespaces::eth::FEE_HISTORY_REWARD_PERCENTILES_LIMIT;
+        let history = client
+            .fee_history(
+                2.into(),
+                api::BlockNumber::Latest,
+                Some(vec![50.0_f32; LIMIT]),
+            )
+            .await?;
+        let reward = history.inner.reward.expect("missing reward matrix");
+        assert!(!reward.is_empty());
+        assert!(reward.iter().all(|row| row.len() == LIMIT), "{reward:?}");
+
+        // Exceeding the limit is rejected without allocating the reward matrix.
+        let err = client
+            .fee_history(
+                1.into(),
+                api::BlockNumber::Latest,
+                Some(vec![0.0_f32; LIMIT + 1]),
+            )
+            .await
+            .unwrap_err();
+        assert_matches!(
+            err,
+            ClientError::Call(err) if err.code() == INVALID_PARAMS_CODE
+        );
+
+        // Out-of-range percentiles are rejected.
+        for bad in [-1.0_f32, 100.5, 1_000.0] {
+            let err = client
+                .fee_history(1.into(), api::BlockNumber::Latest, Some(vec![bad]))
+                .await
+                .unwrap_err();
+            assert_matches!(
+                err,
+                ClientError::Call(err) if err.code() == INVALID_PARAMS_CODE,
+                "percentile {bad} should be rejected"
+            );
+        }
         Ok(())
     }
 }

@@ -43,7 +43,7 @@ the most important parts.
 
     - `/zksync_server`: Main sequencer implementation.
     - `/external_node`: A read replica that can sync from the main node.
-    - `/tee_prover`: Implementation of the TEE prover.
+    - `/airbender_prover`: Implementation of the Airbender prover.
 
   - `/node`: Composable node parts.
 

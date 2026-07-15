@@ -1,14 +1,16 @@
 use std::{collections::HashSet, fmt, rc::Rc};
 
 use zksync_contracts::BaseSystemContracts;
+use zksync_system_constants::{BASE_TOKEN_HOLDER_ADDRESS, L2_ASSET_TRACKER_ADDRESS};
 use zksync_test_contracts::{Account, TestContract, TxType};
 use zksync_types::{
     get_deployer_key,
     l2::L2Tx,
     system_contracts::get_system_smart_contracts,
     utils::{deployed_address_create, storage_key_for_eth_balance},
+    web3,
     writes::StateDiffRecord,
-    Address, L1BatchNumber, L2ChainId, StorageKey, Transaction, H256, U256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, StorageKey, Transaction, H256, U256,
 };
 use zksync_vm_interface::Call;
 
@@ -23,6 +25,7 @@ use crate::{
         TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
+    tracers::cycle_estimator::FeatureVector,
     versions::testonly::{
         default_l1_batch, default_system_env, make_address_rich, ContractToDeploy,
     },
@@ -116,6 +119,13 @@ impl VmTesterBuilder {
         slots: impl IntoIterator<Item = (StorageKey, H256)>,
     ) -> Self {
         self.storage_slots = slots.into_iter().collect();
+        self
+    }
+
+    /// Initializes the minimal L2 asset-tracker state required for L1 `to_mint` processing.
+    pub(crate) fn with_l1_base_token_minting(mut self, base_token_asset_id: H256) -> Self {
+        self.storage_slots
+            .extend(l1_base_token_minting_storage_slots(base_token_asset_id));
         self
     }
 
@@ -222,6 +232,46 @@ impl VmTesterBuilder {
     }
 }
 
+fn l1_base_token_minting_storage_slots(base_token_asset_id: H256) -> Vec<(StorageKey, H256)> {
+    // L2AssetTracker slots mirror `forge inspect ...:L2AssetTracker storageLayout`.
+    vec![
+        // L2AssetTracker.L1_CHAIN_ID (slot 204)
+        (
+            StorageKey::new(
+                AccountTreeId::new(L2_ASSET_TRACKER_ADDRESS),
+                H256::from_low_u64_be(204),
+            ),
+            H256::from_low_u64_be(1),
+        ),
+        // L2AssetTracker.BASE_TOKEN_ASSET_ID (slot 205)
+        (
+            StorageKey::new(
+                AccountTreeId::new(L2_ASSET_TRACKER_ADDRESS),
+                H256::from_low_u64_be(205),
+            ),
+            base_token_asset_id,
+        ),
+        // L2AssetTracker.isAssetRegistered[base_token_asset_id] (mapping at slot 203)
+        (
+            mapping_key(L2_ASSET_TRACKER_ADDRESS, base_token_asset_id, 203),
+            H256::from_low_u64_be(1),
+        ),
+        // L2BaseTokenEra.eraAccountBalance[BaseTokenHolder] (mapping at slot 0)
+        (
+            storage_key_for_eth_balance(&BASE_TOKEN_HOLDER_ADDRESS),
+            H256::from_low_u64_be(10_u64.pow(19)),
+        ),
+    ]
+}
+
+fn mapping_key(contract: Address, asset_id: H256, mapping_slot: u64) -> StorageKey {
+    let mut input = [0_u8; 64];
+    input[..32].copy_from_slice(asset_id.as_bytes());
+    input[32..].copy_from_slice(H256::from_low_u64_be(mapping_slot).as_bytes());
+    let key = H256(web3::keccak256(&input));
+    StorageKey::new(AccountTreeId::new(contract), key)
+}
+
 /// Test extensions for VM.
 pub(crate) trait TestedVm:
     VmFactory<StorageView<InMemoryStorage>> + VmInterfaceHistoryEnabled
@@ -308,6 +358,13 @@ pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationPara
 
 pub(crate) trait TestedVmWithCallTracer: TestedVm {
     fn inspect_with_call_tracer(&mut self) -> (VmExecutionResultAndLogs, Vec<Call>);
+}
+
+pub(crate) trait TestedVmWithCycleTracer: TestedVm {
+    /// Executes a single (already pushed) transaction with the Airbender cycle
+    /// feature tracer attached, returning the execution result and the feature
+    /// vector the tracer collected during that transaction.
+    fn inspect_with_cycle_tracer(&mut self) -> (VmExecutionResultAndLogs, FeatureVector);
 }
 
 pub(crate) trait TestedVmWithStorageLimit: TestedVm {

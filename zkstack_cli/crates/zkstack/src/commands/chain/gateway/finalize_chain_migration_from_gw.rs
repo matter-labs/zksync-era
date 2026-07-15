@@ -1,9 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use ethers::{
-    abi::{parse_abi, Address},
-    contract::BaseContract,
-};
+use ethers::{abi::Address, contract::BaseContract};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zkstack_cli_common::{
@@ -20,14 +17,11 @@ use super::{
     messages::message_for_gateway_migration_progress_state,
     migrate_from_gateway::finish_migrate_chain_from_gateway,
 };
+use crate::abi::GATEWAYUTILSABI_ABI;
 
 lazy_static! {
-    static ref GATEWAY_UTILS_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function finishMigrateChainFromGateway(address bridgehubAddr, uint256 migratingChainId, uint256 gatewayChainId, uint256 l2BatchNumber, uint256 l2MessageIndex, uint16 l2TxNumberInBatch, bytes memory message, bytes32[] memory merkleProof) public",
-        ])
-        .unwrap(),
-    );
+    static ref GATEWAY_UTILS_INTERFACE: BaseContract =
+        BaseContract::from(GATEWAYUTILSABI_ABI.clone());
 }
 
 #[derive(Parser, Debug)]

@@ -1,5 +1,85 @@
 # Changelog
 
+## [25.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.2.0...prover-v25.3.0) (2026-04-10)
+
+
+### Features
+
+* **prover-autoscaler:** add max_running_weight cap for scaler targets ([#4744](https://github.com/matter-labs/zksync-era/issues/4744)) ([55382f3](https://github.com/matter-labs/zksync-era/commit/55382f38f47ad754c3ea14d9eb752fd7c18e679b))
+
+
+### Bug Fixes
+
+* **prover-autoscaler:** fix deadlock in k8s event watcher ([#4742](https://github.com/matter-labs/zksync-era/issues/4742)) ([7feb7aa](https://github.com/matter-labs/zksync-era/commit/7feb7aafa339431a002283b0bf767d960fb7258f))
+* **prover-autoscaler:** fix event watcher and running weight cap ([#4746](https://github.com/matter-labs/zksync-era/issues/4746)) ([9c049c4](https://github.com/matter-labs/zksync-era/commit/9c049c4f54b4ead1747b77097b9c59102b94d5cb))
+* **prover-autoscaler:** reliable GPU fallback via pool capping, aggressive mode refactor, and deployment-level stuck detection ([#4750](https://github.com/matter-labs/zksync-era/issues/4750)) ([48da774](https://github.com/matter-labs/zksync-era/commit/48da77497f952db17304432810b8bb295b45c8b2))
+
+## [25.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.1.0...prover-v25.2.0) (2026-03-25)
+
+
+### Features
+
+* Add gcp signer ([#4719](https://github.com/matter-labs/zksync-era/issues/4719)) ([7e54c22](https://github.com/matter-labs/zksync-era/commit/7e54c22b1a8d2c5e0b6ea4e9487f6c48c54cc444))
+* add HTTP compression to API servers and EN sync client ([#4729](https://github.com/matter-labs/zksync-era/issues/4729)) ([43ff240](https://github.com/matter-labs/zksync-era/commit/43ff2405664427fb162775a9bef387113d3762c2))
+
+
+### Bug Fixes
+
+* **prover-autoscaler:** fix resource exhaustion detection and aggr mode ([#4733](https://github.com/matter-labs/zksync-era/issues/4733)) ([f3d81ce](https://github.com/matter-labs/zksync-era/commit/f3d81ced085270a086875ac6187dbee953635831))
+
+## [25.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.0.0...prover-v25.1.0) (2026-03-18)
+
+
+### Features
+
+* **prover:** delete archived jobs after a week ([#4718](https://github.com/matter-labs/zksync-era/issues/4718)) ([a5825da](https://github.com/matter-labs/zksync-era/commit/a5825dae390a3be240b222945f9bac5099ab3251))
+
+
+### Bug Fixes
+
+* automated protocol upgrade for zksync-era-allow-decommits ([#4712](https://github.com/matter-labs/zksync-era/issues/4712)) ([10cab72](https://github.com/matter-labs/zksync-era/commit/10cab726392defb296914a6839f26b48aa61d59f))
+* **db:** rollback stale transactions on pool release and drain pools on shutdown ([#4710](https://github.com/matter-labs/zksync-era/issues/4710)) ([f0114f8](https://github.com/matter-labs/zksync-era/commit/f0114f8a1544d93e9848bb9e62f911adfd759658))
+* **prover:** mark proofs sent_to_server to enable archival ([#4717](https://github.com/matter-labs/zksync-era/issues/4717)) ([0754e6d](https://github.com/matter-labs/zksync-era/commit/0754e6d986d2f275f8c02058a521a7b7bf1ff968))
+
+## [25.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v24.1.0...prover-v25.0.0) (2026-02-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* Update docs for new version ([#4660](https://github.com/matter-labs/zksync-era/issues/4660))
+
+### Features
+
+* Update crypto prover deps ([#4650](https://github.com/matter-labs/zksync-era/issues/4650)) ([0ce00c0](https://github.com/matter-labs/zksync-era/commit/0ce00c0a7c7ef4a88702906519b07fb610acd7ee))
+* Update docs for new version ([#4660](https://github.com/matter-labs/zksync-era/issues/4660)) ([f1255a5](https://github.com/matter-labs/zksync-era/commit/f1255a5f175755087ea77165075fff54ab82aad8))
+
+## [24.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v24.0.0...prover-v24.1.0) (2026-01-27)
+
+
+### Features
+
+* **prover:** Add aggressive mode for prover_autoscaler ([#4605](https://github.com/matter-labs/zksync-era/issues/4605)) ([f5471a3](https://github.com/matter-labs/zksync-era/commit/f5471a3348a6c53280ee770b19bf98053a9db8b5))
+
+## [24.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v23.2.0...prover-v24.0.0) (2026-01-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* Force update prover release ([#4626](https://github.com/matter-labs/zksync-era/issues/4626))
+
+### Features
+
+* Force update prover release ([#4626](https://github.com/matter-labs/zksync-era/issues/4626)) ([296a74e](https://github.com/matter-labs/zksync-era/commit/296a74ea4bece1e0181ed8a3e04275468cc2b340))
+* Update crypto dependencies ([#4618](https://github.com/matter-labs/zksync-era/issues/4618)) ([1524b9b](https://github.com/matter-labs/zksync-era/commit/1524b9ba3437106c752f09cc0739876a01e38b77))
+
+## [23.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v23.1.0...prover-v23.2.0) (2025-12-17)
+
+
+### Features
+
+* **crypto:** Update crypto deps ([#4587](https://github.com/matter-labs/zksync-era/issues/4587)) ([c5e7152](https://github.com/matter-labs/zksync-era/commit/c5e7152c7908b8f253f111b359d0fa9f4548da62))
+* Improve proving networks setup ([#4563](https://github.com/matter-labs/zksync-era/issues/4563)) ([42c3f0f](https://github.com/matter-labs/zksync-era/commit/42c3f0f4efe1975f734c8e0d45a43007cc2ff9f7))
+
 ## [23.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v23.0.0...prover-v23.1.0) (2025-10-21)
 
 

@@ -7,10 +7,18 @@ use tokio::{
     sync::{mpsc, watch, Mutex},
     task::JoinHandle,
 };
-use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
+use tower_http::{
+    compression::{
+        predicate::{DefaultPredicate, Predicate, SizeAbove},
+        CompressionLayer,
+    },
+    cors::CorsLayer,
+    metrics::InFlightRequestsLayer,
+};
 use zksync_config::configs::api::{MaxResponseSize, MaxResponseSizeOverrides, Namespace};
 use zksync_dal::{helpers::wait_for_l1_batch, ConnectionPool, Core};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_object_store::ObjectStore;
 use zksync_shared_resources::{
     api::{BridgeAddressesHandle, SyncState},
     tree::TreeApiClient,
@@ -107,6 +115,7 @@ struct OptionalApiParams {
     mempool_cache: Option<MempoolCache>,
     extended_tracing: bool,
     l2_l1_log_proof_handler: Option<Box<DynClient<L2>>>,
+    object_store: Option<Arc<dyn ObjectStore>>,
 }
 
 /// Structure capable of spawning a configured Web3 API server along with all the required
@@ -271,6 +280,11 @@ impl ApiBuilder {
         self
     }
 
+    pub fn with_object_store(mut self, object_store: Arc<dyn ObjectStore>) -> Self {
+        self.optional.object_store = Some(object_store);
+        self
+    }
+
     // Intended for tests only.
     #[doc(hidden)]
     fn with_method_tracer(mut self, method_tracer: Arc<MethodTracer>) -> Self {
@@ -347,6 +361,7 @@ impl ApiServer {
             bridge_addresses_handle: self.bridge_addresses_handle,
             tree_api: self.optional.tree_api,
             l2_l1_log_proof_handler: self.optional.l2_l1_log_proof_handler,
+            object_store: self.optional.object_store,
         })
     }
 
@@ -564,15 +579,6 @@ impl ApiServer {
         );
         let rpc = Self::override_method_response_sizes(rpc, &max_response_size_overrides)?;
 
-        // Setup CORS.
-        let cors = is_http.then(|| {
-            CorsLayer::new()
-                // Allow `POST` when accessing the resource
-                .allow_methods([http::Method::POST])
-                // Allow requests from any origin
-                .allow_origin(tower_http::cors::Any)
-                .allow_headers([http::header::CONTENT_TYPE])
-        });
         // Setup metrics for the number of in-flight requests.
         let (in_flight_requests, counter) = InFlightRequestsLayer::pair();
         tokio::spawn(
@@ -581,13 +587,8 @@ impl ApiServer {
                 future::ready(())
             }),
         );
-        // Assemble server middleware.
-        let middleware = tower::ServiceBuilder::new()
-            .layer(in_flight_requests)
-            .option_layer(cors);
 
-        // Settings shared by HTTP and WS servers.
-        let max_connections = !is_http
+        let max_connections = (!is_http)
             .then_some(subscriptions_limit)
             .flatten()
             .unwrap_or(5_000);
@@ -622,24 +623,40 @@ impl ApiServer {
                 })
             }));
 
-        let server_builder = ServerBuilder::default()
-            .max_connections(max_connections as u32)
-            .set_http_middleware(middleware)
-            .max_response_body_size(response_body_size_limit)
-            .set_batch_request_config(batch_request_config)
-            .set_rpc_middleware(rpc_middleware);
-
         let (local_addr, server_handle) = if is_http {
-            // HTTP-specific settings
-            let server = server_builder
+            let cors = CorsLayer::new()
+                .allow_methods([http::Method::POST])
+                .allow_origin(tower_http::cors::Any)
+                .allow_headers([http::header::CONTENT_TYPE]);
+            // Skip responses under 1KB where compression overhead exceeds bandwidth savings.
+            let middleware = tower::ServiceBuilder::new()
+                .layer(in_flight_requests)
+                .layer(cors)
+                .layer(
+                    CompressionLayer::new()
+                        .no_br()
+                        .no_deflate()
+                        .compress_when(DefaultPredicate::new().and(SizeAbove::new(1024))),
+                );
+            let server = ServerBuilder::default()
+                .max_connections(max_connections as u32)
+                .set_http_middleware(middleware)
+                .max_response_body_size(response_body_size_limit)
+                .set_batch_request_config(batch_request_config)
+                .set_rpc_middleware(rpc_middleware)
                 .http_only()
                 .build(addr)
                 .await
                 .context("Failed building HTTP JSON-RPC server")?;
             (server.local_addr(), server.start(rpc))
         } else {
-            // WS-specific settings
-            let server = server_builder
+            let middleware = tower::ServiceBuilder::new().layer(in_flight_requests);
+            let server = ServerBuilder::default()
+                .max_connections(max_connections as u32)
+                .set_http_middleware(middleware)
+                .max_response_body_size(response_body_size_limit)
+                .set_batch_request_config(batch_request_config)
+                .set_rpc_middleware(rpc_middleware)
                 .set_id_provider(EthSubscriptionIdProvider)
                 .build(addr)
                 .await

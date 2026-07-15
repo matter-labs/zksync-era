@@ -98,8 +98,186 @@ impl FromStr for PubdataType {
     }
 }
 
-#[derive(Default, Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display)]
+#[repr(u8)]
+pub enum L2DACommitmentScheme {
+    None = 0,
+    EmptyNoDA = 1,
+    PubdataKeccak256 = 2,
+    BlobsAndPubdataKeccak256 = 3,
+    BlobsZksyncOS = 4,
+}
+
+impl L2DACommitmentScheme {
+    pub fn is_none(&self) -> bool {
+        *self == L2DACommitmentScheme::None
+    }
+}
+
+impl TryFrom<u8> for L2DACommitmentScheme {
+    type Error = &'static str;
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(L2DACommitmentScheme::None),
+            1 => Ok(L2DACommitmentScheme::EmptyNoDA),
+            2 => Ok(L2DACommitmentScheme::PubdataKeccak256),
+            3 => Ok(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+            _ => Err("Invalid L2DACommitmentScheme value"),
+        }
+    }
+}
+
+impl FromStr for L2DACommitmentScheme {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "None" => Ok(Self::None),
+            "EmptyNoDA" => Ok(Self::EmptyNoDA),
+            "PubdataKeccak256" => Ok(Self::PubdataKeccak256),
+            "BlobsAndPubdataKeccak256" => Ok(Self::BlobsAndPubdataKeccak256),
+            _ => Err("Incorrect L2 DA commitment scheme; expected one of `None`, `EmptyNoDA`, `PubdataKeccak256`, `BlobsAndPubdataKeccak256`"),
+        }
+    }
+}
+
+#[derive(Copy, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum L2PubdataValidator {
+    Address(Address),
+    CommitmentScheme(L2DACommitmentScheme),
+}
+
+impl TryFrom<(Option<Address>, Option<L2DACommitmentScheme>)> for L2PubdataValidator {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        value: (Option<Address>, Option<L2DACommitmentScheme>),
+    ) -> Result<Self, Self::Error> {
+        match value {
+            (None, Some(scheme)) => Ok(L2PubdataValidator::CommitmentScheme(scheme)),
+            (Some(address), None) => Ok(L2PubdataValidator::Address(address)),
+            (Some(_), Some(_)) => anyhow::bail!(
+                "Address and L2DACommitmentScheme are specified, should be chosen only one"
+            ),
+            (None, None) => anyhow::bail!(
+                "Address and L2DACommitmentScheme are not specified, should be chosen at least one"
+            ),
+        }
+    }
+}
+
+impl L2PubdataValidator {
+    pub fn l2_da_validator(&self) -> Option<Address> {
+        match self {
+            L2PubdataValidator::Address(addr) => Some(*addr),
+            L2PubdataValidator::CommitmentScheme(_) => None,
+        }
+    }
+
+    pub fn l2_da_commitment_scheme(&self) -> Option<L2DACommitmentScheme> {
+        match self {
+            L2PubdataValidator::Address(_) => None,
+            L2PubdataValidator::CommitmentScheme(scheme) => Some(*scheme),
+        }
+    }
+}
+
+#[derive(Copy, Debug, Clone, PartialEq)]
 pub struct PubdataParams {
-    pub l2_da_validator_address: Address,
-    pub pubdata_type: PubdataType,
+    pubdata_validator: L2PubdataValidator,
+    pubdata_type: PubdataType,
+}
+
+// TODO Remove custom serialization once ENs v31 is done.
+impl Serialize for PubdataParams {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        // Emit both the new `pubdata_validator` field and the legacy
+        // `l2_da_validator_address` field (when the validator is an address) so
+        // that ENs that predate PR #4730 can still deserialize this struct.
+        // The `CommitmentScheme` variant is new in v31 and has no old equivalent;
+        // old ENs will fail on those batches regardless.
+        let has_legacy_addr = self.pubdata_validator.l2_da_validator().is_some();
+        let mut state =
+            serializer.serialize_struct("PubdataParams", if has_legacy_addr { 3 } else { 2 })?;
+        state.serialize_field("pubdata_validator", &self.pubdata_validator)?;
+        state.serialize_field("pubdata_type", &self.pubdata_type)?;
+        if let Some(addr) = self.pubdata_validator.l2_da_validator() {
+            state.serialize_field("l2_da_validator_address", &addr)?;
+        }
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for PubdataParams {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Accept both old and new field names so that either side of a
+        // mixed-version deployment (server newer than EN, or EN newer than server)
+        // can parse what the other side sends.
+        // Old format: { "l2_da_validator_address": "0x...", "pubdata_type": "Rollup" }
+        // New format: { "pubdata_validator": { "Address": "0x..." }, "pubdata_type": "Rollup" }
+        #[derive(Deserialize)]
+        struct Helper {
+            pubdata_validator: Option<L2PubdataValidator>,
+            /// Legacy field name used before PR #4730.
+            l2_da_validator_address: Option<Address>,
+            pubdata_type: PubdataType,
+        }
+
+        let h = Helper::deserialize(deserializer)?;
+        let pubdata_validator = match (h.pubdata_validator, h.l2_da_validator_address) {
+            (Some(v), _) => v,
+            (None, Some(addr)) => L2PubdataValidator::Address(addr),
+            (None, None) => {
+                return Err(serde::de::Error::missing_field("pubdata_validator"));
+            }
+        };
+        PubdataParams::new(pubdata_validator, h.pubdata_type).map_err(serde::de::Error::custom)
+    }
+}
+
+impl PubdataParams {
+    pub fn new(
+        pubdata_validator: L2PubdataValidator,
+        pubdata_type: PubdataType,
+    ) -> anyhow::Result<Self> {
+        if L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::None) == pubdata_validator {
+            anyhow::bail!("L2DACommitmentScheme::None is not allowed as a legit pubdata parameter");
+        };
+
+        Ok(PubdataParams {
+            pubdata_validator,
+            pubdata_type,
+        })
+    }
+
+    pub fn pubdata_validator(&self) -> L2PubdataValidator {
+        self.pubdata_validator
+    }
+
+    pub fn pubdata_type(&self) -> PubdataType {
+        self.pubdata_type
+    }
+
+    pub fn genesis() -> Self {
+        PubdataParams {
+            pubdata_validator: L2PubdataValidator::CommitmentScheme(
+                L2DACommitmentScheme::BlobsAndPubdataKeccak256,
+            ),
+            pubdata_type: PubdataType::Rollup,
+        }
+    }
+
+    pub fn pre_gateway() -> Self {
+        PubdataParams {
+            pubdata_validator: L2PubdataValidator::Address(Address::zero()),
+            pubdata_type: Default::default(),
+        }
+    }
 }

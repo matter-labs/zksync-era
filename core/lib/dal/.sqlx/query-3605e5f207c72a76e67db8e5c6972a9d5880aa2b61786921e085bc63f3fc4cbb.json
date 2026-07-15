@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batch_number,\n                hash,\n                protocol_version\n            FROM\n                miniblocks\n            WHERE\n                number = $1\n                AND l1_batch_number IS NOT NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "protocol_version",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "3605e5f207c72a76e67db8e5c6972a9d5880aa2b61786921e085bc63f3fc4cbb"
+}

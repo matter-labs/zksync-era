@@ -41,6 +41,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             total_log_queries: total_log_queries_count,
             pubdata_published,
             circuit_statistic: Default::default(),
+            cycle_features: Default::default(),
         }
     }
 

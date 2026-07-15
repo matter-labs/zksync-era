@@ -304,6 +304,7 @@ fn parsing_from_full_env() {
 
         # API component config
         EN_API_TREE_API_REMOTE_URL=http://tree/
+        EN_API_WEB3_JSON_RPC_TREE_API_REQUEST_TIMEOUT_SEC=45
         # Tree component config
         EN_TREE_API_PORT=2955
 
@@ -563,6 +564,7 @@ fn avail_da_client_from_env() {
         EN_DA_AVAIL_CLIENT_TYPE="FullClient"
         EN_DA_BRIDGE_API_URL="localhost:54321"
         EN_DA_TIMEOUT_MS="2000"
+        EN_DA_API_CLIENT_TIMEOUT_SEC="90"
         EN_DA_API_NODE_URL="localhost:12345"
         EN_DA_APP_ID="1"
         EN_DA_FINALITY_STATE="inBlock"

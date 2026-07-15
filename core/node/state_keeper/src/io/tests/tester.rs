@@ -10,6 +10,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
     clients::{DynClient, MockSettlementLayer, L1},
+    web3_decl::node::SettlementModeResource,
     BaseFees,
 };
 use zksync_multivm::{
@@ -28,15 +29,15 @@ use zksync_node_test_utils::{
 };
 use zksync_types::{
     block::L2BlockHeader,
-    commitment::L1BatchCommitmentMode,
+    commitment::{L1BatchCommitmentMode, L2DACommitmentScheme},
     fee_model::{BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
-    settlement::SettlementLayer,
+    settlement::WorkingSettlementLayer,
     system_contracts::get_system_smart_contracts,
-    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, SLChainId,
-    TransactionTimeRangeConstraint, H256,
+    L1ChainId, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
+    TransactionTimeRangeConstraint, H256, U256,
 };
 
 use crate::{MempoolGuard, MempoolIO};
@@ -116,6 +117,7 @@ impl Tester {
                 max_gas_per_batch: 500_000_000_000,
                 max_pubdata_per_batch: 100_000_000_000,
             }),
+            U256::zero(),
         )
     }
 
@@ -127,6 +129,15 @@ impl Tester {
     pub(super) async fn create_test_mempool_io(
         &self,
         pool: ConnectionPool<Core>,
+    ) -> (MempoolIO, MempoolGuard) {
+        self.create_test_mempool_io_with_settlement_mode(pool, WorkingSettlementLayer::for_tests())
+            .await
+    }
+
+    pub(super) async fn create_test_mempool_io_with_settlement_mode(
+        &self,
+        pool: ConnectionPool<Core>,
+        settlement_mode: WorkingSettlementLayer,
     ) -> (MempoolIO, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
@@ -140,9 +151,9 @@ impl Tester {
                 max_gas_per_batch: 500_000_000_000,
                 max_pubdata_per_batch: 100_000_000_000,
             }),
+            U256::zero(),
         );
 
-        let chain_id = SLChainId(505);
         let mempool = MempoolGuard::new(PriorityOpId(0), 100, None, None);
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
@@ -159,8 +170,9 @@ impl Tester {
             Duration::from_secs(1),
             L2ChainId::from(270),
             Some(Default::default()),
+            Some(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
             Default::default(),
-            Some(SettlementLayer::L1(chain_id)),
+            SettlementModeResource::new(settlement_mode),
         )
         .unwrap();
 
@@ -183,6 +195,7 @@ impl Tester {
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
                 L1VerifierConfig::default(),
+                L1ChainId(9),
             )
             .await
             .unwrap();

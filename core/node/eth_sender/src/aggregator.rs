@@ -1,12 +1,15 @@
 use std::{sync::Arc, time::Duration};
 
 use chrono::Utc;
-use zksync_config::configs::eth_sender::{PrecommitParams, ProofSendingMode, SenderConfig};
+use zksync_airbender_prover_interface::outputs::L1BatchAirbenderSnarkProofForL1;
+use zksync_config::configs::eth_sender::{
+    PrecommitParams, ProofSendingMode, ProverType, SenderConfig,
+};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{blocks_dal::TxForPrecommit, Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_object_store::{ObjectStore, ObjectStoreError, StoredObject};
 use zksync_prover_interface::outputs::{L1BatchProofForL1, L1BatchProofForL1Key};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
@@ -234,6 +237,7 @@ impl Aggregator {
         priority_tree_start_index: Option<usize>,
         precommit_params: Option<&PrecommitParams>,
         execution_delay: Duration,
+        is_gateway: bool,
     ) -> Result<Option<AggregatedOperation>, EthSenderError> {
         let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
@@ -250,6 +254,7 @@ impl Aggregator {
                 self.config.max_aggregated_blocks_to_execute as usize,
                 last_sealed_l1_batch_number,
                 priority_tree_start_index,
+                is_gateway,
                 execution_delay,
             )
             .await?,
@@ -283,6 +288,7 @@ impl Aggregator {
     async fn get_or_init_tree(
         &mut self,
         priority_tree_start_index: usize,
+        priority_tree_last_executed_index: usize,
     ) -> &mut MiniMerkleTree<L1Tx> {
         if self.priority_merkle_tree.is_none() {
             // We unwrap here since it is only invoked during initialization
@@ -291,7 +297,10 @@ impl Aggregator {
             // We unwrap here since it is only invoked only once during initialization
             let priority_op_hashes = connection
                 .transactions_dal()
-                .get_l1_transactions_hashes(priority_tree_start_index)
+                .get_l1_transactions_hashes(
+                    priority_tree_start_index,
+                    priority_tree_last_executed_index,
+                )
                 .await
                 .unwrap();
             let priority_merkle_tree = MiniMerkleTree::<L1Tx>::from_hashes(
@@ -409,6 +418,7 @@ impl Aggregator {
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
         priority_tree_start_index: Option<usize>,
+        is_gateway: bool,
         execution_delay: Duration,
     ) -> Result<Option<ExecuteBatches>, EthSenderError> {
         let mut max_l1_batch_timestamp_millis =
@@ -426,7 +436,11 @@ impl Aggregator {
         }
         let ready_for_execute_batches = storage
             .blocks_dal()
-            .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)
+            .get_ready_for_execute_l1_batches(
+                limit,
+                max_l1_batch_timestamp_millis,
+                self.config.prover,
+            )
             .await
             .unwrap();
         let Some(l1_batches) = extract_ready_subrange(
@@ -434,7 +448,7 @@ impl Aggregator {
             &mut self.execute_criteria,
             ready_for_execute_batches,
             last_sealed_l1_batch,
-            self.settlement_layer.is_gateway(),
+            is_gateway,
         )
         .await
         else {
@@ -460,26 +474,46 @@ impl Aggregator {
                 l1_batches,
                 priority_ops_proofs: vec![Default::default(); length],
                 dependency_roots,
+                logs: vec![],
+                messages: vec![],
+                message_roots: vec![],
             }));
         };
 
-        let priority_merkle_tree = self.get_or_init_tree(priority_tree_start_index).await;
+        // Initialize the priority ops merkle tree at the point it was left after the last executed batch.
+        // If it was the very first batch we use the provided start index and fill the tree from scratch.
+        let let_last_executed_priorty_op_id = storage
+            .blocks_dal()
+            .get_last_executed_priority_op_id()
+            .await
+            .unwrap()
+            .unwrap_or(priority_tree_start_index);
+
+        let priority_merkle_tree = self
+            .get_or_init_tree(priority_tree_start_index, let_last_executed_priorty_op_id)
+            .await;
 
         let mut priority_ops_proofs = vec![];
+        let mut all_logs = vec![];
+        let mut all_messages = vec![];
+        let mut all_message_roots = vec![];
         for batch in &l1_batches {
-            let first_priority_op_id_option = storage
+            let priority_ops_in_batch = storage
                 .blocks_dal()
-                .get_batch_first_priority_op_id(batch.header.number)
+                .get_batch_first_and_last_priority_op_id(batch.header.number)
                 .await
                 .unwrap()
-                .filter(|id| *id >= priority_tree_start_index);
+                .filter(|(first_id, _last_id)| *first_id >= priority_tree_start_index);
 
             let count = batch.header.l1_tx_count as usize;
-            if let Some(first_priority_op_id_in_batch) = first_priority_op_id_option {
+            if let Some((first_priority_op_id_in_batch, last_priority_op_id_in_batch)) =
+                priority_ops_in_batch
+            {
                 let new_l1_tx_hashes = storage
                     .transactions_dal()
                     .get_l1_transactions_hashes(
                         priority_tree_start_index + priority_merkle_tree.length(),
+                        last_priority_op_id_in_batch,
                     )
                     .await
                     .unwrap();
@@ -505,12 +539,23 @@ impl Aggregator {
             } else {
                 priority_ops_proofs.push(Default::default());
             }
+            if is_gateway {
+                let message_root = batch
+                    .metadata
+                    .aggregation_root
+                    .ok_or(EthSenderError::MissingAggregationRoot(batch.header.number))?;
+                all_logs.push(batch.header.l2_to_l1_logs.clone());
+                all_messages.push(batch.header.l2_to_l1_messages.clone());
+                all_message_roots.push(message_root);
+            }
         }
-
         Ok(Some(ExecuteBatches {
             l1_batches,
             priority_ops_proofs,
             dependency_roots,
+            logs: all_logs,
+            messages: all_messages,
+            message_roots: all_message_roots,
         }))
     }
 
@@ -535,11 +580,11 @@ impl Aggregator {
 
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
-            .get_last_committed_to_eth_l1_batch()
+            .get_last_committed_to_eth_l1_batch(self.config.prover)
             .await
             .unwrap()?;
 
-        let ready_for_commit_l1_batches = if protocol_version_id.is_pre_boojum() {
+        let mut ready_for_commit_l1_batches = if protocol_version_id.is_pre_boojum() {
             blocks_dal
                 .pre_boojum_get_ready_for_commit_l1_batches(
                     limit,
@@ -558,10 +603,19 @@ impl Aggregator {
                     protocol_version_id,
                     self.commitment_mode != L1BatchCommitmentMode::Rollup,
                     send_precommit_tx,
+                    self.config.prover,
                 )
                 .await
                 .unwrap()
         };
+
+        // When the Airbender prover is active, a batch can only be committed once its
+        // Airbender FRI proof has been produced (`proof_blob_url IS NOT NULL`). Keep
+        // only the leading prefix of batches that satisfy this, preserving sequentiality.
+        if self.config.prover == ProverType::Airbender {
+            ready_for_commit_l1_batches =
+                Self::filter_airbender_fri_proven(storage, ready_for_commit_l1_batches).await;
+        }
 
         // Check that the L1 batches that are selected are sequential
         ready_for_commit_l1_batches
@@ -611,7 +665,7 @@ impl Aggregator {
 
         match pubdata_params {
             Some(p) => {
-                let commitment_mode = L1BatchCommitmentMode::from(p.pubdata_type);
+                let commitment_mode = L1BatchCommitmentMode::from(p.pubdata_type());
 
                 if commitment_mode == L1BatchCommitmentMode::Rollup
                     && self.pubdata_da == PubdataSendingMode::Custom
@@ -644,10 +698,11 @@ impl Aggregator {
     async fn load_dummy_proof_operations(
         storage: &mut Connection<'_, Core>,
         is_4844_mode: bool,
+        prover: ProverType,
     ) -> Vec<L1BatchWithMetadata> {
         let mut ready_for_proof_l1_batches = storage
             .blocks_dal()
-            .get_ready_for_dummy_proof_l1_batches(1)
+            .get_ready_for_dummy_proof_l1_batches(1, prover)
             .await
             .unwrap();
 
@@ -689,6 +744,7 @@ impl Aggregator {
         l1_verifier_config: L1VerifierConfig,
         blob_store: &dyn ObjectStore,
         is_4844_mode: bool,
+        prover: ProverType,
     ) -> Option<ProveBatches> {
         let previous_proven_batch_number = storage
             .blocks_dal()
@@ -746,16 +802,26 @@ impl Aggregator {
             })
             .collect();
 
-        let proof =
-            load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, &allowed_versions).await;
+        let proof = match prover {
+            ProverType::Boojum => {
+                load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, &allowed_versions)
+                    .await
+            }
+            ProverType::Airbender => {
+                load_airbender_snark_proof(batch_to_prove, blob_store, &allowed_versions).await
+            }
+        };
         let Some(proof) = proof else {
             // The proof for the next L1 batch is not generated yet
             return None;
         };
 
+        // The `StoredBatchInfo` of both the previous and the proven batch must match what the
+        // L1 contract stored at commit time, which for the Airbender prover is the
+        // Airbender-shape commitment.
         let previous_proven_batch_metadata = storage
             .blocks_dal()
-            .get_l1_batch_metadata(previous_proven_batch_number)
+            .get_l1_batch_metadata_with_prover(previous_proven_batch_number, prover)
             .await
             .unwrap()
             .unwrap_or_else(|| {
@@ -766,14 +832,11 @@ impl Aggregator {
             });
         let metadata_for_batch_being_proved = storage
             .blocks_dal()
-            .get_l1_batch_metadata(previous_proven_batch_number + 1)
+            .get_l1_batch_metadata_with_prover(batch_to_prove, prover)
             .await
             .unwrap()
             .unwrap_or_else(|| {
-                panic!(
-                    "L1 batch #{} with generated proof is not complete in the DB",
-                    previous_proven_batch_number + 1
-                );
+                panic!("L1 batch #{batch_to_prove} with generated proof is not complete in the DB");
             });
 
         Some(ProveBatches {
@@ -782,6 +845,30 @@ impl Aggregator {
             proofs: vec![proof],
             should_verify: true,
         })
+    }
+
+    /// Truncates `batches` to the leading prefix whose Airbender FRI proof has been
+    /// produced (`airbender_proof_generation_details.proof_blob_url IS NOT NULL`).
+    /// Batches are sequential, so the first one without a proof stops the range.
+    async fn filter_airbender_fri_proven(
+        storage: &mut Connection<'_, Core>,
+        batches: Vec<L1BatchWithMetadata>,
+    ) -> Vec<L1BatchWithMetadata> {
+        let batch_numbers: Vec<_> = batches.iter().map(|batch| batch.header.number).collect();
+        let proven = storage
+            .airbender_proof_generation_dal()
+            .get_airbender_fri_proven_batches(&batch_numbers)
+            .await
+            .unwrap();
+
+        let mut result = Vec::with_capacity(batches.len());
+        for batch in batches {
+            if !proven.contains(&batch.header.number) {
+                break;
+            }
+            result.push(batch);
+        }
+        result
     }
 
     async fn prepare_dummy_proof_operation(
@@ -802,7 +889,7 @@ impl Aggregator {
         let prev_l1_batch_number = batches.first().map(|batch| batch.header.number - 1)?;
         let prev_batch = storage
             .blocks_dal()
-            .get_l1_batch_metadata(prev_l1_batch_number)
+            .get_l1_batch_metadata_with_prover(prev_l1_batch_number, self.config.prover)
             .await
             .unwrap()?;
 
@@ -827,13 +914,18 @@ impl Aggregator {
                     l1_verifier_config,
                     &*self.blob_store,
                     self.operate_4844_mode,
+                    self.config.prover,
                 )
                 .await
             }
 
             ProofSendingMode::SkipEveryProof => {
-                let ready_for_proof_l1_batches =
-                    Self::load_dummy_proof_operations(storage, self.operate_4844_mode).await;
+                let ready_for_proof_l1_batches = Self::load_dummy_proof_operations(
+                    storage,
+                    self.operate_4844_mode,
+                    self.config.prover,
+                )
+                .await;
                 self.prepare_dummy_proof_operation(
                     storage,
                     ready_for_proof_l1_batches,
@@ -849,6 +941,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &*self.blob_store,
                     self.operate_4844_mode,
+                    self.config.prover,
                 )
                 .await
                 {
@@ -856,7 +949,7 @@ impl Aggregator {
                 } else {
                     let ready_for_proof_batches = storage
                         .blocks_dal()
-                        .get_skipped_for_proof_l1_batches(1)
+                        .get_skipped_for_proof_l1_batches(1, self.config.prover)
                         .await
                         .unwrap();
                     self.prepare_dummy_proof_operation(
@@ -937,6 +1030,38 @@ fn ready_to_create_precommit_operation(
             >= precommit_params.l2_blocks_to_aggregate
 }
 
+/// Loads the SNARK-wrapped Airbender proof for `l1_batch_number` and decodes it.
+async fn load_airbender_snark_proof(
+    l1_batch_number: L1BatchNumber,
+    blob_store: &dyn ObjectStore,
+    allowed_versions: &[ProtocolSemanticVersion],
+) -> Option<L1BatchProofForL1> {
+    for version in allowed_versions {
+        let snark_proof: L1BatchAirbenderSnarkProofForL1 =
+            match blob_store.get((l1_batch_number, *version)).await {
+                Ok(proof) => proof,
+                Err(ObjectStoreError::KeyNotFound(_)) => continue,
+                Err(err) => panic!(
+                    "Failed to load Airbender SNARK proof for batch {}: {}",
+                    l1_batch_number.0, err
+                ),
+            };
+
+        // The SNARK prover stores a CBOR-encoded `L1BatchProofForL1` (plonk/fflonk), so it can be
+        // submitted through the same path as Boojum proofs.
+        let proof = <L1BatchProofForL1 as StoredObject>::deserialize(snark_proof.snark_proof)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "Failed to deserialize Airbender SNARK proof for batch {}: {}",
+                    l1_batch_number.0, err
+                )
+            });
+        return Some(proof);
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_types::L2BlockNumber;
@@ -1014,5 +1139,137 @@ mod tests {
             &precommit_params,
             current_time
         ));
+    }
+
+    mod airbender {
+        use zksync_node_test_utils::{create_l1_batch, create_l1_batch_metadata};
+        use zksync_object_store::MockObjectStore;
+        use zksync_prover_interface::outputs::AirbenderL1BatchProofForL1;
+
+        use super::*;
+
+        fn test_version() -> ProtocolSemanticVersion {
+            ProtocolSemanticVersion {
+                minor: ProtocolVersionId::latest(),
+                patch: 0.into(),
+            }
+        }
+
+        fn batch_with_metadata(number: u32) -> L1BatchWithMetadata {
+            L1BatchWithMetadata {
+                header: create_l1_batch(number),
+                metadata: create_l1_batch_metadata(number),
+                raw_published_factory_deps: vec![],
+            }
+        }
+
+        /// A SNARK blob whose `snark_proof` bytes are a CBOR-encoded `L1BatchProofForL1`, exactly
+        /// what the proof data handler stores and `load_airbender_snark_proof` expects to decode.
+        fn snark_blob(version: ProtocolSemanticVersion) -> L1BatchAirbenderSnarkProofForL1 {
+            let proof = L1BatchProofForL1::new_airbender(AirbenderL1BatchProofForL1 {
+                proof: vec![0x01, 0x02, 0x03, 0x04],
+                protocol_version: version,
+            });
+            let snark_proof = <L1BatchProofForL1 as StoredObject>::serialize(&proof).unwrap();
+            L1BatchAirbenderSnarkProofForL1 { snark_proof }
+        }
+
+        async fn seed_fri_proof(storage: &mut Connection<'_, Core>, batch: L1BatchNumber) {
+            let mut dal = storage.airbender_proof_generation_dal();
+            dal.insert_airbender_proof_generation_job(batch)
+                .await
+                .unwrap();
+            dal.save_proof_artifacts_metadata(batch, "fri-blob-url", "fri-prover")
+                .await
+                .unwrap();
+        }
+
+        // Commit gating: only the leading prefix of batches with a FRI proof is kept.
+        #[tokio::test]
+        async fn filter_airbender_fri_proven_keeps_proven_prefix() {
+            let pool = ConnectionPool::<Core>::test_pool().await;
+            let mut storage = pool.connection().await.unwrap();
+
+            seed_fri_proof(&mut storage, L1BatchNumber(1)).await;
+            seed_fri_proof(&mut storage, L1BatchNumber(2)).await;
+            // Batch 3 is picked but its FRI proof hasn't been submitted yet.
+            storage
+                .airbender_proof_generation_dal()
+                .insert_airbender_proof_generation_job(L1BatchNumber(3))
+                .await
+                .unwrap();
+
+            let batches = vec![
+                batch_with_metadata(1),
+                batch_with_metadata(2),
+                batch_with_metadata(3),
+            ];
+            let filtered = Aggregator::filter_airbender_fri_proven(&mut storage, batches).await;
+
+            let numbers: Vec<_> = filtered.iter().map(|b| b.header.number.0).collect();
+            assert_eq!(numbers, vec![1, 2]);
+        }
+
+        // A batch with no airbender row at all gates the commit (nothing is returned).
+        #[tokio::test]
+        async fn filter_airbender_fri_proven_stops_at_missing_row() {
+            let pool = ConnectionPool::<Core>::test_pool().await;
+            let mut storage = pool.connection().await.unwrap();
+
+            let filtered =
+                Aggregator::filter_airbender_fri_proven(&mut storage, vec![batch_with_metadata(1)])
+                    .await;
+            assert!(filtered.is_empty());
+        }
+
+        // Prove path: the SNARK proof stored under `(batch, version)` is loaded and decoded when
+        // its version is allowed by L1.
+        #[tokio::test]
+        async fn load_airbender_snark_proof_returns_versioned_proof() {
+            let blob_store = MockObjectStore::arc();
+            let batch = L1BatchNumber(1);
+            let version = test_version();
+
+            blob_store
+                .put((batch, version), &snark_blob(version))
+                .await
+                .unwrap();
+
+            let loaded = load_airbender_snark_proof(batch, &*blob_store, &[version]).await;
+
+            let proof = loaded.expect("proof should be loaded");
+            assert_eq!(proof.protocol_version(), version);
+        }
+
+        // No SNARK proof uploaded yet => nothing to prove.
+        #[tokio::test]
+        async fn load_airbender_snark_proof_returns_none_without_snark() {
+            let blob_store = MockObjectStore::arc();
+            let batch = L1BatchNumber(1);
+
+            let loaded = load_airbender_snark_proof(batch, &*blob_store, &[test_version()]).await;
+            assert!(loaded.is_none());
+        }
+
+        // The proof blob exists, but under a version that isn't in the L1-allowed set => not
+        // loaded, mirroring the Boojum VK-disambiguation behaviour.
+        #[tokio::test]
+        async fn load_airbender_snark_proof_returns_none_for_disallowed_version() {
+            let blob_store = MockObjectStore::arc();
+            let batch = L1BatchNumber(1);
+            let stored_version = test_version();
+            let allowed_version = ProtocolSemanticVersion {
+                minor: ProtocolVersionId::latest(),
+                patch: 1.into(),
+            };
+
+            blob_store
+                .put((batch, stored_version), &snark_blob(stored_version))
+                .await
+                .unwrap();
+
+            let loaded = load_airbender_snark_proof(batch, &*blob_store, &[allowed_version]).await;
+            assert!(loaded.is_none());
+        }
     }
 }

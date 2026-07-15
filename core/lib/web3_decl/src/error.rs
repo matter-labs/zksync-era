@@ -39,6 +39,8 @@ pub enum Web3Error {
     LogsLimitExceeded(usize, u32, u32),
     #[error("invalid filter: if blockHash is supplied fromBlock and toBlock must not be")]
     InvalidFilterBlockHash,
+    #[error("invalid `eth_feeHistory` reward percentiles: {0}")]
+    InvalidFeeHistoryParams(String),
     /// Weaker form of a "method not found" error; the method implementation is technically present,
     /// but the node configuration prevents the method from functioning.
     #[error("Method not implemented")]
@@ -56,6 +58,8 @@ pub enum Web3Error {
     TransactionUnready(String),
     #[error("Invalid timeout. Max timeout is {0}ms")]
     InvalidTimeout(u64),
+    #[error("Invalid transaction request: {0}")]
+    InvalidTransactionRequest(String),
 }
 
 /// Client RPC error with additional details: the method name and arguments of the called method.

@@ -69,6 +69,7 @@ jobs:
       - name: Build
         run: |
           ci_run yarn install
+          ci_run yarn --cwd contracts install --frozen-lockfile
 
       - name: Database setup
         run: |
@@ -76,13 +77,13 @@ jobs:
 
       - name: Lints
         run: |
+          ci_run rm -f .prettier_cache.json .prettier_cache_contracts.json
           ci_run zkstack dev fmt --check
           ci_run zkstack dev lint -t md --check
           ci_run zkstack dev lint -t sol --check
           ci_run zkstack dev lint -t js --check
           ci_run zkstack dev lint -t ts --check
           ci_run zkstack dev lint -t rs --check
-          ci_run zkstack dev lint -t rust-toolchain
           ci_run zkstack dev lint -t autocompletion
 
       - name: Check Database
