@@ -26,6 +26,14 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# All four workspaces edit the shared root deny.toml, so runs must be serialized
+# ACROSS triggers too: max-parallel below only serializes within one run, while a
+# scheduled run, a push run, and a manual run can overlap. `queue: max` queues every
+# run instead of silently replacing the pending one.
+concurrency:
+  group: cargo-deny-ai-fix-${{ github.repository }}
+  queue: max
+
 jobs:
   cargo-deny-ai-fix:
     # A called reusable workflow can only downgrade the caller's GITHUB_TOKEN, so this
@@ -39,10 +47,9 @@ jobs:
       issues: write
     strategy:
       fail-fast: false
-      # All four workspaces share the root deny.toml, so runs are serialized to keep
-      # concurrent AI jobs from producing conflicting policy edits. (Not done with a
-      # shared concurrency group: GitHub keeps at most one pending run per group and
-      # silently drops the rest.)
+      # Serializes the four workspaces WITHIN one run (they all edit the shared root
+      # deny.toml); the workflow-level concurrency group above serializes ACROSS
+      # overlapping runs.
       max-parallel: 1
       matrix:
         workspace:
@@ -53,6 +60,7 @@ jobs:
     uses: ./.github/workflows/cargo-deny-ai-fix-reusable.yml
     with:
       manifest-path: ${{ matrix.workspace.manifest-path }}
+      policy-path: "deny.toml" # the shared root config --config points at, allowed for AI edits
       deny-action-args: "--config ../deny.toml --allow unmaintained --hide-inclusion-graph"
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

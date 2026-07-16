@@ -12,37 +12,45 @@
 #
 # WHAT IT DOES:
 #   1. detect  -> runs `cargo deny check` (same pinned 0.18.6 the PR-time gate's action
-#                 bundles) and fingerprints the failing finding set. Skips the fix if a
-#                 fix PR is open, or a diagnosis issue with the SAME fingerprint is open
-#                 (a changed finding set re-arms it, so an old human-pending issue never
-#                 suppresses new fixable findings). Closes stale diagnosis issues when
-#                 the check is green again.
+#                 bundles) and fingerprints the failing finding set. Skips the fix only
+#                 while an open fix PR or diagnosis issue carries the SAME fingerprint —
+#                 a changed finding set re-arms the workflow (refreshing the existing
+#                 PR/issue), so pending human work never suppresses newly introduced
+#                 findings. Closes stale diagnosis issues when the check is green.
 #   2. ai-fix  -> READ-ONLY job, no publishing credential anywhere on the runner.
-#                 Claude gets file edits + cargo + scoped git subcommands (no gh, no
-#                 rustup), commits fixes locally, and writes a report; the job uploads
-#                 patches + report as an artifact.
+#                 Claude gets file edits + cargo only — NO git, NO gh, NO rustup. It
+#                 edits the working tree and writes a report; after the Claude step
+#                 ends (and the API key is gone from the runner), the job captures the
+#                 tree changes as a raw binary diff and uploads diff + report as an
+#                 artifact.
 #   3. publish -> separate job on a FRESH runner (nothing untrusted ever ran here — a
-#                 malicious build script in ai-fix can't have planted git hooks or
-#                 background processes). Validates the patches only touch the workspace
-#                 (or its deny.toml policy file), applies them with hooks disabled,
-#                 pushes, and opens a PR — or opens/updates a fingerprinted diagnosis
-#                 issue when there are no commits (human-only findings, or dry-run).
-#                 Never merges anything.
+#                 malicious build script in ai-fix can't have planted git hooks,
+#                 fsmonitor/diff helpers, or background processes). Validates the diff
+#                 only touches the workspace (or the policy file), applies it, creates
+#                 a single bot commit, and opens a PR — or force-updates the existing
+#                 fix PR's branch when the finding set changed. With no changes
+#                 (human-only findings, or dry-run) it opens/updates a fingerprinted
+#                 diagnosis issue. Never merges anything.
 #
 # TOKENS / CREDENTIAL ISOLATION:
 #   Rust build scripts and proc macros execute arbitrary code during `cargo build`/
-#   `cargo test`, and code that has run on a runner can persist processes or install
-#   git hooks — so introducing a credential later in the SAME job is not isolation.
-#   Hence the job split: the ai-fix job holds no publishing credential and its
-#   GITHUB_TOKEN is read-only (contents: read); the publishing credential exists only
-#   in the publish job, on a runner where no untrusted code has executed.
-#   Credential preference:
-#     1. GH_APP_ID + GH_APP_PRIVATE_KEY  - a repository-scoped GitHub App; a short-lived
-#        installation token is minted inside the publish job (recommended).
-#     2. GH_PAT                          - long-lived bot PAT fallback (in matter-labs
-#        repos, the same PAT release-please uses: RELEASE_TOKEN).
-#   Either way, PRs/issues come from the bot identity and fix PRs trigger CI (events
-#   from the default GITHUB_TOKEN don't).
+#   `cargo test`, and code that has run on a runner can persist processes, git hooks,
+#   or executable git config (core.fsmonitor, diff.external, gpg.program) — so:
+#     - The publishing credential exists only in the publish job, on a runner where no
+#       untrusted code has executed. Preference: GH_APP_ID + GH_APP_PRIVATE_KEY (a
+#       short-lived repository-scoped installation token minted in the publish job),
+#       falling back to GH_PAT (in matter-labs repos, the same PAT release-please
+#       uses: RELEASE_TOKEN). Either way PRs/issues come from the bot identity and fix
+#       PRs trigger CI (events from the default GITHUB_TOKEN don't).
+#     - Claude cannot invoke git AT ALL (an attacker-planted core.fsmonitor or
+#       diff.external would execute inside Claude's environment, where the Anthropic
+#       credential necessarily lives). A PATH-shadowing wrapper additionally strips
+#       credential env vars from every cargo invocation. Residual risk: same-UID code
+#       can read /proc/<pid>/environ of the Claude process — use a dedicated,
+#       spend-capped workspace API key, and prefer short-lived credentials (Anthropic
+#       workload identity federation, supported by the pinned action) once available
+#       to the org; running cargo in a separate PID/container namespace would close
+#       this fully.
 #
 # CONVENTIONS ALIGNED WITH `AI Security Review` (zksync-prividium):
 #   - All third-party actions are pinned to full commit SHAs (tag noted in a comment);
@@ -58,9 +66,9 @@
 #     since the detect job will still see red + nothing open.
 #
 # REQUIRED SECRETS (pass explicitly from the caller):
-#   ANTHROPIC_API_KEY                  - or CLAUDE_CODE_OAUTH_TOKEN, see claude-code-action docs
-#   GH_APP_ID + GH_APP_PRIVATE_KEY     - preferred publishing credential (or:)
-#   GH_PAT                             - fallback publishing credential
+#   ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN  - exactly one Anthropic credential
+#   GH_APP_ID + GH_APP_PRIVATE_KEY                - preferred publishing credential (or:)
+#   GH_PAT                                        - fallback publishing credential
 #
 # REQUIRED REPO SETUP:
 #   - A `deny.toml` in the repo: either next to the workspace `manifest-path` points at
@@ -68,12 +76,12 @@
 #     `deny-action-args` input (cargo-deny does NOT auto-discover a root config from
 #     nested workspaces, and a relative --config path resolves from the workspace root
 #     directory — e.g. '--config ../deny.toml' for a repo-root config with one-level-deep
-#     workspaces).
+#     workspaces). Set `policy-path` to the same file so AI edits to it pass the
+#     publish job's path boundary.
 #   - Labels are self-created by the publish job on first run (`gh label create ... || true`).
-#   - If several workspaces share one deny.toml, serialize the caller's matrix with
-#     `strategy.max-parallel: 1` so concurrent runs can't produce conflicting policy
-#     edits. (Don't give matrix entries the same concurrency group instead: GitHub
-#     keeps at most ONE pending run per group and silently drops the rest.)
+#   - If several workspaces share one policy file, serialize the caller: workflow-level
+#     `concurrency` with `queue: max` (survives overlapping schedule/push/manual runs)
+#     plus `strategy.max-parallel: 1` on the matrix.
 #
 # RECOMMENDED ROLLOUT: set `dry-run: true` in the caller for the first 1-2 weeks on a
 # repo you haven't run this on before, especially a regulated/customer-facing one like
@@ -91,6 +99,11 @@ on:
         description: "Path to the Cargo.toml of the workspace to check (e.g. 'core/Cargo.toml')"
         required: true
         type: string
+      policy-path:
+        description: "Repo-relative path of the cargo-deny policy file the AI is allowed to edit in addition to the workspace directory (the file `--config` points at). Default: a repo-root deny.toml."
+        required: false
+        type: string
+        default: "deny.toml"
       deny-arguments:
         description: "Top-level cargo-deny arguments placed before the subcommand (default --all-features)."
         required: false
@@ -102,7 +115,7 @@ on:
         type: string
         default: "--hide-inclusion-graph"
       concurrency-key:
-        description: "Overrides the concurrency group key (default: the manifest path). CAUTION: GitHub keeps at most one running and one pending run per group — giving several matrix entries the same key silently drops queued ones. To serialize workspaces that share a deny.toml, prefer strategy.max-parallel: 1 in the caller."
+        description: "Overrides the concurrency group key (default: the manifest path). To serialize workspaces that share a policy file, prefer caller-level concurrency with queue: max plus strategy.max-parallel: 1."
         required: false
         type: string
         default: ""
@@ -122,13 +135,17 @@ on:
         type: string
         default: ".github/cargo-deny-fix-focus.md"
       dry-run:
-        description: "If true, Claude diagnoses and the workflow opens a tracking issue instead of a PR - no commits, no branch. Recommended for the first runs on a new repo."
+        description: "If true, Claude diagnoses and the workflow opens a tracking issue instead of a PR - no changes captured. Recommended for the first runs on a new repo."
         required: false
         type: boolean
         default: false
     secrets:
       ANTHROPIC_API_KEY:
-        required: true
+        description: "Anthropic API key. Provide this or CLAUDE_CODE_OAUTH_TOKEN. Use a dedicated, spend-capped workspace key for this workflow."
+        required: false
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: "Claude Code OAuth token, alternative to ANTHROPIC_API_KEY."
+        required: false
       GH_APP_ID:
         description: "GitHub App ID for minting a short-lived, repository-scoped installation token used by the publish job to push branches and open PRs/issues (preferred over GH_PAT). The app needs contents, pull-requests and issues write permissions."
         required: false
@@ -214,28 +231,36 @@ jobs:
                 /tmp/deny-diagnostics.jsonl | LC_ALL=C sort | sha256sum | cut -d' ' -f1)
           echo "fingerprint=$fp" >> "$GITHUB_OUTPUT"
 
-      # Dedup against both artifacts this workflow produces. A fix PR blocks re-runs
-      # until merged/closed. A diagnosis issue blocks re-runs ONLY while its embedded
-      # fingerprint matches the current finding set — new findings re-arm the
-      # workflow and refresh the issue, so a months-open human decision can't
-      # suppress newly introduced fixable vulnerabilities.
-      - name: Check for an already-open fix PR or up-to-date diagnosis issue
+      # Dedup against both artifacts this workflow produces, by fingerprint in BOTH
+      # cases: an open fix PR or diagnosis issue suppresses re-runs ONLY while its
+      # embedded fingerprint matches the current finding set. A changed set re-arms
+      # the workflow (the publish job then force-updates the PR branch / refreshes
+      # the issue), so a fix PR awaiting review for one finding can't mask a new
+      # critical advisory, and a months-open human decision can't either.
+      - name: Check for an up-to-date open fix PR or diagnosis issue
         id: existing
         if: steps.deny.outputs.failed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          pr_count=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+          marker='s/.*<!-- cargo-deny-fingerprint: \([0-9a-f]\{64\}\) -->.*/\1/p'
+          pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
             --label "cargo-deny-fix" --label "workspace:${{ steps.slug.outputs.slug }}" \
-            --json number --jq 'length')
-          echo "pr_count=$pr_count" >> "$GITHUB_OUTPUT"
+            --json number --jq '.[0].number // empty')
+          pr_fp=""
+          if [[ -n "$pr_number" ]]; then
+            pr_fp=$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" --json body --jq .body \
+              | sed -n "$marker" | head -n1)
+          fi
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          echo "pr_fp=$pr_fp" >> "$GITHUB_OUTPUT"
           issue_number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
             --label "cargo-deny-diagnosis" --label "workspace:${{ steps.slug.outputs.slug }}" \
             --json number --jq '.[0].number // empty')
           issue_fp=""
           if [[ -n "$issue_number" ]]; then
             issue_fp=$(gh issue view "$issue_number" --repo "$GITHUB_REPOSITORY" --json body --jq .body \
-              | sed -n 's/.*<!-- cargo-deny-fingerprint: \([0-9a-f]\{64\}\) -->.*/\1/p' | head -n1)
+              | sed -n "$marker" | head -n1)
           fi
           echo "issue_fp=$issue_fp" >> "$GITHUB_OUTPUT"
 
@@ -256,12 +281,16 @@ jobs:
         id: gate
         run: |
           is_red="${{ steps.deny.outputs.failed }}"
-          pr_count="${{ steps.existing.outputs.pr_count }}"
+          pr_fp="${{ steps.existing.outputs.pr_fp }}"
           issue_fp="${{ steps.existing.outputs.issue_fp }}"
           current_fp="${{ steps.fp.outputs.fingerprint }}"
           should=false
-          if [[ "$is_red" == "true" && "${pr_count:-0}" == "0" ]]; then
-            if [[ -z "$issue_fp" || "$issue_fp" != "$current_fp" ]]; then
+          if [[ "$is_red" == "true" ]]; then
+            if [[ -n "$pr_fp" && "$pr_fp" == "$current_fp" ]]; then
+              echo "Open fix PR already covers this finding set."
+            elif [[ -n "$issue_fp" && "$issue_fp" == "$current_fp" ]]; then
+              echo "Open diagnosis issue already covers this finding set."
+            else
               should=true
             fi
           fi
@@ -278,9 +307,17 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Require an Anthropic credential
+        env:
+          HAS_CRED: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [[ "$HAS_CRED" != "true" ]]; then
+            echo "::error::No Anthropic credential: pass ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN."
+            exit 1
+          fi
+
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          fetch-depth: 0
           # No credential is written to .git/config: cargo build scripts run
           # arbitrary code and must not be able to read a token.
           persist-credentials: false
@@ -303,21 +340,6 @@ jobs:
         working-directory: ${{ needs.detect.outputs.workspace_dir }}
         run: rustup toolchain install
 
-      - name: Configure git identity for commits
-        run: |
-          git config user.name "cargo-deny-bot"
-          git config user.email "cargo-deny-bot@users.noreply.github.com"
-          # A build script could plant .git/hooks/* during cargo build; Claude's
-          # later `git commit` must not execute it with the API key present.
-          git config core.hooksPath /dev/null
-
-      - name: Create local working branch (skipped in dry-run)
-        if: ${{ !inputs.dry-run }}
-        run: |
-          branch="cargo-deny-fix/${{ needs.detect.outputs.workspace_slug }}/wip"
-          git checkout -b "$branch"
-          echo "BRANCH_NAME=$branch" >> "$GITHUB_ENV"
-
       - name: Load optional repo-specific instructions
         id: extra_instructions
         run: |
@@ -333,15 +355,16 @@ jobs:
           fi
 
       # Bash subprocesses inherit the Claude process environment, which necessarily
-      # holds the Anthropic API key — and cargo build scripts / proc macros execute
+      # holds the Anthropic credential — and cargo build scripts / proc macros execute
       # arbitrary code. This PATH-shadowing wrapper strips credential variables from
       # every cargo invocation Claude makes, so they never reach build scripts.
       # Known bypasses are closed elsewhere: `rustup run <tc> cargo` would skip the
       # wrapper, so rustup is not in allowedTools (the toolchain is pre-installed
-      # above); `git -c alias.x='!cmd' x` would exec with the original environment,
-      # so git is scoped to explicit subcommands; a hook planted in .git/hooks by a
-      # build script would fire on Claude's own `git commit`, so core.hooksPath is
-      # neutralized in the identity step above.
+      # above); git is not in allowedTools AT ALL — a build script can plant
+      # executable git config (core.fsmonitor, diff.external, gpg.program, hooks)
+      # that would run inside Claude's environment on its next git command, so the
+      # diff is captured by a workflow step after the Claude process (and the key)
+      # is gone.
       # Still defense in depth, not a guarantee: same-UID code can read
       # /proc/<pid>/environ of the Claude process itself. Mitigate the residual risk
       # by using a dedicated, spend-capped workspace API key for this workflow, and
@@ -357,18 +380,19 @@ jobs:
           # GITHUB_PATH entries are prepended, so the wrapper shadows ~/.cargo/bin/cargo
           echo "$RUNNER_TEMP/toolwrap" >> "$GITHUB_PATH"
 
-      # Claude works OFFLINE: no gh in allowedTools and no write-capable token —
-      # github_token below is this job's read-only GITHUB_TOKEN, used by the action
-      # itself for GitHub API reads.
+      # Claude works OFFLINE and cannot run git or gh — it only edits files, runs
+      # cargo, and writes report files. github_token below is this job's read-only
+      # GITHUB_TOKEN, used by the action itself for GitHub API reads.
       - name: Resolve cargo-deny findings with Claude
         uses: anthropics/claude-code-action@1298632ce7736903d02a1435002705aa2a594a6c # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           claude_args: |
             --max-turns ${{ inputs.max-turns }}
             --model ${{ inputs.model }}
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd:*),Bash(cargo:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git commit:*),Bash(git restore:*)"
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd:*),Bash(cargo:*)"
           prompt: |
             You are diagnosing and (unless told otherwise below) fixing `cargo deny
             check` failures for the workspace at ${{ inputs.manifest-path }} in this
@@ -381,16 +405,17 @@ jobs:
             EVERY workspace, so be extra reluctant to add one and call it out
             explicitly in your report if you do.
 
-            You have no write-capable GitHub credentials: do not push and do not try
-            to use the gh CLI. Publication (PR or tracking issue) is handled by a
-            separate job after you finish, from the report files you write in Step 4.
+            You cannot use git or gh, and you must not commit or push anything.
+            Simply edit files in the working tree; the workflow captures your
+            changes as a diff after you finish, and a separate job creates the
+            branch, commit, and PR (or tracking issue) from your report files.
 
             Run ALL cargo commands from the workspace directory
             (`cd ${{ needs.detect.outputs.workspace_dir }}`): each workspace pins its
             own Rust toolchain via a rust-toolchain file, and rustup resolves that
             file from the current directory, NOT from --manifest-path.
 
-            MODE: ${{ inputs.dry-run && 'DRY RUN - diagnose only, do not commit' || 'FIX - diagnose and commit fixes' }}
+            MODE: ${{ inputs.dry-run && 'DRY RUN - diagnose only, do not modify any files except the report files' || 'FIX - diagnose and fix in the working tree' }}
 
             ## Step 0: Match this repo's existing conventions
             If a deny.toml already exists for this workspace, check whether its
@@ -445,9 +470,8 @@ jobs:
             papers over a real decision.
 
             ## Step 4: Report your work
-            Write two files at the repository root. Do NOT commit them — leave them
-            untracked; the workflow reads them after you finish and handles all
-            publication:
+            Write two files at the repository root (the workflow reads them after you
+            finish and excludes them from the captured diff):
 
             - `cargo-deny-report.md`: a markdown body suitable as a PR description
               (FIX mode with fixes) or a tracking issue (DRY RUN, or nothing safely
@@ -463,35 +487,40 @@ jobs:
               - `needs_license_review`: true if any license or source finding was
                 left unresolved for a human (Step 3).
 
-            If MODE is FIX:
-            - You are already on a local working branch created for this run
-              (`${{ env.BRANCH_NAME }}`) — do not create another branch. Commit your
-              fixes to it in small, clear commits (e.g.
-              "cargo update: bump `tokio` to 1.x for RUSTSEC-2026-XXXX"). Do not push.
-            - If every finding is a Step 3 policy decision (nothing safely fixable),
-              make no commits — the workflow will open a tracking issue from your
-              report instead of a PR.
+            If MODE is FIX and every finding is a Step 3 policy decision (nothing
+            safely fixable), leave the working tree unmodified — the workflow will
+            open a tracking issue from your report instead of a PR.
 
-            If MODE is DRY RUN:
-            - Make no commits at all; only write the two report files.
+            Before finishing, revert any incidental modifications you made that are
+            not part of the fix (temporary files, scratch edits) by restoring the
+            original file contents — everything changed in the working tree becomes
+            part of the proposed PR.
             ${{ steps.extra_instructions.outputs.content != '' && format('
 
             ## Additional repo-specific instructions
             {0}', steps.extra_instructions.outputs.content) || '' }}
 
+      # Runs AFTER the Claude process has exited, so the Anthropic credential is no
+      # longer on the runner: attacker-planted executable git config (fsmonitor,
+      # diff.external, hooks) can no longer reach it. The explicit -c overrides and
+      # --no-ext-diff/--no-textconv keep those helpers from running here at all, and
+      # the raw --binary diff is exactly what the publish job validates and applies.
       - name: Package results for the publish job
         run: |
           if [[ ! -f cargo-deny-report.json || ! -f cargo-deny-report.md ]]; then
             echo "::error::Claude did not produce cargo-deny-report.json / cargo-deny-report.md"
             exit 1
           fi
-          mkdir -p /tmp/cargo-deny-out/patches
+          mkdir -p /tmp/cargo-deny-out
           cp cargo-deny-report.md cargo-deny-report.json /tmp/cargo-deny-out/
           if [[ "${{ inputs.dry-run }}" != "true" ]]; then
-            count=$(git rev-list --count "${GITHUB_SHA}..HEAD")
-            if [[ "$count" -gt 0 ]]; then
-              git format-patch "${GITHUB_SHA}" -o /tmp/cargo-deny-out/patches
-            fi
+            # Intent-to-add so newly created files appear in the diff
+            git -c core.fsmonitor=false -c core.hooksPath=/dev/null add -N .
+            git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
+              diff --binary --no-ext-diff --no-textconv --no-renames \
+              -- . ':(exclude)cargo-deny-report.md' ':(exclude)cargo-deny-report.json' \
+              > /tmp/cargo-deny-out/changes.diff
+            echo "Captured $(grep -c '^diff --git' /tmp/cargo-deny-out/changes.diff || true) changed file(s)"
           fi
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -501,8 +530,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # Fresh runner: no untrusted code has executed here, so no planted git hooks or
-  # lingering processes can observe the publishing credential. Only this job holds it.
+  # Fresh runner: no untrusted code has executed here, so no planted git hooks,
+  # executable git config, or lingering processes can observe the publishing
+  # credential. Only this job holds it.
   publish:
     needs: [detect, ai-fix]
     if: needs.detect.outputs.should_fix == 'true'
@@ -542,7 +572,7 @@ jobs:
           path: /tmp/cargo-deny-out
 
       # Belt and braces: this is a fresh checkout with no hooks, but neutralize the
-      # hook path anyway so nothing can run during git am / git push.
+      # hook path anyway so nothing can run during git apply / git push.
       - name: Disable git hooks and set identity
         run: |
           git config core.hooksPath /dev/null
@@ -559,11 +589,12 @@ jobs:
           gh label create "needs-security-review" --color "B60205" --description "AI left an advisory unresolved for a human to decide" 2>/dev/null || true
           gh label create "needs-license-review" --color "B60205" --description "AI left a license finding unresolved for a human to decide" 2>/dev/null || true
 
-      - name: Publish results (PR for patches, tracking issue otherwise)
+      - name: Publish results (PR for changes, tracking issue otherwise)
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.GH_PAT }}
           SLUG: ${{ needs.detect.outputs.workspace_slug }}
           WS_DIR: ${{ needs.detect.outputs.workspace_dir }}
+          POLICY_PATH: ${{ inputs.policy-path }}
           MANIFEST: ${{ inputs.manifest-path }}
           DRY_RUN: ${{ inputs.dry-run }}
           FP: ${{ needs.detect.outputs.fingerprint }}
@@ -578,8 +609,8 @@ jobs:
             exit 0
           fi
 
-          # Embedded fingerprint lets the detect gate tell "this issue already covers
-          # exactly these findings" from "the finding set changed, re-run".
+          # Embedded fingerprint lets the detect gate tell "this PR/issue already
+          # covers exactly these findings" from "the finding set changed, re-run".
           printf '\n\n<!-- cargo-deny-fingerprint: %s -->\n' "$FP" >> "$out/cargo-deny-report.md"
 
           extra_create=()
@@ -593,37 +624,58 @@ jobs:
             extra_edit+=(--add-label needs-license-review)
           fi
 
-          shopt -s nullglob
-          patches=("$out"/patches/*.patch)
+          if [[ "$DRY_RUN" != "true" && -s "$out/changes.diff" ]]; then
+            git checkout -b cargo-deny-fix-staging
+            git apply --binary --whitespace=nowarn "$out/changes.diff"
 
-          if [[ "$DRY_RUN" != "true" && ${#patches[@]} -gt 0 ]]; then
-            branch="cargo-deny-fix/${SLUG}/$(date +%Y%m%d-%H%M%S)"
-            git checkout -b "$branch"
-            git am "${patches[@]}"
-
-            # The AI job is untrusted: refuse patches that reach outside the
-            # workspace (or a deny.toml policy file) — e.g. workflow files.
-            # --no-renames: rename detection would otherwise report only the
-            # destination path, letting a rename smuggle a deletion outside the
-            # boundary (e.g. .github/workflows/x.yml -> core/x.yml).
-            if [[ "$WS_DIR" == "." ]]; then
-              allowed='.'
-            else
-              allowed="^(${WS_DIR}/|deny\.toml$)"
-            fi
-            bad=$(git diff --no-renames --name-only "${GITHUB_SHA}..HEAD" | grep -Ev "$allowed" || true)
+            # The AI job is untrusted: refuse changes that reach outside the
+            # workspace (or the declared policy file) — e.g. workflow files. NUL
+            # separation keeps exotic filenames from confusing the check; the diff
+            # was generated with --no-renames so every entry is a plain path.
+            bad=""
+            while IFS= read -r -d '' entry; do
+              path="${entry:3}"
+              [[ -z "$path" ]] && continue
+              if [[ "$WS_DIR" == "." || "$path" == "$WS_DIR"/* || "$path" == "$POLICY_PATH" ]]; then
+                continue
+              fi
+              bad+="$path "
+            done < <(git -c core.fsmonitor=false status --porcelain -z)
             if [[ -n "$bad" ]]; then
-              echo "::error::AI patch touches files outside the workspace: $bad"
+              echo "::error::AI changes touch files outside the workspace: $bad"
               exit 1
             fi
 
-            git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${branch}"
-            gh pr create \
-              --head "$branch" \
-              --title "fix(${SLUG}): resolve cargo-deny findings" \
-              --body-file "$out/cargo-deny-report.md" \
-              --label cargo-deny-fix --label "workspace:${SLUG}" \
-              "${extra_create[@]}"
+            git add -A
+            git commit -m "fix(${SLUG}): resolve cargo-deny findings"
+
+            existing_pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+              --label "cargo-deny-fix" --label "workspace:${SLUG}" \
+              --json number,headRefName --jq '.[0] // empty')
+            if [[ -n "$existing_pr" ]]; then
+              # Finding set changed while a fix PR was open: refresh that PR in
+              # place (force-push its branch, replace body and review labels).
+              pr_number=$(jq -r '.number' <<<"$existing_pr")
+              head_ref=$(jq -r '.headRefName' <<<"$existing_pr")
+              git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${head_ref}"
+              gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" \
+                --remove-label needs-security-review --remove-label needs-license-review \
+                >/dev/null 2>&1 || true
+              gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" \
+                --body-file "$out/cargo-deny-report.md" "${extra_edit[@]}"
+              gh pr comment "$pr_number" --repo "$GITHUB_REPOSITORY" \
+                --body "The cargo-deny finding set changed; this PR was regenerated against the current default branch."
+              echo "Updated fix PR #$pr_number"
+            else
+              branch="cargo-deny-fix/${SLUG}/$(date +%Y%m%d-%H%M%S)"
+              git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${branch}"
+              gh pr create \
+                --head "$branch" \
+                --title "fix(${SLUG}): resolve cargo-deny findings" \
+                --body-file "$out/cargo-deny-report.md" \
+                --label cargo-deny-fix --label "workspace:${SLUG}" \
+                "${extra_create[@]}"
+            fi
           else
             existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
               --label "cargo-deny-diagnosis" --label "workspace:${SLUG}" \
