@@ -29,7 +29,7 @@ pub struct InitNewCTMArgs {
     pub default_configs_src_path: Option<PathBuf>,
     /// Which main verifier to deploy. Defaults to `testnet` for the `no-proofs` prover mode and
     /// `dual` otherwise. Use `airbender` to wire the Airbender PLONK verifier into the dual verifier.
-    #[clap(long, value_enum, help = MSG_VERIFIER_HELP)]
+    #[clap(long = "verifier-type", id = "verifier_type", value_enum, help = MSG_VERIFIER_HELP)]
     pub verifier: Option<VerifierType>,
     #[clap(flatten)]
     #[serde(flatten)]
