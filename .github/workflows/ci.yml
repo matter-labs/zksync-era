@@ -148,6 +148,10 @@ jobs:
   e2e-for-airbender-prover:
     name: E2E Test for Airbender Prover
     needs: changed_files
+    # ci.yml has no top-level permissions block, so cap the GITHUB_TOKEN handed to the called
+    # workflow (which itself declares `contents: read`) instead of inheriting the repo default.
+    permissions:
+      contents: read
     # The fork guard is a hard requirement: the e2e job downloads and executes a PR-built binary on
     # a persistent self-hosted GPU runner with Docker and passwordless sudo, so fork-controlled code
     # must never reach it. Fork PRs skip the lane (the final status job tolerates skipped jobs).
