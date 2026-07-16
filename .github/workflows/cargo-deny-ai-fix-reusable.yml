@@ -35,9 +35,8 @@
 # TOKENS:
 #   PRs opened with the default GITHUB_TOKEN do not trigger `on: pull_request`
 #   workflows (a GitHub anti-recursion rule), so the ai-fix job pushes and opens
-#   PRs/issues with the `GH_PAT` secret when provided (in matter-labs repos, the same
-#   bot PAT release-please uses: RELEASE_TOKEN). Without it, everything still works
-#   but CI on the fix PR only starts after a human pushes or closes/reopens it.
+#   PRs/issues with the required `GH_PAT` secret (in matter-labs repos, the same
+#   bot PAT release-please uses: RELEASE_TOKEN), so fix PRs get CI automatically.
 #
 # REQUIRED SECRETS (pass via `secrets: inherit` from the caller, or explicitly):
 #   ANTHROPIC_API_KEY   - or CLAUDE_CODE_OAUTH_TOKEN, see claude-code-action docs
@@ -98,8 +97,8 @@ on:
       ANTHROPIC_API_KEY:
         required: true
       GH_PAT:
-        description: "Bot PAT used for branch pushes and PR/issue creation so that fix PRs trigger CI (events from the default GITHUB_TOKEN don't). Falls back to GITHUB_TOKEN if not provided. In matter-labs repos, pass the same PAT release-please uses (RELEASE_TOKEN)."
-        required: false
+        description: "Bot PAT used for branch pushes and PR/issue creation so that fix PRs trigger CI (events from the default GITHUB_TOKEN don't). In matter-labs repos, pass the same PAT release-please uses (RELEASE_TOKEN)."
+        required: true
 
 concurrency:
   group: cargo-deny-ai-fix-${{ github.repository }}-${{ inputs.manifest-path }}
@@ -176,7 +175,7 @@ jobs:
           fetch-depth: 0
           # Persisted for `git push`; a PAT (vs github.token) makes the pushed branch
           # and the PR opened from it trigger CI.
-          token: ${{ secrets.GH_PAT || github.token }}
+          token: ${{ secrets.GH_PAT }}
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -228,10 +227,10 @@ jobs:
         env:
           # The prompt drives `gh` via Bash; gh authenticates from GH_TOKEN. With the
           # PAT, PRs/issues are opened by the bot and fix PRs trigger CI.
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GH_PAT || github.token }}
+          github_token: ${{ secrets.GH_PAT }}
           claude_args: |
             --max-turns ${{ inputs.max-turns }}
             --model ${{ inputs.model }}
