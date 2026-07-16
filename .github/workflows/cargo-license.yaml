@@ -8,5 +8,9 @@ jobs:
     - uses: EmbarkStudios/cargo-deny-action@76cd80eb775d7bbbd2d80292136d74d39e1b4918 # v2.0.11
       with:
         manifest-path: "./core/Cargo.toml"
+        # --all-features is the action's default for `arguments`; kept explicitly since
+        # setting `arguments` at all replaces the default. --config points at the shared
+        # root deny.toml (cargo-deny doesn't auto-discover it from nested workspaces).
+        arguments: "--all-features --config deny.toml"
         command: check
         command-arguments: "--allow unmaintained --hide-inclusion-graph"

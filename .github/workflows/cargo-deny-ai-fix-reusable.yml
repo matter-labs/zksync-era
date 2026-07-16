@@ -1,0 +1,332 @@
+# Reusable workflow: cargo-deny AI auto-fix
+#
+# WHERE THIS LIVES:
+#   This is the canonical copy of the reusable workflow. It currently lives in
+#   zksync-era so the caller (cargo-deny-ai-fix.yml, same directory) can reference it
+#   via a local path and the whole system works out of the box. Long-term, move this
+#   file to one central repo, e.g. `matter-labs/.github` at
+#   `.github/workflows/cargo-deny-ai-fix.yml`, and switch every caller's `uses:` line
+#   to `matter-labs/.github/.github/workflows/cargo-deny-ai-fix.yml@main`.
+#
+# WHAT IT DOES:
+#   1. detect  -> runs `cargo deny check`. If green, stops. If red, checks whether a
+#                 cargo-deny-fix PR is already open. Outputs whether the fix job should run.
+#   2. ai-fix  -> only runs if red AND no open fix PR exists. Hands the failure to Claude
+#                 with a scoped toolset (git/cargo/gh + file edits) and a prompt that tells
+#                 it exactly how to handle each category of cargo-deny failure, including
+#                 when to flag for human review instead of auto-resolving.
+#
+# CONVENTIONS ALIGNED WITH `AI Security Review` (zksync-prividium):
+#   - Untagged actions get pinned to a raw commit SHA with a "no tagged releases,
+#     re-evaluate monthly" comment, same as that workflow does for
+#     anthropics/claude-code-security-review. claude-code-action *does* have tagged
+#     releases (@v1), so it's tag-pinned here — Renovate's pinGitHubActionDigests
+#     preset (already enabled org-wide) will convert it to a SHA automatically.
+#   - `model` is pinned explicitly rather than left on the action's default, same as
+#     `claude-model: claude-opus-4-7` there.
+#   - A per-repo instructions file is supported (parallel to
+#     `.github/security-review-focus.md`) so each repo can extend the prompt without
+#     forking this workflow - see `extra-instructions-path` below.
+#   - No sticky-comment infra-failure handling is needed here the way the PR-triggered
+#     security review needs it: this workflow re-runs on a schedule, so a transient
+#     failure (e.g. a 529 from the API) just gets retried automatically next run,
+#     since the detect job will still see red + no open PR.
+#
+# KNOWN LIMITATION:
+#   PRs opened with the default GITHUB_TOKEN do not trigger `on: pull_request`
+#   workflows (a GitHub anti-recursion rule), so CI on the fix PR only starts after a
+#   human pushes to the branch or closes/reopens the PR. If that becomes annoying,
+#   switch the ai-fix job to a GitHub App token or a bot PAT.
+#
+# REQUIRED SECRETS (pass via `secrets: inherit` from the caller, or explicitly):
+#   ANTHROPIC_API_KEY   - or CLAUDE_CODE_OAUTH_TOKEN, see claude-code-action docs
+#
+# REQUIRED REPO SETUP:
+#   - A `deny.toml` in the repo: either next to the workspace `manifest-path` points at
+#     (auto-discovered), or a shared one passed explicitly via the `deny-arguments`
+#     input (e.g. '--all-features --config deny.toml' for a repo-root shared config —
+#     cargo-deny does NOT auto-discover a root config from nested workspaces).
+#   - Labels are self-created by the ai-fix job on first run (`gh label create ... || true`).
+#
+# RECOMMENDED ROLLOUT: set `dry-run: true` in the caller for the first 1-2 weeks on a
+# repo you haven't run this on before, especially a regulated/customer-facing one like
+# zksync-prividium. In dry-run mode, Claude still diagnoses everything but opens a
+# tracking issue (not a PR, no commits) so you can sanity-check its reasoning before
+# it starts touching Cargo.lock / deny.toml directly. Flip to false once you trust it.
+
+name: Cargo Deny AI Fix
+
+on:
+  workflow_call:
+    inputs:
+      manifest-path:
+        description: "Path to the Cargo.toml of the workspace to check (e.g. 'core/Cargo.toml')"
+        required: true
+        type: string
+      deny-arguments:
+        description: "Top-level cargo-deny arguments placed before the subcommand (the action's `arguments` input, default --all-features). Use this to point at a shared config, e.g. '--all-features --config deny.toml'."
+        required: false
+        type: string
+        default: "--all-features"
+      deny-action-args:
+        description: "Extra command-arguments passed to the cargo-deny-action check"
+        required: false
+        type: string
+        default: "--hide-inclusion-graph"
+      max-turns:
+        description: "Max agentic turns Claude gets to resolve findings before giving up"
+        required: false
+        type: number
+        default: 25
+      model:
+        description: "Claude model to pin for this task (explicit, not left on the action's default)"
+        required: false
+        type: string
+        default: "claude-sonnet-5"
+      extra-instructions-path:
+        description: "Optional repo-relative path to a markdown file with repo-specific instructions, appended to the prompt if it exists"
+        required: false
+        type: string
+        default: ".github/cargo-deny-fix-focus.md"
+      dry-run:
+        description: "If true, Claude diagnoses and opens a tracking issue instead of a PR - no commits, no branch. Recommended for the first runs on a new repo."
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+
+concurrency:
+  group: cargo-deny-ai-fix-${{ github.repository }}-${{ inputs.manifest-path }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      should_fix: ${{ steps.gate.outputs.should_fix }}
+      workspace_slug: ${{ steps.slug.outputs.slug }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Derive a workspace slug from the manifest path
+        id: slug
+        run: |
+          # 'core/Cargo.toml' -> 'core', 'zkstack_cli/Cargo.toml' -> 'zkstack_cli', bare 'Cargo.toml' -> 'root'
+          raw="${{ inputs.manifest-path }}"
+          dir="$(dirname "$raw")"
+          slug="${dir//\//-}"
+          [[ "$slug" == "." ]] && slug="root"
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+
+      # Same action already used in cargo-license.yaml, for consistent results between
+      # this proactive check and the existing PR-time gate.
+      - name: Run cargo-deny check
+        id: deny
+        continue-on-error: true
+        uses: EmbarkStudios/cargo-deny-action@76cd80eb775d7bbbd2d80292136d74d39e1b4918 # v2.0.11
+        with:
+          manifest-path: ${{ inputs.manifest-path }}
+          arguments: ${{ inputs.deny-arguments }}
+          command: check
+          command-arguments: ${{ inputs.deny-action-args }}
+
+      - name: Check for an already-open fix PR for this workspace
+        id: existing_pr
+        if: steps.deny.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+            --label "cargo-deny-fix" --label "workspace:${{ steps.slug.outputs.slug }}" \
+            --json number --jq 'length')
+          echo "open_count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether the fix job should run
+        id: gate
+        run: |
+          is_red="${{ steps.deny.outcome == 'failure' }}"
+          has_open_pr="${{ steps.existing_pr.outputs.open_count != '' && steps.existing_pr.outputs.open_count != '0' }}"
+          if [[ "$is_red" == "true" && "$has_open_pr" == "false" ]]; then
+            echo "should_fix=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_fix=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  ai-fix:
+    needs: detect
+    if: needs.detect.outputs.should_fix == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # cargo-deny-action doesn't expose a raw binary for interactive use, so the
+      # fix job installs the CLI directly - Claude needs to re-run `cargo deny check`
+      # itself, iteratively, while it works.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Configure git identity for commits
+        run: |
+          git config user.name "cargo-deny-bot"
+          git config user.email "cargo-deny-bot@users.noreply.github.com"
+
+      - name: Create working branch (skipped in dry-run)
+        if: ${{ !inputs.dry-run }}
+        run: |
+          branch="cargo-deny-fix/${{ needs.detect.outputs.workspace_slug }}/$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$branch"
+          echo "BRANCH_NAME=$branch" >> "$GITHUB_ENV"
+
+      - name: Ensure workspace-scoped labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "cargo-deny-fix" --color "1D76DB" --description "Automated cargo-deny fix PR" 2>/dev/null || true
+          gh label create "cargo-deny-diagnosis" --color "0E8A16" --description "Dry-run: AI diagnosis issue, no code changes" 2>/dev/null || true
+          gh label create "workspace:${{ needs.detect.outputs.workspace_slug }}" --color "5319E7" 2>/dev/null || true
+          gh label create "needs-security-review" --color "B60205" --description "AI left an advisory unresolved for a human to decide" 2>/dev/null || true
+          gh label create "needs-license-review" --color "B60205" --description "AI left a license finding unresolved for a human to decide" 2>/dev/null || true
+
+      - name: Load optional repo-specific instructions
+        id: extra_instructions
+        run: |
+          path="${{ inputs.extra-instructions-path }}"
+          if [[ -f "$path" ]]; then
+            {
+              echo "content<<CARGO_DENY_EOF"
+              cat "$path"
+              echo "CARGO_DENY_EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "content=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve cargo-deny findings with Claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          # The prompt drives `gh` via Bash; gh authenticates from GH_TOKEN.
+          GH_TOKEN: ${{ github.token }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          claude_args: |
+            --max-turns ${{ inputs.max-turns }}
+            --model ${{ inputs.model }}
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cargo:*),Bash(git:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue list:*),Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh label:*)"
+          prompt: |
+            You are diagnosing and (unless told otherwise below) fixing `cargo deny
+            check` failures for the workspace at ${{ inputs.manifest-path }} in this
+            repository. Work autonomously: no human is watching this session, so be
+            conservative and legible rather than clever. Only touch files relevant to
+            this workspace (the manifest, its lockfile, and its deny.toml) — do not
+            touch other workspaces in this repo. Note: the deny.toml may be shared by
+            several workspaces (it is wherever `--config` points, possibly the repo
+            root) — if so, any ignore/skip entry you add silences that finding in
+            EVERY workspace, so be extra reluctant to add one and call it out
+            explicitly in the PR description if you do.
+
+            MODE: ${{ inputs.dry-run && 'DRY RUN - diagnose only, do not commit or open a PR' || 'FIX - diagnose and open a PR' }}
+
+            ## Step 0: Match this repo's existing conventions
+            If a deny.toml already exists for this workspace, check whether its
+            `advisories.ignore` list has an established comment style (e.g.
+            `"RUSTSEC-XXXX-NNNN", # reason`, explaining the specific transitive path
+            and why it's not reachable/exploitable here). Match that exact style for
+            any new entries — don't introduce a different format. Also check for an
+            AGENTS.md or CLAUDE.md at the repo root and follow any conventions there.
+
+            ## Step 1: Understand the failures
+            Run `cargo deny --manifest-path ${{ inputs.manifest-path }} ${{ inputs.deny-arguments }} check ${{ inputs.deny-action-args }}`
+            (the exact arguments CI uses, so your results match the failing check) and
+            read the output carefully. cargo-deny failures fall into four categories,
+            and each needs a different response:
+
+            - **advisories** (RUSTSEC security/unmaintained warnings)
+            - **bans** (duplicate dependency versions, explicitly banned crates)
+            - **licenses** (a dependency's license isn't in the allow-list)
+            - **sources** (dependency pulled from an unapproved registry/git source)
+
+            ## Step 2: Fix what is safely fixable (skip this step entirely in DRY RUN mode - just describe what you *would* do)
+            - **advisories with an available patched version**: run
+              `cargo update -p <crate>` (or bump the version in the workspace's
+              Cargo.toml if the fix requires a semver-major jump) and run the test
+              suite to confirm nothing broke.
+            - **bans / duplicate versions**: try to unify versions via
+              `cargo update -p <crate> --precise <version>` across the dependency tree
+              first. Only add a `skip`/`skip-tree` entry to deny.toml as a last resort,
+              and if you do, add an inline comment explaining exactly why it's needed
+              and which crates still require the older version.
+            - Always re-run
+              `cargo deny --manifest-path ${{ inputs.manifest-path }} ${{ inputs.deny-arguments }} check ${{ inputs.deny-action-args }}`
+              and `cargo build --manifest-path ${{ inputs.manifest-path }}` (and
+              `cargo test` if the change touched Cargo.lock in a way that could affect
+              behavior, e.g. a major version bump) before considering something fixed.
+
+            ## Step 3: Do NOT silently resolve policy decisions
+            These require human judgment, not an autonomous edit:
+            - **A disallowed license with no drop-in alternative crate.** Do not add the
+              license to deny.toml's allow-list yourself. Leave it failing, and clearly
+              document it in the PR description under "Needs human review" with the
+              crate, its license, and why no alternative was found.
+            - **An advisory with no available fix** (no patched version exists upstream).
+              Do not add an `ignore` entry to deny.toml yourself. Document it in the PR
+              description instead, including the RUSTSEC ID and a link, so a human can
+              decide whether to accept the risk and add the ignore with a tracking issue.
+            - **Any unapproved source/registry.** Never add it to the allow-list; flag it.
+
+            If you hit one of these, it is a correct and complete outcome to leave that
+            specific finding unresolved and clearly flagged — do not force a fix that
+            papers over a real decision.
+
+            ## Step 4: Report your work
+            If MODE is DRY RUN:
+            - Make no commits and open no PR. Instead, open (or update, if one from a
+              previous dry run is already open) a GitHub issue labeled
+              `cargo-deny-diagnosis` and `workspace:${{ needs.detect.outputs.workspace_slug }}`
+              titled `[cargo-deny] diagnosis for ${{ inputs.manifest-path }}`, with a
+              body listing every finding, the fix you'd apply for each, and a distinct
+              "Needs human review" section for anything from Step 3.
+
+            If MODE is FIX:
+            - You are already on a working branch created for this run
+              (`${{ env.BRANCH_NAME }}`) — do not create another branch. Commit in
+              small, clear commits (e.g.
+              "cargo update: bump `tokio` to 1.x for RUSTSEC-2026-XXXX"). PR titles in
+              this repo must follow Conventional Commits (check CI for a title-lint
+              workflow) - use something like
+              `fix(${{ needs.detect.outputs.workspace_slug }}): resolve cargo-deny findings`.
+            - Push the branch (`git push -u origin HEAD`) and open a PR against the
+              default branch with:
+              - Title as above.
+              - Body summarizing: what was fixed and how, and a distinct
+                "Needs human review" section for anything from Step 3, or omit that
+                section entirely if everything was resolved.
+              - Labels: `cargo-deny-fix` and
+                `workspace:${{ needs.detect.outputs.workspace_slug }}` (always).
+                Additionally add `needs-security-review` if any advisory was left
+                unresolved, or `needs-license-review` if any license issue was left
+                unresolved. These labels already exist in the repo.
+            - Do not merge the PR. Do not touch files unrelated to the cargo-deny
+              findings for this workspace.
+
+            If `cargo deny check` is somehow already green by the time you look (e.g.
+            transient), exit without making changes, opening a PR, or filing an issue.
+            ${{ steps.extra_instructions.outputs.content != '' && format('
+
+            ## Additional repo-specific instructions
+            {0}', steps.extra_instructions.outputs.content) || '' }}

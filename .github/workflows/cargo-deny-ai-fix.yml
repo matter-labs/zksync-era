@@ -1,0 +1,42 @@
+# Caller for the reusable cargo-deny AI auto-fix workflow
+# (.github/workflows/cargo-deny-ai-fix-reusable.yml).
+#
+# This repo has FOUR independent Cargo workspaces (core, prover, zkstack_cli,
+# airbender_prover_server), all sharing the single deny.toml at the repo root
+# (cargo-deny doesn't auto-discover it from nested workspaces, hence the explicit
+# `--config` in deny-arguments). The existing PR-time gate (cargo-license.yaml) only
+# covers `core`; this matrix runs the proactive AI-fix workflow against all four on a
+# schedule, independent of PRs.
+#
+# `deny-arguments`/`deny-action-args` intentionally match cargo-license.yaml exactly
+# so this proactive check and the PR-time gate always agree on what is red.
+#
+# When the reusable workflow moves to a central repo (e.g. matter-labs/.github),
+# switch `uses:` to:
+#   matter-labs/.github/.github/workflows/cargo-deny-ai-fix.yml@main
+
+name: Cargo Deny AI Fix
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily, independent of the existing PR-time gate
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  cargo-deny-ai-fix:
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace:
+          - manifest-path: core/Cargo.toml
+          - manifest-path: prover/Cargo.toml
+          - manifest-path: zkstack_cli/Cargo.toml
+          - manifest-path: airbender_prover_server/Cargo.toml
+    uses: ./.github/workflows/cargo-deny-ai-fix-reusable.yml
+    with:
+      manifest-path: ${{ matrix.workspace.manifest-path }}
+      deny-arguments: "--all-features --config deny.toml"
+      deny-action-args: "--allow unmaintained --hide-inclusion-graph"
+    secrets: inherit
