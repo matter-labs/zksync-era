@@ -39,4 +39,7 @@ jobs:
       manifest-path: ${{ matrix.workspace.manifest-path }}
       deny-arguments: "--all-features --config deny.toml"
       deny-action-args: "--allow unmaintained --hide-inclusion-graph"
-    secrets: inherit
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Same bot PAT release-please uses; makes AI fix PRs trigger CI.
+      GH_PAT: ${{ secrets.RELEASE_TOKEN }}

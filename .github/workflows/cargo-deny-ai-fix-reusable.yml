@@ -32,11 +32,12 @@
 #     failure (e.g. a 529 from the API) just gets retried automatically next run,
 #     since the detect job will still see red + no open PR.
 #
-# KNOWN LIMITATION:
+# TOKENS:
 #   PRs opened with the default GITHUB_TOKEN do not trigger `on: pull_request`
-#   workflows (a GitHub anti-recursion rule), so CI on the fix PR only starts after a
-#   human pushes to the branch or closes/reopens the PR. If that becomes annoying,
-#   switch the ai-fix job to a GitHub App token or a bot PAT.
+#   workflows (a GitHub anti-recursion rule), so the ai-fix job pushes and opens
+#   PRs/issues with the `GH_PAT` secret when provided (in matter-labs repos, the same
+#   bot PAT release-please uses: RELEASE_TOKEN). Without it, everything still works
+#   but CI on the fix PR only starts after a human pushes or closes/reopens it.
 #
 # REQUIRED SECRETS (pass via `secrets: inherit` from the caller, or explicitly):
 #   ANTHROPIC_API_KEY   - or CLAUDE_CODE_OAUTH_TOKEN, see claude-code-action docs
@@ -96,6 +97,9 @@ on:
     secrets:
       ANTHROPIC_API_KEY:
         required: true
+      GH_PAT:
+        description: "Bot PAT used for branch pushes and PR/issue creation so that fix PRs trigger CI (events from the default GITHUB_TOKEN don't). Falls back to GITHUB_TOKEN if not provided. In matter-labs repos, pass the same PAT release-please uses (RELEASE_TOKEN)."
+        required: false
 
 concurrency:
   group: cargo-deny-ai-fix-${{ github.repository }}-${{ inputs.manifest-path }}
@@ -170,6 +174,9 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+          # Persisted for `git push`; a PAT (vs github.token) makes the pushed branch
+          # and the PR opened from it trigger CI.
+          token: ${{ secrets.GH_PAT || github.token }}
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -219,11 +226,12 @@ jobs:
       - name: Resolve cargo-deny findings with Claude
         uses: anthropics/claude-code-action@v1
         env:
-          # The prompt drives `gh` via Bash; gh authenticates from GH_TOKEN.
-          GH_TOKEN: ${{ github.token }}
+          # The prompt drives `gh` via Bash; gh authenticates from GH_TOKEN. With the
+          # PAT, PRs/issues are opened by the bot and fix PRs trigger CI.
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ github.token }}
+          github_token: ${{ secrets.GH_PAT || github.token }}
           claude_args: |
             --max-turns ${{ inputs.max-turns }}
             --model ${{ inputs.model }}
