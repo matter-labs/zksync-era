@@ -29,14 +29,21 @@ on:
 jobs:
   cargo-deny-ai-fix:
     # A called reusable workflow can only downgrade the caller's GITHUB_TOKEN, so this
-    # grants the maximum its ai-fix job needs (labels/PRs/issues; pushes use GH_PAT);
-    # the reusable workflow scopes its detect job down to read-only internally.
+    # grants the maximum any of its jobs needs: issues write for label management and
+    # closing stale diagnosis issues; everything else is read-only. Pushes and
+    # PR/issue creation use the separately-passed publishing credential, and the AI
+    # job itself runs with contents: read only.
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+      pull-requests: read
       issues: write
     strategy:
       fail-fast: false
+      # All four workspaces share the root deny.toml, so runs are serialized to keep
+      # concurrent AI jobs from producing conflicting policy edits. (Not done with a
+      # shared concurrency group: GitHub keeps at most one pending run per group and
+      # silently drops the rest.)
+      max-parallel: 1
       matrix:
         workspace:
           - manifest-path: core/Cargo.toml

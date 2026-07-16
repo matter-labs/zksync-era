@@ -11,27 +11,34 @@
 #   with every caller's secrets and write permissions without review.)
 #
 # WHAT IT DOES:
-#   1. detect  -> runs `cargo deny check`. If green, stops. If red, checks whether a
-#                 cargo-deny-fix PR OR a cargo-deny-diagnosis issue is already open for
-#                 this workspace. Outputs whether the fix job should run.
-#   2. ai-fix  -> only runs if red AND nothing is already open. Hands the failure to
-#                 Claude with a scoped, OFFLINE toolset (file edits + cargo/git/rustup,
-#                 no gh, no credentials): Claude commits fixes locally and writes a
-#                 report file. A deterministic publish step then pushes and opens a PR
-#                 (commits exist), or opens/updates a tracking issue (human-only
-#                 findings, or dry-run) — so the workflow never loops paying for the
-#                 same unresolvable finding, and never merges anything.
+#   1. detect  -> runs `cargo deny check` (same pinned 0.18.6 the PR-time gate's action
+#                 bundles) and fingerprints the failing finding set. Skips the fix if a
+#                 fix PR is open, or a diagnosis issue with the SAME fingerprint is open
+#                 (a changed finding set re-arms it, so an old human-pending issue never
+#                 suppresses new fixable findings). Closes stale diagnosis issues when
+#                 the check is green again.
+#   2. ai-fix  -> READ-ONLY job, no publishing credential anywhere on the runner.
+#                 Claude gets file edits + cargo/git/rustup (no gh), commits fixes
+#                 locally, and writes a report; the job uploads patches + report as an
+#                 artifact.
+#   3. publish -> separate job on a FRESH runner (nothing untrusted ever ran here — a
+#                 malicious build script in ai-fix can't have planted git hooks or
+#                 background processes). Validates the patches only touch the workspace
+#                 (or its deny.toml policy file), applies them with hooks disabled,
+#                 pushes, and opens a PR — or opens/updates a fingerprinted diagnosis
+#                 issue when there are no commits (human-only findings, or dry-run).
+#                 Never merges anything.
 #
 # TOKENS / CREDENTIAL ISOLATION:
 #   Rust build scripts and proc macros execute arbitrary code during `cargo build`/
-#   `cargo test` and inherit the job environment, so the Claude step gets NO publishing
-#   credential: checkout uses persist-credentials: false, Claude's allowed tools have
-#   no `gh`, and the only token in its environment is the job's ephemeral, job-scoped
-#   GITHUB_TOKEN passed to claude-code-action for its own API calls. The publishing
-#   credential is confined to the final publish step, which runs no untrusted code.
+#   `cargo test`, and code that has run on a runner can persist processes or install
+#   git hooks — so introducing a credential later in the SAME job is not isolation.
+#   Hence the job split: the ai-fix job holds no publishing credential and its
+#   GITHUB_TOKEN is read-only (contents: read); the publishing credential exists only
+#   in the publish job, on a runner where no untrusted code has executed.
 #   Credential preference:
 #     1. GH_APP_ID + GH_APP_PRIVATE_KEY  - a repository-scoped GitHub App; a short-lived
-#        installation token is minted inside this workflow (recommended).
+#        installation token is minted inside the publish job (recommended).
 #     2. GH_PAT                          - long-lived bot PAT fallback (in matter-labs
 #        repos, the same PAT release-please uses: RELEASE_TOKEN).
 #   Either way, PRs/issues come from the bot identity and fix PRs trigger CI (events
@@ -62,7 +69,11 @@
 #     nested workspaces, and a relative --config path resolves from the workspace root
 #     directory — e.g. '--config ../deny.toml' for a repo-root config with one-level-deep
 #     workspaces).
-#   - Labels are self-created by the ai-fix job on first run (`gh label create ... || true`).
+#   - Labels are self-created by the publish job on first run (`gh label create ... || true`).
+#   - If several workspaces share one deny.toml, serialize the caller's matrix with
+#     `strategy.max-parallel: 1` so concurrent runs can't produce conflicting policy
+#     edits. (Don't give matrix entries the same concurrency group instead: GitHub
+#     keeps at most ONE pending run per group and silently drops the rest.)
 #
 # RECOMMENDED ROLLOUT: set `dry-run: true` in the caller for the first 1-2 weeks on a
 # repo you haven't run this on before, especially a regulated/customer-facing one like
@@ -81,15 +92,20 @@ on:
         required: true
         type: string
       deny-arguments:
-        description: "Top-level cargo-deny arguments placed before the subcommand (the action's `arguments` input, default --all-features)."
+        description: "Top-level cargo-deny arguments placed before the subcommand (default --all-features)."
         required: false
         type: string
         default: "--all-features"
       deny-action-args:
-        description: "Extra command-arguments passed to the cargo-deny check. Use this to point at a shared config, e.g. '--config ../deny.toml' (in cargo-deny 0.18.x a relative --config resolves from the workspace root directory, not the cwd)."
+        description: "Extra arguments passed to the cargo-deny check subcommand. Use this to point at a shared config, e.g. '--config ../deny.toml' (in cargo-deny 0.18.x a relative --config resolves from the workspace root directory, not the cwd)."
         required: false
         type: string
         default: "--hide-inclusion-graph"
+      concurrency-key:
+        description: "Overrides the concurrency group key (default: the manifest path). CAUTION: GitHub keeps at most one running and one pending run per group — giving several matrix entries the same key silently drops queued ones. To serialize workspaces that share a deny.toml, prefer strategy.max-parallel: 1 in the caller."
+        required: false
+        type: string
+        default: ""
       max-turns:
         description: "Max agentic turns Claude gets to resolve findings before giving up"
         required: false
@@ -114,7 +130,7 @@ on:
       ANTHROPIC_API_KEY:
         required: true
       GH_APP_ID:
-        description: "GitHub App ID for minting a short-lived, repository-scoped installation token used to push branches and open PRs/issues (preferred over GH_PAT). The app needs contents, pull-requests and issues write permissions."
+        description: "GitHub App ID for minting a short-lived, repository-scoped installation token used by the publish job to push branches and open PRs/issues (preferred over GH_PAT). The app needs contents, pull-requests and issues write permissions."
         required: false
       GH_APP_PRIVATE_KEY:
         description: "Private key for the GH_APP_ID app."
@@ -124,7 +140,7 @@ on:
         required: false
 
 concurrency:
-  group: cargo-deny-ai-fix-${{ github.repository }}-${{ inputs.manifest-path }}
+  group: cargo-deny-ai-fix-${{ github.repository }}-${{ inputs.concurrency-key != '' && inputs.concurrency-key || inputs.manifest-path }}
   cancel-in-progress: false
 
 permissions:
@@ -135,10 +151,15 @@ permissions:
 jobs:
   detect:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write # closes stale diagnosis issues when the check is green again
     outputs:
       should_fix: ${{ steps.gate.outputs.should_fix }}
       workspace_slug: ${{ steps.slug.outputs.slug }}
       workspace_dir: ${{ steps.slug.outputs.dir }}
+      fingerprint: ${{ steps.fp.outputs.fingerprint }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -153,92 +174,118 @@ jobs:
           echo "slug=$slug" >> "$GITHUB_OUTPUT"
           echo "dir=$dir" >> "$GITHUB_OUTPUT"
 
-      # Same action already used in cargo-license.yaml, for consistent results between
-      # this proactive check and the existing PR-time gate.
+      # Same cargo-deny version the PR-time gate's action bundles (cargo-deny-action
+      # v2.0.11 ships 0.18.6 — see its Dockerfile), so both checks agree on what is
+      # red. The raw CLI (invoked as `cargo-deny`, not through the cargo shim, to
+      # avoid pulling the repo's pinned nightly here) is used instead of the action so
+      # the machine-readable diagnostics can be fingerprinted. Bump together with the
+      # ai-fix job's pin below.
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-deny@0.18.6
+
       - name: Run cargo-deny check
         id: deny
-        continue-on-error: true
-        uses: EmbarkStudios/cargo-deny-action@76cd80eb775d7bbbd2d80292136d74d39e1b4918 # v2.0.11
-        with:
-          manifest-path: ${{ inputs.manifest-path }}
-          arguments: ${{ inputs.deny-arguments }}
-          command: check
-          command-arguments: ${{ inputs.deny-action-args }}
+        run: |
+          set +e
+          cargo-deny --manifest-path "${{ inputs.manifest-path }}" ${{ inputs.deny-arguments }} --format json \
+            check ${{ inputs.deny-action-args }} 2> /tmp/deny-diagnostics.jsonl
+          code=$?
+          set -e
+          echo "failed=$([[ $code -ne 0 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          # Human-readable summary for the run log
+          jq -r 'select(.type=="diagnostic") | "\(.fields.severity): [\(.fields.code // "-")] \(.fields.advisory.id // "") \(.fields.message // "")"' \
+            /tmp/deny-diagnostics.jsonl | sort | uniq -c | sort -rn || true
 
-      # Dedup against BOTH artifacts this workflow can produce: an open fix PR, and an
-      # open diagnosis issue (human-only findings / dry-run). Without the issue check,
-      # a finding that requires a human decision would re-trigger a paid Claude run on
-      # every schedule tick. Close the issue (or merge/close the PR) to re-arm.
-      - name: Check for an already-open fix PR or diagnosis issue for this workspace
+      # Stable identity of the failing finding set: sorted unique
+      # (code, advisory id, message) tuples. Used to decide whether an open diagnosis
+      # issue already covers exactly these findings.
+      - name: Fingerprint the failing finding set
+        id: fp
+        if: steps.deny.outputs.failed == 'true'
+        run: |
+          fp=$(jq -r 'select(.type=="diagnostic" and .fields.severity=="error")
+                | [.fields.code // "", .fields.advisory.id // "", .fields.message // ""] | join("|")' \
+                /tmp/deny-diagnostics.jsonl | LC_ALL=C sort -u | sha256sum | cut -d' ' -f1)
+          echo "fingerprint=$fp" >> "$GITHUB_OUTPUT"
+
+      # Dedup against both artifacts this workflow produces. A fix PR blocks re-runs
+      # until merged/closed. A diagnosis issue blocks re-runs ONLY while its embedded
+      # fingerprint matches the current finding set — new findings re-arm the
+      # workflow and refresh the issue, so a months-open human decision can't
+      # suppress newly introduced fixable vulnerabilities.
+      - name: Check for an already-open fix PR or up-to-date diagnosis issue
         id: existing
-        if: steps.deny.outcome == 'failure'
+        if: steps.deny.outputs.failed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           pr_count=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
             --label "cargo-deny-fix" --label "workspace:${{ steps.slug.outputs.slug }}" \
             --json number --jq 'length')
-          issue_count=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+          echo "pr_count=$pr_count" >> "$GITHUB_OUTPUT"
+          issue_number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
             --label "cargo-deny-diagnosis" --label "workspace:${{ steps.slug.outputs.slug }}" \
-            --json number --jq 'length')
-          echo "open_count=$((pr_count + issue_count))" >> "$GITHUB_OUTPUT"
+            --json number --jq '.[0].number // empty')
+          issue_fp=""
+          if [[ -n "$issue_number" ]]; then
+            issue_fp=$(gh issue view "$issue_number" --repo "$GITHUB_REPOSITORY" --json body --jq .body \
+              | sed -n 's/.*<!-- cargo-deny-fingerprint: \([0-9a-f]\{64\}\) -->.*/\1/p' | head -n1)
+          fi
+          echo "issue_fp=$issue_fp" >> "$GITHUB_OUTPUT"
+
+      - name: Close stale diagnosis issue when the check is green
+        if: steps.deny.outputs.failed != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --label "cargo-deny-diagnosis" --label "workspace:${{ steps.slug.outputs.slug }}" \
+            --json number --jq '.[0].number // empty')
+          if [[ -n "$existing" ]]; then
+            gh issue close "$existing" --repo "$GITHUB_REPOSITORY" \
+              --comment "cargo-deny is green again for \`${{ inputs.manifest-path }}\` — closing."
+          fi
 
       - name: Decide whether the fix job should run
         id: gate
         run: |
-          is_red="${{ steps.deny.outcome == 'failure' }}"
-          has_open="${{ steps.existing.outputs.open_count != '' && steps.existing.outputs.open_count != '0' }}"
-          if [[ "$is_red" == "true" && "$has_open" == "false" ]]; then
-            echo "should_fix=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_fix=false" >> "$GITHUB_OUTPUT"
+          is_red="${{ steps.deny.outputs.failed }}"
+          pr_count="${{ steps.existing.outputs.pr_count }}"
+          issue_fp="${{ steps.existing.outputs.issue_fp }}"
+          current_fp="${{ steps.fp.outputs.fingerprint }}"
+          should=false
+          if [[ "$is_red" == "true" && "${pr_count:-0}" == "0" ]]; then
+            if [[ -z "$issue_fp" || "$issue_fp" != "$current_fp" ]]; then
+              should=true
+            fi
           fi
+          echo "should_fix=$should" >> "$GITHUB_OUTPUT"
 
+  # READ-ONLY job: no publishing credential exists anywhere on this runner, and the
+  # job's GITHUB_TOKEN can't write. Untrusted code (build scripts, proc macros) runs
+  # here under `cargo build`/`cargo test`, so nothing on this runner is trusted after
+  # that point — results leave only via an artifact that the publish job validates.
   ai-fix:
     needs: detect
     if: needs.detect.outputs.should_fix == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-    env:
-      USE_GH_APP: ${{ secrets.GH_APP_ID != '' && secrets.GH_APP_PRIVATE_KEY != '' }}
+      contents: read
     steps:
-      - name: Require a publishing credential (GitHub App or PAT)
-        env:
-          HAS_CRED: ${{ (secrets.GH_APP_ID != '' && secrets.GH_APP_PRIVATE_KEY != '') || secrets.GH_PAT != '' }}
-        run: |
-          if [[ "$HAS_CRED" != "true" ]]; then
-            echo "::error::No publishing credential: pass GH_APP_ID + GH_APP_PRIVATE_KEY (preferred) or GH_PAT."
-            exit 1
-          fi
-
-      # Short-lived, repository-scoped installation token — expires when the job ends
-      # and is far safer than a long-lived PAT if anything in the job leaks environment.
-      - name: Mint GitHub App installation token (preferred credential)
-        id: app_token
-        if: env.USE_GH_APP == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-          # No credential is written to .git/config: cargo build scripts run arbitrary
-          # code and must not be able to read a token. The publish step authenticates
-          # its single `git push` explicitly instead.
+          # No credential is written to .git/config: cargo build scripts run
+          # arbitrary code and must not be able to read a token.
           persist-credentials: false
 
       # cargo-deny-action doesn't expose a raw binary for interactive use, so the
       # fix job installs the CLI directly - Claude needs to re-run `cargo deny check`
-      # itself, iteratively, while it works. Pinned to the exact version bundled by
-      # the cargo-deny-action pinned in the detect job (see its Dockerfile), so both
-      # produce identical results AND accept the same CLI syntax: `--config` is a
-      # `check` argument in 0.18.x but moved to a top-level argument in later
-      # releases. Bump both together.
+      # itself, iteratively, while it works. Pinned to the same version as the detect
+      # job (and the PR-time gate's bundled binary) so results and CLI syntax match:
+      # `--config` is a `check` argument in 0.18.x but moved to a top-level argument
+      # in later releases. Bump all together.
       - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
         with:
           tool: cargo-deny@0.18.6
@@ -256,22 +303,12 @@ jobs:
           git config user.name "cargo-deny-bot"
           git config user.email "cargo-deny-bot@users.noreply.github.com"
 
-      - name: Create working branch (skipped in dry-run)
+      - name: Create local working branch (skipped in dry-run)
         if: ${{ !inputs.dry-run }}
         run: |
-          branch="cargo-deny-fix/${{ needs.detect.outputs.workspace_slug }}/$(date +%Y%m%d-%H%M%S)"
+          branch="cargo-deny-fix/${{ needs.detect.outputs.workspace_slug }}/wip"
           git checkout -b "$branch"
           echo "BRANCH_NAME=$branch" >> "$GITHUB_ENV"
-
-      - name: Ensure workspace-scoped labels exist
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh label create "cargo-deny-fix" --color "1D76DB" --description "Automated cargo-deny fix PR" 2>/dev/null || true
-          gh label create "cargo-deny-diagnosis" --color "0E8A16" --description "AI diagnosis issue: dry-run, or findings that need a human decision" 2>/dev/null || true
-          gh label create "workspace:${{ needs.detect.outputs.workspace_slug }}" --color "5319E7" 2>/dev/null || true
-          gh label create "needs-security-review" --color "B60205" --description "AI left an advisory unresolved for a human to decide" 2>/dev/null || true
-          gh label create "needs-license-review" --color "B60205" --description "AI left a license finding unresolved for a human to decide" 2>/dev/null || true
 
       - name: Load optional repo-specific instructions
         id: extra_instructions
@@ -287,11 +324,9 @@ jobs:
             echo "content=" >> "$GITHUB_OUTPUT"
           fi
 
-      # Claude works OFFLINE: no gh in allowedTools, no publishing credential in the
-      # environment (cargo build scripts and proc macros execute arbitrary code and
-      # inherit it). github_token below is the job's ephemeral GITHUB_TOKEN, used by
-      # the action itself for GitHub API access; the publishing credential only enters
-      # the next step.
+      # Claude works OFFLINE: no gh in allowedTools and no write-capable token —
+      # github_token below is this job's read-only GITHUB_TOKEN, used by the action
+      # itself for GitHub API reads.
       - name: Resolve cargo-deny findings with Claude
         uses: anthropics/claude-code-action@1298632ce7736903d02a1435002705aa2a594a6c # v1
         with:
@@ -313,9 +348,9 @@ jobs:
             EVERY workspace, so be extra reluctant to add one and call it out
             explicitly in your report if you do.
 
-            You have no GitHub credentials: do not push and do not try to use the gh
-            CLI. Publication (PR or tracking issue) is handled by the workflow after
-            you finish, from the report files you write in Step 4.
+            You have no write-capable GitHub credentials: do not push and do not try
+            to use the gh CLI. Publication (PR or tracking issue) is handled by a
+            separate job after you finish, from the report files you write in Step 4.
 
             Run ALL cargo commands from the workspace directory
             (`cd ${{ needs.detect.outputs.workspace_dir }}`): each workspace pins its
@@ -396,7 +431,7 @@ jobs:
                 left unresolved for a human (Step 3).
 
             If MODE is FIX:
-            - You are already on a working branch created for this run
+            - You are already on a local working branch created for this run
               (`${{ env.BRANCH_NAME }}`) — do not create another branch. Commit your
               fixes to it in small, clear commits (e.g.
               "cargo update: bump `tokio` to 1.x for RUSTSEC-2026-XXXX"). Do not push.
@@ -411,30 +446,108 @@ jobs:
             ## Additional repo-specific instructions
             {0}', steps.extra_instructions.outputs.content) || '' }}
 
-      # The only step that holds the publishing credential; it runs no untrusted code.
-      # Commits on the branch -> push + PR. No commits but findings -> open/update a
-      # diagnosis issue (also the dry-run path). The detect gate deduplicates against
-      # both, so an unresolvable finding never re-triggers a paid Claude run until a
-      # human closes the issue.
-      - name: Publish results (PR for commits, tracking issue otherwise)
-        env:
-          GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.GH_PAT }}
-          SLUG: ${{ needs.detect.outputs.workspace_slug }}
-          MANIFEST: ${{ inputs.manifest-path }}
-          DRY_RUN: ${{ inputs.dry-run }}
+      - name: Package results for the publish job
         run: |
           if [[ ! -f cargo-deny-report.json || ! -f cargo-deny-report.md ]]; then
             echo "::error::Claude did not produce cargo-deny-report.json / cargo-deny-report.md"
             exit 1
           fi
-          already_green=$(jq -r '.already_green' cargo-deny-report.json)
-          needs_sec=$(jq -r '.needs_security_review' cargo-deny-report.json)
-          needs_lic=$(jq -r '.needs_license_review' cargo-deny-report.json)
+          mkdir -p /tmp/cargo-deny-out/patches
+          cp cargo-deny-report.md cargo-deny-report.json /tmp/cargo-deny-out/
+          if [[ "${{ inputs.dry-run }}" != "true" ]]; then
+            count=$(git rev-list --count "${GITHUB_SHA}..HEAD")
+            if [[ "$count" -gt 0 ]]; then
+              git format-patch "${GITHUB_SHA}" -o /tmp/cargo-deny-out/patches
+            fi
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cargo-deny-ai-fix-${{ needs.detect.outputs.workspace_slug }}
+          path: /tmp/cargo-deny-out
+          if-no-files-found: error
+          retention-days: 7
+
+  # Fresh runner: no untrusted code has executed here, so no planted git hooks or
+  # lingering processes can observe the publishing credential. Only this job holds it.
+  publish:
+    needs: [detect, ai-fix]
+    if: needs.detect.outputs.should_fix == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # label creation via the job token; pushes/PRs/issues use the publishing credential
+    env:
+      USE_GH_APP: ${{ secrets.GH_APP_ID != '' && secrets.GH_APP_PRIVATE_KEY != '' }}
+    steps:
+      - name: Require a publishing credential (GitHub App or PAT)
+        env:
+          HAS_CRED: ${{ (secrets.GH_APP_ID != '' && secrets.GH_APP_PRIVATE_KEY != '') || secrets.GH_PAT != '' }}
+        run: |
+          if [[ "$HAS_CRED" != "true" ]]; then
+            echo "::error::No publishing credential: pass GH_APP_ID + GH_APP_PRIVATE_KEY (preferred) or GH_PAT."
+            exit 1
+          fi
+
+      # Short-lived, repository-scoped installation token — expires when the job ends
+      # and is far safer than a long-lived PAT.
+      - name: Mint GitHub App installation token (preferred credential)
+        id: app_token
+        if: env.USE_GH_APP == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-deny-ai-fix-${{ needs.detect.outputs.workspace_slug }}
+          path: /tmp/cargo-deny-out
+
+      # Belt and braces: this is a fresh checkout with no hooks, but neutralize the
+      # hook path anyway so nothing can run during git am / git push.
+      - name: Disable git hooks and set identity
+        run: |
+          git config core.hooksPath /dev/null
+          git config user.name "cargo-deny-bot"
+          git config user.email "cargo-deny-bot@users.noreply.github.com"
+
+      - name: Ensure workspace-scoped labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "cargo-deny-fix" --color "1D76DB" --description "Automated cargo-deny fix PR" 2>/dev/null || true
+          gh label create "cargo-deny-diagnosis" --color "0E8A16" --description "AI diagnosis issue: dry-run, or findings that need a human decision" 2>/dev/null || true
+          gh label create "workspace:${{ needs.detect.outputs.workspace_slug }}" --color "5319E7" 2>/dev/null || true
+          gh label create "needs-security-review" --color "B60205" --description "AI left an advisory unresolved for a human to decide" 2>/dev/null || true
+          gh label create "needs-license-review" --color "B60205" --description "AI left a license finding unresolved for a human to decide" 2>/dev/null || true
+
+      - name: Publish results (PR for patches, tracking issue otherwise)
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.GH_PAT }}
+          SLUG: ${{ needs.detect.outputs.workspace_slug }}
+          WS_DIR: ${{ needs.detect.outputs.workspace_dir }}
+          MANIFEST: ${{ inputs.manifest-path }}
+          DRY_RUN: ${{ inputs.dry-run }}
+          FP: ${{ needs.detect.outputs.fingerprint }}
+        run: |
+          out=/tmp/cargo-deny-out
+          already_green=$(jq -r '.already_green' "$out/cargo-deny-report.json")
+          needs_sec=$(jq -r '.needs_security_review' "$out/cargo-deny-report.json")
+          needs_lic=$(jq -r '.needs_license_review' "$out/cargo-deny-report.json")
 
           if [[ "$already_green" == "true" ]]; then
             echo "cargo-deny was already green when Claude looked; publishing nothing."
             exit 0
           fi
+
+          # Embedded fingerprint lets the detect gate tell "this issue already covers
+          # exactly these findings" from "the finding set changed, re-run".
+          printf '\n\n<!-- cargo-deny-fingerprint: %s -->\n' "$FP" >> "$out/cargo-deny-report.md"
 
           extra_create=()
           extra_edit=()
@@ -447,17 +560,32 @@ jobs:
             extra_edit+=(--add-label needs-license-review)
           fi
 
-          commits=0
-          if [[ "$DRY_RUN" != "true" ]]; then
-            commits=$(git rev-list --count "${GITHUB_SHA}..HEAD")
-          fi
+          shopt -s nullglob
+          patches=("$out"/patches/*.patch)
 
-          if [[ "$commits" -gt 0 ]]; then
-            git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH_NAME}"
+          if [[ "$DRY_RUN" != "true" && ${#patches[@]} -gt 0 ]]; then
+            branch="cargo-deny-fix/${SLUG}/$(date +%Y%m%d-%H%M%S)"
+            git checkout -b "$branch"
+            git am "${patches[@]}"
+
+            # The AI job is untrusted: refuse patches that reach outside the
+            # workspace (or a deny.toml policy file) — e.g. workflow files.
+            if [[ "$WS_DIR" == "." ]]; then
+              allowed='.'
+            else
+              allowed="^(${WS_DIR}/|deny\.toml$)"
+            fi
+            bad=$(git diff --name-only "${GITHUB_SHA}..HEAD" | grep -Ev "$allowed" || true)
+            if [[ -n "$bad" ]]; then
+              echo "::error::AI patch touches files outside the workspace: $bad"
+              exit 1
+            fi
+
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${branch}"
             gh pr create \
-              --head "$BRANCH_NAME" \
+              --head "$branch" \
               --title "fix(${SLUG}): resolve cargo-deny findings" \
-              --body-file cargo-deny-report.md \
+              --body-file "$out/cargo-deny-report.md" \
               --label cargo-deny-fix --label "workspace:${SLUG}" \
               "${extra_create[@]}"
           else
@@ -465,12 +593,13 @@ jobs:
               --label "cargo-deny-diagnosis" --label "workspace:${SLUG}" \
               --json number --jq '.[0].number // empty')
             if [[ -n "$existing" ]]; then
-              gh issue edit "$existing" --body-file cargo-deny-report.md "${extra_edit[@]}"
+              gh issue edit "$existing" --repo "$GITHUB_REPOSITORY" \
+                --body-file "$out/cargo-deny-report.md" "${extra_edit[@]}"
               echo "Updated diagnosis issue #$existing"
             else
               gh issue create \
                 --title "[cargo-deny] diagnosis for ${MANIFEST}" \
-                --body-file cargo-deny-report.md \
+                --body-file "$out/cargo-deny-report.md" \
                 --label cargo-deny-diagnosis --label "workspace:${SLUG}" \
                 "${extra_create[@]}"
             fi
