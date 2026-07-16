@@ -67,8 +67,8 @@ jobs:
       deny-action-args: "--config ../deny.toml --allow unmaintained --hide-inclusion-graph"
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      # Publishing credential, used ONLY by the final publish step (never exposed to
-      # Claude or cargo). Prefer a repository-scoped GitHub App once one is
-      # provisioned (pass GH_APP_ID + GH_APP_PRIVATE_KEY instead); until then this is
-      # the same bot PAT release-please uses, which also makes fix PRs trigger CI.
+      # Publishing credential, held only by the publish job (never exposed to Claude
+      # or cargo). Prefer a repository-scoped GitHub App once one is provisioned
+      # (pass GH_APP_ID + GH_APP_PRIVATE_KEY instead); until then this is the same
+      # bot PAT release-please uses, which also makes fix PRs trigger CI.
       GH_PAT: ${{ secrets.RELEASE_TOKEN }}
