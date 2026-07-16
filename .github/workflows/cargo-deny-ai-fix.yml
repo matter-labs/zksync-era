@@ -27,6 +27,13 @@ on:
 
 jobs:
   cargo-deny-ai-fix:
+    # A called reusable workflow can only downgrade the caller's GITHUB_TOKEN, so this
+    # grants the maximum its ai-fix job needs (labels/PRs/issues; pushes use GH_PAT);
+    # the reusable workflow scopes its detect job down to read-only internally.
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
     strategy:
       fail-fast: false
       matrix:
