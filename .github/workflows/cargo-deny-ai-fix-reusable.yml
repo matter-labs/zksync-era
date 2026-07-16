@@ -18,9 +18,9 @@
 #                 suppresses new fixable findings). Closes stale diagnosis issues when
 #                 the check is green again.
 #   2. ai-fix  -> READ-ONLY job, no publishing credential anywhere on the runner.
-#                 Claude gets file edits + cargo/git/rustup (no gh), commits fixes
-#                 locally, and writes a report; the job uploads patches + report as an
-#                 artifact.
+#                 Claude gets file edits + cargo + scoped git subcommands (no gh, no
+#                 rustup), commits fixes locally, and writes a report; the job uploads
+#                 patches + report as an artifact.
 #   3. publish -> separate job on a FRESH runner (nothing untrusted ever ran here — a
 #                 malicious build script in ai-fix can't have planted git hooks or
 #                 background processes). Validates the patches only touch the workspace
@@ -307,6 +307,9 @@ jobs:
         run: |
           git config user.name "cargo-deny-bot"
           git config user.email "cargo-deny-bot@users.noreply.github.com"
+          # A build script could plant .git/hooks/* during cargo build; Claude's
+          # later `git commit` must not execute it with the API key present.
+          git config core.hooksPath /dev/null
 
       - name: Create local working branch (skipped in dry-run)
         if: ${{ !inputs.dry-run }}
@@ -333,7 +336,13 @@ jobs:
       # holds the Anthropic API key — and cargo build scripts / proc macros execute
       # arbitrary code. This PATH-shadowing wrapper strips credential variables from
       # every cargo invocation Claude makes, so they never reach build scripts.
-      # Defense in depth, not a guarantee: same-UID code can still read
+      # Known bypasses are closed elsewhere: `rustup run <tc> cargo` would skip the
+      # wrapper, so rustup is not in allowedTools (the toolchain is pre-installed
+      # above); `git -c alias.x='!cmd' x` would exec with the original environment,
+      # so git is scoped to explicit subcommands; a hook planted in .git/hooks by a
+      # build script would fire on Claude's own `git commit`, so core.hooksPath is
+      # neutralized in the identity step above.
+      # Still defense in depth, not a guarantee: same-UID code can read
       # /proc/<pid>/environ of the Claude process itself. Mitigate the residual risk
       # by using a dedicated, spend-capped workspace API key for this workflow, and
       # prefer short-lived credentials (Anthropic workload identity federation) once
@@ -359,7 +368,7 @@ jobs:
           claude_args: |
             --max-turns ${{ inputs.max-turns }}
             --model ${{ inputs.model }}
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cargo:*),Bash(git:*),Bash(rustup:*)"
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd:*),Bash(cargo:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git commit:*),Bash(git restore:*)"
           prompt: |
             You are diagnosing and (unless told otherwise below) fixing `cargo deny
             check` failures for the workspace at ${{ inputs.manifest-path }} in this
@@ -620,6 +629,12 @@ jobs:
               --label "cargo-deny-diagnosis" --label "workspace:${SLUG}" \
               --json number --jq '.[0].number // empty')
             if [[ -n "$existing" ]]; then
+              # Reset both review labels first so a finding set that changed
+              # category (e.g. security -> license-only) doesn't keep the issue in
+              # the wrong review queue; then re-add what the new report warrants.
+              gh issue edit "$existing" --repo "$GITHUB_REPOSITORY" \
+                --remove-label needs-security-review --remove-label needs-license-review \
+                >/dev/null 2>&1 || true
               gh issue edit "$existing" --repo "$GITHUB_REPOSITORY" \
                 --body-file "$out/cargo-deny-report.md" "${extra_edit[@]}"
               echo "Updated diagnosis issue #$existing"
