@@ -27,6 +27,8 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
+        with:
+          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
 
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
@@ -99,6 +101,8 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
+        with:
+          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: Create and initialize legacy chain
         run: |
@@ -171,6 +175,8 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
+        with:
+          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: Build test dependencies
         run: |

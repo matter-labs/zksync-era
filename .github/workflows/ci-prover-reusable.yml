@@ -22,6 +22,7 @@ jobs:
         uses: ./.github/actions/setup-env
         with:
           runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
+          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: Database setup
         run: |
@@ -52,6 +53,7 @@ jobs:
         uses: ./.github/actions/setup-env
         with:
           runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
+          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: Init
         run: |
