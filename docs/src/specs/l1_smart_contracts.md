@@ -235,8 +235,9 @@ Each upgrade consists of two steps:
   - Instant upgrade. Scheduled operations can be executed at any moment. Only the Security Council can perform this type
     of upgrade.
 
-Please note that the cancel function is owner-only; however, the Security Council is able to cancel the upgrade before
-its execution through the Protocol Upgrade Handler (the owner) emergency path.
+Please note that the cancel function is owner-only, so the Security Council cannot unilaterally cancel a scheduled
+operation. A cancellation can still be executed through the owner — the Protocol Upgrade Handler — whose emergency
+upgrade path requires approvals from the Security Council, the Guardians, and the ZK Foundation together.
 
 The diagram below outlines the complete journey from the initiation of an operation to its execution.
 
