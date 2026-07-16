@@ -197,16 +197,21 @@ jobs:
           jq -r 'select(.type=="diagnostic") | "\(.fields.severity): [\(.fields.code // "-")] \(.fields.advisory.id // "") \(.fields.message // "")"' \
             /tmp/deny-diagnostics.jsonl | sort | uniq -c | sort -rn || true
 
-      # Stable identity of the failing finding set: sorted unique
-      # (code, advisory id, message) tuples. Used to decide whether an open diagnosis
-      # issue already covers exactly these findings.
+      # Stable identity of the failing finding set: the complete normalized error
+      # diagnostics (keys sorted via jq -S), order-normalized but with multiplicity
+      # preserved (`sort` WITHOUT -u). License rejections all share one
+      # (code, message) pair in 0.18.x, so hashing a deduplicated summary would let a
+      # newly added disallowed dependency hide behind an already-open diagnosis
+      # issue; hashing full diagnostics (labels, notes, graphs) distinguishes them.
+      # Volatile detail (e.g. lockfile line numbers in labels) can shift the
+      # fingerprint on unrelated changes — that errs toward a redundant re-run,
+      # never toward suppression.
       - name: Fingerprint the failing finding set
         id: fp
         if: steps.deny.outputs.failed == 'true'
         run: |
-          fp=$(jq -r 'select(.type=="diagnostic" and .fields.severity=="error")
-                | [.fields.code // "", .fields.advisory.id // "", .fields.message // ""] | join("|")' \
-                /tmp/deny-diagnostics.jsonl | LC_ALL=C sort -u | sha256sum | cut -d' ' -f1)
+          fp=$(jq -cS 'select(.type=="diagnostic" and .fields.severity=="error") | .fields' \
+                /tmp/deny-diagnostics.jsonl | LC_ALL=C sort | sha256sum | cut -d' ' -f1)
           echo "fingerprint=$fp" >> "$GITHUB_OUTPUT"
 
       # Dedup against both artifacts this workflow produces. A fix PR blocks re-runs
@@ -323,6 +328,25 @@ jobs:
           else
             echo "content=" >> "$GITHUB_OUTPUT"
           fi
+
+      # Bash subprocesses inherit the Claude process environment, which necessarily
+      # holds the Anthropic API key — and cargo build scripts / proc macros execute
+      # arbitrary code. This PATH-shadowing wrapper strips credential variables from
+      # every cargo invocation Claude makes, so they never reach build scripts.
+      # Defense in depth, not a guarantee: same-UID code can still read
+      # /proc/<pid>/environ of the Claude process itself. Mitigate the residual risk
+      # by using a dedicated, spend-capped workspace API key for this workflow, and
+      # prefer short-lived credentials (Anthropic workload identity federation) once
+      # available to the org.
+      - name: Shield credentials from cargo subprocesses
+        run: |
+          real_cargo="$(command -v cargo)"
+          mkdir -p "$RUNNER_TEMP/toolwrap"
+          printf '#!/usr/bin/env bash\nexec env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN -u GITHUB_TOKEN -u GH_TOKEN -u ACTIONS_RUNTIME_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL %q "$@"\n' \
+            "$real_cargo" > "$RUNNER_TEMP/toolwrap/cargo"
+          chmod +x "$RUNNER_TEMP/toolwrap/cargo"
+          # GITHUB_PATH entries are prepended, so the wrapper shadows ~/.cargo/bin/cargo
+          echo "$RUNNER_TEMP/toolwrap" >> "$GITHUB_PATH"
 
       # Claude works OFFLINE: no gh in allowedTools and no write-capable token —
       # github_token below is this job's read-only GITHUB_TOKEN, used by the action
@@ -570,12 +594,15 @@ jobs:
 
             # The AI job is untrusted: refuse patches that reach outside the
             # workspace (or a deny.toml policy file) — e.g. workflow files.
+            # --no-renames: rename detection would otherwise report only the
+            # destination path, letting a rename smuggle a deletion outside the
+            # boundary (e.g. .github/workflows/x.yml -> core/x.yml).
             if [[ "$WS_DIR" == "." ]]; then
               allowed='.'
             else
               allowed="^(${WS_DIR}/|deny\.toml$)"
             fi
-            bad=$(git diff --name-only "${GITHUB_SHA}..HEAD" | grep -Ev "$allowed" || true)
+            bad=$(git diff --no-renames --name-only "${GITHUB_SHA}..HEAD" | grep -Ev "$allowed" || true)
             if [[ -n "$bad" ]]; then
               echo "::error::AI patch touches files outside the workspace: $bad"
               exit 1
