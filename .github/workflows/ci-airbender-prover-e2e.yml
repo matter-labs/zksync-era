@@ -102,9 +102,10 @@ jobs:
           ${SUDO} chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}" || true
 
       - name: Clean stale root-owned workspace files
-        run: sudo rm -rf airbender_fixture airbender_prover_logs airbender_prover_server
-     
-     
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} rm -rf airbender_fixture airbender_prover_logs airbender_prover_server
+
       - name: Free the GPU from orphaned provers
         run: |
           if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
@@ -116,12 +117,24 @@ jobs:
             ${SUDO} pkill -9 -f eravm-prover-server || true
             sleep 3
           done
-      
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
+
+      # The hetzner rtx6000 runner pool is heterogeneous: some hosts ship only the
+      # `docker compose` v2 CLI plugin, without a `docker-compose` binary on PATH — but the reset
+      # step below and `bin/ci_run` / `bin/ci_localnet_up` (used by setup-env) invoke
+      # `docker-compose`. Shim the legacy name onto the v2 plugin when it is missing.
+      - name: Shim docker-compose onto the compose v2 plugin
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          if ! command -v docker-compose >/dev/null 2>&1; then
+            printf '#!/bin/sh\nexec docker compose "$@"\n' | ${SUDO} tee /usr/local/bin/docker-compose >/dev/null
+            ${SUDO} chmod +x /usr/local/bin/docker-compose
+          fi
+          docker-compose version
 
       # reth-data / postgres-data named volumes survive between runs; stale L1 state breaks a fresh
       # `ecosystem init`, so tear the stack down for a clean L1 each run.

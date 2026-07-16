@@ -72,7 +72,9 @@ jobs:
               - 'core/lib/dal/migrations/*airbender*'
               - '.github/workflows/ci-airbender-prover-e2e.yml'
               - '.github/workflows/build-airbender-prover-server-template.yml'
-              - '.github/actions/**'
+              # Only setup-env (used by the e2e job), not all actions: this lane occupies a scarce
+              # GPU runner for a long time, so avoid triggering it on unrelated action changes.
+              - '.github/actions/setup-env/**'
               - 'bin/prover_checkers/**'
               - '!**/*.md'
               - '!**/*.MD'
@@ -146,7 +148,10 @@ jobs:
   e2e-for-airbender-prover:
     name: E2E Test for Airbender Prover
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.airbender_e2e == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    # The fork guard is a hard requirement: the e2e job downloads and executes a PR-built binary on
+    # a persistent self-hosted GPU runner with Docker and passwordless sudo, so fork-controlled code
+    # must never reach it. Fork PRs skip the lane (the final status job tolerates skipped jobs).
+    if: ${{ (needs.changed_files.outputs.airbender_e2e == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     uses: ./.github/workflows/ci-airbender-prover-e2e.yml
 
   ci-for-docs:

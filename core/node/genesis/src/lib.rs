@@ -452,8 +452,17 @@ pub async fn validate_genesis_params(
         .get(1);
 
     if let Some(function) = function {
-        // Verify the sub-verifier the chain settles with: an Airbender chain resolves type 2, so
-        // check that and skip FFLONK (a different sub-verifier); others fall back to FFLONK.
+        // Era dual verifier sub-verifier indices: 0 = FFLONK, 1 = PLONK, 2 = Airbender (wired only
+        // when the chain was deployed with the Airbender verifier). The ZKsyncOS dual verifier
+        // reuses index 2 for its own PLONK sub-verifier while rejecting index 0, so index 2 alone
+        // does not identify an Airbender chain — a chain is treated as Airbender only when index 0
+        // resolves too (i.e. the verifier is the Era one).
+        let fflonk_verification_key_hash: Option<H256> =
+            CallFunctionArgs::new("verificationKeyHash", U256::from(0))
+                .for_contract(verifier_address, &verifier_abi)
+                .call_with_function(query_client, function.clone())
+                .await
+                .ok();
         let airbender_verification_key_hash: Option<H256> =
             CallFunctionArgs::new("verificationKeyHash", U256::from(2))
                 .for_contract(verifier_address, &verifier_abi)
@@ -461,36 +470,41 @@ pub async fn validate_genesis_params(
                 .await
                 .ok();
 
-        if let Some(airbender_verification_key_hash) = airbender_verification_key_hash {
-            // No dedicated config hash for the Airbender sub-verifier yet; record it and skip the
-            // FFLONK check. The proof is verified against this sub-verifier on L1 at prove time.
-            tracing::info!(
-                "Airbender verification key hash in contract: {airbender_verification_key_hash:?}"
-            );
-        } else {
-            let fflonk_verification_key_hash: Option<H256> =
-                CallFunctionArgs::new("verificationKeyHash", U256::from(0))
-                    .for_contract(verifier_address, &verifier_abi)
-                    .call_with_function(query_client, function.clone())
-                    .await
-                    .ok();
-            tracing::info!(
-                "FFlonk verification key hash in contract: {:?}",
-                fflonk_verification_key_hash
-            );
-            tracing::info!(
-                "FFlonk verification key hash in config: {:?}",
-                genesis_params.config().fflonk_snark_wrapper_vk_hash
-            );
+        match (
+            fflonk_verification_key_hash,
+            airbender_verification_key_hash,
+        ) {
+            (Some(_), Some(airbender_verification_key_hash)) => {
+                // TODO: validate against the config once it carries an Airbender VK hash; until
+                // then a VK mismatch only surfaces on L1 at prove time.
+                tracing::info!(
+                    "Airbender verification key hash in contract: \
+                     {airbender_verification_key_hash:?}"
+                );
+            }
+            (fflonk_verification_key_hash @ Some(_), None) => {
+                tracing::info!(
+                    "FFlonk verification key hash in contract: {:?}",
+                    fflonk_verification_key_hash
+                );
+                tracing::info!(
+                    "FFlonk verification key hash in config: {:?}",
+                    genesis_params.config().fflonk_snark_wrapper_vk_hash
+                );
 
-            if fflonk_verification_key_hash.is_some()
-                && fflonk_verification_key_hash
+                if fflonk_verification_key_hash
                     != genesis_params.config().fflonk_snark_wrapper_vk_hash
-            {
-                return Err(anyhow::anyhow!(
-                "FFlonk verification key hash mismatch: {fflonk_verification_key_hash:?} on contract, {:?} in config",
-                genesis_params.config().fflonk_snark_wrapper_vk_hash
-            ));
+                {
+                    return Err(anyhow::anyhow!(
+                    "FFlonk verification key hash mismatch: {fflonk_verification_key_hash:?} on contract, {:?} in config",
+                    genesis_params.config().fflonk_snark_wrapper_vk_hash
+                ));
+                }
+            }
+            (None, _) => {
+                // Not an Era dual verifier (e.g. the ZKsyncOS one, whose sub-verifiers have no
+                // config counterpart to validate against, or a pre-dual-verifier contract).
+                tracing::info!("Verifier does not expose an FFLONK sub-verifier; skipping sub-verifier VK checks");
             }
         }
     } else {
