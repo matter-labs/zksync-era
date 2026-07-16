@@ -13,6 +13,11 @@ import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof, wa
 import { encodeNTVAssetId } from 'zksync-ethers/build/utils';
 import { ARTIFACTS_PATH, L2_ASSET_TRACKER_ADDRESS } from '../src/constants';
 
+// This call verifies an L2 proof and may enqueue multiple priority operations. Relying on the
+// node's estimate leaves no room for small execution-path differences; failed CI runs consumed
+// ~668k gas and reverted at the estimated limit.
+const L1_TOKEN_MIGRATION_GAS_LIMIT = 1_500_000;
+
 async function migrateTokenBalanceFromL1ToGateway(
     alice: zksync.Wallet,
     assetId: string,
@@ -49,7 +54,9 @@ async function migrateTokenBalanceFromL1ToGateway(
     };
 
     // Finalize the migration on L1.
-    const l1ReceiveTx = await l1AssetTracker.receiveL1ToGatewayMigrationOnL1(finalizeDepositParams);
+    const l1ReceiveTx = await l1AssetTracker.receiveL1ToGatewayMigrationOnL1(finalizeDepositParams, {
+        gasLimit: L1_TOKEN_MIGRATION_GAS_LIMIT
+    });
     await expect(l1ReceiveTx).toBeAccepted();
     const l1Receipt = await l1ReceiveTx.wait();
 
