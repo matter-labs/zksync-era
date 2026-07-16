@@ -43,9 +43,11 @@
 #
 # REQUIRED REPO SETUP:
 #   - A `deny.toml` in the repo: either next to the workspace `manifest-path` points at
-#     (auto-discovered), or a shared one passed explicitly via the `deny-arguments`
-#     input (e.g. '--all-features --config deny.toml' for a repo-root shared config —
-#     cargo-deny does NOT auto-discover a root config from nested workspaces).
+#     (auto-discovered), or a shared one passed explicitly via `--config` in the
+#     `deny-action-args` input (cargo-deny does NOT auto-discover a root config from
+#     nested workspaces, and a relative --config path resolves from the workspace root
+#     directory — e.g. '--config ../deny.toml' for a repo-root config with one-level-deep
+#     workspaces).
 #   - Labels are self-created by the ai-fix job on first run (`gh label create ... || true`).
 #
 # RECOMMENDED ROLLOUT: set `dry-run: true` in the caller for the first 1-2 weeks on a
@@ -64,12 +66,12 @@ on:
         required: true
         type: string
       deny-arguments:
-        description: "Top-level cargo-deny arguments placed before the subcommand (the action's `arguments` input, default --all-features). Use this to point at a shared config, e.g. '--all-features --config deny.toml'."
+        description: "Top-level cargo-deny arguments placed before the subcommand (the action's `arguments` input, default --all-features)."
         required: false
         type: string
         default: "--all-features"
       deny-action-args:
-        description: "Extra command-arguments passed to the cargo-deny-action check"
+        description: "Extra command-arguments passed to the cargo-deny check. Use this to point at a shared config, e.g. '--config ../deny.toml' (in cargo-deny 0.18.x a relative --config resolves from the workspace root directory, not the cwd)."
         required: false
         type: string
         default: "--hide-inclusion-graph"
@@ -181,10 +183,14 @@ jobs:
 
       # cargo-deny-action doesn't expose a raw binary for interactive use, so the
       # fix job installs the CLI directly - Claude needs to re-run `cargo deny check`
-      # itself, iteratively, while it works.
+      # itself, iteratively, while it works. Pinned to the exact version bundled by
+      # the cargo-deny-action pinned in the detect job (see its Dockerfile), so both
+      # produce identical results AND accept the same CLI syntax: `--config` is a
+      # `check` argument in 0.18.x but moved to a top-level argument in later
+      # releases. Bump both together.
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-deny
+          tool: cargo-deny@0.18.6
 
       - name: Configure git identity for commits
         run: |

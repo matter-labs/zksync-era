@@ -2,10 +2,11 @@
 # (core, prover, zkstack_cli, airbender_prover_server).
 #
 # cargo-deny does not auto-discover this file from nested workspaces, so every
-# invocation must pass it explicitly, BEFORE the subcommand:
-#   cargo deny --config deny.toml --manifest-path <workspace>/Cargo.toml check ...
-# CI does this via cargo-deny-action's `arguments` input (see cargo-license.yaml and
-# .github/workflows/cargo-deny-ai-fix.yml).
+# invocation must pass it explicitly. CI runs cargo-deny 0.18.x, where --config is a
+# `check` argument and a RELATIVE path resolves from the workspace root directory:
+#   cargo deny --manifest-path <workspace>/Cargo.toml check --config ../deny.toml ...
+# (see cargo-license.yaml and .github/workflows/cargo-deny-ai-fix.yml). In cargo-deny
+# 0.19+ the flag moved to a top-level argument: cargo deny --config deny.toml ... check
 #
 # Because the config is shared, an `advisories.ignore` entry added for one workspace
 # also silences that advisory in the others, and ignores may be unused in some
