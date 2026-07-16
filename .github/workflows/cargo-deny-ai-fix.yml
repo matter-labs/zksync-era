@@ -12,9 +12,10 @@
 # `deny-action-args` intentionally matches cargo-license.yaml exactly so this
 # proactive check and the PR-time gate always agree on what is red.
 #
-# When the reusable workflow moves to a central repo (e.g. matter-labs/.github),
-# switch `uses:` to:
-#   matter-labs/.github/.github/workflows/cargo-deny-ai-fix.yml@main
+# When the reusable workflow moves to matter-labs/zksync-ci-common, switch `uses:`
+# to a reviewed FULL COMMIT SHA — never a branch ref, which would hand the central
+# workflow standing access to this repo's secrets and write permissions:
+#   matter-labs/zksync-ci-common/.github/workflows/cargo-deny-ai-fix-reusable.yml@<full-sha>
 
 name: Cargo Deny AI Fix
 
@@ -48,5 +49,8 @@ jobs:
       deny-action-args: "--config ../deny.toml --allow unmaintained --hide-inclusion-graph"
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      # Same bot PAT release-please uses; makes AI fix PRs trigger CI.
+      # Publishing credential, used ONLY by the final publish step (never exposed to
+      # Claude or cargo). Prefer a repository-scoped GitHub App once one is
+      # provisioned (pass GH_APP_ID + GH_APP_PRIVATE_KEY instead); until then this is
+      # the same bot PAT release-please uses, which also makes fix PRs trigger CI.
       GH_PAT: ${{ secrets.RELEASE_TOKEN }}
