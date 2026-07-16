@@ -180,11 +180,7 @@ fn read_marker(marker: &Path) -> Option<String> {
         .map(|s| s.trim().to_owned())
 }
 
-/// Blocking GET that fails the build on any non-success status.
-///
-/// Retries on transport errors and transient server responses (HTTP 5xx / 429), since these
-/// artifacts are fetched from GitHub release storage on every build and a transient hiccup there
-/// should not fail the whole build. Genuine failures (4xx other than 429) fail fast.
+/// Blocking GET; retries transport errors and 5xx/429, fails fast on other statuses.
 fn download(url: &str) -> Vec<u8> {
     const MAX_ATTEMPTS: u32 = 5;
     let mut attempt = 0;

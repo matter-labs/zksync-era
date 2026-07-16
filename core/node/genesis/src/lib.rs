@@ -445,18 +445,14 @@ pub async fn validate_genesis_params(
         ));
     }
 
-    // The dual verifier's overloaded `verificationKeyHash(uint256)` exposes each sub-verifier
-    // (0 = FFLONK, 2 = Airbender); fetch it by index since it shares its name with the no-arg one.
+    // The overloaded `verificationKeyHash(uint256)` of the dual verifier.
     let function = verifier_abi
         .functions_by_name("verificationKeyHash")?
         .get(1);
 
     if let Some(function) = function {
-        // Era dual verifier sub-verifier indices: 0 = FFLONK, 1 = PLONK, 2 = Airbender (wired only
-        // when the chain was deployed with the Airbender verifier). The ZKsyncOS dual verifier
-        // reuses index 2 for its own PLONK sub-verifier while rejecting index 0, so index 2 alone
-        // does not identify an Airbender chain — a chain is treated as Airbender only when index 0
-        // resolves too (i.e. the verifier is the Era one).
+        // Era dual verifier: 0 = FFLONK, 2 = Airbender. The ZKsyncOS one reuses index 2 for its
+        // own PLONK sub-verifier and rejects index 0, so Airbender = both indices resolve.
         let fflonk_verification_key_hash: Option<H256> =
             CallFunctionArgs::new("verificationKeyHash", U256::from(0))
                 .for_contract(verifier_address, &verifier_abi)
@@ -475,8 +471,7 @@ pub async fn validate_genesis_params(
             airbender_verification_key_hash,
         ) {
             (Some(_), Some(airbender_verification_key_hash)) => {
-                // TODO: validate against the config once it carries an Airbender VK hash; until
-                // then a VK mismatch only surfaces on L1 at prove time.
+                // TODO: validate once the config carries an Airbender VK hash.
                 tracing::info!(
                     "Airbender verification key hash in contract: \
                      {airbender_verification_key_hash:?}"
@@ -502,8 +497,7 @@ pub async fn validate_genesis_params(
                 }
             }
             (None, _) => {
-                // Not an Era dual verifier (e.g. the ZKsyncOS one, whose sub-verifiers have no
-                // config counterpart to validate against, or a pre-dual-verifier contract).
+                // Not an Era dual verifier (e.g. ZKsyncOS); nothing in the config to check against.
                 tracing::info!("Verifier does not expose an FFLONK sub-verifier; skipping sub-verifier VK checks");
             }
         }

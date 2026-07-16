@@ -234,8 +234,7 @@ fn build_prover(
         use_zk: cli.snark_use_zk,
         // Server path drives the wrapper directly and never persists intermediates.
         save_intermediates: false,
-        // The wrapper binds the guest program (`app.bin`/`app.text`) into the SNARK, so point at
-        // the same guest dist dir the FRI prover uses.
+        // The wrapper binds the guest program into the SNARK; use the FRI prover's guest dist dir.
         bin: app_bin_path(dist_dir),
         text: app_text_path(dist_dir),
     };

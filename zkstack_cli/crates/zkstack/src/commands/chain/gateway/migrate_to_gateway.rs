@@ -88,11 +88,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .context("L2 RPC URL must be provided for cross checking")?;
     let chain_contracts_config = chain_config.get_contracts_config()?;
 
-    // Persist the gateway RPC URL before the migration starts: the readiness wait below polls the
-    // running chain server, which needs the URL in its secrets to prepare for the migration. If
-    // the migration fails midway, the secrets keep a gateway URL for a chain not (yet) on the
-    // gateway; that is harmless — the server ignores it until the settlement layer switches, and a
-    // retry overwrites it.
+    // Persist the gateway RPC URL up front: the running chain server needs it in its secrets to
+    // get ready for the migration (which the wait below polls for).
     let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
     chain_secrets_config.set_gateway_rpc_url(gateway_rpc_url.clone())?;
     chain_secrets_config.save().await?;

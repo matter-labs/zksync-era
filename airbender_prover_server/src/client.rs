@@ -60,9 +60,7 @@ impl JobServerClient {
     }
 
     pub fn fetch_fri_job(&self) -> Result<Option<WorkerJob>> {
-        // zksync-era and this verifier share a single `AirbenderVerifierInput` shape
-        // (v31 wire layout), so the bare payload deserializes directly into it for both
-        // the JSON wire and the host↔guest channel / on-disk bincode corpus.
+        // The v31 wire format has no version envelope: the payload is the input itself.
         let Some(input) = self.poll_json::<AirbenderVerifierInput>(FRI_INPUTS_PATH, FRI_LABEL)?
         else {
             return Ok(None);

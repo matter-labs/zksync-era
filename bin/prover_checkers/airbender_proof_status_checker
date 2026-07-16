@@ -27,9 +27,7 @@ while true; do
         echo "Airbender FRI proof for batch $BATCH_NUMBER is generated. Success!"
         exit 0
     else
-        # Report where the batch is so a stall is diagnosable. An airbender_proof_generation_details
-        # row exists only once a prover has grabbed the batch; without one, fall back to whether the
-        # proof inputs are ready in proof_generation_details.
+        # Report where the batch is so a stall is diagnosable.
         ROW=$(psql $DATABASE_URL -t -A -F '|' -c "SELECT status, COALESCE(prover_id, '-'), COALESCE(prover_taken_at::text, '-'), attempts, snark_attempts, (proof_blob_url IS NOT NULL), (snark_proof_blob_url IS NOT NULL), COALESCE(error, '-') FROM airbender_proof_generation_details WHERE l1_batch_number = $BATCH_NUMBER;")
         if [ -n "$ROW" ]; then
             IFS='|' read -r ST PID TAKEN ATT SATT HAS_FRI HAS_SNARK ERR <<< "$ROW"

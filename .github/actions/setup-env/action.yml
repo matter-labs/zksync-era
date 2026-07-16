@@ -53,9 +53,7 @@ runs:
         echo SCCACHE_GCS_RW_MODE=READ_WRITE >> .env
         echo RUSTC_WRAPPER=sccache >> .env
 
-    # The zk-environment image bakes in RUSTC_WRAPPER=sccache; when sccache is disabled,
-    # neutralize it so in-container cargo builds don't try to reach the unreachable cache
-    # (an empty RUSTC_WRAPPER means "no wrapper" to cargo).
+    # The zk-environment image bakes in RUSTC_WRAPPER=sccache; empty means "no wrapper" to cargo.
     - name: Disable sccache inside Docker
       if: inputs.sccache != 'true'
       shell: bash

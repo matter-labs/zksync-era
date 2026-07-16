@@ -58,9 +58,7 @@ jobs:
               - '.github/workflows/actions/**'
               - '!**/*.md'
               - '!**/*.MD'
-            # End-to-end Airbender proving lane (GPU): the prover-server workspace plus the core
-            # crates it exercises — the Airbender proof data handler, prover interface, verifier,
-            # and the proof-generation DAL/migrations — plus the e2e workflow and its checkers.
+            # Airbender GPU e2e lane: the prover server and the core code it exercises.
             airbender_e2e:
               - 'airbender_prover_server/**'
               - 'docker/airbender-prover-server/**'
@@ -72,8 +70,7 @@ jobs:
               - 'core/lib/dal/migrations/*airbender*'
               - '.github/workflows/ci-airbender-prover-e2e.yml'
               - '.github/workflows/build-airbender-prover-server-template.yml'
-              # Only setup-env (used by the e2e job), not all actions: this lane occupies a scarce
-              # GPU runner for a long time, so avoid triggering it on unrelated action changes.
+              # Only setup-env, not all actions — this lane occupies a scarce GPU runner for hours.
               - '.github/actions/setup-env/**'
               - 'bin/prover_checkers/**'
               - '!**/*.md'
@@ -148,13 +145,10 @@ jobs:
   e2e-for-airbender-prover:
     name: E2E Test for Airbender Prover
     needs: changed_files
-    # ci.yml has no top-level permissions block, so cap the GITHUB_TOKEN handed to the called
-    # workflow (which itself declares `contents: read`) instead of inheriting the repo default.
     permissions:
       contents: read
-    # The fork guard is a hard requirement: the e2e job downloads and executes a PR-built binary on
-    # a persistent self-hosted GPU runner with Docker and passwordless sudo, so fork-controlled code
-    # must never reach it. Fork PRs skip the lane (the final status job tolerates skipped jobs).
+    # Same-repo PRs only: the e2e job executes a PR-built binary on a persistent self-hosted GPU
+    # runner, so fork-controlled code must never reach it.
     if: ${{ (needs.changed_files.outputs.airbender_e2e == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     uses: ./.github/workflows/ci-airbender-prover-e2e.yml
 

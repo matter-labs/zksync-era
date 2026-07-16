@@ -174,8 +174,6 @@ pub async fn deploy_new_ctm(
         DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts_for_ctm(vm_option));
 
     let wallets_config = config.get_wallets()?;
-    // Resolve the verifier: an explicit `--verifier` override wins, otherwise it is derived
-    // from the prover mode (testnet for `NoProofs`, dual otherwise).
     let verifier = VerifierType::resolve(verifier, config.prover_version);
     // For deploying ecosystem we only need genesis batch params
     let deploy_config = DeployCTMConfig::new(
