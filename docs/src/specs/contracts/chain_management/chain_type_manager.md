@@ -62,7 +62,7 @@ In the current release, each chain will be an instance of ZKsync Era and so the 
 
 In case of an emergency, the [security council](https://blog.zknation.io/introducing-zk-nation/) has the ability to freeze the ecosystem and conduct an emergency upgrade.
 
-In case we are aware that some of the committed batches on a chain are dangerous to be executed, the CTM can call `revertBatches` on that chain. For faster reaction, the admin of the ChainTypeManager has the ability to do so without waiting for govenrnace approval that may take a lot of time. This action does not lead to funds being lost, so it is considered suitable for the partially trusted role of the admin of the ChainTypeManager.
+In case we are aware that some of the committed batches on a chain are dangerous to be executed, the CTM can call `revertBatches` on that chain. This is performed by the CTM owner — the governance-controlled Protocol Upgrade Handler — typically as part of a freeze and emergency upgrade. This action does not lead to funds being lost. Note that reverting batches is not exclusive to the CTM: the underlying `revertBatchesSharedBridge` function on the chain is callable by both the CTM and the chain's validators (via the `REVERTER_ROLE` on the ValidatorTimelock), so a chain's operator can also revert its own not-yet-executed batches.
 
 ### Issues & caveats
 

@@ -2,15 +2,15 @@
 
 ## Ecosystem Setup
 
-Chain migration reuses lots of logic from standard custom asset bridging which is enabled by the AssetRouter. The easiest way to imagine is that ZKChains are NFTs that are being migrated from one chain to another. Just like in case of the NFT contract, an CTM is assumed to have an `assetId := keccak256(abi.encode(L1_CHAIN_ID, address(ctmDeployer), bytes32(uint256(uint160(_ctmAddress)))))`. I.e. these are all assets with ADT = ctmDeployer contract on L1.
+Chain migration reuses lots of logic from standard custom asset bridging which is enabled by the AssetRouter. The easiest way to imagine is that ZKChains are NFTs that are being migrated from one chain to another. Just like in case of the NFT contract, an CTM is assumed to have an `assetId := keccak256(abi.encode(block.chainid, address(ctmDeploymentTracker), bytes32(uint256(uint160(_ctmAddress)))))`. I.e. these are all assets with ADT = ctmDeploymentTracker contract on L1.
 
-CTMDeployer is a very lightweight contract used to facilitate chain migration. Its main purpose is to serve as formal asset deployment tracker for CTMs. It serves two purposes:
+CTMDeploymentTracker is a very lightweight contract used to facilitate chain migration. Its main purpose is to serve as formal asset deployment tracker for CTMs. It serves two purposes:
 
-- Assign bridgehub as the asset handler for the “asset” of the CTM on the supported settlement layer.
+- Register the `ChainAssetHandler` (via `registerCTMAssetOnL1`) as the asset handler for the 'asset' of the CTM on the supported settlement layer.
 
-Currently, it can only be done by the owner of the CTMDeployer, but in the future, this method can become either permissionless or callable by the CTM owner.
+Currently, it can only be done by the owner of the CTMDeploymentTracker, but in the future, this method can become either permissionless or callable by the CTM owner.
 
-- Tell bridgehub which address on the L2 should serve as the L2 representation of the CTM on L1. Currently, it can only be done by the owner of the CTMDeployer, but in the future, this method can become callable by the CTM owner.
+- Tell bridgehub which address on the L2 should serve as the L2 representation of the CTM on L1. Currently, it can only be done by the owner of the CTMDeploymentTracker, but in the future, this method can become callable by the CTM owner.
 
 ![image.png](./img/ctm_gw_registration.png)
 
