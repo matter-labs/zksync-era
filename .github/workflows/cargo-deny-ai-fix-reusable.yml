@@ -81,7 +81,8 @@
 #     publish job's path boundary.
 #   - Labels are self-created by the publish job on first run (`gh label create ... || true`).
 #   - If several workspaces share one policy file, serialize the caller: workflow-level
-#     `concurrency` with `queue: max` (survives overlapping schedule/push/manual runs)
+#     `concurrency` over a repo-wide group (covers overlapping schedule/push/manual
+#     runs; single-pending replacement is safe because the group spans the whole run)
 #     plus `strategy.max-parallel: 1` on the matrix.
 #
 # RECOMMENDED ROLLOUT: set `dry-run: true` in the caller for the first 1-2 weeks on a
@@ -116,7 +117,7 @@ on:
         type: string
         default: "--hide-inclusion-graph"
       concurrency-key:
-        description: "Overrides the concurrency group key (default: the manifest path). To serialize workspaces that share a policy file, prefer caller-level concurrency with queue: max plus strategy.max-parallel: 1."
+        description: "Overrides the concurrency group key (default: the manifest path). To serialize workspaces that share a policy file, prefer caller-level workflow concurrency plus strategy.max-parallel: 1."
         required: false
         type: string
         default: ""

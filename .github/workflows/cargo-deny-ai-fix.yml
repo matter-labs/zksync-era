@@ -28,11 +28,14 @@ on:
 
 # All four workspaces edit the shared root deny.toml, so runs must be serialized
 # ACROSS triggers too: max-parallel below only serializes within one run, while a
-# scheduled run, a push run, and a manual run can overlap. `queue: max` queues every
-# run instead of silently replacing the pending one.
+# scheduled run, a push run, and a manual run can overlap. Default single-pending
+# behavior is intentional: the group covers the ENTIRE caller run, so the newest
+# pending run replaces an older pending one without losing any matrix entry, and it
+# avoids queueing dozens of expensive AI runs on a busy main branch (the detect gate
+# re-arms on the next tick regardless).
 concurrency:
   group: cargo-deny-ai-fix-${{ github.repository }}
-  queue: max
+  cancel-in-progress: false
 
 jobs:
   cargo-deny-ai-fix:
