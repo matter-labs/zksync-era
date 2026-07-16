@@ -47,10 +47,11 @@
 #       credential necessarily lives). A PATH-shadowing wrapper additionally strips
 #       credential env vars from every cargo invocation. Residual risk: same-UID code
 #       can read /proc/<pid>/environ of the Claude process — use a dedicated,
-#       spend-capped workspace API key, and prefer short-lived credentials (Anthropic
-#       workload identity federation, supported by the pinned action) once available
-#       to the org; running cargo in a separate PID/container namespace would close
-#       this fully.
+#       spend-capped workspace API key; running cargo in a separate PID/container
+#       namespace would close this fully.
+#   Future hardening: expose Anthropic WIF inputs and use id-token: write in a
+#   dedicated WIF job. This reusable workflow currently supports API key or OAuth
+#   (exactly one).
 #
 # CONVENTIONS ALIGNED WITH `AI Security Review` (zksync-prividium):
 #   - All third-party actions are pinned to full commit SHAs (tag noted in a comment);
@@ -279,16 +280,17 @@ jobs:
 
       - name: Decide whether the fix job should run
         id: gate
+        env:
+          IS_RED: ${{ steps.deny.outputs.failed }}
+          PR_FP: ${{ steps.existing.outputs.pr_fp }}
+          ISSUE_FP: ${{ steps.existing.outputs.issue_fp }}
+          CURRENT_FP: ${{ steps.fp.outputs.fingerprint }}
         run: |
-          is_red="${{ steps.deny.outputs.failed }}"
-          pr_fp="${{ steps.existing.outputs.pr_fp }}"
-          issue_fp="${{ steps.existing.outputs.issue_fp }}"
-          current_fp="${{ steps.fp.outputs.fingerprint }}"
           should=false
-          if [[ "$is_red" == "true" ]]; then
-            if [[ -n "$pr_fp" && "$pr_fp" == "$current_fp" ]]; then
+          if [[ "$IS_RED" == "true" ]]; then
+            if [[ -n "$PR_FP" && "$PR_FP" == "$CURRENT_FP" ]]; then
               echo "Open fix PR already covers this finding set."
-            elif [[ -n "$issue_fp" && "$issue_fp" == "$current_fp" ]]; then
+            elif [[ -n "$ISSUE_FP" && "$ISSUE_FP" == "$CURRENT_FP" ]]; then
               echo "Open diagnosis issue already covers this finding set."
             else
               should=true
@@ -307,12 +309,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Require an Anthropic credential
+      - name: Require exactly one Anthropic credential
         env:
-          HAS_CRED: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          HAS_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+          HAS_OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
-          if [[ "$HAS_CRED" != "true" ]]; then
-            echo "::error::No Anthropic credential: pass ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN."
+          if [[ "$HAS_API_KEY" == "$HAS_OAUTH" ]]; then
+            echo "::error::Provide exactly one of ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN."
             exit 1
           fi
 
@@ -367,9 +370,8 @@ jobs:
       # is gone.
       # Still defense in depth, not a guarantee: same-UID code can read
       # /proc/<pid>/environ of the Claude process itself. Mitigate the residual risk
-      # by using a dedicated, spend-capped workspace API key for this workflow, and
-      # prefer short-lived credentials (Anthropic workload identity federation) once
-      # available to the org.
+      # by using a dedicated, spend-capped workspace API key for this workflow (see
+      # the WIF note in the header for the future short-lived-credential path).
       - name: Shield credentials from cargo subprocesses
         run: |
           real_cargo="$(command -v cargo)"
@@ -393,6 +395,7 @@ jobs:
             --max-turns ${{ inputs.max-turns }}
             --model ${{ inputs.model }}
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd:*),Bash(cargo:*)"
+            --disallowedTools "Bash(git:*)"
           prompt: |
             You are diagnosing and (unless told otherwise below) fixing `cargo deny
             check` failures for the workspace at ${{ inputs.manifest-path }} in this
@@ -517,7 +520,7 @@ jobs:
             # Intent-to-add so newly created files appear in the diff
             git -c core.fsmonitor=false -c core.hooksPath=/dev/null add -N .
             git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
-              diff --binary --no-ext-diff --no-textconv --no-renames \
+              diff HEAD --binary --no-ext-diff --no-textconv --no-renames \
               -- . ':(exclude)cargo-deny-report.md' ':(exclude)cargo-deny-report.json' \
               > /tmp/cargo-deny-out/changes.diff
             echo "Captured $(grep -c '^diff --git' /tmp/cargo-deny-out/changes.diff || true) changed file(s)"
@@ -640,7 +643,7 @@ jobs:
                 continue
               fi
               bad+="$path "
-            done < <(git -c core.fsmonitor=false status --porcelain -z)
+            done < <(git -c core.fsmonitor=false status --porcelain=v1 --no-renames -z)
             if [[ -n "$bad" ]]; then
               echo "::error::AI changes touch files outside the workspace: $bad"
               exit 1
