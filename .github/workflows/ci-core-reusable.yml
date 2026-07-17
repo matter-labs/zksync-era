@@ -34,15 +34,16 @@ jobs:
           # Download needed versions of vyper compiler
           # Not sanitized due to unconventional path and tags
           mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
-          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
-          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3+commit.48e326f0.linux
+          WGET_RETRY_ARGS=(--tries=5 --timeout=30 --waitretry=5 --retry-connrefused --retry-on-http-error=429,500,502,503,504)
+          wget -nv "${WGET_RETRY_ARGS[@]}" -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
+          wget -nv "${WGET_RETRY_ARGS[@]}" -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3+commit.48e326f0.linux
           chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
           chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3
 
           COMPILERS_JSON='${{ inputs.compilers }}'
           echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
             mkdir -p "./hardhat-nodejs/compilers-v2/$compiler"
-            wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
+            wget -nv "${WGET_RETRY_ARGS[@]}" -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
@@ -68,7 +69,10 @@ jobs:
           yarn calculate-hashes:check
 
       - name: Download compilers for contract verifier tests
-        run: ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PASSED_ENV_VARS: RUST_BACKTRACE,GITHUB_TOKEN
+        run: ci_run run_retried zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
 
       - name: Rust unit tests
         run: |
@@ -165,7 +169,8 @@ jobs:
           SERVER_LOGS_DIR=logs/server
           mkdir -p $SERVER_LOGS_DIR
           echo "SERVER_LOGS_DIR=$SERVER_LOGS_DIR" >> $GITHUB_ENV
-          sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+          sudo wget --tries=5 --timeout=30 --waitretry=5 --retry-connrefused --retry-on-http-error=429,500,502,503,504 https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod a+x /usr/local/bin/yq
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
@@ -254,8 +259,11 @@ jobs:
           ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
 
       - name: Initialize Contract verifier
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PASSED_ENV_VARS: RUST_BACKTRACE,GITHUB_TOKEN
         run: |
-          ci_run zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
+          ci_run run_retried zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
           ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
           ci_run zkstack contract-verifier wait --chain era --verbose
 
@@ -287,6 +295,17 @@ jobs:
           if [ "${{ matrix.use_gateway_chain }}" == "WITHOUT_GATEWAY" ]; then
             ci_run zkstack dev test upgrade --no-deps --chain era
           fi
+
+      - name: Collect infrastructure diagnostics
+        if: always()
+        run: |
+          mkdir -p logs/infrastructure
+          docker-compose -f "${RUNNER_COMPOSE_FILE:-docker-compose.yml}" ps --all > logs/infrastructure/docker-compose-ps.log 2>&1 || true
+          docker-compose -f "${RUNNER_COMPOSE_FILE:-docker-compose.yml}" logs --no-color --timestamps reth postgres > logs/infrastructure/docker-compose.log 2>&1 || true
+          ci_run bash -lc 'ps -eo pid,ppid,stat,lstart,cmd --sort=lstart' > logs/infrastructure/processes.log 2>&1 || true
+          ci_run bash -lc 'ss -lntp' > logs/infrastructure/listening-ports.log 2>&1 || true
+          ci_run bash -lc 'df -h; free -h' > logs/infrastructure/resources.log 2>&1 || true
+          sync
 
       - name: Upload logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
