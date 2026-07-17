@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-This is a shorter version of setup guide to make it easier subsequent initializations. If it's the first time you're
+This is a shorter version of the setup guide to make subsequent initializations easier. If it's the first time you're
 initializing the workspace, it's recommended that you read the whole guide below, as it provides more context and tips.
 
 If you run on 'clean' Ubuntu on GCP:
@@ -225,7 +225,7 @@ cargo install --locked sqlx-cli --version 0.8.1
 
 ## Foundry ZKsync
 
-ZKSync depends on Foundry ZKsync (which is is a specialized fork of Foundry, tailored for ZKsync). Please follow this
+ZKSync depends on Foundry ZKsync (which is a specialized fork of Foundry, tailored for ZKsync). Please follow this
 [installation guide](https://foundry-book.zksync.io/getting-started/installation) to get started with Foundry ZKsync.
 
 Foundry ZKsync can also be used for deploying smart contracts. For commands related to deployment, you can pass flags
@@ -233,8 +233,8 @@ for Foundry integration.
 
 ## Non-GPU setup
 
-Circuit Prover requires a CUDA bindings to run. If you still want to be able to build everything locally on non-CUDA
-setup, you'll need use CUDA stubs.
+Circuit Prover requires CUDA bindings to run. If you still want to be able to build everything locally on non-CUDA
+setup, you'll need to use CUDA stubs.
 
 For a single run, it's enough to export it on the shell:
 
