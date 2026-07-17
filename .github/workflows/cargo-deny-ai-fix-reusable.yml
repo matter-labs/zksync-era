@@ -617,6 +617,10 @@ jobs:
         env:
           VALIDATION_COMMANDS: ${{ inputs.validation-commands }}
         run: |
+          # The default run-step shell is `bash -e` WITHOUT pipefail: without this,
+          # `tee` masks the command's exit code and a failing validation reports
+          # success (which once shipped a non-compiling fix as merge-ready).
+          set -o pipefail
           failed=0
           : > /tmp/validation-log.txt
           while IFS= read -r cmd; do
