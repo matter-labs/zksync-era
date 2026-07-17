@@ -84,7 +84,7 @@ installed, see `protocol_versions` config option.
 
 ## Dependencies
 
-- [prover-job-monitor](.../prover_job_monitor/)
+- [prover-job-monitor](../prover_job_monitor/)
 - Kubernetes API
 - GCP API (optional)
 
