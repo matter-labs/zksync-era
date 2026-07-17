@@ -62,6 +62,10 @@
 #   GH_APP_ID + GH_APP_PRIVATE_KEY                — preferred publishing credential, or:
 #   GH_PAT                                        — fallback publishing credential
 #
+# CALLER TRIGGERS:
+#   schedule and workflow_dispatch (and other claude-code-action-supported events).
+#   NOT `push` — claude-code-action rejects push events ("Unsupported event type").
+#
 # REQUIRED REPO SETUP:
 #   - A deny.toml next to the workspace manifest (auto-discovered), or a shared one
 #     passed via `--config` in `deny-action-args`: cargo-deny does not auto-discover
