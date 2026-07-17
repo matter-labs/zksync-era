@@ -77,8 +77,7 @@ be able to leverage them when available).
   - `ChainTypeRegistry` The chain type is shared for multiple chains, so initialization and upgrades have to be the same for all
     chains. Registration is not permissionless but happens based on the registrations in the bridgehub’s `Registry`. At
     registration a `DiamondProxy` is deployed and initialized with the appropriate `Facets` for each ZK Chain.
-  - `Facets` and `Verifier` are shared across chains that relies on the same chain type: `Base`, `Executor` , `Getters`, `Admin`
-    , `Mailbox.`The `Verifier` is the contract that actually verifies the proof, and is called by the `Executor`.
+  - `Facets` and `Verifier` are shared across chains that use the same chain type. The chain diamond is initialized with `Admin`, `Getters`, `Mailbox`, `Committer`, `Executor`, and `Migrator` facets. `ZKChainBase` is an inherited base contract, not a diamond facet. The `Committer` handles batch precommit/commit logic, including L2 log processing and batch commitment creation. The `Executor` handles proving, executing, and reverting batches, and calls the `Verifier` during proof validation. The `Migrator` handles settlement-layer migration logic
   - Upgrade Mechanism The system requires all chains to be up-to-date with the latest implementation, so whenever an
     update is needed, we have to “force” each chain to update, but due to decentralization, we have to give each chain a
     time frame. This is done in the update mechanism contract, this is where the bootloader and system contracts are

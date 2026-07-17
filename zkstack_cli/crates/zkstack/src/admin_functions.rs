@@ -577,6 +577,7 @@ pub async fn set_da_validator_pair(
     mode: AdminScriptMode,
     chain_id: u64,
     bridgehub: Address,
+    access_control_restriction: Address,
     l1_da_validator_address: Address,
     l2_da_commitment_scheme: L2DACommitmentScheme,
     l1_rpc_url: String,
@@ -586,6 +587,7 @@ pub async fn set_da_validator_pair(
             "setDAValidatorPair",
             (
                 bridgehub,
+                access_control_restriction,
                 U256::from(chain_id),
                 l1_da_validator_address,
                 l2_da_commitment_scheme as u8,

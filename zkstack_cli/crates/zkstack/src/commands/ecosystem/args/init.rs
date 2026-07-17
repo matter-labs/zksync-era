@@ -4,7 +4,7 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use url::Url;
 use zkstack_cli_common::{forge::ForgeScriptArgs, PromptConfirm};
-use zkstack_cli_types::{L1Network, VMOption};
+use zkstack_cli_types::{L1Network, VMOption, VerifierType};
 
 use crate::{
     commands::{
@@ -15,6 +15,7 @@ use crate::{
         MSG_BRIDGEHUB, MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEV_ARG_HELP,
         MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
         MSG_SERVER_COMMAND_HELP, MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP,
+        MSG_VERIFIER_HELP,
     },
 };
 
@@ -68,6 +69,10 @@ pub struct EcosystemInitArgs {
     pub server_command: Option<String>,
     #[clap(long, help = MSG_BRIDGEHUB)]
     pub no_genesis: bool,
+    /// Which main verifier to deploy. `long` and `id` are renamed to avoid colliding with the
+    /// `--verifier` that the flattened `ForgeScriptArgs` defines.
+    #[clap(long = "verifier-type", id = "verifier_type", value_enum, help = MSG_VERIFIER_HELP)]
+    pub verifier: Option<VerifierType>,
 }
 
 impl EcosystemInitArgs {
@@ -105,6 +110,7 @@ impl EcosystemInitArgs {
             pause_deposits,
             deploy_paymaster,
             ecosystem_contracts_path,
+            verifier,
             ..
         } = self;
 
@@ -156,6 +162,7 @@ impl EcosystemInitArgs {
             vm_option: common.vm_option,
             ecosystem_contracts_path,
             l1_rpc_url: common.l1_rpc_url,
+            verifier,
         })
     }
 }
@@ -179,6 +186,7 @@ pub struct EcosystemInitArgsFinal {
     pub pause_deposits: bool,
     pub genesis_args: Option<GenesisArgs>,
     pub vm_option: VMOption,
+    pub verifier: Option<VerifierType>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]

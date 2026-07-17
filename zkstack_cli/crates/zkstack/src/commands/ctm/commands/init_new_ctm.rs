@@ -16,7 +16,7 @@ use zkstack_cli_config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     CoreContractsConfig, EcosystemConfig, ZkStackConfig,
 };
-use zkstack_cli_types::{L1Network, ProverMode, VMOption};
+use zkstack_cli_types::{L1Network, VMOption, VerifierType};
 
 use crate::{
     abi::IDEPLOYCTMABI_ABI,
@@ -90,6 +90,7 @@ pub async fn run(args: InitNewCTMArgs, shell: &Shell) -> anyhow::Result<()> {
         bridgehub_address,
         vm_option,
         init_ctm_args.reuse_gov_and_admin,
+        init_ctm_args.verifier,
     )
     .await?;
     contracts.save_with_base_path(shell, &ecosystem_config.config)?;
@@ -107,6 +108,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
     bridgehub_address: H160,
     vm_option: VMOption,
     reuse_gov_and_admin: bool,
+    verifier: Option<VerifierType>,
 ) -> anyhow::Result<CoreContractsConfig> {
     let spinner = Spinner::new("Deploying new CTM contracts...");
     let contracts_config = deploy_new_ctm(
@@ -121,6 +123,7 @@ pub async fn deploy_new_ctm_and_accept_admin(
         bridgehub_address,
         vm_option,
         reuse_gov_and_admin,
+        verifier,
     )
     .await?;
     spinner.finish();
@@ -164,17 +167,19 @@ pub async fn deploy_new_ctm(
     bridgehub_address: H160,
     vm_option: VMOption,
     reuse_gov_and_admin: bool,
+    verifier: Option<VerifierType>,
 ) -> anyhow::Result<CoreContractsConfig> {
     let mut contracts_config = config.get_contracts_config()?;
     let deploy_config_path =
         DEPLOY_CTM_SCRIPT_PARAMS.input(&config.path_to_foundry_scripts_for_ctm(vm_option));
 
     let wallets_config = config.get_wallets()?;
+    let verifier = VerifierType::resolve(verifier, config.prover_version);
     // For deploying ecosystem we only need genesis batch params
     let deploy_config = DeployCTMConfig::new(
         &wallets_config,
         initial_deployment_config,
-        config.prover_version == ProverMode::NoProofs,
+        verifier,
         config.l1_network,
         support_l2_legacy_shared_bridge_test,
         vm_option,

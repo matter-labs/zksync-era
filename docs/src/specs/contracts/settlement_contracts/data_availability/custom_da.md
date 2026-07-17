@@ -65,4 +65,4 @@ This allows for a general-purpose solution that ensures DA consistency and verif
    - `L2_DA_VALIDATOR_OUTPUT_HASH_KEY` (the commitment) 
 
 4. L1 verification  
-	On L1 the Executor facet will call L1 DA validator, providing it with chain ID and batch number of the chain for which the DA must be verified, along with `l2DAValidatorOutputHash`, `operatorDAInput` and `_maxBlobsSupported` value. It's then L1 DA Validator job to verify the correctness of the DA on L1.
+	On L1 the Committer facet calls the L1 DA validator during batch commitment, providing it with chain ID and batch number of the chain for which the DA must be verified, along with `l2DAValidatorOutputHash`, `operatorDAInput` and `_maxBlobsSupported` value. It's then L1 DA Validator job to verify the correctness of the DA on L1.

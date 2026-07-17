@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+# Collect the inputs needed to refresh the era-contracts `AirbenderPlonkProofFixture.sol` test
+# fixture into ./airbender_fixture: the persisted SNARK proof blob plus a README with the
+# pre-filled `serialize_test_proof` command. Best-effort: warns and exits 0 when the proof isn't
+# available, so the caller's `if: always()` upload step still runs after a failed job.
+#
+# Env:
+#   DATABASE_URL - core (server) database URL
+#   BATCH_NUMBER - the proven L1 batch (the e2e proves batch 1)
+
+set -uo pipefail
+
+OUT_DIR="airbender_fixture"
+ARTIFACTS_DIR="chains/proving_chain/artifacts/proofs_airbender"
+
+mkdir -p "$OUT_DIR"
+
+SNARK_BLOB=$(ls "$ARTIFACTS_DIR"/l1_batch_airbender_snark_proof_"${BATCH_NUMBER}"_*.bin 2>/dev/null | head -1)
+if [ -z "$SNARK_BLOB" ]; then
+    echo "::warning::No Airbender SNARK proof blob for batch ${BATCH_NUMBER}; nothing to prepare."
+    exit 0
+fi
+cp "$SNARK_BLOB" "$OUT_DIR/snark_proof_blob.bin"
+echo "Copied SNARK proof blob from $SNARK_BLOB"
+
+# The public input is keccak256(prev ‖ curr) >> 32 over these batch commitments; genesis (#0)
+# has a row in `airbender_batch_commitments` too.
+PREV_BATCH=$((BATCH_NUMBER - 1))
+PREV_COMMIT=$(psql "$DATABASE_URL" -t -A -c \
+    "SELECT encode(commitment, 'hex') FROM airbender_batch_commitments WHERE l1_batch_number = ${PREV_BATCH};" \
+    | tr -d '[:space:]' || true)
+CURR_COMMIT=$(psql "$DATABASE_URL" -t -A -c \
+    "SELECT encode(commitment, 'hex') FROM airbender_batch_commitments WHERE l1_batch_number = ${BATCH_NUMBER};" \
+    | tr -d '[:space:]' || true)
+echo "prev_commitment=0x${PREV_COMMIT}"
+echo "curr_commitment=0x${CURR_COMMIT}"
+if [ -z "$PREV_COMMIT" ] || [ -z "$CURR_COMMIT" ]; then
+    echo "::warning::Batch commitments not found in DB; fill them into the README command by hand."
+fi
+
+FIXTURE_PATH="l1-contracts/test/foundry/l1/unit/concrete/state-transition/verifiers/fixtures/AirbenderPlonkProofFixture.sol"
+cat > "$OUT_DIR/README.md" <<EOF
+# Refresh AirbenderPlonkProofFixture.sol
+
+These artifacts come from a real Airbender e2e run (batch ${BATCH_NUMBER}). To regenerate the
+contracts test fixture, from \`contracts/tools/verifier-gen\` run:
+
+\`\`\`bash
+cargo run --release --bin serialize_test_proof -- \\
+  --snark-proof-blob <path-to>/snark_proof_blob.bin \\
+  --prev-commitment 0x${PREV_COMMIT} \\
+  --curr-commitment 0x${CURR_COMMIT} \\
+  --output ../../${FIXTURE_PATH}
+\`\`\`
+EOF
+echo "Wrote $OUT_DIR/README.md"
