@@ -5,12 +5,19 @@ use zksync_prover_metrics::ProofType;
 
 /// Jobs received from the job worker. Which variant is expected is implied
 /// by which pipelines the worker was built with; a mismatch is a job-worker bug.
+///
+/// `chain` is the index of the job server (one per chain) the job was fetched
+/// from. It travels with the job through the prover and back so results are
+/// submitted to the originating chain — batch numbers alone are ambiguous
+/// because independent chains number their batches independently.
 pub enum WorkerJob {
     Fri {
+        chain: usize,
         batch_number: u32,
         input_words: Vec<u32>,
     },
     Snark {
+        chain: usize,
         batch_number: u32,
         proof: Box<Proof>,
     },
@@ -22,6 +29,12 @@ impl WorkerJob {
             WorkerJob::Fri { batch_number, .. } | WorkerJob::Snark { batch_number, .. } => {
                 *batch_number
             }
+        }
+    }
+
+    pub fn chain(&self) -> usize {
+        match self {
+            WorkerJob::Fri { chain, .. } | WorkerJob::Snark { chain, .. } => *chain,
         }
     }
 
@@ -53,6 +66,8 @@ pub enum ProverMode {
 /// `pending_jobs` bucket (FRI then SNARK) as it lands.
 pub enum ProofOutcome {
     Fri {
+        /// Job-server index the job came from; the proof is submitted back there.
+        chain: usize,
         batch_number: u32,
         proof: Box<Proof>,
         /// Guest cycles executed by the FRI prover's RISC-V run for this batch,
@@ -60,6 +75,8 @@ pub enum ProofOutcome {
         cycles_used: u64,
     },
     Snark {
+        /// Job-server index the job came from; the proof is submitted back there.
+        chain: usize,
         batch_number: u32,
         proof: Box<SnarkWrapperProof>,
     },
@@ -75,9 +92,10 @@ impl ProofOutcome {
 }
 
 /// Failure detail carried in the `Err` arm of [`ProverResult`]. Holds the
-/// kind and batch number so the job worker can route the failure log without
-/// inspecting the success type.
+/// kind, batch number, and originating chain so the job worker can report the
+/// failure to the right job server without inspecting the success type.
 pub struct FailedProof {
+    pub chain: usize,
     pub batch_number: u32,
     pub kind: ProofType,
     /// Full anyhow error chain (`{err:#}`) captured at the point of failure.
@@ -85,8 +103,9 @@ pub struct FailedProof {
 }
 
 impl FailedProof {
-    pub fn new(batch_number: u32, kind: ProofType, err: anyhow::Error) -> Self {
+    pub fn new(chain: usize, batch_number: u32, kind: ProofType, err: anyhow::Error) -> Self {
         Self {
+            chain,
             batch_number,
             kind,
             reason: format!("{err:#}"),

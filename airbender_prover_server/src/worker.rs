@@ -94,16 +94,18 @@ impl ProverWorker {
     fn process(&mut self, job: WorkerJob) -> Result<(), SendError<ProverResult>> {
         let result = match job {
             WorkerJob::Fri {
+                chain,
                 batch_number,
                 input_words,
             } => match self.fri.as_mut() {
                 Some(fri) => {
-                    info!(kind = %ProofType::Fri, "Started proving batch {batch_number}");
+                    info!(chain, kind = %ProofType::Fri, "Started proving batch {batch_number}");
                     let started = Instant::now();
                     let result = catch_prover_panic("FRI prover", || {
                         fri.prove_input(batch_number as u64, &input_words)
                     });
                     record_proof_metrics(
+                        chain,
                         batch_number,
                         ProofType::Fri,
                         status_of(&result),
@@ -111,31 +113,35 @@ impl ProverWorker {
                     );
                     result
                         .map(|out| ProofOutcome::Fri {
+                            chain,
                             batch_number,
                             proof: Box::new(out.proof),
                             cycles_used: out.cycles,
                         })
-                        .map_err(|err| FailedProof::new(batch_number, ProofType::Fri, err))
+                        .map_err(|err| FailedProof::new(chain, batch_number, ProofType::Fri, err))
                 }
                 // `snark-only` workers (including every CUDA-free build) carry
                 // no FRI prover and the job worker never enqueues FRI jobs;
                 // fail loudly if one ever arrives.
                 None => Err(FailedProof::new(
+                    chain,
                     batch_number,
                     ProofType::Fri,
                     anyhow::anyhow!("received a FRI job but this worker has no FRI prover"),
                 )),
             },
             WorkerJob::Snark {
+                chain,
                 batch_number,
                 proof,
             } => match self.prepare_snark_input(batch_number, *proof) {
                 Ok(raw_proof) => {
-                    info!(kind = %ProofType::Snark, "Started proving batch {batch_number}");
+                    info!(chain, kind = %ProofType::Snark, "Started proving batch {batch_number}");
                     let started = Instant::now();
                     let snark = self.snark.as_mut().unwrap();
                     let result = catch_prover_panic("SNARK prover", || snark.prove(raw_proof));
                     record_proof_metrics(
+                        chain,
                         batch_number,
                         ProofType::Snark,
                         status_of(&result),
@@ -143,12 +149,13 @@ impl ProverWorker {
                     );
                     result
                         .map(|proof| ProofOutcome::Snark {
+                            chain,
                             batch_number,
                             proof: Box::new(proof),
                         })
-                        .map_err(|err| FailedProof::new(batch_number, ProofType::Snark, err))
+                        .map_err(|err| FailedProof::new(chain, batch_number, ProofType::Snark, err))
                 }
-                Err(err) => Err(FailedProof::new(batch_number, ProofType::Snark, err)),
+                Err(err) => Err(FailedProof::new(chain, batch_number, ProofType::Snark, err)),
             },
         };
         self.result_tx.send(result)
@@ -218,12 +225,14 @@ fn status_of<T>(result: &Result<T>) -> ProofStatus {
 }
 
 fn record_proof_metrics(
+    chain: usize,
     batch_number: u32,
     proof_type: ProofType,
     status: ProofStatus,
     elapsed: Duration,
 ) {
     let labels = ProofLabels {
+        chain,
         batch_number,
         proof_type,
         status,
