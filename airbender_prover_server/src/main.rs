@@ -30,9 +30,18 @@ use worker::{ProverWorker, ProverWorkerBuilder};
     about = "Prover server: polls for jobs and submits prove results"
 )]
 struct Cli {
-    /// Base URL of the job server (e.g. http://localhost:8080)
-    #[arg(long, env = "PROVER_SERVER_URL")]
-    server_url: String,
+    /// Base URL(s) of the job server(s), e.g. http://localhost:8080.
+    /// Pass several — comma-separated or by repeating the flag — to prove for
+    /// multiple chains: fetches round-robin across the servers, so every chain
+    /// with pending work gets an equal share of this prover no matter how many
+    /// batches each chain produces.
+    #[arg(
+        long,
+        env = "PROVER_SERVER_URL",
+        value_delimiter = ',',
+        required = true
+    )]
+    server_url: Vec<String>,
 
     /// Pipeline this prover runs:
     /// `fri-only` (default) — proves FRI, submits FRI;
@@ -181,7 +190,7 @@ fn main() -> Result<()> {
     .context("while setting termination signal handler")?;
 
     info!(
-        server_url = %cli.server_url,
+        server_urls = ?cli.server_url,
         mode = ?cli.mode,
         "Starting prover server"
     );
@@ -201,18 +210,40 @@ fn main() -> Result<()> {
         .spawn(move || prover.run())
         .context("while spawning prover thread")?;
 
-    let client = JobServerClient::new(
-        cli.prover_id,
-        cli.submit_attempts,
-        cli.server_url,
-        Duration::from_millis(cli.http_connect_timeout_ms),
-        Duration::from_millis(cli.poll_timeout_ms),
-        Duration::from_millis(cli.submit_timeout_ms),
-    )
-    .context("while building job server client")?;
+    // One client per job server; the index becomes the job's routing tag,
+    // so results are always submitted back to the server the job came from.
+    let clients = cli
+        .server_url
+        .iter()
+        .enumerate()
+        .map(|(server_index, server_url)| {
+            anyhow::ensure!(
+                !server_url.trim().is_empty(),
+                "server URL #{server_index} is empty; check PROVER_SERVER_URL for stray commas"
+            );
+            JobServerClient::new(
+                server_index,
+                cli.prover_id.clone(),
+                cli.submit_attempts,
+                server_url.clone(),
+                Duration::from_millis(cli.http_connect_timeout_ms),
+                Duration::from_millis(cli.poll_timeout_ms),
+                Duration::from_millis(cli.submit_timeout_ms),
+            )
+        })
+        .collect::<Result<Vec<_>>>()
+        .context("while building job server clients")?;
 
     let job_worker_handle: std::thread::JoinHandle<()> = std::thread::spawn(move || {
-        JobWorker::new(client, job_tx, result_rx, shutdown, cli.mode, poll_interval).run()
+        JobWorker::new(
+            clients,
+            job_tx,
+            result_rx,
+            shutdown,
+            cli.mode,
+            poll_interval,
+        )
+        .run()
     });
 
     info!("Waiting for prover to finish current job...");

@@ -1,3 +1,5 @@
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hasher};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError, TrySendError};
 use std::sync::Arc;
@@ -11,14 +13,24 @@ use crate::client::JobServerClient;
 use crate::types::{ProofOutcome, ProverMode, ProverResult, WorkerJob};
 
 /// Orchestrates the network side of the prover: fetches jobs from the
-/// [`JobServerClient`], forwards them to the prover thread, and submits
-/// completed proofs through the client. Uses a one-slot pending buffer so a
-/// server-fetched FRI job can be pre-fetched while the prover is busy. In
-/// `fri-snark` mode, a finished FRI produces a local SNARK follow-up that
-/// lives in its own slot so it never clobbers the prefetched FRI.
+/// [`JobServerClient`]s, forwards them to the prover thread, and submits
+/// completed proofs through the originating client. Uses a one-slot pending
+/// buffer so a server-fetched FRI job can be pre-fetched while the prover is
+/// busy. In `fri-snark` mode, a finished FRI produces a local SNARK follow-up
+/// that lives in its own slot so it never clobbers the prefetched FRI.
+///
+/// With several clients configured (one job server per chain), fetches
+/// round-robin across them: each fetch scans the chains starting right after
+/// the one last served, taking the first job found. Chains with no work cost
+/// one 204 poll and are skipped, so when every chain has a backlog each gets
+/// an equal share of this prover, and idle chains donate their share — a
+/// chain producing more batches never crowds the others out.
 pub struct JobWorker {
     mode: ProverMode,
-    client: JobServerClient,
+    /// One client per configured job server; a job origin's `server` indexes this.
+    clients: Vec<JobServerClient>,
+    /// Rotation cursor: the server the next fetch scan starts from.
+    next_server: usize,
     // `Option` so shutdown can drop the sender (telling the prover no more jobs
     // are coming) while keeping the rest of the worker alive to drain results.
     job_tx: Option<SyncSender<WorkerJob>>,
@@ -31,16 +43,23 @@ pub struct JobWorker {
 
 impl JobWorker {
     pub fn new(
-        client: JobServerClient,
+        clients: Vec<JobServerClient>,
         job_tx: SyncSender<WorkerJob>,
         result_rx: Receiver<ProverResult>,
         shutdown: Arc<AtomicBool>,
         mode: ProverMode,
         poll_interval: Duration,
     ) -> Self {
+        assert!(!clients.is_empty(), "at least one job server is required");
+        // Start the rotation at a random server so a fleet of provers booted
+        // together doesn't scan the server list in lockstep, all competing for
+        // the first chain's batches before spilling onto the next.
+        // `RandomState` is seeded per process — cheap std-only entropy.
+        let next_server = RandomState::new().build_hasher().finish() as usize % clients.len();
         Self {
             mode,
-            client,
+            clients,
+            next_server,
             job_tx: Some(job_tx),
             result_rx,
             poll_interval,
@@ -94,14 +113,18 @@ impl JobWorker {
 
             if self.pending_job.is_none() {
                 match self.fetch_job() {
-                    Ok(Some(job)) => {
-                        info!(batch_number = job.batch_number(), kind = %job.kind(), "Received job");
+                    Some(job) => {
+                        info!(
+                            chain_id = job.origin().chain_id,
+                            batch_number = job.batch_number(),
+                            kind = %job.kind(),
+                            "Received job"
+                        );
                         METRICS.pending_jobs[&job.kind()].inc_by(1);
                         self.pending_job = Some(job);
                         did_work = true;
                     }
-                    Ok(None) => debug!("No jobs available, waiting..."),
-                    Err(err) => warn!(?err, "Failed to fetch job, retrying after poll interval"),
+                    None => debug!("No jobs available on any chain, waiting..."),
                 }
             }
 
@@ -140,11 +163,35 @@ impl JobWorker {
         info!("All in-flight results submitted; prover stopped");
     }
 
-    fn fetch_job(&self) -> Result<Option<WorkerJob>> {
-        match self.mode {
-            ProverMode::FriOnly | ProverMode::FriSnark => self.client.fetch_fri_job(),
-            ProverMode::SnarkOnly => self.client.fetch_snark_job(),
+    /// One round-robin scan over the job servers, starting at the rotation
+    /// cursor; returns the first job found and moves the cursor to the server
+    /// after the one served. A per-server fetch error is logged and the scan
+    /// moves on, so one unreachable job server can't stall the others; the
+    /// caller sleeps one poll interval only when the whole scan comes up empty.
+    fn fetch_job(&mut self) -> Option<WorkerJob> {
+        let servers = self.clients.len();
+        for offset in 0..servers {
+            let server = (self.next_server + offset) % servers;
+            let client = &self.clients[server];
+            let fetched = match self.mode {
+                ProverMode::FriOnly | ProverMode::FriSnark => client.fetch_fri_job(),
+                ProverMode::SnarkOnly => client.fetch_snark_job(),
+            };
+            match fetched {
+                Ok(Some(job)) => {
+                    self.next_server = (server + 1) % servers;
+                    return Some(job);
+                }
+                Ok(None) => {}
+                Err(err) => warn!(
+                    server,
+                    server_url = client.server_url(),
+                    ?err,
+                    "Failed to fetch job from server, trying the next one"
+                ),
+            }
         }
+        None
     }
 
     fn handle_prover_result(&mut self, outcome: ProverResult) -> Result<()> {
@@ -153,52 +200,66 @@ impl JobWorker {
             Err(f) => f.kind,
         };
         METRICS.pending_jobs[&kind].dec_by(1);
-        let batch_number = match outcome {
+        let (origin, batch_number) = match outcome {
             Ok(ProofOutcome::Fri {
+                origin,
                 batch_number,
                 proof,
                 cycles_used,
             }) => {
-                self.client
-                    .submit_fri(batch_number, proof.as_ref(), cycles_used)?;
+                self.clients[origin.server].submit_fri(
+                    origin.chain_id,
+                    batch_number,
+                    proof.as_ref(),
+                    cycles_used,
+                )?;
                 // In `fri-snark` mode, the SNARK job needs the FRI proof, so we can set the new pending job immediately instead of waiting for the next fetch cycle. The in-memory `Proof` is fed directly to the SNARK pipeline without an extra encode/decode round trip.
                 if self.mode == ProverMode::FriSnark {
                     // FRI jobs are processed serially, so the previous SNARK
                     // follow-up must have been drained before this one lands.
                     METRICS.pending_jobs[&ProofType::Snark].inc_by(1);
                     self.snark_followup = Some(WorkerJob::Snark {
+                        origin,
                         batch_number,
                         proof,
                     });
                 }
-                batch_number
+                (origin, batch_number)
             }
             Ok(ProofOutcome::Snark {
+                origin,
                 batch_number,
                 proof,
             }) => {
-                self.client.submit_snark(batch_number, proof)?;
-                batch_number
+                self.clients[origin.server].submit_snark(origin.chain_id, batch_number, proof)?;
+                (origin, batch_number)
             }
             Err(failure) => {
                 // Report the failure to the server so it can release the batch
                 // for retry (bounded by the server's attempts limit) without
                 // waiting for the proving timeout to elapse.
                 warn!(
+                    chain_id = failure.origin.chain_id,
                     batch_number = failure.batch_number,
                     kind = %failure.kind,
                     reason = %failure.reason,
                     "Prover job failed; reporting to server",
                 );
+                let client = &self.clients[failure.origin.server];
                 match failure.kind {
-                    ProofType::Fri => self
-                        .client
-                        .submit_fri_error(failure.batch_number, &failure.reason)?,
-                    ProofType::Snark => self
-                        .client
-                        .submit_snark_error(failure.batch_number, &failure.reason)?,
+                    ProofType::Fri => client.submit_fri_error(
+                        failure.origin.chain_id,
+                        failure.batch_number,
+                        &failure.reason,
+                    )?,
+                    ProofType::Snark => client.submit_snark_error(
+                        failure.origin.chain_id,
+                        failure.batch_number,
+                        &failure.reason,
+                    )?,
                 }
                 info!(
+                    chain_id = failure.origin.chain_id,
                     batch_number = failure.batch_number,
                     kind = %failure.kind,
                     "Reported failed proof to server",
@@ -206,7 +267,7 @@ impl JobWorker {
                 return Ok(());
             }
         };
-        info!(batch_number, kind = %kind, "Successfully submitted proof");
+        info!(chain_id = origin.chain_id, batch_number, kind = %kind, "Successfully submitted proof");
         Ok(())
     }
 }
