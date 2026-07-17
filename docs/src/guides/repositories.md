@@ -16,7 +16,7 @@
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | [era-compiler-tester](https://github.com/matter-labs/era-compiler-tester)             | Integration testing framework for running executable tests on zkEVM |
 | [era-compiler-tests](https://github.com/matter-labs/era-compiler-tests)               | Collection of executable tests for zkEVM                            |
-| [era-compiler-llvm](https://github.com/matter-labs//era-compiler-llvm)                | zkEVM fork of the LLVM framework                                    |
+| [era-compiler-llvm](https://github.com/matter-labs/era-compiler-llvm)                | zkEVM fork of the LLVM framework                                    |
 | [era-compiler-solidity](https://github.com/matter-labs/era-compiler-solidity)         | Solidity Yul/EVMLA compiler front end                               |
 | [era-compiler-vyper](https://github.com/matter-labs/era-compiler-vyper)               | Vyper LLL compiler front end                                        |
 | [era-compiler-llvm-context](https://github.com/matter-labs/era-compiler-llvm-context) | LLVM IR generator logic shared by multiple front ends               |
@@ -31,7 +31,7 @@
 | [era-zk_evm](https://github.com/matter-labs/era-zk_evm)                         | EVM implementation in pure rust, without circuits                                                                   |
 | [era-sync_vm](https://github.com/matter-labs/era-sync_vm)                       | EVM implementation using circuits                                                                                   |
 | [era-zkEVM-assembly](https://github.com/matter-labs/era-zkEVM-assembly)         | Code for parsing zkEVM assembly                                                                                     |
-| [era-zkevm_test_harness](https://github.com/matter-labs/era-zkevm_test_harness) | Tests that compare the two implementation of the zkEVM - the non-circuit one (zk_evm) and the circuit one (sync_vm) |
+| [era-zkevm_test_harness](https://github.com/matter-labs/era-zkevm_test_harness) | Tests that compare the two implementations of the zkEVM - the non-circuit one (zk_evm) and the circuit one (sync_vm) |
 | [era-zkevm_tester](https://github.com/matter-labs/era-zkevm_tester)             | Assembly runner for zkEVM testing                                                                                   |
 | [era-boojum](https://github.com/matter-labs/era-boojum)                         | New proving system library - containing gadgets and gates                                                           |
 | [era-shivini](https://github.com/matter-labs/era-shivini)                       | Cuda / GPU implementation for the new proving system                                                                |
