@@ -383,6 +383,11 @@ jobs:
             changes as a diff after you finish, and a separate job creates the
             branch, commit, and PR (or tracking issue) from your report files.
 
+            The session ends the moment you stop responding: never start
+            long-running or background commands, and never end your turn
+            "waiting" for anything. Whatever happens, write the report files
+            (Step 4) before you finish.
+
             Run ALL cargo commands from the workspace directory
             (`cd ${{ needs.detect.outputs.workspace_dir }}`): each workspace pins its
             own Rust toolchain via a rust-toolchain file, and rustup resolves that
@@ -413,8 +418,7 @@ jobs:
             ## Step 2: Fix what is safely fixable (skip this step entirely in DRY RUN mode - just describe what you *would* do)
             - **advisories with an available patched version**: run
               `cargo update -p <crate>` (or bump the version in the workspace's
-              Cargo.toml if the fix requires a semver-major jump) and run the test
-              suite to confirm nothing broke.
+              Cargo.toml if the fix requires a semver-major jump).
             - **bans / duplicate versions**: try to unify versions via
               `cargo update -p <crate> --precise <version>` across the dependency tree
               first. Only add a `skip`/`skip-tree` entry to deny.toml as a last resort,
@@ -422,9 +426,11 @@ jobs:
               and which crates still require the older version.
             - Always re-run
               `cargo deny ${{ inputs.deny-arguments }} check ${{ inputs.deny-action-args }}`
-              and `cargo build` (and `cargo test` if the change touched Cargo.lock in
-              a way that could affect behavior, e.g. a major version bump) from the
-              workspace directory before considering something fixed.
+              from the workspace directory before considering something fixed. Do
+              NOT run `cargo build` or `cargo test`: these workspaces take far
+              longer to compile than this session allows, and the fix PR's own CI
+              builds and tests the change anyway. If you believe a bump is risky
+              (e.g. a semver-major jump), say so in the report instead.
 
             ## Step 3: Do NOT silently resolve policy decisions
             These require human judgment, not an autonomous edit:
