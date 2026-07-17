@@ -122,6 +122,10 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
         );
     } else {
         let diamond_proxy_address = contracts_config.ecosystem_contracts.bridgehub_proxy_addr;
+        let access_control_restriction = contracts_config
+            .l1
+            .access_control_restriction_addr
+            .context("no access_control_restriction_addr")?;
 
         set_da_validator_pair(
             shell,
@@ -130,6 +134,7 @@ pub async fn run(args: SetDAValidatorPairArgs, shell: &Shell) -> anyhow::Result<
             AdminScriptMode::Broadcast(chain_config.get_wallets_config()?.governor),
             chain_id,
             diamond_proxy_address,
+            access_control_restriction,
             args.l1_da_validator,
             args.l2_da_commitment_scheme,
             l1_rpc_url,

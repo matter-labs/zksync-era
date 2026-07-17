@@ -3,11 +3,14 @@ use std::path::PathBuf;
 use clap::Parser;
 use serde::Deserialize;
 use zkstack_cli_common::forge::ForgeScriptArgs;
-use zkstack_cli_types::{L1Network, VMOption};
+use zkstack_cli_types::{L1Network, VMOption, VerifierType};
 use zksync_basic_types::Address;
 use zksync_web3_decl::jsonrpsee::core::Serialize;
 
-use crate::{commands::ecosystem::args::common::CommonEcosystemArgs, messages::MSG_BRIDGEHUB};
+use crate::{
+    commands::ecosystem::args::common::CommonEcosystemArgs,
+    messages::{MSG_BRIDGEHUB, MSG_VERIFIER_HELP},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct InitNewCTMArgs {
@@ -24,6 +27,10 @@ pub struct InitNewCTMArgs {
     pub contracts_src_path: Option<PathBuf>,
     #[arg(long, requires = "contracts_src_path")]
     pub default_configs_src_path: Option<PathBuf>,
+    /// Which main verifier to deploy. `long` and `id` are renamed to avoid colliding with the
+    /// `--verifier` that the flattened `ForgeScriptArgs` defines.
+    #[clap(long = "verifier-type", id = "verifier_type", value_enum, help = MSG_VERIFIER_HELP)]
+    pub verifier: Option<VerifierType>,
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
@@ -42,6 +49,7 @@ impl InitNewCTMArgs {
             reuse_gov_and_admin,
             contracts_src_path,
             default_configs_src_path,
+            verifier,
         } = self;
 
         // Fill ecosystem args
@@ -56,6 +64,7 @@ impl InitNewCTMArgs {
             reuse_gov_and_admin,
             contracts_src_path,
             default_configs_src_path,
+            verifier,
         })
     }
 }
@@ -70,6 +79,7 @@ pub struct InitNewCTMArgsFinal {
     pub contracts_src_path: Option<PathBuf>,
     pub default_configs_src_path: Option<PathBuf>,
     pub l1_rpc_url: String,
+    pub verifier: Option<VerifierType>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]

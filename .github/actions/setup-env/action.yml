@@ -4,6 +4,11 @@ inputs:
   runner-compose-file:
     description: 'Path to the runner compose file'
     default: 'docker-compose.yml'
+  sccache:
+    description: >-
+      Wire sccache to the shared GCS cache and start its servers. Disable on runners that can't
+      reach the GCS backend (e.g. the Hetzner GPU hosts, which lack the GCP metadata service).
+    default: 'true'
 
 runs:
   using: composite
@@ -20,9 +25,11 @@ runs:
         echo CI=1 >> $GITHUB_ENV
         echo IN_DOCKER=1 >> .env
         echo CI=1 >> .env
+        echo DOCKER_PWD=$(pwd) >> .env
         echo RUNNER_COMPOSE_FILE=${{ inputs.runner-compose-file }} >> $GITHUB_ENV
 
     - name: Setup sccache for building rust code outside Docker
+      if: inputs.sccache == 'true'
       shell: bash
       run: |
         echo SCCACHE_CACHE_SIZE=50G >> $GITHUB_ENV
@@ -36,6 +43,7 @@ runs:
         echo SCCACHE_SERVER_PORT=4225 >> $GITHUB_ENV
 
     - name: Setup sccache for building rust code inside Docker
+      if: inputs.sccache == 'true'
       shell: bash
       run: |
         echo SCCACHE_CACHE_SIZE=50G >> .env
@@ -44,7 +52,13 @@ runs:
         echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> .env
         echo SCCACHE_GCS_RW_MODE=READ_WRITE >> .env
         echo RUSTC_WRAPPER=sccache >> .env
-        echo DOCKER_PWD=$(pwd) >> .env
+
+    # The zk-environment image bakes in RUSTC_WRAPPER=sccache; empty means "no wrapper" to cargo.
+    - name: Disable sccache inside Docker
+      if: inputs.sccache != 'true'
+      shell: bash
+      run: |
+        echo RUSTC_WRAPPER= >> .env
 
     - name: Start localnet
       shell: bash
@@ -53,6 +67,7 @@ runs:
         ci_localnet_up
 
     - name: Start sccache servers
+      if: inputs.sccache == 'true'
       shell: bash
       run: |
         ci_run sccache --start-server

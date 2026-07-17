@@ -180,19 +180,43 @@ fn read_marker(marker: &Path) -> Option<String> {
         .map(|s| s.trim().to_owned())
 }
 
-/// Blocking GET that fails the build on any non-success status.
+/// Blocking GET; retries transport errors and 5xx/429, fails fast on other statuses.
 fn download(url: &str) -> Vec<u8> {
-    let response =
-        reqwest::blocking::get(url).unwrap_or_else(|e| panic!("request to {url} failed: {e}"));
-    let status = response.status();
-    assert!(
-        status.is_success(),
-        "downloading {url} returned HTTP {status}"
-    );
-    response
-        .bytes()
-        .unwrap_or_else(|e| panic!("reading body of {url} failed: {e}"))
-        .to_vec()
+    const MAX_ATTEMPTS: u32 = 5;
+    let mut attempt = 0;
+    loop {
+        attempt += 1;
+        let last = attempt >= MAX_ATTEMPTS;
+
+        match reqwest::blocking::get(url) {
+            Ok(response) => {
+                let status = response.status();
+                if status.is_success() {
+                    return response
+                        .bytes()
+                        .unwrap_or_else(|e| panic!("reading body of {url} failed: {e}"))
+                        .to_vec();
+                }
+                // 5xx and 429 are transient; anything else (e.g. 404) won't fix itself.
+                let transient =
+                    status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS;
+                assert!(
+                    transient && !last,
+                    "downloading {url} returned HTTP {status}"
+                );
+                println!(
+                    "cargo:warning=downloading {url} returned HTTP {status}, retry {attempt}/{MAX_ATTEMPTS}"
+                );
+            }
+            Err(e) => {
+                assert!(!last, "request to {url} failed: {e}");
+                println!(
+                    "cargo:warning=request to {url} failed: {e}, retry {attempt}/{MAX_ATTEMPTS}"
+                );
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_secs(3 * attempt as u64));
+    }
 }
 
 fn env_var(key: &str) -> String {

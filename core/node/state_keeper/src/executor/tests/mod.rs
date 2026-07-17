@@ -44,13 +44,11 @@ fn assert_succeeded(execution_result: &BatchTransactionExecutionResult) {
 }
 
 fn message_root_init_txn() -> Transaction {
+    // `L2MessageRoot.initL2` takes a single `_l1ChainId` argument.
     let calldata = l2_message_root()
         .function("initL2")
         .unwrap()
-        .encode_input(&[
-            Token::Uint(U256::from(9u32)),
-            Token::Uint(U256::from(506u32)),
-        ])
+        .encode_input(&[Token::Uint(U256::from(9u32))])
         .unwrap();
 
     Transaction::from_abi(

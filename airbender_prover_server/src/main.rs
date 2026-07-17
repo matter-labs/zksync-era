@@ -13,8 +13,8 @@ use airbender_host::SecurityLevel;
 use anyhow::{Context, Result};
 use clap::Parser;
 use eravm_prover_host::{
-    build_fri_prover, deserialize_from_file, FriProverConfig, FriVerifier, SnarkOptions,
-    SnarkPipeline, SnarkWrapperVK,
+    app_bin_path, app_text_path, build_fri_prover, deserialize_from_file, FriProverConfig,
+    FriVerifier, SnarkOptions, SnarkPipeline, SnarkWrapperVK,
 };
 use tracing::info;
 use zksync_cli_utils::init_tracing;
@@ -234,6 +234,9 @@ fn build_prover(
         use_zk: cli.snark_use_zk,
         // Server path drives the wrapper directly and never persists intermediates.
         save_intermediates: false,
+        // The wrapper binds the guest program into the SNARK; use the FRI prover's guest dist dir.
+        bin: app_bin_path(dist_dir),
+        text: app_text_path(dist_dir),
     };
 
     // Backend-agnostic FRI prover config from the server's flags. The host

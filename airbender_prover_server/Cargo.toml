@@ -102,16 +102,8 @@ vise-exporter = "0.3.2"
 # workspace dep — a member's `default-features = false` is otherwise ignored.
 airbender-host = { git = "https://github.com/matter-labs/airbender-platform", tag = "v0.2.3", default-features = false }
 
-# eravm-airbender-verifier crates, pinned to the released tag `v29.8.0`.
-# `build.rs` derives this tag from cargo metadata and downloads the matching
-# artifacts, so they track the verifier code we compile against.
-# `default-features = false` drops the host crate's default `gpu_fri`; the
-# server re-enables it via its own `gpu_fri` feature. Set on the workspace dep
-# so a member's `default-features = false` isn't ignored.
-eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v29.8.0", default-features = false }
-# Same tag as eravm-prover-host so the two git copies unify into one crate
-# instance. Used by the client to deserialize jobs into the verifier input type.
-zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v29.8.0" }
+eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.1.1", default-features = false }
+zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.1.1" }
 
 # Local crates in this workspace.
 zksync_cli_utils = { path = "crates/lib/cli_utils" }

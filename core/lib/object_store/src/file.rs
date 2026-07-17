@@ -41,6 +41,7 @@ impl FileBackedObjectStore {
             Bucket::NodeAggregationWitnessJobsFri,
             Bucket::SchedulerWitnessJobsFri,
             Bucket::ProofsFri,
+            Bucket::ProofsAirbender,
             Bucket::StorageSnapshot,
             Bucket::VmDumps,
         ] {
