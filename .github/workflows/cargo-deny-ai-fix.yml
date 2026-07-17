@@ -56,6 +56,13 @@ jobs:
         airbender_prover_server/Cargo.toml
       policy-path: "deny.toml" # the shared root config --config points at, allowed for AI edits
       deny-action-args: "--config ../deny.toml --allow unmaintained --hide-inclusion-graph"
+      # Credential-free compile check of the applied fix; a failure publishes the PR
+      # as a draft with a warning instead of merge-ready. Bounded to zkstack_cli:
+      # core/prover need the zk-environment image and airbender_prover_server needs
+      # CUDA, so their compilation is verified by the fix PR's own CI instead.
+      validation-commands: |
+        cd zkstack_cli && cargo check --workspace --locked
+      validation-timeout-minutes: 60
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       # Publishing credential, held only by the publish job (never exposed to Claude
