@@ -8,21 +8,23 @@
 #   write permissions:
 #     uses: matter-labs/zksync-ci-common/.github/workflows/cargo-deny-ai-fix-reusable.yml@<full-sha>
 #
-# PIPELINE:
-#   detect  -> runs `cargo deny check` and fingerprints the failing finding set. The
-#              fix runs only if the check is red AND no open fix PR or diagnosis issue
+# PIPELINE (one run covers ALL listed workspaces and produces at most ONE PR or issue):
+#   detect  -> runs `cargo deny check` for every workspace in `manifest-paths` and
+#              fingerprints the combined failing finding set. The fix runs only if at
+#              least one workspace is red AND no open fix PR or diagnosis issue
 #              already carries the same fingerprint. Closes stale diagnosis issues
-#              once the check is green.
+#              once everything is green.
 #   ai-fix  -> read-only job holding no publishing credential. Claude edits the
-#              working tree (file tools + cargo only) and writes a report; after the
-#              Claude process exits, the job captures the changes as a raw binary diff
-#              and uploads diff + report as an artifact.
+#              working tree (file tools + cargo only) across the failing workspaces
+#              and writes a report; after the Claude process exits, the job captures
+#              the changes as a raw binary diff and uploads diff + report as an
+#              artifact.
 #   publish -> fresh runner where no untrusted code has executed. Validates the diff
-#              stays inside the workspace (plus the policy file), applies it as a
-#              single bot commit, and opens a PR — or force-refreshes the existing fix
-#              PR when the finding set changed. With no changes (human-only findings,
-#              or dry-run) it opens/updates a fingerprinted diagnosis issue. Nothing
-#              is ever merged automatically.
+#              stays inside the failing workspaces (plus the policy file), applies it
+#              as a single bot commit, and opens one PR — or force-refreshes the
+#              existing fix PR when the finding set changed. With no changes
+#              (human-only findings, or dry-run) it opens/updates a fingerprinted
+#              diagnosis issue. Nothing is ever merged automatically.
 #
 # CREDENTIAL ISOLATION:
 #   cargo build scripts and proc macros execute arbitrary code, and code that has run
@@ -57,26 +59,26 @@
 #   - Transient failures (e.g. an API 5xx) need no special handling: the next
 #     scheduled run sees red with no matching fingerprint and retries.
 #
+# CALLER TRIGGERS:
+#   schedule and workflow_dispatch (and other claude-code-action-supported events).
+#   NOT `push` — claude-code-action rejects push events ("Unsupported event type").
+#   Serialize overlapping runs with caller-level workflow concurrency (single-pending
+#   replacement is safe: the newest run covers everything an older one would have).
+#
 # REQUIRED SECRETS (pass explicitly from the caller):
 #   ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN  — exactly one Anthropic credential
 #   GH_APP_ID + GH_APP_PRIVATE_KEY                — preferred publishing credential, or:
 #   GH_PAT                                        — fallback publishing credential
 #
-# CALLER TRIGGERS:
-#   schedule and workflow_dispatch (and other claude-code-action-supported events).
-#   NOT `push` — claude-code-action rejects push events ("Unsupported event type").
-#
 # REQUIRED REPO SETUP:
-#   - A deny.toml next to the workspace manifest (auto-discovered), or a shared one
+#   - A deny.toml next to each workspace manifest (auto-discovered), or a shared one
 #     passed via `--config` in `deny-action-args`: cargo-deny does not auto-discover
 #     a root config from nested workspaces, and a relative --config resolves from the
 #     workspace root directory (e.g. '--config ../deny.toml' for a repo-root config
-#     with one-level-deep workspaces). Point `policy-path` at the same file so AI
-#     edits to it pass the publish path boundary.
+#     with one-level-deep workspaces — note the single `deny-action-args` value must
+#     fit every listed workspace). Point `policy-path` at the same file so AI edits
+#     to it pass the publish path boundary.
 #   - Labels are self-created on first run.
-#   - Workspaces sharing one policy file must be serialized by the caller:
-#     workflow-level `concurrency` over a repo-wide group plus
-#     `strategy.max-parallel: 1` on the matrix.
 #
 # ROLLOUT:
 #   Start new repos with `dry-run: true` for a week or two — Claude diagnoses and the
@@ -88,12 +90,12 @@ name: Cargo Deny AI Fix
 on:
   workflow_call:
     inputs:
-      manifest-path:
-        description: "Path to the Cargo.toml of the workspace to check (e.g. 'core/Cargo.toml')"
+      manifest-paths:
+        description: "Whitespace-separated paths to the Cargo.toml of every workspace to check (e.g. 'core/Cargo.toml prover/Cargo.toml'). One run covers them all and produces at most one PR or issue."
         required: true
         type: string
       policy-path:
-        description: "Repo-relative path of the cargo-deny policy file the AI may edit in addition to the workspace directory (the file `--config` points at). Default: a repo-root deny.toml."
+        description: "Repo-relative path of the cargo-deny policy file the AI may edit in addition to the failing workspace directories (the file `--config` points at). Default: a repo-root deny.toml."
         required: false
         type: string
         default: "deny.toml"
@@ -103,7 +105,7 @@ on:
         type: string
         default: "--all-features"
       deny-action-args:
-        description: "Arguments passed to the cargo-deny check subcommand. Use this to point at a shared config, e.g. '--config ../deny.toml' (in cargo-deny 0.18.x a relative --config resolves from the workspace root directory, not the cwd)."
+        description: "Arguments passed to the cargo-deny check subcommand for every workspace. Use this to point at a shared config, e.g. '--config ../deny.toml' (in cargo-deny 0.18.x a relative --config resolves from the workspace root directory, not the cwd)."
         required: false
         type: string
         default: "--hide-inclusion-graph"
@@ -111,7 +113,7 @@ on:
         description: "Max agentic turns Claude gets to resolve findings before giving up"
         required: false
         type: number
-        default: 50
+        default: 80
       model:
         description: "Claude model to pin for this task (explicit, not left on the action's default)"
         required: false
@@ -144,10 +146,6 @@ on:
         description: "Fallback publishing credential: a bot PAT (in matter-labs repos, RELEASE_TOKEN). Used only if the GitHub App secrets are not provided."
         required: false
 
-concurrency:
-  group: cargo-deny-ai-fix-${{ github.repository }}-${{ inputs.manifest-path }}
-  cancel-in-progress: false
-
 permissions:
   contents: read
   pull-requests: read
@@ -162,22 +160,10 @@ jobs:
       issues: write # closes stale diagnosis issues when the check is green
     outputs:
       should_fix: ${{ steps.gate.outputs.should_fix }}
-      workspace_slug: ${{ steps.slug.outputs.slug }}
-      workspace_dir: ${{ steps.slug.outputs.dir }}
-      fingerprint: ${{ steps.fp.outputs.fingerprint }}
+      failed_dirs: ${{ steps.deny.outputs.failed_dirs }}
+      fingerprint: ${{ steps.deny.outputs.fingerprint }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Derive a workspace slug from the manifest path
-        id: slug
-        run: |
-          # 'core/Cargo.toml' -> 'core', 'zkstack_cli/Cargo.toml' -> 'zkstack_cli', bare 'Cargo.toml' -> 'root'
-          raw="${{ inputs.manifest-path }}"
-          dir="$(dirname "$raw")"
-          slug="${dir//\//-}"
-          [[ "$slug" == "." ]] && slug="root"
-          echo "slug=$slug" >> "$GITHUB_OUTPUT"
-          echo "dir=$dir" >> "$GITHUB_OUTPUT"
 
       # Raw pinned CLI rather than cargo-deny-action: the JSON diagnostics feed the
       # fingerprint. Invoked as `cargo-deny` (not through the cargo shim) so the
@@ -186,33 +172,47 @@ jobs:
         with:
           tool: cargo-deny@0.18.6
 
-      - name: Run cargo-deny check
+      # The fingerprint identifies the combined failing finding set: per workspace,
+      # the full normalized error diagnostics (jq -S), order-normalized with
+      # multiplicity preserved (`sort`, not `sort -u`) — coarser keys would be
+      # unsafe, since in 0.18.x every license rejection shares one (code, message)
+      # pair and adding a second disallowed dependency must change the fingerprint.
+      # Volatile detail (e.g. lockfile line numbers in labels) may shift it on
+      # unrelated changes; that costs a redundant re-run, never a suppressed finding.
+      - name: Run cargo-deny check for every workspace
         id: deny
         run: |
-          set +e
-          cargo-deny --manifest-path "${{ inputs.manifest-path }}" ${{ inputs.deny-arguments }} --format json \
-            check ${{ inputs.deny-action-args }} 2> /tmp/deny-diagnostics.jsonl
-          code=$?
-          set -e
-          echo "failed=$([[ $code -ne 0 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          # Human-readable summary for the run log
-          jq -r 'select(.type=="diagnostic") | "\(.fields.severity): [\(.fields.code // "-")] \(.fields.advisory.id // "") \(.fields.message // "")"' \
-            /tmp/deny-diagnostics.jsonl | sort | uniq -c | sort -rn || true
-
-      # Identity of the failing finding set: full normalized error diagnostics
-      # (jq -S), order-normalized with multiplicity preserved (`sort`, not `sort -u`).
-      # Coarser keys would be unsafe — in 0.18.x every license rejection shares one
-      # (code, message) pair, and adding a second disallowed dependency must change
-      # the fingerprint. Volatile detail (e.g. lockfile line numbers in labels) may
-      # shift it on unrelated changes; that costs a redundant re-run, never a
-      # suppressed finding.
-      - name: Fingerprint the failing finding set
-        id: fp
-        if: steps.deny.outputs.failed == 'true'
-        run: |
-          fp=$(jq -cS 'select(.type=="diagnostic" and .fields.severity=="error") | .fields' \
-                /tmp/deny-diagnostics.jsonl | LC_ALL=C sort | sha256sum | cut -d' ' -f1)
-          echo "fingerprint=$fp" >> "$GITHUB_OUTPUT"
+          failed_dirs=""
+          : > /tmp/fingerprints.txt
+          for mp in ${{ inputs.manifest-paths }}; do
+            dir="$(dirname "$mp")"
+            echo "::group::cargo deny check ${mp}"
+            set +e
+            cargo-deny --manifest-path "$mp" ${{ inputs.deny-arguments }} --format json \
+              check ${{ inputs.deny-action-args }} 2> /tmp/deny-diagnostics.jsonl
+            code=$?
+            set -e
+            # Human-readable summary for the run log
+            jq -r 'select(.type=="diagnostic") | "\(.fields.severity): [\(.fields.code // "-")] \(.fields.advisory.id // "") \(.fields.message // "")"' \
+              /tmp/deny-diagnostics.jsonl | sort | uniq -c | sort -rn || true
+            echo "::endgroup::"
+            if [[ $code -ne 0 ]]; then
+              failed_dirs+="$dir "
+              fp=$(jq -cS 'select(.type=="diagnostic" and .fields.severity=="error") | .fields' \
+                    /tmp/deny-diagnostics.jsonl | LC_ALL=C sort | sha256sum | cut -d' ' -f1)
+              echo "$dir $fp" >> /tmp/fingerprints.txt
+            fi
+          done
+          failed_dirs="${failed_dirs% }"
+          echo "failed_dirs=$failed_dirs" >> "$GITHUB_OUTPUT"
+          if [[ -n "$failed_dirs" ]]; then
+            echo "Red workspaces: $failed_dirs"
+            fingerprint=$(LC_ALL=C sort /tmp/fingerprints.txt | sha256sum | cut -d' ' -f1)
+            echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+          else
+            echo "All workspaces are green."
+            echo "fingerprint=" >> "$GITHUB_OUTPUT"
+          fi
 
       # An open fix PR or diagnosis issue suppresses re-runs only while its embedded
       # fingerprint matches the current finding set, so pending human work never
@@ -220,14 +220,13 @@ jobs:
       # the PR/issue in place.
       - name: Read fingerprints of any open fix PR or diagnosis issue
         id: existing
-        if: steps.deny.outputs.failed == 'true'
+        if: steps.deny.outputs.failed_dirs != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           marker='s/.*<!-- cargo-deny-fingerprint: \([0-9a-f]\{64\}\) -->.*/\1/p'
           pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
-            --label "cargo-deny-fix" --label "workspace:${{ steps.slug.outputs.slug }}" \
-            --json number --jq '.[0].number // empty')
+            --label "cargo-deny-fix" --json number --jq '.[0].number // empty')
           pr_fp=""
           if [[ -n "$pr_number" ]]; then
             pr_fp=$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" --json body --jq .body \
@@ -235,8 +234,7 @@ jobs:
           fi
           echo "pr_fp=$pr_fp" >> "$GITHUB_OUTPUT"
           issue_number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
-            --label "cargo-deny-diagnosis" --label "workspace:${{ steps.slug.outputs.slug }}" \
-            --json number --jq '.[0].number // empty')
+            --label "cargo-deny-diagnosis" --json number --jq '.[0].number // empty')
           issue_fp=""
           if [[ -n "$issue_number" ]]; then
             issue_fp=$(gh issue view "$issue_number" --repo "$GITHUB_REPOSITORY" --json body --jq .body \
@@ -244,29 +242,28 @@ jobs:
           fi
           echo "issue_fp=$issue_fp" >> "$GITHUB_OUTPUT"
 
-      - name: Close stale diagnosis issue when the check is green
-        if: steps.deny.outputs.failed != 'true'
+      - name: Close stale diagnosis issue when everything is green
+        if: steps.deny.outputs.failed_dirs == ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
-            --label "cargo-deny-diagnosis" --label "workspace:${{ steps.slug.outputs.slug }}" \
-            --json number --jq '.[0].number // empty')
+            --label "cargo-deny-diagnosis" --json number --jq '.[0].number // empty')
           if [[ -n "$existing" ]]; then
             gh issue close "$existing" --repo "$GITHUB_REPOSITORY" \
-              --comment "cargo-deny is green again for \`${{ inputs.manifest-path }}\` — closing."
+              --comment "cargo-deny is green again for all workspaces — closing."
           fi
 
       - name: Decide whether the fix job should run
         id: gate
         env:
-          IS_RED: ${{ steps.deny.outputs.failed }}
+          FAILED_DIRS: ${{ steps.deny.outputs.failed_dirs }}
           PR_FP: ${{ steps.existing.outputs.pr_fp }}
           ISSUE_FP: ${{ steps.existing.outputs.issue_fp }}
-          CURRENT_FP: ${{ steps.fp.outputs.fingerprint }}
+          CURRENT_FP: ${{ steps.deny.outputs.fingerprint }}
         run: |
           should=false
-          if [[ "$IS_RED" == "true" ]]; then
+          if [[ -n "$FAILED_DIRS" ]]; then
             if [[ -n "$PR_FP" && "$PR_FP" == "$CURRENT_FP" ]]; then
               echo "Open fix PR already covers this finding set."
             elif [[ -n "$ISSUE_FP" && "$ISSUE_FP" == "$CURRENT_FP" ]]; then
@@ -310,12 +307,16 @@ jobs:
           tool: cargo-deny@0.18.6
 
       # rustup resolves rust-toolchain files from the current directory (walking up),
-      # not from --manifest-path. Pre-install the workspace's pinned toolchain; the
-      # prompt likewise requires running all cargo commands from the workspace
-      # directory.
-      - name: Install the workspace's pinned Rust toolchain
-        working-directory: ${{ needs.detect.outputs.workspace_dir }}
-        run: rustup toolchain install
+      # not from --manifest-path. Pre-install each failing workspace's pinned
+      # toolchain; the prompt likewise requires running cargo commands from the
+      # workspace directories.
+      - name: Install the pinned Rust toolchain of every failing workspace
+        env:
+          FAILED_DIRS: ${{ needs.detect.outputs.failed_dirs }}
+        run: |
+          for dir in $FAILED_DIRS; do
+            (cd "$dir" && rustup toolchain install)
+          done
 
       - name: Load optional repo-specific instructions
         id: extra_instructions
@@ -335,7 +336,7 @@ jobs:
       # subprocesses inherit its environment. This wrapper strips credential env vars
       # from every cargo invocation so build scripts and proc macros never see them.
       # Companion restrictions in the Claude step: rustup is unavailable
-      # (`rustup run` would bypass the wrapper; the toolchain is pre-installed) and
+      # (`rustup run` would bypass the wrapper; the toolchains are pre-installed) and
       # git is denied outright (planted core.fsmonitor / diff.external / hooks would
       # execute in the credentialed environment).
       - name: Shield credentials from cargo subprocesses
@@ -368,43 +369,44 @@ jobs:
             --disallowedTools "Bash(git:*)"
           prompt: |
             You are diagnosing and (unless told otherwise below) fixing `cargo deny
-            check` failures for the workspace at ${{ inputs.manifest-path }} in this
-            repository. Work autonomously: no human is watching this session, so be
-            conservative and legible rather than clever. Only touch files relevant to
-            this workspace (the manifest, its lockfile, and its deny.toml) — do not
-            touch other workspaces in this repo. Note: the deny.toml may be shared by
-            several workspaces (it is wherever `--config` points, possibly the repo
-            root) — if so, any ignore/skip entry you add silences that finding in
-            EVERY workspace, so be extra reluctant to add one and call it out
-            explicitly in your report if you do.
+            check` failures in this repository. These workspace directories are
+            failing: `${{ needs.detect.outputs.failed_dirs }}` — handle each of them.
+            Work autonomously: no human is watching this session, so be conservative
+            and legible rather than clever. Only touch files belonging to these
+            workspaces (manifests, lockfiles) and their deny.toml. Note: the
+            deny.toml may be shared by several workspaces (it is wherever `--config`
+            points, possibly the repo root) — any ignore/skip entry you add silences
+            that finding in EVERY workspace, so be extra reluctant to add one and
+            call it out explicitly in your report if you do.
 
             You cannot use git or gh, and you must not commit or push anything.
             Simply edit files in the working tree; the workflow captures your
             changes as a diff after you finish, and a separate job creates the
-            branch, commit, and PR (or tracking issue) from your report files.
+            branch, commit, and a single PR (or tracking issue) from your report
+            files.
 
             The session ends the moment you stop responding: never start
             long-running or background commands, and never end your turn
             "waiting" for anything. Whatever happens, write the report files
             (Step 4) before you finish.
 
-            Run ALL cargo commands from the workspace directory
-            (`cd ${{ needs.detect.outputs.workspace_dir }}`): each workspace pins its
-            own Rust toolchain via a rust-toolchain file, and rustup resolves that
-            file from the current directory, NOT from --manifest-path.
+            Run cargo commands from the directory of the workspace you are fixing
+            (`cd <workspace dir>`): each workspace pins its own Rust toolchain via a
+            rust-toolchain file, and rustup resolves that file from the current
+            directory, NOT from --manifest-path.
 
             MODE: ${{ inputs.dry-run && 'DRY RUN - diagnose only, do not modify any files except the report files' || 'FIX - diagnose and fix in the working tree' }}
 
             ## Step 0: Match this repo's existing conventions
-            If a deny.toml already exists for this workspace, check whether its
-            `advisories.ignore` list has an established comment style (e.g.
-            `"RUSTSEC-XXXX-NNNN", # reason`, explaining the specific transitive path
-            and why it's not reachable/exploitable here). Match that exact style for
-            any new entries — don't introduce a different format. Also check for an
-            AGENTS.md or CLAUDE.md at the repo root and follow any conventions there.
+            If a deny.toml already exists, check whether its `advisories.ignore`
+            list has an established comment style (e.g. `"RUSTSEC-XXXX-NNNN", #
+            reason`, explaining the specific transitive path and why it's not
+            reachable/exploitable here). Match that exact style for any new entries
+            — don't introduce a different format. Also check for an AGENTS.md or
+            CLAUDE.md at the repo root and follow any conventions there.
 
             ## Step 1: Understand the failures
-            From the workspace directory, run
+            In EACH failing workspace directory, run
             `cargo deny ${{ inputs.deny-arguments }} check ${{ inputs.deny-action-args }}`
             (the exact arguments CI uses, so your results match the failing check) and
             read the output carefully. cargo-deny failures fall into four categories,
@@ -454,13 +456,15 @@ jobs:
 
             - `cargo-deny-report.md`: a markdown body suitable as a PR description
               (FIX mode with fixes) or a tracking issue (DRY RUN, or nothing safely
-              fixable): every finding, what you did — or would do — for each, and a
-              distinct "Needs human review" section for anything from Step 3 (omit
-              the section entirely if everything was resolved).
+              fixable), organized by workspace: every finding, what you did — or
+              would do — for each, and a distinct "Needs human review" section for
+              anything from Step 3 (omit the section entirely if everything was
+              resolved).
             - `cargo-deny-report.json`: exactly this shape —
               `{"already_green": false, "needs_security_review": false, "needs_license_review": false}`
-              - `already_green`: true only if `cargo deny check` passed on your very
-                first run (transient failure); the workflow then publishes nothing.
+              - `already_green`: true only if `cargo deny check` passed in every
+                workspace on your very first runs (transient failure); the workflow
+                then publishes nothing.
               - `needs_security_review`: true if any advisory was left unresolved
                 for a human (Step 3).
               - `needs_license_review`: true if any license or source finding was
@@ -503,7 +507,7 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: cargo-deny-ai-fix-${{ needs.detect.outputs.workspace_slug }}
+          name: cargo-deny-ai-fix
           path: /tmp/cargo-deny-out
           if-no-files-found: error
           retention-days: 7
@@ -544,7 +548,7 @@ jobs:
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: cargo-deny-ai-fix-${{ needs.detect.outputs.workspace_slug }}
+          name: cargo-deny-ai-fix
           path: /tmp/cargo-deny-out
 
       # A fresh checkout has no hooks; neutralize the hook path anyway so nothing can
@@ -555,23 +559,20 @@ jobs:
           git config user.name "cargo-deny-bot"
           git config user.email "cargo-deny-bot@users.noreply.github.com"
 
-      - name: Ensure workspace-scoped labels exist
+      - name: Ensure labels exist
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh label create "cargo-deny-fix" --color "1D76DB" --description "Automated cargo-deny fix PR" 2>/dev/null || true
           gh label create "cargo-deny-diagnosis" --color "0E8A16" --description "AI diagnosis issue: dry-run, or findings that need a human decision" 2>/dev/null || true
-          gh label create "workspace:${{ needs.detect.outputs.workspace_slug }}" --color "5319E7" 2>/dev/null || true
           gh label create "needs-security-review" --color "B60205" --description "AI left an advisory unresolved for a human to decide" 2>/dev/null || true
           gh label create "needs-license-review" --color "B60205" --description "AI left a license finding unresolved for a human to decide" 2>/dev/null || true
 
       - name: Publish results (PR for changes, tracking issue otherwise)
         env:
           GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.GH_PAT }}
-          SLUG: ${{ needs.detect.outputs.workspace_slug }}
-          WS_DIR: ${{ needs.detect.outputs.workspace_dir }}
+          FAILED_DIRS: ${{ needs.detect.outputs.failed_dirs }}
           POLICY_PATH: ${{ inputs.policy-path }}
-          MANIFEST: ${{ inputs.manifest-path }}
           DRY_RUN: ${{ inputs.dry-run }}
           FP: ${{ needs.detect.outputs.fingerprint }}
         run: |
@@ -603,29 +604,36 @@ jobs:
             git checkout -b cargo-deny-fix-staging
             git apply --binary --whitespace=nowarn "$out/changes.diff"
 
-            # The ai-fix job is untrusted: refuse changes outside the workspace or
-            # the declared policy file (e.g. workflow files). NUL separation keeps
-            # exotic filenames from confusing the check; the diff was generated with
-            # --no-renames, so every entry is a plain path.
+            # The ai-fix job is untrusted: refuse changes outside the failing
+            # workspaces or the declared policy file (e.g. workflow files). NUL
+            # separation keeps exotic filenames from confusing the check; the diff
+            # was generated with --no-renames, so every entry is a plain path.
             bad=""
             while IFS= read -r -d '' entry; do
               path="${entry:3}"
               [[ -z "$path" ]] && continue
-              if [[ "$WS_DIR" == "." || "$path" == "$WS_DIR"/* || "$path" == "$POLICY_PATH" ]]; then
-                continue
+              [[ "$path" == "$POLICY_PATH" ]] && continue
+              ok=false
+              for dir in $FAILED_DIRS; do
+                if [[ "$dir" == "." || "$path" == "$dir"/* ]]; then
+                  ok=true
+                  break
+                fi
+              done
+              if [[ "$ok" != "true" ]]; then
+                bad+="$path "
               fi
-              bad+="$path "
             done < <(git -c core.fsmonitor=false status --porcelain=v1 --no-renames -z)
             if [[ -n "$bad" ]]; then
-              echo "::error::AI changes touch files outside the workspace: $bad"
+              echo "::error::AI changes touch files outside the failing workspaces: $bad"
               exit 1
             fi
 
             git add -A
-            git commit -m "fix(${SLUG}): resolve cargo-deny findings"
+            git commit -m "fix: resolve cargo-deny findings"
 
             existing_pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
-              --label "cargo-deny-fix" --label "workspace:${SLUG}" \
+              --label "cargo-deny-fix" \
               --json number,headRefName --jq '.[0] // empty')
             if [[ -n "$existing_pr" ]]; then
               # The finding set changed while a fix PR was open: force-push its
@@ -642,22 +650,21 @@ jobs:
                 --body "The cargo-deny finding set changed; this PR was regenerated against the current default branch."
               echo "Updated fix PR #$pr_number"
             else
-              branch="cargo-deny-fix/${SLUG}/$(date +%Y%m%d-%H%M%S)"
+              branch="cargo-deny-fix/$(date +%Y%m%d-%H%M%S)"
               git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${branch}"
               # Base = the branch this run executed on (the default branch for
               # scheduled runs), so fixes always target the code that was checked.
               gh pr create \
                 --head "$branch" \
                 --base "$GITHUB_REF_NAME" \
-                --title "fix(${SLUG}): resolve cargo-deny findings" \
+                --title "fix: resolve cargo-deny findings" \
                 --body-file "$out/cargo-deny-report.md" \
-                --label cargo-deny-fix --label "workspace:${SLUG}" \
+                --label cargo-deny-fix \
                 "${extra_create[@]}"
             fi
           else
             existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
-              --label "cargo-deny-diagnosis" --label "workspace:${SLUG}" \
-              --json number --jq '.[0].number // empty')
+              --label "cargo-deny-diagnosis" --json number --jq '.[0].number // empty')
             if [[ -n "$existing" ]]; then
               # Reset review labels so a finding set that changed category leaves
               # the wrong review queue; re-add per the new report.
@@ -669,9 +676,9 @@ jobs:
               echo "Updated diagnosis issue #$existing"
             else
               gh issue create \
-                --title "[cargo-deny] diagnosis for ${MANIFEST}" \
+                --title "[cargo-deny] diagnosis" \
                 --body-file "$out/cargo-deny-report.md" \
-                --label cargo-deny-diagnosis --label "workspace:${SLUG}" \
+                --label cargo-deny-diagnosis \
                 "${extra_create[@]}"
             fi
           fi

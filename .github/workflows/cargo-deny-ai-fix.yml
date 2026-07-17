@@ -5,9 +5,10 @@
 # airbender_prover_server), all sharing the single deny.toml at the repo root
 # (cargo-deny doesn't auto-discover it from nested workspaces, hence the explicit
 # `--config ../deny.toml` — a relative --config resolves from the workspace root
-# directory, and all four workspaces sit one level below the repo root). The existing
-# PR-time gate (cargo-license.yaml) only covers `core`; this matrix runs the proactive
-# AI-fix workflow against all four on a schedule, independent of PRs.
+# directory, and all four workspaces sit one level below the repo root). One run
+# covers all four and produces at most one combined fix PR (or diagnosis issue).
+# The existing PR-time gate (cargo-license.yaml) only covers `core`; this proactive
+# workflow runs on a schedule, independent of PRs.
 #
 # `deny-action-args` intentionally matches cargo-license.yaml exactly so this
 # proactive check and the PR-time gate always agree on what is red.
@@ -28,13 +29,9 @@ on:
     - cron: "0 6 * * *" # daily, independent of the existing PR-time gate
   workflow_dispatch: {}
 
-# All four workspaces edit the shared root deny.toml, so runs must be serialized
-# ACROSS triggers too: max-parallel below only serializes within one run, while a
-# scheduled run and a manual run can overlap. Default single-pending behavior is
-# intentional: the group covers the ENTIRE caller run, so the newest pending run
-# replaces an older pending one without losing any matrix entry, and it avoids
-# queueing dozens of expensive AI runs (the detect gate re-arms on the next tick
-# regardless).
+# Serializes overlapping scheduled and manual runs. Default single-pending behavior
+# is intentional: the newest pending run covers everything an older pending one
+# would have done, and the detect gate re-arms on the next tick regardless.
 concurrency:
   group: cargo-deny-ai-fix-${{ github.repository }}
   cancel-in-progress: false
@@ -50,21 +47,13 @@ jobs:
       contents: read
       pull-requests: read
       issues: write
-    strategy:
-      fail-fast: false
-      # Serializes the four workspaces WITHIN one run (they all edit the shared root
-      # deny.toml); the workflow-level concurrency group above serializes ACROSS
-      # overlapping runs.
-      max-parallel: 1
-      matrix:
-        workspace:
-          - manifest-path: core/Cargo.toml
-          - manifest-path: prover/Cargo.toml
-          - manifest-path: zkstack_cli/Cargo.toml
-          - manifest-path: airbender_prover_server/Cargo.toml
     uses: ./.github/workflows/cargo-deny-ai-fix-reusable.yml
     with:
-      manifest-path: ${{ matrix.workspace.manifest-path }}
+      manifest-paths: |
+        core/Cargo.toml
+        prover/Cargo.toml
+        zkstack_cli/Cargo.toml
+        airbender_prover_server/Cargo.toml
       policy-path: "deny.toml" # the shared root config --config points at, allowed for AI edits
       deny-action-args: "--config ../deny.toml --allow unmaintained --hide-inclusion-graph"
     secrets:
