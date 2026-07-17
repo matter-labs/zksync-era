@@ -3,21 +3,31 @@ use clap::ValueEnum;
 use eravm_prover_host::SnarkWrapperProof;
 use zksync_prover_metrics::ProofType;
 
+/// Where a job came from. Travels with the job through the prover and back so
+/// results are submitted to the originating server — batch numbers alone are
+/// ambiguous because independent chains number their batches independently.
+#[derive(Copy, Clone, Debug)]
+pub struct JobOrigin {
+    /// Index of the job server in the configured server-URL list. Routing
+    /// only: results go back to this client. Deployment-local, so it never
+    /// appears in metrics.
+    pub server: usize,
+    /// L2 chain id reported by the job server (from `system_env` for FRI
+    /// inputs, from the response body for SNARK inputs). Used in metrics and
+    /// logs to identify the chain; 0 when the server predates reporting it.
+    pub chain_id: u64,
+}
+
 /// Jobs received from the job worker. Which variant is expected is implied
 /// by which pipelines the worker was built with; a mismatch is a job-worker bug.
-///
-/// `chain` is the index of the job server (one per chain) the job was fetched
-/// from. It travels with the job through the prover and back so results are
-/// submitted to the originating chain — batch numbers alone are ambiguous
-/// because independent chains number their batches independently.
 pub enum WorkerJob {
     Fri {
-        chain: usize,
+        origin: JobOrigin,
         batch_number: u32,
         input_words: Vec<u32>,
     },
     Snark {
-        chain: usize,
+        origin: JobOrigin,
         batch_number: u32,
         proof: Box<Proof>,
     },
@@ -32,9 +42,9 @@ impl WorkerJob {
         }
     }
 
-    pub fn chain(&self) -> usize {
+    pub fn origin(&self) -> JobOrigin {
         match self {
-            WorkerJob::Fri { chain, .. } | WorkerJob::Snark { chain, .. } => *chain,
+            WorkerJob::Fri { origin, .. } | WorkerJob::Snark { origin, .. } => *origin,
         }
     }
 
@@ -66,8 +76,8 @@ pub enum ProverMode {
 /// `pending_jobs` bucket (FRI then SNARK) as it lands.
 pub enum ProofOutcome {
     Fri {
-        /// Job-server index the job came from; the proof is submitted back there.
-        chain: usize,
+        /// Origin of the job; the proof is submitted back to its server.
+        origin: JobOrigin,
         batch_number: u32,
         proof: Box<Proof>,
         /// Guest cycles executed by the FRI prover's RISC-V run for this batch,
@@ -75,8 +85,8 @@ pub enum ProofOutcome {
         cycles_used: u64,
     },
     Snark {
-        /// Job-server index the job came from; the proof is submitted back there.
-        chain: usize,
+        /// Origin of the job; the proof is submitted back to its server.
+        origin: JobOrigin,
         batch_number: u32,
         proof: Box<SnarkWrapperProof>,
     },
@@ -92,10 +102,10 @@ impl ProofOutcome {
 }
 
 /// Failure detail carried in the `Err` arm of [`ProverResult`]. Holds the
-/// kind, batch number, and originating chain so the job worker can report the
+/// kind, batch number, and job origin so the job worker can report the
 /// failure to the right job server without inspecting the success type.
 pub struct FailedProof {
-    pub chain: usize,
+    pub origin: JobOrigin,
     pub batch_number: u32,
     pub kind: ProofType,
     /// Full anyhow error chain (`{err:#}`) captured at the point of failure.
@@ -103,9 +113,9 @@ pub struct FailedProof {
 }
 
 impl FailedProof {
-    pub fn new(chain: usize, batch_number: u32, kind: ProofType, err: anyhow::Error) -> Self {
+    pub fn new(origin: JobOrigin, batch_number: u32, kind: ProofType, err: anyhow::Error) -> Self {
         Self {
-            chain,
+            origin,
             batch_number,
             kind,
             reason: format!("{err:#}"),

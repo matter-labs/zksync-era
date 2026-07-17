@@ -210,19 +210,19 @@ fn main() -> Result<()> {
         .spawn(move || prover.run())
         .context("while spawning prover thread")?;
 
-    // One client per job server; the index doubles as the job's chain tag,
+    // One client per job server; the index becomes the job's routing tag,
     // so results are always submitted back to the server the job came from.
     let clients = cli
         .server_url
         .iter()
         .enumerate()
-        .map(|(chain, server_url)| {
+        .map(|(server_index, server_url)| {
             anyhow::ensure!(
                 !server_url.trim().is_empty(),
-                "server URL #{chain} is empty; check PROVER_SERVER_URL for stray commas"
+                "server URL #{server_index} is empty; check PROVER_SERVER_URL for stray commas"
             );
             JobServerClient::new(
-                chain,
+                server_index,
                 cli.prover_id.clone(),
                 cli.submit_attempts,
                 server_url.clone(),

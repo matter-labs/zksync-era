@@ -55,7 +55,9 @@ at boot, and the scan resumes after the chain last served — so when every chai
 of the prover regardless of how many batches it produces, and idle chains donate their share to busy ones. Proofs (and
 failure reports) are always submitted back to the server the job was fetched from. Provers coordinate through nothing
 but the job servers themselves, so any number of provers can compete for the same set of chains; per-chain contention is
-resolved by the servers' locking. Metrics carry a `chain` label with the URL's index in the configured list.
+resolved by the servers' locking. Proof metrics and job logs carry a `chain_id` label with the actual L2 chain id
+reported by the job server (from `system_env` for FRI inputs, from the response body for SNARK inputs; 0 if the server
+predates chain-id reporting).
 
 ## Building
 
