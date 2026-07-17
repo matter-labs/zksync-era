@@ -248,7 +248,7 @@ Running on machine without GPU is currently not supported by `zkstack`.
 ## Running the verification key generator
 
 ```bash
-# ensure that the setup_2^26.key in the current directory, the file can be download from  https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+# ensure that the setup_2^26.key is in the current directory, the file can be downloaded from  https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
 # To generate all verification keys
 cargo run --release --bin zksync_verification_key_generator
