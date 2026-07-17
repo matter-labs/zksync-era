@@ -12,7 +12,7 @@ Compared to Postgres dumps, app-level snapshots are much more compact; as of Feb
 
 ## Local testing
 
-Usage for local development (assuming the development environment [has been set up](../../../docs/guides/setup-dev.md)):
+Usage for local development (assuming the development environment [has been set up](../../../docs/src/guides/setup-dev.md)):
 
 1. Run `zk env dev`
 2. Generate storage logs, e.g. by running a load test with a command like
