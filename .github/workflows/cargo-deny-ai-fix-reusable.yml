@@ -181,10 +181,14 @@ jobs:
       # unrelated changes; that costs a redundant re-run, never a suppressed finding.
       - name: Run cargo-deny check for every workspace
         id: deny
+        env:
+          # Env var (not inline interpolation): the multiline input would otherwise
+          # inject literal newlines into the script and break the for-statement.
+          MANIFEST_PATHS: ${{ inputs.manifest-paths }}
         run: |
           failed_dirs=""
           : > /tmp/fingerprints.txt
-          for mp in ${{ inputs.manifest-paths }}; do
+          for mp in $MANIFEST_PATHS; do
             dir="$(dirname "$mp")"
             echo "::group::cargo deny check ${mp}"
             set +e
