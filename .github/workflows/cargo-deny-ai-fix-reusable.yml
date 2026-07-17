@@ -111,7 +111,7 @@ on:
         description: "Max agentic turns Claude gets to resolve findings before giving up"
         required: false
         type: number
-        default: 25
+        default: 50
       model:
         description: "Claude model to pin for this task (explicit, not left on the action's default)"
         required: false
@@ -356,10 +356,15 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
+          # Transcript in the run log: an autonomous fixer's reasoning should be
+          # reviewable, and each denied command otherwise burns a turn invisibly.
+          show_full_output: true
+          # Shell allowlist: cargo (via the credential-stripping wrapper) plus
+          # read-only utilities that expose nothing beyond the Read tool.
           claude_args: |
             --max-turns ${{ inputs.max-turns }}
             --model ${{ inputs.model }}
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd:*),Bash(cargo:*)"
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(rg:*),Bash(find:*),Bash(wc:*),Bash(pwd:*),Bash(echo:*),Bash(cargo:*)"
             --disallowedTools "Bash(git:*)"
           prompt: |
             You are diagnosing and (unless told otherwise below) fixing `cargo deny
