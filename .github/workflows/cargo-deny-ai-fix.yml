@@ -23,7 +23,10 @@ on:
   schedule:
     - cron: "0 6 * * *" # daily, independent of the existing PR-time gate
   push:
-    branches: [main]
+    branches:
+      - main
+      # TEMPORARY: end-to-end test trigger for this PR; remove before merge.
+      - use-common-cargo-deny
   workflow_dispatch: {}
 
 # All four workspaces edit the shared root deny.toml, so runs must be serialized

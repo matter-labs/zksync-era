@@ -46,13 +46,6 @@ ignore = [
   "RUSTSEC-2026-0098", # URI name constraints incorrectly accepted; affects 0.101.7 and 0.102.8 (0.103.13 patched)
   "RUSTSEC-2026-0099", # Name constraints accept wildcard cert names; affects 0.101.7 and 0.102.8 (0.103.13 patched)
   "RUSTSEC-2026-0104", # Reachable panic in CRL parsing; affects 0.101.7 and 0.102.8 (0.103.13 patched). We don't use CRLs.
-  # `rand` 0.8.x unsoundness in `ThreadRng` reseed under a custom logger calling rand from
-  # log macros. Patch only exists for >=0.9.3 / >=0.10.1; no fix backported to 0.8.x. We
-  # bumped 0.9.x to 0.9.4; rand 0.8.5 remains via many transitive deps (alloy-primitives,
-  # sqlx-postgres, jsonrpsee, boojum, secp256k1, foundry-compilers, ...) that haven't
-  # migrated to rand 0.9. The unsoundness requires a custom logger that calls rand from
-  # logging callbacks, which we don't do.
-  "RUSTSEC-2026-0097",
   # `quick-xml` <0.41.0 XML-parsing DoS advisories (quadratic attribute-duplicate check and
   # unbounded namespace-declaration allocation in `NsReader`). Reached only transitively via
   # sentry -> sentry-contexts -> os_info -> plist in core (parses local system `.plist` files),

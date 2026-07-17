@@ -629,8 +629,11 @@ jobs:
             else
               branch="cargo-deny-fix/${SLUG}/$(date +%Y%m%d-%H%M%S)"
               git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${branch}"
+              # Base = the branch this run executed on (the default branch for
+              # scheduled runs), so fixes always target the code that was checked.
               gh pr create \
                 --head "$branch" \
+                --base "$GITHUB_REF_NAME" \
                 --title "fix(${SLUG}): resolve cargo-deny findings" \
                 --body-file "$out/cargo-deny-report.md" \
                 --label cargo-deny-fix --label "workspace:${SLUG}" \
