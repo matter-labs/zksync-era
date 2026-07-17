@@ -148,7 +148,7 @@ This call will return the parameters to call the l2 contract with (the address o
 
 ## Generic usage of `BridgeHub.requestL2TransactionTwoBridges`
 
-`L1AssetRouter` is the only bridge that can handle base tokens. However, the `BridgeHub.requestL2TransactionTwoBridges` could be used by `secondBridgeAddress` on L1. A notable example of how it is done is how our CTMDeploymentTracker uses it to register the correct CTM address on Gateway.
+`L1AssetRouter` is the only bridge that can handle base tokens. However, the `BridgeHub.requestL2TransactionTwoBridges` could be used by `secondBridgeAddress` on L1.
 
 Let’s do a quick recap on how it works:
 
