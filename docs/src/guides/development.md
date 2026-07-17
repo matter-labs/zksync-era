@@ -35,11 +35,11 @@ zkstack --help
 ```
 
 ```admonish note
-NOTE: Whenever you want to update you local installation with your changes, just rerun:
+NOTE: Whenever you want to update your local installation with your changes, just rerun:
 
 `zkstackup --local`
 
-You might find convenient to add this alias to your shell profile:
+You might find it convenient to add this alias to your shell profile:
 
 `alias zkstackup='zkstackup --path /path/to/zksync-era'`
 ```
@@ -97,7 +97,7 @@ Currently the following criteria are checked:
 
 ## Testing
 
-ZKstack CLI offers multiple subcommands to run specific integration and unit test:
+ZKstack CLI offers multiple subcommands to run specific integration and unit tests:
 
 ```bash
 zkstack dev test --help
@@ -255,7 +255,7 @@ For more information check [Foundry's documentation](https://book.getfoundry.sh/
 
 ## How to generate the `genesis.yaml` file
 
-To generate the [`genesis.yaml`](https://github.com/matter-labs/zksync-era/blob/main//etc/env/file_based/genesis.yaml)
+To generate the [`genesis.yaml`](https://github.com/matter-labs/zksync-era/blob/main/etc/env/file_based/genesis.yaml)
 file checkout to the desired `zksync-era` branch, [build `zkstack`](#installing-the-local-zk-stack-cli) from it,
 [configure ecosystem](#configure-ecosystem) and run the following command:
 
