@@ -2,15 +2,15 @@
 
 ### Motivation
 
-In extremly rare circumstances due to an operator mistake or a bug zksync-era you may revert unexecuted L1 batches. This
-could be usefull if an unprovable batch would be committed or a commit tranasction failed due to mismatch between server
+In extremely rare circumstances due to an operator mistake or a bug in zksync-era you may revert unexecuted L1 batches. This
+could be useful if an unprovable batch would be committed or a commit transaction failed due to mismatch between server
 and blockchain state.
 
 ### Overview
 
 The purpose of block reverter is to revert all stateful components state and uncommit the L1 batch/-es.
 
-Block reverter performs following operations:
+Block reverter performs the following operations:
 
 - `rollback-db` command:
   - revert state keeper cache
@@ -52,7 +52,7 @@ Suggested values for rollback: SuggestedRollbackValues {
 ```
 
 - Rollback blocks on contract: run `send-eth-transaction` (Only if revert on L1 is needed). Note: here and later
-  `--l1-batch-number` is the number of latest batch **remining** after revert.
+  `--l1-batch-number` is the number of latest batch **remaining** after revert.
 
 ```bash
 root@server-0:/# RUST_LOG=info ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY=CHANGE_ME ./usr/bin/block_reverter send-eth-transaction \
@@ -138,7 +138,7 @@ rolling back state keeper cache...
 - Rollback postgres:
 
 ```bash
-root@server-0:/# ./r/bin/block_reverter rollback-db \
+root@server-0:/# ./usr/bin/block_reverter rollback-db \
 --genesis-path=/config/genesis/genesis.yaml \
 --wallets-path=/config/wallets/wallets.yaml \
 --config-path=/config/general/general.yaml \
@@ -162,7 +162,7 @@ root@server-0:/# ./r/bin/block_reverter rollback-db \
 
 - Resume deployments for the relevant components
 - Restart API nodes to clear cache
-- ⚠️ Check external nodes to see whether they have performed blocks rollback. If it they did not - do it manually
+- ⚠️ Check external nodes to see whether they have performed blocks rollback. If they did not - do it manually
 
 ## ISSUES
 
