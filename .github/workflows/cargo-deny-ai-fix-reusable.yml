@@ -19,9 +19,17 @@
 #               the Claude process exits, the job captures the changes as a raw binary
 #               diff and uploads diff + report as an artifact.
 #   validate -> optional, credential-free: applies the diff on a fresh runner and runs
-#               the caller's `validation-commands` (e.g. bounded `cargo check`s). A
-#               failure does not block publishing — it marks the PR as a draft with a
-#               warning, so an unverified fix is never presented as merge-ready.
+#               the caller's `validation-commands` (e.g. bounded `cargo check`s).
+#               cargo-deny only proves advisories are gone; this proves the new
+#               dependency set still compiles. On failure it exports the compiler
+#               error log for the repair round.
+#   repair   -> only when validate failed: a second bounded Claude session gets the
+#               applied fix plus the real compiler errors and adjusts versions (e.g.
+#               pins a compatible transitive dependency); revalidate re-runs the
+#               validation on the repaired set. Compilation itself never happens in
+#               a credentialed job. If the repair still fails validation, the PR is
+#               published as a draft with a warning, so an unverified fix is never
+#               presented as merge-ready.
 #   publish  -> fresh runner where no untrusted code has executed. Validates the diff
 #               only touches Cargo.toml/Cargo.lock of the failing workspaces (plus the
 #               policy file and caller-declared extras), applies it as a single bot
@@ -125,7 +133,7 @@ on:
         type: string
         default: "--hide-inclusion-graph"
       validation-commands:
-        description: "Optional newline-separated shell commands run by the credential-free validate job on the applied fix (e.g. bounded `cargo check`s). If any fails, the fix PR is opened as a draft with a warning instead of being presented as merge-ready."
+        description: "Optional newline-separated shell commands run by the credential-free validate job on the applied fix (e.g. bounded `cargo check`s). On failure a repair Claude session gets the compiler errors and the result is re-validated; if still failing, the fix PR is opened as a draft with a warning instead of being presented as merge-ready."
         required: false
         type: string
         default: ""
@@ -601,6 +609,219 @@ jobs:
             (cd "$dir" && rustup toolchain install)
           done
 
+      # The captured compiler errors drive the repair round, so keep them bounded
+      # but information-dense.
+      - name: Run validation commands
+        env:
+          VALIDATION_COMMANDS: ${{ inputs.validation-commands }}
+        run: |
+          failed=0
+          : > /tmp/validation-log.txt
+          while IFS= read -r cmd; do
+            [[ -z "$cmd" ]] && continue
+            echo "::group::$cmd"
+            if ! bash -c "$cmd" 2>&1 | tee /tmp/cmd-out.txt; then
+              echo "::error::Validation command failed: $cmd"
+              {
+                echo "\$ $cmd"
+                tail -n 400 /tmp/cmd-out.txt
+                echo
+              } >> /tmp/validation-log.txt
+              failed=1
+            fi
+            echo "::endgroup::"
+          done <<< "$VALIDATION_COMMANDS"
+          exit "$failed"
+
+      - name: Upload validation errors for the repair round
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cargo-deny-validation-log
+          path: /tmp/validation-log.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  # Second bounded Claude session, only when validation failed: same restricted
+  # environment as ai-fix, but the working tree already contains the applied fix and
+  # the real compiler errors are on disk. It cannot compile either — it reasons from
+  # the error log and `cargo tree` to pin compatible versions.
+  repair:
+    needs: [detect, ai-fix, validate]
+    if: ${{ !cancelled() && needs.validate.result == 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Require exactly one Anthropic credential
+        env:
+          HAS_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+          HAS_OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          if [[ "$HAS_API_KEY" == "$HAS_OAUTH" ]]; then
+            echo "::error::Provide exactly one of ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN."
+            exit 1
+          fi
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2.83.2
+        with:
+          tool: cargo-deny@0.18.6
+
+      - name: Install the pinned Rust toolchain of every failing workspace
+        env:
+          FAILED_DIRS: ${{ needs.detect.outputs.failed_dirs }}
+        run: |
+          for dir in $FAILED_DIRS; do
+            (cd "$dir" && rustup toolchain install)
+          done
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-deny-ai-fix
+          path: /tmp/cargo-deny-out
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-deny-validation-log
+          path: /tmp/validation
+
+      - name: Apply the previous fix and stage its report and errors
+        run: |
+          git config core.hooksPath /dev/null
+          if [[ -s /tmp/cargo-deny-out/changes.diff ]]; then
+            git apply --binary --whitespace=nowarn /tmp/cargo-deny-out/changes.diff
+          fi
+          cp /tmp/cargo-deny-out/cargo-deny-report.md cargo-deny-report.md
+          cp /tmp/cargo-deny-out/cargo-deny-report.json cargo-deny-report.json
+          cp /tmp/validation/validation-log.txt cargo-deny-validation.log
+
+      - name: Install restricted cargo wrapper
+        run: |
+          real_cargo="$(command -v cargo)"
+          mkdir -p "$RUNNER_TEMP/toolwrap"
+          # shellcheck disable=SC2016 # single quotes are deliberate: $1/$@ must land literally in the wrapper
+          {
+            echo '#!/usr/bin/env bash'
+            echo 'case "$1" in'
+            echo '  deny|update|tree|metadata) ;;'
+            echo '  *) echo "cargo ${1:-<none>} is not permitted here (allowed: deny, update, tree, metadata)" >&2; exit 1 ;;'
+            echo 'esac'
+            printf 'exec env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN -u GITHUB_TOKEN -u GH_TOKEN -u ACTIONS_RUNTIME_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL %q "$@"\n' "$real_cargo"
+          } > "$RUNNER_TEMP/toolwrap/cargo"
+          chmod +x "$RUNNER_TEMP/toolwrap/cargo"
+          echo "$RUNNER_TEMP/toolwrap" >> "$GITHUB_PATH"
+
+      - name: Repair the fix with Claude
+        uses: anthropics/claude-code-action@1298632ce7736903d02a1435002705aa2a594a6c # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          claude_args: |
+            --max-turns ${{ inputs.max-turns }}
+            --model ${{ inputs.model }}
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd:*),Bash(cargo:*)"
+            --disallowedTools "Bash(git:*)"
+          prompt: |
+            A previous automated session fixed this repository's `cargo deny check`
+            failures in the workspaces `${{ needs.detect.outputs.failed_dirs }}`.
+            Its changes are already applied to the working tree and described in
+            `cargo-deny-report.md`. However, the resulting dependency set FAILS
+            compilation: the compiler errors are in `cargo-deny-validation.log`.
+
+            Repair the dependency set so that BOTH hold: every failing workspace
+            still passes
+            `cargo deny ${{ inputs.deny-arguments }} check ${{ inputs.deny-action-args }}`
+            (run from the workspace directory), AND the compile errors are
+            resolved. The typical cause is a version bump dragging in an
+            incompatible transitive dependency — use `cargo tree -i <crate>` to
+            understand the constraints and prefer pinning a compatible version
+            with `cargo update -p <crate> --precise <version>`. You cannot compile
+            here: reason from the error log and the dependency tree.
+
+            Constraints on your environment (same as the previous session):
+            - The only shell commands available are `cd` and `cargo`, and cargo
+              accepts exactly these subcommands: `deny`, `update`, `tree`,
+              `metadata`. Use your Read/Glob/Grep tools to explore files.
+            - You cannot use git or gh, and you must not commit anything; the
+              workflow captures the working tree as a diff after you finish.
+            - Only modify Cargo.toml / Cargo.lock files of the failing workspaces
+              and their deny.toml.
+            - The session ends the moment you stop responding: never end your turn
+              "waiting" for anything.
+
+            When done:
+            - Append a "## Compilation repair" section to `cargo-deny-report.md`
+              describing what you changed and why (or, if the errors cannot be
+              resolved without a semver-major migration or source changes, say so
+              there under "Needs human review" — the PR will be published as a
+              draft).
+            - Keep `cargo-deny-report.json` accurate.
+            - Do not delete `cargo-deny-report.md`, `cargo-deny-report.json` or
+              `cargo-deny-validation.log`.
+
+      - name: Package repaired results
+        run: |
+          if [[ ! -f cargo-deny-report.json || ! -f cargo-deny-report.md ]]; then
+            echo "::error::Repair session lost the report files"
+            exit 1
+          fi
+          mkdir -p /tmp/cargo-deny-repaired
+          cp cargo-deny-report.md cargo-deny-report.json /tmp/cargo-deny-repaired/
+          git -c core.fsmonitor=false -c core.hooksPath=/dev/null add -N .
+          git -c core.fsmonitor=false -c core.hooksPath=/dev/null \
+            diff HEAD --binary --no-ext-diff --no-textconv --no-renames \
+            -- . ':(exclude)cargo-deny-report.md' ':(exclude)cargo-deny-report.json' ':(exclude)cargo-deny-validation.log' \
+            > /tmp/cargo-deny-repaired/changes.diff
+          echo "Captured $(grep -c '^diff --git' /tmp/cargo-deny-repaired/changes.diff || true) changed file(s)"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cargo-deny-ai-fix-repaired
+          path: /tmp/cargo-deny-repaired
+          if-no-files-found: error
+          retention-days: 7
+
+  # Re-runs the caller's validation on the repaired dependency set. Credential-free,
+  # same as validate.
+  revalidate:
+    needs: [detect, repair]
+    if: ${{ !cancelled() && needs.repair.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.validation-timeout-minutes }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-deny-ai-fix-repaired
+          path: /tmp/cargo-deny-repaired
+
+      - name: Apply the repaired fix
+        run: |
+          git config core.hooksPath /dev/null
+          if [[ -s /tmp/cargo-deny-repaired/changes.diff ]]; then
+            git apply --binary --whitespace=nowarn /tmp/cargo-deny-repaired/changes.diff
+          else
+            echo "No changes to validate."
+          fi
+
+      - name: Install the pinned Rust toolchain of every failing workspace
+        env:
+          FAILED_DIRS: ${{ needs.detect.outputs.failed_dirs }}
+        run: |
+          for dir in $FAILED_DIRS; do
+            (cd "$dir" && rustup toolchain install)
+          done
+
       - name: Run validation commands
         env:
           VALIDATION_COMMANDS: ${{ inputs.validation-commands }}
@@ -620,11 +841,10 @@ jobs:
   # Fresh runner: no untrusted code has executed here. Only this job holds the
   # publishing credential.
   publish:
-    needs: [detect, ai-fix, validate]
-    # Runs whether validate succeeded, failed (PR becomes a draft), or was skipped
-    # (no validation configured / dry-run) — but never after a cancellation or an
-    # ai-fix failure.
-    if: ${{ !cancelled() && needs.detect.outputs.should_fix == 'true' && needs.ai-fix.result == 'success' && needs.validate.result != 'cancelled' }}
+    needs: [detect, ai-fix, validate, repair, revalidate]
+    # Runs for every non-cancelled combination of validation/repair outcomes: a fix
+    # that never validated cleanly is published as a draft, not suppressed.
+    if: ${{ !cancelled() && needs.detect.outputs.should_fix == 'true' && needs.ai-fix.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -659,6 +879,13 @@ jobs:
           name: cargo-deny-ai-fix
           path: /tmp/cargo-deny-out
 
+      - name: Fetch repaired fix (when a repair round ran)
+        if: needs.repair.result == 'success'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cargo-deny-ai-fix-repaired
+          path: /tmp/cargo-deny-repaired
+
       # A fresh checkout has no hooks; neutralize the hook path anyway so nothing can
       # run during git apply / git push.
       - name: Disable git hooks and set identity
@@ -684,9 +911,15 @@ jobs:
           EXTRA_ALLOWED_PATHS: ${{ inputs.extra-allowed-paths }}
           DRY_RUN: ${{ inputs.dry-run }}
           FP: ${{ needs.detect.outputs.fingerprint }}
-          VALIDATE_RESULT: ${{ needs.validate.result }}
+          USE_REPAIRED: ${{ needs.repair.result == 'success' }}
+          # pass: validated cleanly (first try, or after repair). skipped: no
+          # validation configured. fail: everything else -> draft PR.
+          FINAL_VALIDATION: ${{ needs.validate.result == 'skipped' && 'skipped' || needs.validate.result == 'success' && 'pass' || (needs.repair.result == 'success' && needs.revalidate.result == 'success') && 'pass' || 'fail' }}
         run: |
           out=/tmp/cargo-deny-out
+          if [[ "$USE_REPAIRED" == "true" ]]; then
+            out=/tmp/cargo-deny-repaired
+          fi
           already_green=$(jq -r '.already_green' "$out/cargo-deny-report.json")
           needs_sec=$(jq -r '.needs_security_review' "$out/cargo-deny-report.json")
           needs_lic=$(jq -r '.needs_license_review' "$out/cargo-deny-report.json")
@@ -696,12 +929,17 @@ jobs:
             exit 0
           fi
 
-          # A failed validation is published as an explicitly-unverified draft, not
-          # as a ready fix.
-          if [[ "$VALIDATE_RESULT" == "failure" ]]; then
+          # A fix that never validated cleanly is published as an explicitly
+          # unverified draft, not as a ready fix.
+          if [[ "$FINAL_VALIDATION" == "fail" ]]; then
             {
               echo "> [!WARNING]"
-              echo "> Post-fix validation FAILED (see the \`validate\` job in the workflow run):"
+              if [[ "$USE_REPAIRED" == "true" ]]; then
+                echo "> Post-fix validation FAILED and an automated repair round did not resolve it"
+                echo "> (see the \`validate\`/\`repair\`/\`revalidate\` jobs in the workflow run):"
+              else
+                echo "> Post-fix validation FAILED (see the \`validate\` job in the workflow run):"
+              fi
               echo "> the cargo-deny findings are resolved, but the resulting dependency set did"
               echo "> not pass the repository's validation commands. Treat this PR as a"
               echo "> diagnostic starting point, not a merge-ready fix."
@@ -783,7 +1021,7 @@ jobs:
                 >/dev/null 2>&1 || true
               gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" \
                 --body-file "$out/cargo-deny-report.md" "${extra_edit[@]}"
-              if [[ "$VALIDATE_RESULT" == "failure" ]]; then
+              if [[ "$FINAL_VALIDATION" == "fail" ]]; then
                 gh pr ready "$pr_number" --repo "$GITHUB_REPOSITORY" --undo || true
               fi
               gh pr comment "$pr_number" --repo "$GITHUB_REPOSITORY" \
@@ -791,7 +1029,7 @@ jobs:
               echo "Updated fix PR #$pr_number"
             else
               draft=()
-              if [[ "$VALIDATE_RESULT" == "failure" ]]; then
+              if [[ "$FINAL_VALIDATION" == "fail" ]]; then
                 draft=(--draft)
               fi
               branch="cargo-deny-fix/${GITHUB_REF_NAME//\//-}/$(date +%Y%m%d-%H%M%S)"
