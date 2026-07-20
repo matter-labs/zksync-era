@@ -582,12 +582,28 @@ impl TransactionRequest {
         self.v = Some(signature.v().into())
     }
 
+    /// Decodes the `to` (destination) field fail-closed.
+    fn decode_to_field(rlp: &Rlp, index: usize) -> Result<Option<Address>, DecoderError> {
+        let item = rlp.at(index)?;
+        // A list (e.g. the empty list `0xc0`) is the wrong RLP kind for an address; reject it
+        // rather than letting `data()` treat its empty payload as an empty byte string.
+        if item.is_list() {
+            return Err(DecoderError::RlpExpectedToBeData);
+        }
+        let bytes = item.data()?;
+        match bytes.len() {
+            0 => Ok(None),
+            20 => Ok(Some(Address::from_slice(bytes))),
+            _ => Err(DecoderError::RlpInvalidLength),
+        }
+    }
+
     fn decode_standard_fields(rlp: &Rlp, offset: usize) -> Result<Self, DecoderError> {
         Ok(Self {
             nonce: rlp.val_at(offset)?,
             gas_price: rlp.val_at(offset + 1)?,
             gas: rlp.val_at(offset + 2)?,
-            to: rlp.val_at(offset + 3).ok(),
+            to: Self::decode_to_field(rlp, offset + 3)?,
             value: rlp.val_at(offset + 4)?,
             input: Bytes(rlp.val_at(offset + 5)?),
             ..Default::default()
@@ -600,7 +616,7 @@ impl TransactionRequest {
             max_priority_fee_per_gas: rlp.val_at(offset + 1).ok(),
             gas_price: rlp.val_at(offset + 2)?,
             gas: rlp.val_at(offset + 3)?,
-            to: rlp.val_at(offset + 4).ok(),
+            to: Self::decode_to_field(rlp, offset + 4)?,
             value: rlp.val_at(offset + 5)?,
             input: Bytes(rlp.val_at(offset + 6)?),
             ..Default::default()
@@ -1326,6 +1342,87 @@ mod tests {
         assert_matches!(
             res.unwrap_err(),
             SerializationTransactionError::AccessListsNotSupported
+        );
+    }
+
+    #[test]
+    fn decode_to_field_is_fail_closed() {
+        // Canonical empty byte string `0x80` => contract creation (`None`).
+        let mut s = RlpStream::new_list(1);
+        s.append_empty_data();
+        let raw = s.out();
+        assert_eq!(
+            TransactionRequest::decode_to_field(&Rlp::new(&raw), 0).unwrap(),
+            None
+        );
+
+        // Regular 20-byte address => `Some(address)`.
+        let address = Address::repeat_byte(0x42);
+        let mut s = RlpStream::new_list(1);
+        s.append(&address);
+        let raw = s.out();
+        assert_eq!(
+            TransactionRequest::decode_to_field(&Rlp::new(&raw), 0).unwrap(),
+            Some(address)
+        );
+
+        // Empty list `0xc0` (wrong RLP kind) must be rejected, not normalized to `None`.
+        let mut s = RlpStream::new_list(1);
+        s.begin_list(0);
+        let raw = s.out();
+        assert_matches!(
+            TransactionRequest::decode_to_field(&Rlp::new(&raw), 0),
+            Err(DecoderError::RlpExpectedToBeData)
+        );
+
+        // Wrong-width byte string must be rejected.
+        let mut s = RlpStream::new_list(1);
+        s.append(&vec![0x11u8; 19]);
+        let raw = s.out();
+        assert_matches!(
+            TransactionRequest::decode_to_field(&Rlp::new(&raw), 0),
+            Err(DecoderError::RlpInvalidLength)
+        );
+    }
+
+    #[test]
+    fn eip1559_wrong_kind_creation_destination_is_rejected() {
+        // Builds a signature-agnostic type-2 envelope with an explicit destination item.
+        // Parsing decodes `to` before recovering the signer, so a bogus signature is fine.
+        let build = |append_to: &dyn Fn(&mut RlpStream)| {
+            let mut s = RlpStream::new_list(12);
+            s.append(&270u64); // chain_id
+            s.append(&1u64); // nonce
+            s.append(&1u64); // max_priority_fee_per_gas
+            s.append(&11u64); // max_fee_per_gas
+            s.append(&12u64); // gas
+            append_to(&mut s); // to
+            s.append(&10u64); // value
+            s.append(&vec![1u8, 2, 3]); // input
+            s.begin_list(0); // access_list (empty)
+            s.append(&0u64); // v
+            s.append(&U256::from(1)); // r
+            s.append(&U256::from(1)); // s
+            let mut data = s.out().to_vec();
+            data.insert(0, EIP_1559_TX_TYPE);
+            data
+        };
+
+        // Canonical creation (`0x80`) parses with `to == None`.
+        let canonical = build(&|s| {
+            s.append_empty_data();
+        });
+        let (tx, _) =
+            TransactionRequest::from_bytes(canonical.as_slice(), L2ChainId::from(270)).unwrap();
+        assert_eq!(tx.to, None);
+
+        // Wrong-kind destination (`0xc0`) is now rejected instead of parsed as a creation.
+        let malformed = build(&|s| {
+            s.begin_list(0);
+        });
+        assert_matches!(
+            TransactionRequest::from_bytes(malformed.as_slice(), L2ChainId::from(270)),
+            Err(SerializationTransactionError::DecodeRlpError(_))
         );
     }
 
