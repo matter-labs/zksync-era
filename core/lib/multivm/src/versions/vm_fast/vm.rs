@@ -277,7 +277,7 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
                     .world_diff()
                     .get_storage_state()
                     .get(&(KNOWN_CODES_STORAGE_ADDRESS, h256_to_u256(hash)))
-                    .map(|x| !x.is_zero())
+                    .map(|x| !x.value.is_zero())
                     .unwrap_or_else(|| self.world.storage.is_bytecode_known(&hash))
             })
         };

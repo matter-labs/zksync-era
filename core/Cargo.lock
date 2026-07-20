@@ -13228,7 +13228,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.153.12",
+ "zk_evm_abstractions 0.153.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -13280,7 +13280,20 @@ dependencies = [
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.153.12",
+ "zkevm_opcode_defs 0.153.12 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "zk_evm_abstractions"
+version = "0.153.12"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#14a3b8fdabbc3d80d5ca70c68c60d14d311d49dc"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "num_enum 0.6.1",
+ "serde",
+ "static_assertions",
+ "zkevm_opcode_defs 0.153.12 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles)",
 ]
 
 [[package]]
@@ -13352,7 +13365,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "zkevm_opcode_defs 0.153.12",
+ "zkevm_opcode_defs 0.153.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "zksync_cs_derive",
 ]
 
@@ -13420,6 +13433,23 @@ name = "zkevm_opcode_defs"
 version = "0.153.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67bd8604a07502aa7a88f70a6fca32aa7ba39d7a708328dc559a22efdecf9a43"
+dependencies = [
+ "bitflags 2.9.1",
+ "blake2 0.10.6",
+ "ethereum-types",
+ "k256 0.13.4",
+ "lazy_static",
+ "p256 0.13.2",
+ "serde",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+ "zksync_pairing",
+]
+
+[[package]]
+name = "zkevm_opcode_defs"
+version = "0.153.12"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#14a3b8fdabbc3d80d5ca70c68c60d14d311d49dc"
 dependencies = [
  "bitflags 2.9.1",
  "blake2 0.10.6",
@@ -15438,22 +15468,20 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2"
-version = "0.5.0-5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72aa424a25f62e6fffee45aa9c2fae9b06effd66e56200b7e31c357eee2d6683"
+version = "0.5.0"
+source = "git+https://github.com/matter-labs/vm2?rev=5a5be2220112580b4fb958d4b524e3deca73cba9#5a5be2220112580b4fb958d4b524e3deca73cba9"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.153.12",
- "zkevm_opcode_defs 0.153.12",
+ "zk_evm_abstractions 0.153.12 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles)",
+ "zkevm_opcode_defs 0.153.12 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles)",
  "zksync_vm2_interface",
 ]
 
 [[package]]
 name = "zksync_vm2_interface"
-version = "0.5.0-5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be6606960c6e78d88ebacd2e2317824ecc96922fa42ceadb44a7f7e5e9eeb95f"
+version = "0.5.0"
+source = "git+https://github.com/matter-labs/vm2?rev=5a5be2220112580b4fb958d4b524e3deca73cba9#5a5be2220112580b4fb958d4b524e3deca73cba9"
 dependencies = [
  "primitive-types",
 ]
