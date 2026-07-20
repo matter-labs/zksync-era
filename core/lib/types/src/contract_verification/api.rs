@@ -373,11 +373,12 @@ impl CompilationArtifacts {
     /// hash while the deployed side is itself a well-formed EraVM bytecode hash. An ordinary runtime
     /// constant that merely collides with a dependency hash therefore stays part of the comparison.
     fn patch_factory_dependency_hashes(&self, compiled_code: &mut [u8], deployed_code: &mut [u8]) {
-        if self.factory_dependency_hashes.is_empty() || compiled_code.len() != deployed_code.len() {
+        if self.factory_dependency_hashes.is_empty() {
             return;
         }
+        let shared_len = compiled_code.len().min(deployed_code.len());
         let mut start = 0;
-        while start + 32 <= compiled_code.len() {
+        while start + 32 <= shared_len {
             let word = start..start + 32;
             if compiled_code[word.clone()] != deployed_code[word.clone()]
                 && self
@@ -816,6 +817,29 @@ mod tests {
         expected.extend_from_slice(&[0; 32]);
         assert_eq!(compiled, expected);
         assert_eq!(deployed, expected);
+    }
+
+    #[test]
+    fn patches_factory_dependency_hashes_with_different_bytecode_lengths() {
+        let dependency_hash = eravm_bytecode_hash(0xaa);
+        let artifacts = CompilationArtifacts {
+            bytecode: vec![],
+            deployed_bytecode: None,
+            abi: serde_json::Value::Array(vec![]),
+            immutable_refs: Default::default(),
+            factory_dependency_hashes: vec![H256(dependency_hash)],
+        };
+        let mut compiled = [0x11; 32].to_vec();
+        compiled.extend_from_slice(&dependency_hash);
+        let mut deployed = [0x11; 32].to_vec();
+        deployed.extend_from_slice(&eravm_bytecode_hash(0xbb));
+        deployed.extend_from_slice(&[0x22; 32]);
+
+        artifacts.patch_immutable_bytecodes(&mut compiled, &mut deployed);
+
+        assert_eq!(&compiled[32..64], &[0; 32]);
+        assert_eq!(&deployed[32..64], &[0; 32]);
+        assert_eq!(&deployed[64..], &[0x22; 32]);
     }
 
     #[test]
