@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt, mem, rc::Rc};
 
+use circuit_sequencer_api::sort_storage_access::sort_storage_access_queries;
 use zk_evm_1_5_0::{
     aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
 };
@@ -364,14 +365,32 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
 
         CurrentExecutionState {
             events,
-            deduplicated_storage_logs: world_diff
-                .get_storage_changes()
-                .map(|((address, key), change)| StorageLog {
-                    key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                    value: u256_to_h256(change.after),
-                    kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
-                })
-                .collect(),
+            deduplicated_storage_logs: {
+                // `world_diff` exposes log queries via vm2's `zk_evm_abstractions` fork, which is
+                // a different crate instance than the one `circuit_sequencer_api` links against;
+                // map the fields to bridge the two.
+                let storage_log_queries = world_diff.storage_log_queries().iter().map(|query| {
+                    zk_evm_1_5_2::aux_structures::LogQuery {
+                        timestamp: zk_evm_1_5_2::aux_structures::Timestamp(query.timestamp.0),
+                        tx_number_in_block: query.tx_number_in_block,
+                        aux_byte: query.aux_byte,
+                        shard_id: query.shard_id,
+                        address: query.address,
+                        key: query.key,
+                        read_value: query.read_value,
+                        written_value: query.written_value,
+                        rw_flag: query.rw_flag,
+                        rollback: query.rollback,
+                        is_service: query.is_service,
+                    }
+                });
+                let (_, deduped_storage_log_queries) =
+                    sort_storage_access_queries(storage_log_queries);
+                deduped_storage_log_queries
+                    .into_iter()
+                    .map(|log_query| StorageLog::from_log_query(&log_query.glue_into()))
+                    .collect()
+            },
             used_contract_hashes: self.decommitted_hashes().collect(),
             system_logs: vm.l2_to_l1_logs().map(GlueInto::glue_into).collect(),
             user_l2_to_l1_logs,
