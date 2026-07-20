@@ -25,6 +25,7 @@ import { NodeSpawner } from 'utils/src/node-spawner';
 import { sendTransfers } from '../src/context-owner';
 import { Reporter } from '../src/reporter';
 import { waitForNewL1Batch } from 'utils';
+import { EthersRetryProvider, RetryableWallet, RetryProvider } from '../src/retry-provider';
 
 declare global {
     var __ZKSYNC_TEST_CONTEXT_OWNER__: TestContextOwner;
@@ -59,7 +60,10 @@ const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
 
 testFees('Test fees', function () {
     let testMaster: TestMaster;
-    let alice: zksync.Wallet;
+    let alice: RetryableWallet;
+    let alicePrivateKey: string;
+    let aliceL1Provider: EthersRetryProvider;
+    let l2PollingInterval: number;
 
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
@@ -80,8 +84,49 @@ testFees('Test fees', function () {
         return await logsTestPath(chain, 'logs/server/fees', name);
     }
 
+    async function connectAliceToMainNode(): Promise<RetryableWallet> {
+        const l2Provider = new RetryProvider(
+            {
+                url: apiWeb3JsonRpcHttpUrl,
+                timeout: 1200 * 1000
+            },
+            undefined,
+            testMaster.reporter
+        );
+        l2Provider.pollingInterval = l2PollingInterval;
+        try {
+            // Complete ethers' network detection under this awaited lifecycle operation. This
+            // prevents an initialization failure from surfacing later as a background rejection.
+            await l2Provider.getNetwork();
+            return new RetryableWallet(alicePrivateKey, l2Provider, aliceL1Provider);
+        } catch (error) {
+            l2Provider.destroy();
+            throw error;
+        }
+    }
+
+    async function restartMainNode(
+        configOverrides: Parameters<NodeSpawner['killAndSpawnMainNode']>[0] = null
+    ): Promise<void> {
+        // The server is intentionally replaced by this suite. Stop the provider while the old
+        // process is still healthy, then bind a fresh provider to the replacement process. Reusing
+        // an ethers provider across the outage leaves its network-detection requests and pollers
+        // racing the shutdown.
+        alice._providerL2().destroy();
+        await mainNodeSpawner.killAndSpawnMainNode(configOverrides);
+        alice = await connectAliceToMainNode();
+    }
+
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
+        alice = testMaster.mainAccount();
+        alicePrivateKey = alice.privateKey;
+        aliceL1Provider = alice._providerL1() as EthersRetryProvider;
+        l2PollingInterval = alice._providerL2().pollingInterval;
+
+        // TestMaster creates its L2 provider for the node started by the test harness. This suite
+        // immediately replaces that node, so dispose the provider before terminating the process.
+        alice._providerL2().destroy();
         let l2Node = testMaster.environment().l2NodePid;
         if (l2Node !== undefined) {
             await killPidWithAllChilds(l2Node, 9);
@@ -126,7 +171,7 @@ testFees('Test fees', function () {
 
         await mainNodeSpawner.killAndSpawnMainNode();
 
-        alice = testMaster.mainAccount();
+        alice = await connectAliceToMainNode();
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
 
@@ -212,7 +257,7 @@ testFees('Test fees', function () {
         ];
         for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
             // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
-            await mainNodeSpawner.killAndSpawnMainNode({
+            await restartMainNode({
                 newL1GasPrice: gasPrice,
                 newPubdataPrice: gasPrice
             });
@@ -256,7 +301,7 @@ testFees('Test fees', function () {
 
     test('Test gas price expected value', async () => {
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
-        await mainNodeSpawner.killAndSpawnMainNode({
+        await restartMainNode({
             newL1GasPrice: l1GasPrice,
             newPubdataPrice: l1GasPrice
         });
@@ -308,7 +353,7 @@ testFees('Test fees', function () {
         // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
         const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
 
-        await mainNodeSpawner.killAndSpawnMainNode({
+        await restartMainNode({
             newL1GasPrice: requiredPubdataPrice,
             newPubdataPrice: requiredPubdataPrice
         });
@@ -355,15 +400,23 @@ testFees('Test fees', function () {
     });
 
     afterAll(async () => {
-        // Returning the pubdata price to the default one
-        // Spawning with no options restores defaults.
-        await mainNodeSpawner.killAndSpawnMainNode();
+        try {
+            // Returning the pubdata price to the default one
+            // Spawning with no options restores defaults.
+            await restartMainNode();
 
-        // Wait for current batch to close so gas price returns to normal.
-        await waitForNewL1Batch(alice);
+            // Wait for current batch to close so gas price returns to normal.
+            await waitForNewL1Batch(alice);
 
-        await testMaster.deinitialize();
-        __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNodeSpawner.mainNode!.proc.pid!);
+            await testMaster.deinitialize();
+        } finally {
+            // This suite creates replacement providers outside TestMaster, so it also owns their
+            // cleanup. The global context owner will terminate the final server process later.
+            alice?._providerL2().destroy();
+            if (mainNodeSpawner?.mainNode) {
+                __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNodeSpawner.mainNode.proc.pid!);
+            }
+        }
     });
 });
 

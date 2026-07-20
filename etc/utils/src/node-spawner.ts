@@ -85,16 +85,18 @@ export class Node<TYPE extends NodeType> {
         // Wait until it's really stopped.
         let iter = 0;
         while (iter < 30) {
+            const provider = new zksync.Provider(this.l2NodeUrl);
             try {
                 console.log(this.l2NodeUrl);
-                let provider = new zksync.Provider(this.l2NodeUrl);
                 await provider.getBlockNumber();
-                await sleep(2);
                 iter += 1;
             } catch (_) {
                 // When exception happens, we assume that server died.
                 return;
+            } finally {
+                provider.destroy();
             }
+            await sleep(2);
         }
         // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
         throw new Error(`${this.type} didn't stop after a kill request`);
@@ -143,51 +145,11 @@ export class NodeSpawner {
     }
 
     public async killAndSpawnMainNode(configOverrides: MainNodeOptions | null = null): Promise<void> {
-        // Killing the node mid-flight will cause any in-flight HTTP request from ethers
-        // providers (background pollers, abandoned `tx.wait()` listeners that resolved
-        // but whose subscriptions haven't been torn down, etc.) to reject with
-        // "socket hang up" / ECONNRESET / ECONNREFUSED. Those rejections are expected
-        // here but, because they fire on listeners owned by zksync-ethers internals,
-        // they typically have no `.catch()` handler in user code and are surfaced by
-        // jest as "Test suite failed to run" entries (see fees.test.ts in CI).
-        //
-        // Install a scoped handler that absorbs those *specific* errors during the
-        // restart window and rethrows anything else.
-        const previous = process.listeners('unhandledRejection').slice();
-        process.removeAllListeners('unhandledRejection');
-        const isExpectedRestartError = (reason: unknown): boolean => {
-            const msg = (reason as { message?: string })?.message ?? String(reason);
-            return /socket hang up|ECONNRESET|ECONNREFUSED|other side closed/i.test(msg);
-        };
-        const swallowed: unknown[] = [];
-        const handler = (reason: unknown, promise: Promise<unknown>) => {
-            if (isExpectedRestartError(reason)) {
-                swallowed.push(reason);
-                return;
-            }
-            for (const listener of previous) {
-                (listener as (r: unknown, p: Promise<unknown>) => void)(reason, promise);
-            }
-        };
-        process.on('unhandledRejection', handler);
-        try {
-            if (this.mainNode != null) {
-                await this.mainNode.killAndWaitForShutdown();
-                this.mainNode = null;
-            }
-            this.mainNode = await this.spawnMainNode(configOverrides);
-        } finally {
-            // Give a brief moment for late rejections from already-aborted requests to
-            // settle into the handler, then restore the original listeners.
-            await sleep(1);
-            process.off('unhandledRejection', handler);
-            for (const listener of previous) {
-                process.on('unhandledRejection', listener as never);
-            }
-            if (swallowed.length > 0) {
-                console.log(`Absorbed ${swallowed.length} expected restart-time RPC rejection(s).`);
-            }
+        if (this.mainNode != null) {
+            await this.mainNode.killAndWaitForShutdown();
+            this.mainNode = null;
         }
+        this.mainNode = await this.spawnMainNode(configOverrides);
     }
 
     private async spawnMainNode(overrides: MainNodeOptions | null): Promise<Node<NodeType.MAIN>> {
@@ -344,19 +306,21 @@ export class NodeSpawner {
 
 async function waitForNodeToStart(proc: ChildProcessWithoutNullStreams, l2Url: string) {
     while (true) {
+        const l2Provider = new zksync.Provider(l2Url);
         try {
-            const l2Provider = new zksync.Provider(l2Url);
             const blockNumber = await l2Provider.getBlockNumber();
             if (blockNumber != 0) {
                 console.log(`Initialized node API on ${l2Url}; latest block: ${blockNumber}`);
-                break;
+                return;
             }
         } catch (err) {
             if (proc.exitCode != null) {
                 throw new Error(`server failed to start, exitCode = ${proc.exitCode}`);
             }
             console.log(`Node waiting for API on ${l2Url}`);
-            await sleep(1);
+        } finally {
+            l2Provider.destroy();
         }
+        await sleep(1);
     }
 }
