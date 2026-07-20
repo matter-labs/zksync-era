@@ -5,9 +5,9 @@ use anyhow::{Context, Result};
 use eravm_prover_host::SnarkWrapperProof;
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::{info, warn};
-use zksync_airbender_verifier::types::{AirbenderVerifierInput, V1AirbenderVerifierInput};
+use zksync_airbender_verifier::types::AirbenderVerifierInput;
 
-use crate::types::{SubmitFriProofRequest, SubmitSnarkProofRequest, WorkerJob};
+use crate::types::{JobOrigin, SubmitFriProofRequest, SubmitSnarkProofRequest, WorkerJob};
 
 const FRI_INPUTS_PATH: &str = "/airbender/proof_inputs";
 const SNARK_INPUTS_PATH: &str = "/airbender/snark_inputs";
@@ -21,14 +21,18 @@ const SNARK_LABEL: &str = "SNARK";
 /// transport-level errors that have no server status.
 type RequestResult = Result<(), (Option<reqwest::StatusCode>, anyhow::Error)>;
 
-/// Thin HTTP client for the job server: fetches inputs and submits results.
-/// Stateless beyond its configured endpoints and HTTP clients — owns no
-/// scheduling, channels, or in-flight job state.
+/// Thin HTTP client for one job server (one chain): fetches inputs and
+/// submits results. Stateless beyond its configured endpoints and HTTP
+/// clients — owns no scheduling, channels, or in-flight job state.
 pub struct JobServerClient {
     /// One client for both polling and submitting; the per-request timeout
     /// (`poll_timeout` for fetches, `submit_timeout` for submissions — the
     /// latter is larger for big SNARK payloads) is applied per call.
     client: reqwest::blocking::Client,
+    /// Index of this client in the configured job-server list; stamped onto
+    /// every fetched job (as [`JobOrigin::server`]) so results route back to
+    /// the originating server.
+    server_index: usize,
     server_url: String,
     prover_id: String,
     submit_attempts: usize,
@@ -38,6 +42,7 @@ pub struct JobServerClient {
 
 impl JobServerClient {
     pub fn new(
+        server_index: usize,
         prover_id: String,
         submit_attempts: usize,
         server_url: String,
@@ -51,6 +56,7 @@ impl JobServerClient {
             .context("while building HTTP client")?;
         Ok(Self {
             client,
+            server_index,
             server_url,
             prover_id,
             submit_attempts,
@@ -59,22 +65,31 @@ impl JobServerClient {
         })
     }
 
+    pub fn server_url(&self) -> &str {
+        &self.server_url
+    }
+
     pub fn fetch_fri_job(&self) -> Result<Option<WorkerJob>> {
-        // zksync-era's `AirbenderVerifierInput` is a flat struct on the wire,
-        // matching this verifier's `V1AirbenderVerifierInput`. We deserialize
-        // the bare payload here and wrap it in the local versioned enum so the
-        // host↔guest channel and on-disk bincode corpus keep using V1.
-        let Some(v1) = self.poll_json::<V1AirbenderVerifierInput>(FRI_INPUTS_PATH, FRI_LABEL)?
+        // The v31 wire format has no version envelope: the payload is the input itself.
+        let Some(input) = self.poll_json::<AirbenderVerifierInput>(FRI_INPUTS_PATH, FRI_LABEL)?
         else {
             return Ok(None);
         };
-        let batch_number = v1.vm_run_data.l1_batch_number.0;
-        let input = AirbenderVerifierInput::V1(v1);
+        let batch_number = input.vm_run_data.l1_batch_number.0;
+        // The chain id rides inside the input's `system_env` — the input is
+        // encoded verbatim into the guest program's words, so the server
+        // cannot add a separate top-level field without changing what the
+        // (hash-committed) guest sees.
+        let chain_id = input.system_env.chain_id.as_u64();
         let mut inputs = Inputs::new();
         inputs
             .push(&input)
             .context("failed to encode AirbenderVerifierInput")?;
         Ok(Some(WorkerJob::Fri {
+            origin: JobOrigin {
+                server: self.server_index,
+                chain_id,
+            },
             batch_number,
             input_words: inputs.words().to_vec(),
         }))
@@ -85,6 +100,10 @@ impl JobServerClient {
         #[derive(serde::Deserialize)]
         struct SnarkInputBody {
             l1_batch_number: u32,
+            /// `Option` + default so job servers predating the field still
+            /// parse; they report as chain id 0 in metrics/logs.
+            #[serde(default)]
+            chain_id: Option<u64>,
             #[serde_as(as = "serde_with::hex::Hex")]
             fri_proof: Vec<u8>,
         }
@@ -98,16 +117,27 @@ impl JobServerClient {
             anyhow::bail!("incoming FRI proof envelope has trailing bytes");
         }
         Ok(Some(WorkerJob::Snark {
+            origin: JobOrigin {
+                server: self.server_index,
+                chain_id: body.chain_id.unwrap_or(0),
+            },
             batch_number: body.l1_batch_number,
             proof: Box::new(proof),
         }))
     }
 
-    pub fn submit_fri(&self, batch_number: u32, proof: &Proof, cycles_used: u64) -> Result<()> {
+    pub fn submit_fri(
+        &self,
+        chain_id: u64,
+        batch_number: u32,
+        proof: &Proof,
+        cycles_used: u64,
+    ) -> Result<()> {
         let proof_bytes = bincode::serde::encode_to_vec(proof, bincode::config::standard())
             .context("failed to bincode-encode FRI proof")?;
-        self.submit_with_retries(FRI_LABEL, batch_number, |attempt, attempts| {
+        self.submit_with_retries(FRI_LABEL, chain_id, batch_number, |attempt, attempts| {
             info!(
+                chain_id,
                 batch_number,
                 proof_bytes = proof_bytes.len(),
                 cycles_used,
@@ -126,9 +156,17 @@ impl JobServerClient {
         })
     }
 
-    pub fn submit_snark(&self, batch_number: u32, proof: Box<SnarkWrapperProof>) -> Result<()> {
-        self.submit_with_retries(SNARK_LABEL, batch_number, |attempt, attempts| {
-            info!(batch_number, attempt, attempts, "Submitting SNARK proof");
+    pub fn submit_snark(
+        &self,
+        chain_id: u64,
+        batch_number: u32,
+        proof: Box<SnarkWrapperProof>,
+    ) -> Result<()> {
+        self.submit_with_retries(SNARK_LABEL, chain_id, batch_number, |attempt, attempts| {
+            info!(
+                chain_id,
+                batch_number, attempt, attempts, "Submitting SNARK proof"
+            );
             let payload = SubmitSnarkProofRequest {
                 l1_batch_number: batch_number,
                 prover_id: self.prover_id.clone(),
@@ -142,9 +180,12 @@ impl JobServerClient {
     /// Reports a FRI proving failure to the server, releasing the batch for
     /// retry without waiting for the proving timeout. Posts to the same
     /// endpoint as [`Self::submit_fri`] but carries `error` instead of a proof.
-    pub fn submit_fri_error(&self, batch_number: u32, error: &str) -> Result<()> {
-        self.submit_with_retries(FRI_LABEL, batch_number, |attempt, attempts| {
-            info!(batch_number, attempt, attempts, "Submitting FRI failure");
+    pub fn submit_fri_error(&self, chain_id: u64, batch_number: u32, error: &str) -> Result<()> {
+        self.submit_with_retries(FRI_LABEL, chain_id, batch_number, |attempt, attempts| {
+            info!(
+                chain_id,
+                batch_number, attempt, attempts, "Submitting FRI failure"
+            );
             let payload = SubmitFriProofRequest {
                 l1_batch_number: batch_number,
                 prover_id: self.prover_id.clone(),
@@ -159,9 +200,12 @@ impl JobServerClient {
     /// Reports a SNARK proving failure to the server. The server reverts the
     /// batch to `generated`, preserving the FRI proof so only the SNARK stage
     /// is retried.
-    pub fn submit_snark_error(&self, batch_number: u32, error: &str) -> Result<()> {
-        self.submit_with_retries(SNARK_LABEL, batch_number, |attempt, attempts| {
-            info!(batch_number, attempt, attempts, "Submitting SNARK failure");
+    pub fn submit_snark_error(&self, chain_id: u64, batch_number: u32, error: &str) -> Result<()> {
+        self.submit_with_retries(SNARK_LABEL, chain_id, batch_number, |attempt, attempts| {
+            info!(
+                chain_id,
+                batch_number, attempt, attempts, "Submitting SNARK failure"
+            );
             let payload = SubmitSnarkProofRequest {
                 l1_batch_number: batch_number,
                 prover_id: self.prover_id.clone(),
@@ -233,6 +277,7 @@ impl JobServerClient {
     fn submit_with_retries<F>(
         &self,
         label: &str,
+        chain_id: u64,
         batch_number: u32,
         mut attempt_fn: F,
     ) -> Result<()>
@@ -255,6 +300,7 @@ impl JobServerClient {
                     }
                     warn!(
                         label,
+                        chain_id,
                         batch_number,
                         attempt,
                         attempts,

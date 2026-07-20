@@ -20,6 +20,10 @@ import { initTestWallet } from '../src/run-integration-tests';
 const GATEWAY_CHAIN_NAME = 'gateway';
 const useGatewayChain = process.env.USE_GATEWAY_CHAIN;
 const shouldSkip = useGatewayChain !== 'WITH_GATEWAY';
+// Keep these withdrawals well above the small L1 chain-balance credits created by priority-op
+// fees. A random failed-run amount of 0.000391980460466423 was already covered on L1, so it was
+// finalized before token-balance migration and later surfaced as WithdrawalAlreadyFinalized.
+const PENDING_MIGRATION_WITHDRAW_AMOUNT = ethers.parseEther('0.5');
 
 if (shouldSkip) {
     console.log(
@@ -172,8 +176,14 @@ if (shouldSkip) {
     });
 
     it('Can withdraw tokens from the chain', async () => {
-        unfinalizedWithdrawals.L1Native = await tokens.L1Native.withdraw(chainHandler);
-        unfinalizedWithdrawals.baseToken = await tokens.baseToken.withdraw(chainHandler);
+        unfinalizedWithdrawals.L1Native = await tokens.L1Native.withdraw(
+            chainHandler,
+            PENDING_MIGRATION_WITHDRAW_AMOUNT
+        );
+        unfinalizedWithdrawals.baseToken = await tokens.baseToken.withdraw(
+            chainHandler,
+            PENDING_MIGRATION_WITHDRAW_AMOUNT
+        );
     });
 
     it('Can initiate token balance migration from Gateway', async () => {
@@ -195,8 +205,14 @@ if (shouldSkip) {
 
     it('Cannot finalize pending withdrawals before finalizing token balance migration to L1', async () => {
         for (const tokenName of Object.keys(unfinalizedWithdrawals)) {
+            const withdrawal = unfinalizedWithdrawals[tokenName];
+            const actualBalances = await chainHandler.getActualBalances(withdrawal.assetId);
+            expect(
+                actualBalances.L1AT,
+                `${tokenName} withdrawal must exceed its pre-migration L1 chain balance`
+            ).toBeLessThan(withdrawal.amount);
             await expectRevertWithSelector(
-                unfinalizedWithdrawals[tokenName].finalizeWithdrawal(chainRichWallet.ethWallet()),
+                withdrawal.finalizeWithdrawal(chainRichWallet.ethWallet()),
                 '0x07859b3b', // InsufficientChainBalance
                 'Withdrawal before finalizing token balance migration to L1 should revert'
             );

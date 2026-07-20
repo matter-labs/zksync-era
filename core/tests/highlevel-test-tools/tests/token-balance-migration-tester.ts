@@ -25,6 +25,7 @@ const tbmMutex = new FileMutex();
 export const RICH_WALLET_L2_BALANCE = ethers.parseEther('10.0');
 export const TOKEN_MINT_AMOUNT = ethers.parseEther('1.0');
 const MAX_WITHDRAW_AMOUNT = ethers.parseEther('0.1');
+const DEFAULT_WITHDRAW_AMOUNT = MAX_WITHDRAW_AMOUNT / 2n;
 const TEST_SUITE_NAME = 'Token Balance Migration Test';
 const pathToHome = path.join(__dirname, '../../../..');
 
@@ -33,21 +34,30 @@ export async function expectRevertWithSelector(
     selector: string,
     failureMessage = 'Expected transaction to revert with selector'
 ): Promise<void> {
+    let caughtError: unknown;
     try {
         await action;
-        expect.fail(`${failureMessage} ${selector}`);
     } catch (err) {
-        const errorText = [
-            (err as any)?.data,
-            (err as any)?.error?.data,
-            (err as any)?.info?.error?.data,
-            (err as any)?.shortMessage,
-            (err as any)?.message
-        ]
-            .filter(Boolean)
-            .join(' ');
-        expect(errorText).toContain(selector);
+        caughtError = err;
     }
+
+    // Keep this assertion outside the try/catch. Previously, expect.fail() was caught below and
+    // its own message contained `selector`, so an unexpectedly successful withdrawal was treated
+    // as the expected revert. The same withdrawal then failed later as WithdrawalAlreadyFinalized.
+    if (caughtError === undefined) {
+        expect.fail(`${failureMessage} ${selector}; transaction unexpectedly succeeded`);
+    }
+
+    const errorText = [
+        (caughtError as any)?.data,
+        (caughtError as any)?.error?.data,
+        (caughtError as any)?.info?.error?.data,
+        (caughtError as any)?.shortMessage,
+        (caughtError as any)?.message
+    ]
+        .filter(Boolean)
+        .join(' ');
+    expect(errorText, `${failureMessage}; received error: ${errorText}`).toContain(selector);
 }
 
 function readArtifact(contractName: string, outFolder: string = 'out', fileName: string = contractName) {
@@ -740,7 +750,7 @@ export class ERC20Handler {
     }
 
     async withdraw(chainHandler: ChainHandler, amount?: bigint): Promise<WithdrawalHandler> {
-        const withdrawAmount = amount ?? BigInt(Math.floor(Math.random() * Number(MAX_WITHDRAW_AMOUNT)));
+        const withdrawAmount = amount ?? DEFAULT_WITHDRAW_AMOUNT;
 
         let isETHBaseToken = false;
         let token;

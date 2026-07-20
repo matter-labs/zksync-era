@@ -229,6 +229,11 @@ pub async fn gateway_vote_preparation(
         .ecosystem_contracts
         .bridgehub_proxy_addr;
 
+    shell.set_var(
+        "GW_IS_EVM_EQUIVALENT",
+        chain_config.vm_option.is_zksync_os().to_string(),
+    );
+
     let gateway_vote_preparation_contract =
         BaseContract::from(IGATEWAYVOTEPREPARATIONABI_ABI.clone());
     let calldata = gateway_vote_preparation_contract

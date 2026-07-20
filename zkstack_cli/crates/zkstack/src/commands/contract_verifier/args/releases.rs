@@ -88,7 +88,9 @@ fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Ver
         request = request.header("Authorization", format!("Bearer {}", token));
     }
 
-    let response = request.send()?.text()?;
+    // Do not try to deserialize GitHub API errors (for example rate-limit responses) as a release
+    // array. Besides producing a misleading serde error, this made CI retries hard to diagnose.
+    let response = request.send()?.error_for_status()?.text()?;
     let releases: Vec<GitHubRelease> = serde_json::from_str(&response)?;
 
     let mut versions = vec![];
@@ -127,6 +129,7 @@ fn get_solc_releases(arch: Arch) -> anyhow::Result<Vec<Version>> {
         ))
         .header("User-Agent", "zkstack")
         .send()?
+        .error_for_status()?
         .text()?;
 
     let solc_list: SolcList = serde_json::from_str(&response)?;

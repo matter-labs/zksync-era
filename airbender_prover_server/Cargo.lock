@@ -996,7 +996,7 @@ dependencies = [
 [[package]]
 name = "circuit_mersenne_field"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zkos-wrapper/?branch=dev#a9eec621e5989a2e80d81609405625813a15c376"
+source = "git+https://github.com/matter-labs/zkos-wrapper/?branch=dev#a044d8c40d28dc235fb54d5bc834db5fc4f05671"
 dependencies = [
  "boojum",
  "field",
@@ -1005,13 +1005,13 @@ dependencies = [
 
 [[package]]
 name = "circuit_sequencer_api"
-version = "0.153.11"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#c51a7ca10d9d8b1a26693c669e0342312fbb1679"
+version = "0.153.12"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#ac58f32895502dfcbaa827810d2904500146637f"
 dependencies = [
  "derivative",
  "rayon",
  "serde",
- "zk_evm 0.153.11",
+ "zk_evm 0.153.12",
  "zksync_bellman 0.32.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1667,8 +1667,8 @@ dependencies = [
 
 [[package]]
 name = "eravm-prover-host"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "airbender-host",
  "anyhow",
@@ -1681,7 +1681,7 @@ dependencies = [
  "tracing",
  "zkos-wrapper",
  "zksync_airbender_verifier",
- "zksync_cli_utils 29.8.0",
+ "zksync_cli_utils 29.9.0",
  "zksync_crypto_primitives",
  "zksync_multivm",
  "zksync_types",
@@ -6047,8 +6047,8 @@ dependencies = [
 
 [[package]]
 name = "zk_evm"
-version = "0.153.11"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#c51a7ca10d9d8b1a26693c669e0342312fbb1679"
+version = "0.153.12"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#ac58f32895502dfcbaa827810d2904500146637f"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -6056,7 +6056,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.153.11",
+ "zk_evm_abstractions 0.153.12",
 ]
 
 [[package]]
@@ -6073,15 +6073,15 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.153.11"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#c51a7ca10d9d8b1a26693c669e0342312fbb1679"
+version = "0.153.12"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#ac58f32895502dfcbaa827810d2904500146637f"
 dependencies = [
  "anyhow",
  "cfg-if",
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.153.11",
+ "zkevm_opcode_defs 0.153.12",
 ]
 
 [[package]]
@@ -6123,8 +6123,8 @@ dependencies = [
 
 [[package]]
 name = "zkevm_opcode_defs"
-version = "0.153.11"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#c51a7ca10d9d8b1a26693c669e0342312fbb1679"
+version = "0.153.12"
+source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#ac58f32895502dfcbaa827810d2904500146637f"
 dependencies = [
  "bitflags",
  "blake2 0.10.6",
@@ -6141,7 +6141,7 @@ dependencies = [
 [[package]]
 name = "zkos-wrapper"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zkos-wrapper/?branch=dev#a9eec621e5989a2e80d81609405625813a15c376"
+source = "git+https://github.com/matter-labs/zkos-wrapper/?branch=dev#a044d8c40d28dc235fb54d5bc834db5fc4f05671"
 dependencies = [
  "anyhow",
  "bincode 2.0.1",
@@ -6196,8 +6196,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_airbender_verifier"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "anyhow",
  "ark-bls12-381",
@@ -6214,8 +6214,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "airbender-crypto",
  "anyhow",
@@ -6291,8 +6291,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_cli_utils"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "anyhow",
  "bincode 2.0.1",
@@ -6304,8 +6304,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "serde",
  "zksync_basic_types",
@@ -6313,8 +6313,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "airbender-crypto",
  "anyhow",
@@ -6398,8 +6398,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_merkle_tree"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "anyhow",
  "leb128",
@@ -6416,8 +6416,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6426,8 +6426,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_multivm"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api",
@@ -6437,7 +6437,7 @@ dependencies = [
  "once_cell",
  "thiserror 2.0.18",
  "tracing",
- "zk_evm 0.153.11",
+ "zk_evm 0.153.12",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
@@ -6485,8 +6485,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -6494,8 +6494,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6522,8 +6522,8 @@ source = "git+https://github.com/matter-labs/vm2?rev=4d110657a22025d4a49a563a7e1
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.153.11",
- "zkevm_opcode_defs 0.153.11",
+ "zk_evm_abstractions 0.153.12",
+ "zkevm_opcode_defs 0.153.12",
  "zksync_vm2_interface",
 ]
 
@@ -6537,8 +6537,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm_interface"
-version = "29.8.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v29.8.0#382da1e36790d8cc19ab2b184bf9eb42f23b14ea"
+version = "29.9.0"
+source = "git+https://github.com/matter-labs/eravm-airbender-verifier?tag=v31.1.1#9526315af01fc4a284a558f2cb7bae326e378a43"
 dependencies = [
  "hex",
  "serde",

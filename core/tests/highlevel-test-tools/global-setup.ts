@@ -10,12 +10,14 @@ const execAsync = promisify(exec);
  * Cleanup function to kill any remaining zksync_server processes
  */
 async function cleanup(): Promise<void> {
-    try {
-        console.log('🛑 Killing any remaining zksync_server processes...');
-        await execAsync('pkill zksync_server');
-    } catch (error) {
-        // Ignore errors if no processes were found
-        console.log('ℹ️ No remaining zksync_server processes found');
+    for (const processName of ['zksync_server', 'external_node']) {
+        try {
+            console.log(`🛑 Killing any remaining ${processName} processes...`);
+            await execAsync(`pkill ${processName}`);
+        } catch {
+            // Ignore errors if no processes were found.
+            console.log(`ℹ️ No remaining ${processName} processes found`);
+        }
     }
 }
 
@@ -23,7 +25,7 @@ async function cleanup(): Promise<void> {
  * Global setup function that runs once before all tests
  * This is called by Vitest's globalSetup configuration
  */
-export default async function globalSetup(): Promise<void> {
+export default async function globalSetup(): Promise<() => Promise<void>> {
     console.log('🔧 Running global test setup...');
 
     // Set up cleanup handlers for graceful shutdown
@@ -39,22 +41,9 @@ export default async function globalSetup(): Promise<void> {
         process.exit(0);
     });
 
-    process.on('exit', async () => {
-        console.log('🧹 Running final cleanup...');
-        await cleanup();
-    });
-
     const inCi = process.env.CI;
     if (inCi !== '1') {
-        try {
-            // Kill any existing zksync_server processes
-            console.log('🛑 Killing existing zksync_server processes...');
-            await execAsync('pkill zksync_server');
-            await execAsync('pkill external_node');
-        } catch (error) {
-            // Ignore errors if no processes were found
-            console.log('ℹ️ No existing zksync_server processes found');
-        }
+        await cleanup();
     }
 
     // Clean historical logs
@@ -70,4 +59,11 @@ export default async function globalSetup(): Promise<void> {
     cleanMutexLockFiles();
 
     console.log('✅ Global test setup completed');
+
+    // Vitest awaits a teardown returned by globalSetup. An async `exit` handler is not awaited by
+    // Node.js and used to leave server / external-node processes alive between jobs or retries.
+    return async () => {
+        console.log('🧹 Running final cleanup...');
+        await cleanup();
+    };
 }

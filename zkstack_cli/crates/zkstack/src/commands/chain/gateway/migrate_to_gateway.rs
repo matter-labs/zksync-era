@@ -88,6 +88,12 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .context("L2 RPC URL must be provided for cross checking")?;
     let chain_contracts_config = chain_config.get_contracts_config()?;
 
+    // Persist the gateway RPC URL up front: the running chain server needs it in its secrets to
+    // get ready for the migration (which the wait below polls for).
+    let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
+    chain_secrets_config.set_gateway_rpc_url(gateway_rpc_url.clone())?;
+    chain_secrets_config.save().await?;
+
     wait_for_migration_to_gateway_ready(
         l1_rpc_url.clone(),
         chain_contracts_config
@@ -146,10 +152,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         gateway_provider.clone(),
     )
     .await?;
-
-    let mut chain_secrets_config = chain_config.get_secrets_config().await?.patched();
-    chain_secrets_config.set_gateway_rpc_url(context.gateway_rpc_url.clone())?;
-    chain_secrets_config.save().await?;
 
     let gw_bridgehub = BridgehubAbi::new(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 

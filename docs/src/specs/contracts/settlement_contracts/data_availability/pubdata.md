@@ -13,8 +13,8 @@ pre-Boojum system these are represented as separate fields while for boojum they
 array. Once 4844 gets integrated this bytes array will move from being part of the calldata to blob data.
 
 While the structure of the pubdata changes, the way in which one can go about pulling the information will remain the
-same. Basically, we just need to filter all of the transactions to the L1 ZKsync contract for only the `commitBatches`
-transactions where the proposed block has been referenced by a corresponding `executeBatches` call (the reason for this
+same. Basically, we just need to filter all of the transactions to the L1 ZKsync contract for only the `commitBatchesSharedBridge`
+transactions where the proposed block has been referenced by a corresponding `executeBatchesSharedBridge` call (the reason for this
 is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed
 batches that have been executed, we then will pull the transaction input and the relevant fields, applying them in order
 to reconstruct the current state of L2.
@@ -65,7 +65,7 @@ natively by VM _system_ logs. Here is a short comparison table for better unders
 | Emitted by VM via an opcode.                                                                                    | VM knows nothing about them.                                                                                                                                                                                                        |
 | Consistency and correctness is enforced by the verifier on L1 (i.e. their hash is part of the block commitment. | Consistency and correctness is enforced by the L1Messenger system contract. The correctness of the behavior of the L1Messenger is enforced implicitly by prover in a sense that it proves the correctness of the execution overall. |
 | We don’t calculate their Merkle root.                                                                           | We calculate their Merkle root on the L1Messenger system contract.                                                                                                                                                                  |
-| We have constant small number of those.                                                                         | We can have as much as possible as long as the commitBatches function on L1 remains executable (it is the job of the operator to ensure that only such transactions are selected)                                                   |
+| We have constant small number of those.                                                                         | We can have as much as possible as long as the commitBatchesSharedBridge function on L1 remains executable (it is the job of the operator to ensure that only such transactions are selected)                                                   |
 | In EIP4844 they will remain part of the calldata.                                                               | In EIP4844 they will become part of the blobs.                                                                                                                                                                                      |
 
 #### Backwards-compatibility
@@ -194,7 +194,7 @@ all concatenated together to yield the final compressed version.
 
 For bytecode to be considered valid it must satisfy the following:
 
-1. Bytecode length must be less than 2097120 ((2^16 - 1) \* 32) bytes.
+1. Bytecode length must be at most 2097120 ((2^16 - 1) \* 32) bytes
 2. Bytecode length must be a multiple of 32.
 3. Number of 32-byte words cannot be even.
 
@@ -429,7 +429,7 @@ With Boojum, the interface for committing batches is the following one:
 /// @param bootloaderHeapInitialContentsHash Hash of the initial contents of the bootloader heap. In practice it serves as the commitment to the transactions in the batch.
 /// @param eventsQueueStateHash Hash of the events queue state. In practice it serves as the commitment to the events in the batch.
 /// @param systemLogs concatenation of all L2 -> L1 system logs in the batch
-/// @param totalL2ToL1Pubdata Total pubdata committed to as part of bootloader run. Contents are: l2Tol1Logs <> l2Tol1Messages <> publishedBytecodes <> stateDiffs
+/// @param operatorDAInput The data-availability input provided by the operator, processed by the L1DAValidator. Its contents depend on the DA mode (for rollups: the state-diff hash, the pubdata, and blob commitment data).
 struct CommitBatchInfo {
   uint64 batchNumber;
   uint64 timestamp;
@@ -440,7 +440,7 @@ struct CommitBatchInfo {
   bytes32 bootloaderHeapInitialContentsHash;
   bytes32 eventsQueueStateHash;
   bytes systemLogs;
-  bytes totalL2ToL1Pubdata;
+  bytes operatorDAInput;
 }
 
 ```

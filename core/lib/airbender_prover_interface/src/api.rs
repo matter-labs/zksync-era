@@ -32,6 +32,13 @@ pub enum SubmitAirbenderProofResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AirbenderSnarkInputsResponse {
     pub l1_batch_number: u32,
+    /// L2 chain id of the chain this server proves for. Lets a prover serving
+    /// several chains attribute the job to the right chain in metrics/logs
+    /// (FRI jobs carry it inside `system_env`; SNARK inputs have no other
+    /// chain marker). Defaults to 0 when deserializing a response from a job
+    /// server that predates the field, matching the prover's own fallback.
+    #[serde(default)]
+    pub chain_id: u64,
     #[serde_as(as = "Hex")]
     pub fri_proof: Vec<u8>,
 }

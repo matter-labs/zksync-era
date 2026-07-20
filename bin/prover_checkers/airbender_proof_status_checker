@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+
+# Configuration
+# DATABASE_URL - The URL of the core (server) database to connect to
+# BATCH_NUMBER - The batch number to check the Airbender proof status for
+# INTERVAL - Time interval for polling in seconds
+# TIMEOUT - Timeout of script in seconds
+
+START_TIME=$(date +%s)
+
+while true; do
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+    if [ $ELAPSED_TIME -ge $TIMEOUT ]; then
+        echo "Timeout reached. Failing CI..."
+        exit 1
+    fi
+
+    # Success when the Airbender FRI proof for the batch has been generated and submitted.
+    RESULT=$(psql $DATABASE_URL -c "SELECT count(*) FROM airbender_proof_generation_details WHERE l1_batch_number = $BATCH_NUMBER AND status = 'generated';" -t -A)
+
+    if [ "$RESULT" -eq 1 ]; then
+        echo "Airbender FRI proof for batch $BATCH_NUMBER is generated. Success!"
+        exit 0
+    else
+        # Report where the batch is so a stall is diagnosable.
+        ROW=$(psql $DATABASE_URL -t -A -F '|' -c "SELECT status, COALESCE(prover_id, '-'), COALESCE(prover_taken_at::text, '-'), attempts, snark_attempts, (proof_blob_url IS NOT NULL), (snark_proof_blob_url IS NOT NULL), COALESCE(error, '-') FROM airbender_proof_generation_details WHERE l1_batch_number = $BATCH_NUMBER;")
+        if [ -n "$ROW" ]; then
+            IFS='|' read -r ST PID TAKEN ATT SATT HAS_FRI HAS_SNARK ERR <<< "$ROW"
+            echo "Batch $BATCH_NUMBER has been grabbed for proving: status=$ST prover_id=$PID taken_at=$TAKEN fri_attempts=$ATT snark_attempts=$SATT fri_proof=$HAS_FRI snark_proof=$HAS_SNARK error=$ERR"
+        else
+            # No airbender row: is the batch even available for a prover to pick up?
+            READY=$(psql $DATABASE_URL -t -A -c "SELECT CASE WHEN vm_run_data_blob_url IS NOT NULL AND proof_gen_data_blob_url IS NOT NULL THEN 'proof inputs ready, awaiting prover pickup' ELSE 'proof inputs not ready yet' END FROM proof_generation_details WHERE l1_batch_number = $BATCH_NUMBER;")
+            echo "Batch $BATCH_NUMBER not yet grabbed for proving (${READY:-no proof_generation_details row yet}). Is the prover running and polling the right port?"
+        fi
+        echo "Retrying in $INTERVAL seconds..."
+    fi
+
+    sleep $INTERVAL
+done

@@ -16,6 +16,7 @@ jobs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
       airbender_prover_server: ${{ steps.changed-files.outputs.airbender_prover_server_any_changed }}
+      airbender_e2e: ${{ steps.changed-files.outputs.airbender_e2e_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
@@ -55,6 +56,23 @@ jobs:
               - '.github/workflows/ci-airbender-prover-server-reusable.yml'
               - '.github/workflows/build-airbender-prover-server-template.yml'
               - '.github/workflows/actions/**'
+              - '!**/*.md'
+              - '!**/*.MD'
+            # Airbender GPU e2e lane: the prover server and the core code it exercises.
+            airbender_e2e:
+              - 'airbender_prover_server/**'
+              - 'docker/airbender-prover-server/**'
+              - 'core/node/airbender_proof_data_handler/**'
+              - 'core/lib/airbender_prover_interface/**'
+              - 'core/lib/airbender_verifier/**'
+              - 'core/lib/dal/src/airbender_proof_generation_dal.rs'
+              - 'core/lib/dal/src/models/storage_airbender_proof.rs'
+              - 'core/lib/dal/migrations/*airbender*'
+              - '.github/workflows/ci-airbender-prover-e2e.yml'
+              - '.github/workflows/build-airbender-prover-server-template.yml'
+              # Only setup-env, not all actions — this lane occupies a scarce GPU runner for hours.
+              - '.github/actions/setup-env/**'
+              - 'bin/prover_checkers/**'
               - '!**/*.md'
               - '!**/*.MD'
             core:
@@ -123,6 +141,16 @@ jobs:
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.airbender_prover_server == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     uses: ./.github/workflows/ci-airbender-prover-server-reusable.yml
+
+  e2e-for-airbender-prover:
+    name: E2E Test for Airbender Prover
+    needs: changed_files
+    permissions:
+      contents: read
+    # Same-repo PRs only: the e2e job executes a PR-built binary on a persistent self-hosted GPU
+    # runner, so fork-controlled code must never reach it.
+    if: ${{ (needs.changed_files.outputs.airbender_e2e == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    uses: ./.github/workflows/ci-airbender-prover-e2e.yml
 
   ci-for-docs:
     needs: changed_files
@@ -196,6 +224,7 @@ jobs:
         build-prover-images,
         build-airbender-prover-server-images,
         e2e-for-prover,
+        e2e-for-airbender-prover,
       ]
     steps:
       - name: Status

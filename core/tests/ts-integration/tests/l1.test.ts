@@ -27,6 +27,10 @@ const contracts = {
 
 // Sane amount of L2 gas enough to process a transaction.
 const DEFAULT_L2_GAS_LIMIT = 5000000;
+// These tests deliberately submit priority operations near the L2 batch limits. Their L1 gas
+// estimate is sensitive to nested-call forwarding: in CI, 497,793 gas failed while 497,794 gas
+// passed for the same operation. Keep the L1 envelope comfortably away from that boundary.
+const L1_STRESS_PRIORITY_TX_GAS_LIMIT = 1_000_000;
 
 describe('Tests for L1 behavior', () => {
     let testMaster: TestMaster;
@@ -232,7 +236,8 @@ describe('Tests for L1 behavior', () => {
             l2GasLimit,
             mintValue,
             overrides: {
-                gasPrice
+                gasPrice,
+                gasLimit: L1_STRESS_PRIORITY_TX_GAS_LIMIT
             }
         });
         testMaster.reporter.debug(
@@ -288,7 +293,8 @@ describe('Tests for L1 behavior', () => {
             l2GasLimit,
             mintValue,
             overrides: {
-                gasPrice
+                gasPrice,
+                gasLimit: L1_STRESS_PRIORITY_TX_GAS_LIMIT
             }
         });
         testMaster.reporter.debug(
@@ -324,7 +330,8 @@ describe('Tests for L1 behavior', () => {
             l2GasLimit,
             mintValue,
             overrides: {
-                gasPrice
+                gasPrice,
+                gasLimit: L1_STRESS_PRIORITY_TX_GAS_LIMIT
             }
         });
         testMaster.reporter.debug(
@@ -365,7 +372,8 @@ describe('Tests for L1 behavior', () => {
             l2GasLimit,
             mintValue,
             overrides: {
-                gasPrice
+                gasPrice,
+                gasLimit: L1_STRESS_PRIORITY_TX_GAS_LIMIT
             }
         });
         testMaster.reporter.debug(

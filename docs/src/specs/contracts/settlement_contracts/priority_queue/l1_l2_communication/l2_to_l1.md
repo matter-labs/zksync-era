@@ -29,7 +29,7 @@ Where:
 - `key` and `value` are just two 32-byte values that could be used to carry some data with the log.
 
 The hashed array of these opcodes is then included into the
-[batch commitment](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/state-transition/chain-deps/facets/Executor.sol#L663).
+[batch commitment](https://github.com/matter-labs/era-contracts/blob/fdb60be1a49f5f0a371fc24b747cf5bdea1b1f74/l1-contracts/contracts/state-transition/chain-deps/facets/Committer.sol#L791-L797).
 Because of that we know that if the proof verifies, then the L2→L1 logs provided by the operator were correct, so we can
 use that fact to produce more complex structures. Before Boojum such logs were also Merklized within the circuits and so
 the Merkle tree’s root hash was included into the batch commitment also.

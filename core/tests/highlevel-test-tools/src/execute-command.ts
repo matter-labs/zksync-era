@@ -150,14 +150,27 @@ export async function executeCommand(
             const endTime = Date.now();
 
             // Log the command completion to executed commands log
-            const failed = code !== 0 && code !== 137 && signal !== 'SIGKILL';
+            const failed = runInBackground || (code !== 0 && code !== 137 && signal !== 'SIGKILL');
             logExecutedCommand(chainName, command, args, startTime, endTime, false, failed);
 
             const closeMessage = `[${new Date().toISOString()}] Command finished with exit code: ${code} and signal: ${signal}\n`;
             logStream.write(closeMessage);
             logStream.end();
 
-            if (code === 0) {
+            if (runInBackground) {
+                // The promise has already resolved for a detached command, so rejecting it here
+                // is a no-op. Surface every unexpected background exit as an uncaught error;
+                // intentional shutdowns remove these listeners before killing the process.
+                const error = new Error(
+                    `Background command ${command} ${args.join(' ')} exited unexpectedly with code ${code} and signal ${signal}. Check logs at: ${logFilePath}`
+                );
+                markLogsDirectoryAsFailed(chainName);
+                logStream.once('finish', () =>
+                    setImmediate(() => {
+                        throw error;
+                    })
+                );
+            } else if (code === 0) {
                 console.log(`✅ Command completed successfully. Logs saved to: ${logFilePath}`);
                 resolve(child);
             } else {

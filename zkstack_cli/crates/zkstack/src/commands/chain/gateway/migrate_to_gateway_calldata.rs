@@ -95,9 +95,23 @@ impl MigrateToGatewayConfig {
 
         let current_settlement_layer = l1_bridgehub
             .settlement_layer(self.l2_chain_id.into())
-            .await?;
+            .await
+            .with_context(|| {
+                format!(
+                    "reading Bridgehub.settlementLayer(chainId={}) on L1 bridgehub {:?}",
+                    self.l2_chain_id, self.l1_bridgehub_addr
+                )
+            })?;
 
-        let zk_chain_l1_address = l1_bridgehub.get_zk_chain(self.l2_chain_id.into()).await?;
+        let zk_chain_l1_address = l1_bridgehub
+            .get_zk_chain(self.l2_chain_id.into())
+            .await
+            .with_context(|| {
+                format!(
+                    "reading Bridgehub.getZKChain(chainId={}) on L1 bridgehub {:?}",
+                    self.l2_chain_id, self.l1_bridgehub_addr
+                )
+            })?;
 
         if zk_chain_l1_address == Address::zero() {
             anyhow::bail!("Chain with id {} does not exist!", self.l2_chain_id);
@@ -115,18 +129,46 @@ impl MigrateToGatewayConfig {
 
         let ctm_asset_id = l1_bridgehub
             .ctm_asset_id_from_chain_id(self.l2_chain_id.into())
-            .await?;
-        let ctm_gw_address = gw_bridgehub.ctm_asset_id_to_address(ctm_asset_id).await?;
+            .await
+            .with_context(|| {
+                format!(
+                    "reading Bridgehub.ctmAssetIdFromChainId(chainId={}) on L1 bridgehub {:?}",
+                    self.l2_chain_id, self.l1_bridgehub_addr
+                )
+            })?;
+        let ctm_gw_address = gw_bridgehub
+            .ctm_asset_id_to_address(ctm_asset_id)
+            .await
+            .with_context(|| {
+                format!(
+                    "reading Bridgehub.ctmAssetIdToAddress on gateway bridgehub {:?} (gateway L2 RPC {})",
+                    L2_BRIDGEHUB_ADDRESS, self.gateway_rpc_url
+                )
+            })?;
 
         if ctm_gw_address == Address::zero() {
             anyhow::bail!("{} does not have a CTM deployed!", self.gateway_chain_id);
         }
 
         let l1_zk_chain = ZkChainAbi::new(zk_chain_l1_address, l1_provider.clone());
-        let protocol_version = l1_zk_chain.get_protocol_version().await?;
+        let protocol_version = l1_zk_chain.get_protocol_version().await.with_context(|| {
+            format!(
+                "reading ZKChain.getProtocolVersion() on L1 zk chain {:?}",
+                zk_chain_l1_address
+            )
+        })?;
 
         // Checking that the priority queue is empty
-        let priority_queue_size = l1_zk_chain.get_priority_queue_size().await?;
+        let priority_queue_size =
+            l1_zk_chain
+                .get_priority_queue_size()
+                .await
+                .with_context(|| {
+                    format!(
+                        "reading ZKChain.getPriorityQueueSize() on L1 zk chain {:?}",
+                        zk_chain_l1_address
+                    )
+                })?;
         if !priority_queue_size.is_zero() && !skip_pre_migration_checks {
             anyhow::bail!(
                 "{} priority queue has {} items! Please empty it before migrating to Gateway",
@@ -136,7 +178,12 @@ impl MigrateToGatewayConfig {
         }
 
         let gw_ctm = IChainTypeManagerAbi::new(ctm_gw_address, gw_provider.clone());
-        let gw_ctm_protocol_version = gw_ctm.protocol_version().await?;
+        let gw_ctm_protocol_version = gw_ctm.protocol_version().await.with_context(|| {
+            format!(
+                "reading ChainTypeManager.protocolVersion() on gateway CTM {:?} (gateway L2 RPC {})",
+                ctm_gw_address, self.gateway_rpc_url
+            )
+        })?;
         if gw_ctm_protocol_version != protocol_version {
             // The migration would fail anyway since CTM has checks to ensure that the protocol version is the same
             anyhow::bail!("The protocol version of the CTM on Gateway ({gw_ctm_protocol_version}) does not match the protocol version of the chain ({protocol_version})");
@@ -144,17 +191,42 @@ impl MigrateToGatewayConfig {
 
         let gw_validator_timelock_addr =
             if get_minor_protocol_version(protocol_version)?.is_pre_interop_fast_blocks() {
-                gw_ctm.validator_timelock().await?
+                gw_ctm.validator_timelock().await.with_context(|| {
+                    format!(
+                        "reading ChainTypeManager.validatorTimelock() on gateway CTM {:?}",
+                        ctm_gw_address
+                    )
+                })?
             } else {
-                gw_ctm.validator_timelock_post_v29().await?
+                gw_ctm
+                    .validator_timelock_post_v29()
+                    .await
+                    .with_context(|| {
+                        format!(
+                        "reading ChainTypeManager.validatorTimelockPostV29() on gateway CTM {:?}",
+                        ctm_gw_address
+                    )
+                    })?
             };
         let gw_validator_timelock =
             ValidatorTimelockAbi::new(gw_validator_timelock_addr, gw_provider.clone());
 
-        let chain_admin_address = l1_zk_chain.get_admin().await?;
+        let chain_admin_address = l1_zk_chain.get_admin().await.with_context(|| {
+            format!(
+                "reading ZKChain.getAdmin() on L1 zk chain {:?}",
+                zk_chain_l1_address
+            )
+        })?;
         let zk_chain_gw_address = {
-            let recorded_zk_chain_gw_address =
-                gw_bridgehub.get_zk_chain(self.l2_chain_id.into()).await?;
+            let recorded_zk_chain_gw_address = gw_bridgehub
+                .get_zk_chain(self.l2_chain_id.into())
+                .await
+                .with_context(|| {
+                    format!(
+                        "reading Bridgehub.getZKChain(chainId={}) on gateway bridgehub {:?}",
+                        self.l2_chain_id, L2_BRIDGEHUB_ADDRESS
+                    )
+                })?;
             if recorded_zk_chain_gw_address == Address::zero() {
                 precompute_chain_address_on_gateway(
                     self.l2_chain_id,
@@ -224,8 +296,16 @@ pub(crate) async fn get_migrate_to_gateway_calls(
     result.extend(finalize_migrate_to_gateway_output.calls);
 
     // Changing L2 DA validator while migrating to gateway is not recommended; we allow changing only the settlement layer one
-    let (_, l2_da_validator_commitment_scheme) =
-        context.l1_zk_chain.get_da_validator_pair().await?;
+    let (_, l2_da_validator_commitment_scheme) = context
+        .l1_zk_chain
+        .get_da_validator_pair()
+        .await
+        .with_context(|| {
+            format!(
+                "reading ZKChain.getDAValidatorPair() on L1 zk chain {:?}",
+                context.zk_chain_l1_address
+            )
+        })?;
     let l2_da_validator_commitment_scheme =
         L2DACommitmentScheme::try_from(l2_da_validator_commitment_scheme)
             .map_err(|err| anyhow::format_err!("Failed to parse L2 DA commitment schema: {err}"))?;
@@ -256,20 +336,39 @@ pub(crate) async fn get_migrate_to_gateway_calls(
         legacy_validator_timelock
             .method::<_, bool>("validators", (context.l2_chain_id, context.validator))?
             .call()
-            .await?
+            .await
+            .with_context(|| {
+                format!(
+                    "reading (legacy) ValidatorTimelock.validators() on gateway timelock {:?}",
+                    context.gw_validator_timelock_addr
+                )
+            })?
     } else {
+        let committer_role = context
+            .gw_validator_timelock
+            .committer_role()
+            .call()
+            .await
+            .with_context(|| {
+                format!(
+                    "reading ValidatorTimelock.COMMITTER_ROLE() on gateway timelock {:?}",
+                    context.gw_validator_timelock_addr
+                )
+            })?;
         context
             .gw_validator_timelock
             .has_role_for_chain_id(
                 context.l2_chain_id.into(),
-                context
-                    .gw_validator_timelock
-                    .committer_role()
-                    .call()
-                    .await?,
+                committer_role,
                 context.validator,
             )
-            .await?
+            .await
+            .with_context(|| {
+                format!(
+                    "reading ValidatorTimelock.hasRoleForChainId() on gateway timelock {:?}",
+                    context.gw_validator_timelock_addr
+                )
+            })?
     };
 
     // 4. If validator is not yet present, please include.
