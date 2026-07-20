@@ -13,6 +13,20 @@ pub enum VmRevertReasonParsingError {
     IncorrectStringLength(Vec<u8>),
 }
 
+/// Parse a 32-byte big-endian word as `usize`, returning `None` if it does not
+/// fit. `U256::as_usize` panics when the value exceeds `usize::MAX`, so an
+/// oversized word in attacker-supplied revert data would otherwise panic
+/// mid-parsing instead of yielding a clean parse error (and aborts outright on
+/// 32-bit targets such as the RISC-V proving guest).
+fn word_to_usize(word: &[u8; 32]) -> Option<usize> {
+    let value = U256::from_big_endian(word);
+    if value > U256::from(usize::MAX as u64) {
+        None
+    } else {
+        Some(value.as_usize())
+    }
+}
+
 /// Rich Revert Reasons `https://github.com/0xProject/ZEIPs/issues/32`
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -37,7 +51,12 @@ impl VmRevertReason {
         if bytes.len() < 32 {
             return Err(VmRevertReasonParsingError::InputIsTooShort(bytes.to_vec()));
         }
-        let data_offset = U256::from_big_endian(&bytes[0..32]).as_usize();
+        // A word exceeding `usize::MAX` can't be a valid in-bounds offset; map it
+        // to the offset error rather than panicking in `as_usize`. The `bytes.len() < 32`
+        // guard above makes the fixed-size conversion infallible.
+        let offset_word = <&[u8; 32]>::try_from(&bytes[..32]).expect("checked bytes.len() >= 32");
+        let data_offset = word_to_usize(offset_word)
+            .ok_or_else(|| VmRevertReasonParsingError::IncorrectDataOffset(bytes.to_vec()))?;
 
         // Data offset couldn't be less than 32 because data offset size is 32 bytes
         // and data offset bytes are part of the offset. Also data offset couldn't be greater than
@@ -54,9 +73,17 @@ impl VmRevertReason {
             return Err(VmRevertReasonParsingError::InputIsTooShort(bytes.to_vec()));
         };
 
-        let string_length = U256::from_big_endian(&data[0..32]).as_usize();
+        // The `data.len() < 32` guard above makes this conversion infallible.
+        let length_word = <&[u8; 32]>::try_from(&data[..32]).expect("checked data.len() >= 32");
+        let string_length = word_to_usize(length_word)
+            .ok_or_else(|| VmRevertReasonParsingError::IncorrectStringLength(bytes.to_vec()))?;
 
-        if string_length + 32 > data.len() {
+        // `string_length + 32` can itself overflow `usize` (e.g. on 32-bit targets),
+        // so add with overflow detection rather than a bare `+`.
+        if string_length
+            .checked_add(32)
+            .is_none_or(|end| end > data.len())
+        {
             return Err(VmRevertReasonParsingError::IncorrectStringLength(
                 bytes.to_vec(),
             ));
@@ -171,7 +198,7 @@ impl fmt::Display for VmRevertReason {
 mod tests {
     use assert_matches::assert_matches;
 
-    use super::VmRevertReason;
+    use super::{VmRevertReason, VmRevertReasonParsingError};
 
     #[test]
     fn revert_reason_parsing() {
@@ -252,5 +279,47 @@ mod tests {
         ];
         let reason = VmRevertReason::try_from_bytes(msg.as_slice());
         assert!(reason.is_err());
+    }
+
+    /// 32-byte big-endian word from a `u64` (high bytes zero).
+    fn word(value: u64) -> [u8; 32] {
+        let mut w = [0u8; 32];
+        w[24..].copy_from_slice(&value.to_be_bytes());
+        w
+    }
+
+    /// A word whose value (2^248) exceeds `usize::MAX` on any platform.
+    fn oversized_word() -> [u8; 32] {
+        let mut w = [0u8; 32];
+        w[0] = 1;
+        w
+    }
+
+    fn general_error(words: &[[u8; 32]], tail: &[u8]) -> Vec<u8> {
+        let mut bytes = vec![8, 195, 121, 160]; // general error selector
+        for w in words {
+            bytes.extend_from_slice(w);
+        }
+        bytes.extend_from_slice(tail);
+        bytes
+    }
+
+    #[test]
+    fn data_offset_overflow_is_rejected_not_panicked() {
+        let raw = general_error(&[oversized_word()], &[]);
+        assert_matches!(
+            VmRevertReason::try_from_bytes(&raw),
+            Err(VmRevertReasonParsingError::IncorrectDataOffset(_))
+        );
+    }
+
+    #[test]
+    fn string_length_overflow_is_rejected_not_panicked() {
+        // offset = 32 (valid), then an oversized string-length word.
+        let raw = general_error(&[word(32), oversized_word()], &[]);
+        assert_matches!(
+            VmRevertReason::try_from_bytes(&raw),
+            Err(VmRevertReasonParsingError::IncorrectStringLength(_))
+        );
     }
 }

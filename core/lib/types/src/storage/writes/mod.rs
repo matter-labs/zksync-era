@@ -151,7 +151,7 @@ impl StateDiffRecord {
 }
 
 /// Compresses a vector of state diff records according to the following:
-/// num_initial writes (u32) || compressed initial writes || compressed repeated writes
+/// num_initial writes (u16) || compressed initial writes || compressed repeated writes
 pub fn compress_state_diffs(mut state_diffs: Vec<StateDiffRecord>) -> Vec<u8> {
     let mut res = vec![];
 
@@ -162,7 +162,13 @@ pub fn compress_state_diffs(mut state_diffs: Vec<StateDiffRecord>) -> Vec<u8> {
         .iter()
         .partition(|rec| rec.enumeration_index == 0);
 
-    res.extend((initial_writes.len() as u16).to_be_bytes());
+    // The pubdata format encodes the initial-writes count as a u16. A bare
+    // `as u16` would silently truncate above 65_535 and produce malformed
+    // pubdata; fail loudly instead. Unreachable under current blob size limits,
+    // but reachable with larger-blob DA.
+    let num_initial_writes = u16::try_from(initial_writes.len())
+        .expect("number of initial writes exceeds u16::MAX and cannot be encoded in pubdata");
+    res.extend(num_initial_writes.to_be_bytes());
     for state_diff in initial_writes {
         res.extend(state_diff.compress());
     }
@@ -181,7 +187,15 @@ fn prepend_header(compressed_state_diffs: Vec<u8>) -> Vec<u8> {
     let mut res = vec![0u8; 5];
     res[0] = COMPRESSION_VERSION_NUMBER;
 
-    res[1..4].copy_from_slice(&(compressed_state_diffs.len() as u32).to_be_bytes()[1..4]);
+    // The compressed length is packed into a 3-byte (u24) field. A bare `as u32`
+    // truncated to `[1..4]` would silently drop the high byte above 2^24 bytes and
+    // produce malformed pubdata; fail loudly instead. Unreachable under current
+    // blob size limits.
+    let compressed_len = u32::try_from(compressed_state_diffs.len())
+        .ok()
+        .filter(|&len| len <= 0x00FF_FFFF)
+        .expect("compressed state diffs length exceeds the 3-byte pubdata length field");
+    res[1..4].copy_from_slice(&compressed_len.to_be_bytes()[1..4]);
 
     res[4] = BYTES_PER_ENUMERATION_INDEX;
 
@@ -609,5 +623,14 @@ mod tests {
 
         let deserialized: TreeWrite = bincode::deserialize(&serialized).unwrap();
         assert_eq!(tree_write, deserialized);
+    }
+
+    #[test]
+    #[should_panic(expected = "exceeds u16::MAX")]
+    fn rejects_more_than_u16_initial_writes() {
+        // > u16::MAX initial writes (enumeration_index == 0) cannot be encoded in
+        // the pubdata format; must fail loudly rather than silently truncate.
+        let diffs = vec![StateDiffRecord::default(); u16::MAX as usize + 1];
+        let _ = compress_state_diffs(diffs);
     }
 }
