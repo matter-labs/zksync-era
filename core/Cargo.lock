@@ -3021,9 +3021,8 @@ dependencies = [
 
 [[package]]
 name = "circuit_definitions"
-version = "0.153.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "475405b7a3375f19a46e8dfca7aca0203a484c9dd542fa98a351aaaa0ecdff78"
+version = "0.153.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.13#b60b7bde6cd5809593b4753c26e3072957c47e38"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -3035,26 +3034,24 @@ dependencies = [
 
 [[package]]
 name = "circuit_encodings"
-version = "0.153.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8b671708c77f6b03d1d4b644fa878e014cab314ef313bf0ea31cc8023e86be9"
+version = "0.153.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.13#b60b7bde6cd5809593b4753c26e3072957c47e38"
 dependencies = [
  "derivative",
  "serde",
- "zk_evm 0.153.12",
+ "zk_evm 0.153.13",
  "zkevm_circuits",
 ]
 
 [[package]]
 name = "circuit_sequencer_api"
-version = "0.153.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fe90fbbd8d569fcf4b4de5e1f74b97c130109731e6adf1cc09c404db3fc0428"
+version = "0.153.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.13#b60b7bde6cd5809593b4753c26e3072957c47e38"
 dependencies = [
  "derivative",
  "rayon",
  "serde",
- "zk_evm 0.153.12",
+ "zk_evm 0.153.13",
  "zksync_bellman",
 ]
 
@@ -13218,9 +13215,8 @@ dependencies = [
 
 [[package]]
 name = "zk_evm"
-version = "0.153.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd312214ccdc53b240172bb2180985115801ca63d53a0b2555d1fc16ef790ed5"
+version = "0.153.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.13#b60b7bde6cd5809593b4753c26e3072957c47e38"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -13228,7 +13224,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.153.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zk_evm_abstractions 0.153.13",
 ]
 
 [[package]]
@@ -13272,28 +13268,15 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.153.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16aaaa4ee48201c90baefe34d05ca408696e3c0d48e8d74ef8edae78a09899ec"
-dependencies = [
- "anyhow",
- "num_enum 0.6.1",
- "serde",
- "static_assertions",
- "zkevm_opcode_defs 0.153.12 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "zk_evm_abstractions"
-version = "0.153.12"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#14a3b8fdabbc3d80d5ca70c68c60d14d311d49dc"
+version = "0.153.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.13#b60b7bde6cd5809593b4753c26e3072957c47e38"
 dependencies = [
  "anyhow",
  "cfg-if",
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.153.12 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles)",
+ "zkevm_opcode_defs 0.153.13",
 ]
 
 [[package]]
@@ -13350,9 +13333,8 @@ dependencies = [
 
 [[package]]
 name = "zkevm_circuits"
-version = "0.153.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b59469c9edeb6ab1c2cd5bdb7576b53627dcafc52c7008876d08305fa25b7fe3"
+version = "0.153.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.13#b60b7bde6cd5809593b4753c26e3072957c47e38"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -13365,7 +13347,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "zkevm_opcode_defs 0.153.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zkevm_opcode_defs 0.153.13",
  "zksync_cs_derive",
 ]
 
@@ -13430,26 +13412,8 @@ dependencies = [
 
 [[package]]
 name = "zkevm_opcode_defs"
-version = "0.153.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67bd8604a07502aa7a88f70a6fca32aa7ba39d7a708328dc559a22efdecf9a43"
-dependencies = [
- "bitflags 2.9.1",
- "blake2 0.10.6",
- "ethereum-types",
- "k256 0.13.4",
- "lazy_static",
- "p256 0.13.2",
- "serde",
- "sha2 0.10.8",
- "sha3 0.10.8",
- "zksync_pairing",
-]
-
-[[package]]
-name = "zkevm_opcode_defs"
-version = "0.153.12"
-source = "git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles#14a3b8fdabbc3d80d5ca70c68c60d14d311d49dc"
+version = "0.153.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.13#b60b7bde6cd5809593b4753c26e3072957c47e38"
 dependencies = [
  "bitflags 2.9.1",
  "blake2 0.10.6",
@@ -13667,7 +13631,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zk_evm 0.153.12",
+ "zk_evm 0.153.13",
  "zksync_contracts",
  "zksync_crypto_primitives",
  "zksync_dal",
@@ -14484,9 +14448,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_kzg"
-version = "0.153.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7020211ef413588110f4776732155b4d9a243f0711dd91fd409c01b63929286"
+version = "0.153.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.13#b60b7bde6cd5809593b4753c26e3072957c47e38"
 dependencies = [
  "boojum",
  "derivative",
@@ -14641,7 +14604,7 @@ dependencies = [
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
  "zk_evm 0.151.8",
- "zk_evm 0.153.12",
+ "zk_evm 0.153.13",
  "zksync-era-airbender-cycles-estimator",
  "zksync_contracts",
  "zksync_eth_signer",
@@ -15469,19 +15432,19 @@ dependencies = [
 [[package]]
 name = "zksync_vm2"
 version = "0.5.0"
-source = "git+https://github.com/matter-labs/vm2?rev=5a5be2220112580b4fb958d4b524e3deca73cba9#5a5be2220112580b4fb958d4b524e3deca73cba9"
+source = "git+https://github.com/matter-labs/vm2?rev=79c0f38c6fb1a2f318373944d7a8fcaa72243e8c#79c0f38c6fb1a2f318373944d7a8fcaa72243e8c"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.153.12 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles)",
- "zkevm_opcode_defs 0.153.12 (git+https://github.com/matter-labs/zksync-protocol?branch=popzxc-airbender-precompiles)",
+ "zk_evm_abstractions 0.153.13",
+ "zkevm_opcode_defs 0.153.13",
  "zksync_vm2_interface",
 ]
 
 [[package]]
 name = "zksync_vm2_interface"
 version = "0.5.0"
-source = "git+https://github.com/matter-labs/vm2?rev=5a5be2220112580b4fb958d4b524e3deca73cba9#5a5be2220112580b4fb958d4b524e3deca73cba9"
+source = "git+https://github.com/matter-labs/vm2?rev=79c0f38c6fb1a2f318373944d7a8fcaa72243e8c#79c0f38c6fb1a2f318373944d7a8fcaa72243e8c"
 dependencies = [
  "primitive-types",
 ]

@@ -72,17 +72,19 @@ smart-config = "=0.2.0-pre"
 fflonk = "=0.32.10"
 franklin-crypto = "=0.32.10"
 
-# zksync-protocol dependencies
-circuit_definitions = "=0.153.12"
-circuit_sequencer_api = "=0.153.12"
-zkevm_test_harness = "=0.153.12"
+# zksync-protocol dependencies (git tag: no longer published to crates.io — git-only airbender-crypto dep)
+circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.13" }
+circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.13" }
+zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.13" }
 
-# zksync-crypto-gpu dependencies
-proof-compression-gpu = { package = "proof-compression", version = "=0.156.2" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.156.2" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.156.2" }
-shivini = "=0.156.2"
-boojum-cuda = "=0.156.2"
+# zksync-crypto-gpu dependencies. It pins zksync-protocol via git, so it is no longer
+# published to crates.io either. Pinned to a rev for now; TODO: swap to the git tag
+# once the crypto-gpu release cutting these changes is tagged.
+proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu", rev = "eba75355beb6e10b77ac2d4e75072bdfbe39cda3" }
+fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu", rev = "eba75355beb6e10b77ac2d4e75072bdfbe39cda3" }
+wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu", rev = "eba75355beb6e10b77ac2d4e75072bdfbe39cda3" }
+shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", rev = "eba75355beb6e10b77ac2d4e75072bdfbe39cda3" }
+boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu", rev = "eba75355beb6e10b77ac2d4e75072bdfbe39cda3" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
