@@ -141,6 +141,14 @@ struct Cli {
     #[arg(long, env = "SNARK_VK", default_value_os_t = default_snark_vk_path())]
     snark_vk: PathBuf,
 
+    /// File created once the prover is fully initialized (setups computed,
+    /// polling started) and removed on exit. Point a Kubernetes readiness
+    /// probe at it (`test -f <path>`) to overlap blue/green rollouts: bring
+    /// the new prover up, wait for the file, then terminate the old one —
+    /// the multi-minute setup phase then costs zero proving downtime.
+    #[arg(long, env = "PROVER_READY_FILE")]
+    ready_file: Option<PathBuf>,
+
     /// Sentry DSN for error reporting. When unset, Sentry is disabled and the
     /// server logs to stdout only.
     #[arg(long, env = "SENTRY_URL")]
@@ -246,12 +254,52 @@ fn main() -> Result<()> {
         .run()
     });
 
-    info!("Waiting for prover to finish current job...");
+    // Both threads are running and the expensive prover setup is behind us;
+    // publish readiness so a rollout can now safely retire the previous
+    // instance.
+    let _ready_marker = cli
+        .ready_file
+        .as_deref()
+        .map(ReadyMarker::publish)
+        .transpose()
+        .context("while publishing the readiness marker file")?;
+    info!("Prover ready; polling for jobs");
+
     prover_handle.join().expect("prover thread panicked");
     job_worker_handle
         .join()
         .expect("job worker thread panicked");
     Ok(())
+}
+
+/// RAII guard for the readiness marker file: created when the prover is ready
+/// to take jobs, best-effort removed on graceful shutdown so the pod stops
+/// reporting ready while it drains.
+struct ReadyMarker {
+    path: PathBuf,
+}
+
+impl ReadyMarker {
+    fn publish(path: &std::path::Path) -> Result<Self> {
+        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("while creating {}", parent.display()))?;
+        }
+        std::fs::write(path, b"ready\n")
+            .with_context(|| format!("while writing {}", path.display()))?;
+        info!(path = %path.display(), "Published readiness marker");
+        Ok(Self {
+            path: path.to_owned(),
+        })
+    }
+}
+
+impl Drop for ReadyMarker {
+    fn drop(&mut self) {
+        if let Err(err) = std::fs::remove_file(&self.path) {
+            tracing::warn!(path = %self.path.display(), ?err, "Failed to remove readiness marker");
+        }
+    }
 }
 
 fn build_prover(

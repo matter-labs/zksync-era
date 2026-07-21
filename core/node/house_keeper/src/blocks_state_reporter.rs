@@ -163,6 +163,18 @@ impl BlockMetricsReporter {
             .airbender_batches_ready_for_snark
             .set(ready_for_snark_count as u64);
 
+        let (input_pending_batch, input_pending_age) = conn
+            .proof_generation_dal()
+            .get_oldest_batch_with_missing_proof_inputs(self.first_airbender_batch)
+            .await?
+            .map_or((0, 0), |(batch, age)| (u64::from(batch.0), age.as_secs()));
+        FRI_PROVER_METRICS
+            .airbender_oldest_input_pending_batch
+            .set(input_pending_batch);
+        FRI_PROVER_METRICS
+            .airbender_oldest_input_pending_batch_age_secs
+            .set(input_pending_age);
+
         Ok(())
     }
 }

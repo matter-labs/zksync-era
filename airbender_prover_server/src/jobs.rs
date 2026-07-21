@@ -3,7 +3,7 @@ use std::hash::{BuildHasher, Hasher};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError, TrySendError};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use tracing::{debug, error, info, warn};
@@ -11,6 +11,11 @@ use zksync_prover_metrics::{ProofType, METRICS};
 
 use crate::client::JobServerClient;
 use crate::types::{ProofOutcome, ProverMode, ProverResult, WorkerJob};
+
+/// How often the worker emits an INFO-level heartbeat while idle. Empty polls
+/// log only at DEBUG, so without this a healthy-but-idle prover is
+/// indistinguishable in production logs from one that is stuck.
+const IDLE_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Orchestrates the network side of the prover: fetches jobs from the
 /// [`JobServerClient`]s, forwards them to the prover thread, and submits
@@ -39,6 +44,10 @@ pub struct JobWorker {
     shutdown: Arc<AtomicBool>,
     pending_job: Option<WorkerJob>,
     snark_followup: Option<WorkerJob>,
+    /// Present while no work is flowing: (idle start, last heartbeat log).
+    /// Cleared by any activity — a fetched job, a dispatched job, or a
+    /// handled result.
+    idle: Option<(Instant, Instant)>,
 }
 
 impl JobWorker {
@@ -66,6 +75,7 @@ impl JobWorker {
             shutdown,
             pending_job: None,
             snark_followup: None,
+            idle: None,
         }
     }
 
@@ -128,8 +138,31 @@ impl JobWorker {
                 }
             }
 
-            if !did_work {
+            if did_work {
+                self.idle = None;
+            } else {
+                self.log_idle_heartbeat();
                 std::thread::sleep(self.poll_interval);
+            }
+        }
+    }
+
+    /// Emits a rate-limited INFO log while the worker sits idle, so the log
+    /// stream shows "polling fine, no work offered" instead of going silent.
+    /// Long idle stretches usually mean the job servers have nothing eligible
+    /// — e.g. an upstream input producer is lagging — not a prover problem.
+    fn log_idle_heartbeat(&mut self) {
+        let now = Instant::now();
+        match &mut self.idle {
+            None => self.idle = Some((now, now)),
+            Some((idle_since, last_heartbeat)) => {
+                if now.duration_since(*last_heartbeat) >= IDLE_HEARTBEAT_INTERVAL {
+                    info!(
+                        idle_secs = now.duration_since(*idle_since).as_secs(),
+                        "No jobs available on any chain; still polling"
+                    );
+                    *last_heartbeat = now;
+                }
             }
         }
     }

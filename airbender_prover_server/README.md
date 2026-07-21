@@ -44,8 +44,21 @@ Selected with `--mode` / `PROVER_MODE`:
 | `--snark-vk`       | `SNARK_VK`              | downloaded `vks/snark_vk.json` |
 | `--guest-dist-dir` | `PROVER_GUEST_DIST_DIR` | downloaded `guest/dist/app`    |
 | `--metrics-port`   | —                       | off                            |
+| `--ready-file`     | `PROVER_READY_FILE`     | off                            |
 
 The server loads VKs from disk and never derives them on the fly.
+
+## Zero-downtime rollouts
+
+Startup is dominated by the FRI prover setup (several minutes of GPU precomputation per guest binary), during which the
+server can't take jobs. To avoid paying that as proving downtime on every deploy, set `--ready-file` and overlap
+instances: the file is created only once the setups are computed and polling has started (and removed again on graceful
+shutdown), so a Kubernetes readiness probe like `test -f /tmp/prover-ready` gates the rollout — bring the new prover up,
+wait for it to report ready, then terminate the old one. Concurrent provers are safe: job handout is serialized by the
+job server's row locking, so the two instances simply share the queue for the overlap window.
+
+While idle, the server logs an INFO heartbeat once a minute (`No jobs available on any chain; still polling`) so a quiet
+log stream is distinguishable from a stalled one; per-poll "no job" responses log at DEBUG only.
 
 ## Proving for multiple chains
 

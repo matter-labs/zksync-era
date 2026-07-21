@@ -459,6 +459,53 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 
+    /// Returns the oldest batch that has entered the proving pipeline but is
+    /// still missing at least one of its input blobs (`vm_run_data_blob_url` /
+    /// `proof_gen_data_blob_url`), together with how long it has been waiting.
+    /// Such a batch is invisible to provers — the job handout query requires
+    /// both URLs — so a growing age means an input producer (VM runner /
+    /// witness generation) is stalled while provers sit idle.
+    pub async fn get_oldest_batch_with_missing_proof_inputs(
+        &mut self,
+        min_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<(L1BatchNumber, Duration)>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                l1_batch_number,
+                EXTRACT(
+                    EPOCH
+                    FROM
+                    NOW() - created_at
+                )::BIGINT AS "age_secs!"
+            FROM
+                proof_generation_details
+            WHERE
+                l1_batch_number >= $1
+                AND (
+                    vm_run_data_blob_url IS NULL
+                    OR proof_gen_data_blob_url IS NULL
+                )
+            ORDER BY
+                l1_batch_number ASC
+            LIMIT
+                1
+            "#,
+            i64::from(min_batch_number.0),
+        )
+        .instrument("get_oldest_batch_with_missing_proof_inputs")
+        .with_arg("min_batch_number", &min_batch_number)
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(row.map(|row| {
+            (
+                L1BatchNumber(row.l1_batch_number as u32),
+                Duration::from_secs(row.age_secs.max(0) as u64),
+            )
+        }))
+    }
+
     pub async fn is_batch_present_for_airbender_proof_inputs(
         &mut self,
         batch_number: L1BatchNumber,

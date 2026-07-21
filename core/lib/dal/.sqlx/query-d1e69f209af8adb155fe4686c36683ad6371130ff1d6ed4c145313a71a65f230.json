@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batch_number,\n                EXTRACT(\n                    EPOCH\n                    FROM\n                    NOW() - created_at\n                )::BIGINT AS \"age_secs!\"\n            FROM\n                proof_generation_details\n            WHERE\n                l1_batch_number >= $1\n                AND (\n                    vm_run_data_blob_url IS NULL\n                    OR proof_gen_data_blob_url IS NULL\n                )\n            ORDER BY\n                l1_batch_number ASC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "age_secs!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "d1e69f209af8adb155fe4686c36683ad6371130ff1d6ed4c145313a71a65f230"
+}

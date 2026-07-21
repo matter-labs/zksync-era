@@ -9,6 +9,14 @@ pub(crate) struct FriProverMetrics {
     pub airbender_batches_ready_for_proving: Gauge<u64>,
     /// Number of batches whose FRI proof is ready and are waiting to be wrapped into a SNARK proof.
     pub airbender_batches_ready_for_snark: Gauge<u64>,
+    /// Oldest batch still waiting for its proof input blobs (VM run data / witness inputs).
+    /// Such a batch is invisible to airbender provers, so `airbender_batches_ready_for_proving`
+    /// stays at 0 while work silently queues behind a stalled input producer. 0 = none pending.
+    pub airbender_oldest_input_pending_batch: Gauge<u64>,
+    /// Seconds the oldest input-pending batch has been waiting for its input blobs.
+    /// The alerting signal for input-producer lag: provers idle + this growing = the gap is
+    /// upstream of the proving pipeline. 0 = none pending.
+    pub airbender_oldest_input_pending_batch_age_secs: Gauge<u64>,
 }
 
 #[vise::register]
