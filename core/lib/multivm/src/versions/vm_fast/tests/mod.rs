@@ -141,7 +141,7 @@ where
     }
 
     fn manually_decommit(&mut self, code_hash: H256) -> bool {
-        let (_, is_fresh) = self.inner.world_diff_mut().decommit_opcode(
+        let is_fresh = self.inner.manually_decommit(
             &mut self.world,
             &mut WithBuiltinTracers::mock(),
             h256_to_u256(code_hash),

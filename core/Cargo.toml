@@ -278,7 +278,7 @@ fflonk = "=0.32.10"
 bellman = { package = "zksync_bellman", version = "=0.32.10" }
 
 # New VM
-zksync_vm2 = { git = "https://github.com/matter-labs/vm2", tag = "v0.6.0" }
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2", tag = "v0.6.1" }
 
 # Airbender guest cycle-count model: the VM-agnostic feature schema, calibrated cost
 # model and estimator (single source of truth, shared with the fast-VM tracer). era
