@@ -1683,8 +1683,8 @@ dependencies = [
 
 [[package]]
 name = "boojum-cuda"
-version = "0.156.2"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?rev=eba75355beb6e10b77ac2d4e75072bdfbe39cda3#eba75355beb6e10b77ac2d4e75072bdfbe39cda3"
+version = "0.156.3"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.3#3013ba6878719944722f626c11aa9a947e2ddde0"
 dependencies = [
  "boojum",
  "cmake",
@@ -2859,8 +2859,8 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "era_cudart"
-version = "0.156.2"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?rev=eba75355beb6e10b77ac2d4e75072bdfbe39cda3#eba75355beb6e10b77ac2d4e75072bdfbe39cda3"
+version = "0.156.3"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.3#3013ba6878719944722f626c11aa9a947e2ddde0"
 dependencies = [
  "bitflags 2.9.0",
  "era_cudart_sys",
@@ -2869,8 +2869,8 @@ dependencies = [
 
 [[package]]
 name = "era_cudart_sys"
-version = "0.156.2"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?rev=eba75355beb6e10b77ac2d4e75072bdfbe39cda3#eba75355beb6e10b77ac2d4e75072bdfbe39cda3"
+version = "0.156.3"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.3#3013ba6878719944722f626c11aa9a947e2ddde0"
 dependencies = [
  "regex-lite",
 ]
@@ -3029,8 +3029,8 @@ dependencies = [
 
 [[package]]
 name = "fflonk-cuda"
-version = "0.156.2"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?rev=eba75355beb6e10b77ac2d4e75072bdfbe39cda3#eba75355beb6e10b77ac2d4e75072bdfbe39cda3"
+version = "0.156.3"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.3#3013ba6878719944722f626c11aa9a947e2ddde0"
 dependencies = [
  "bincode",
  "byteorder",
@@ -5883,8 +5883,8 @@ dependencies = [
 
 [[package]]
 name = "proof-compression"
-version = "0.156.2"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?rev=eba75355beb6e10b77ac2d4e75072bdfbe39cda3#eba75355beb6e10b77ac2d4e75072bdfbe39cda3"
+version = "0.156.3"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.3#3013ba6878719944722f626c11aa9a947e2ddde0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7511,8 +7511,8 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shivini"
-version = "0.156.2"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?rev=eba75355beb6e10b77ac2d4e75072bdfbe39cda3#eba75355beb6e10b77ac2d4e75072bdfbe39cda3"
+version = "0.156.3"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.3#3013ba6878719944722f626c11aa9a947e2ddde0"
 dependencies = [
  "bincode",
  "boojum",
@@ -9945,8 +9945,8 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-ffi"
-version = "0.156.2"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?rev=eba75355beb6e10b77ac2d4e75072bdfbe39cda3#eba75355beb6e10b77ac2d4e75072bdfbe39cda3"
+version = "0.156.3"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.3#3013ba6878719944722f626c11aa9a947e2ddde0"
 dependencies = [
  "cmake",
  "crossbeam",
@@ -9959,8 +9959,8 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-prover"
-version = "0.156.2"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?rev=eba75355beb6e10b77ac2d4e75072bdfbe39cda3#eba75355beb6e10b77ac2d4e75072bdfbe39cda3"
+version = "0.156.3"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.3#3013ba6878719944722f626c11aa9a947e2ddde0"
 dependencies = [
  "bit-vec 0.6.3",
  "cfg-if",
@@ -10868,8 +10868,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2"
-version = "0.5.0"
-source = "git+https://github.com/matter-labs/vm2?rev=79c0f38c6fb1a2f318373944d7a8fcaa72243e8c#79c0f38c6fb1a2f318373944d7a8fcaa72243e8c"
+version = "0.6.0"
+source = "git+https://github.com/matter-labs/vm2?tag=v0.6.0#606441cf657ae1fdf434f79c7c8753d1aa6b7136"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -10880,8 +10880,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2_interface"
-version = "0.5.0"
-source = "git+https://github.com/matter-labs/vm2?rev=79c0f38c6fb1a2f318373944d7a8fcaa72243e8c#79c0f38c6fb1a2f318373944d7a8fcaa72243e8c"
+version = "0.6.0"
+source = "git+https://github.com/matter-labs/vm2?tag=v0.6.0#606441cf657ae1fdf434f79c7c8753d1aa6b7136"
 dependencies = [
  "primitive-types",
 ]

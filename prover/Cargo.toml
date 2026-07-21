@@ -77,14 +77,13 @@ circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", 
 circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.13" }
 zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.13" }
 
-# zksync-crypto-gpu dependencies. It pins zksync-protocol via git, so it is no longer
-# published to crates.io either. Pinned to a rev for now; TODO: swap to the git tag
-# once the crypto-gpu release cutting these changes is tagged.
-proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu", rev = "eba75355beb6e10b77ac2d4e75072bdfbe39cda3" }
-fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu", rev = "eba75355beb6e10b77ac2d4e75072bdfbe39cda3" }
-wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu", rev = "eba75355beb6e10b77ac2d4e75072bdfbe39cda3" }
-shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", rev = "eba75355beb6e10b77ac2d4e75072bdfbe39cda3" }
-boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu", rev = "eba75355beb6e10b77ac2d4e75072bdfbe39cda3" }
+# zksync-crypto-gpu dependencies (git tag: it pins zksync-protocol via git, so it is
+# no longer published to crates.io either).
+proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.3" }
+fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.3" }
+wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.3" }
+shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.3" }
+boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.3" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
