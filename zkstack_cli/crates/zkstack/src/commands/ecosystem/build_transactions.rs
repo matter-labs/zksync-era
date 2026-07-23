@@ -63,6 +63,7 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
         args.bridgehub_address,
         vm_option,
         false,
+        None,
     )
     .await?;
 

@@ -1,6 +1,6 @@
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
-use zkstack_cli_types::{L1Network, VMOption};
+use zkstack_cli_types::{L1Network, VMOption, VerifierType};
 
 use crate::{
     forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::FileConfigTrait,
@@ -11,6 +11,9 @@ use crate::{
 pub struct DeployCTMConfig {
     pub owner_address: Address,
     pub testnet_verifier: bool,
+    /// When set, the deploy script also deploys the Airbender PLONK verifier and wires it into
+    /// the dual verifier's third slot. Ignored for ZKsyncOS deployments.
+    pub airbender_verifier: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub contracts: ContractsDeployCTMConfig,
     pub is_zk_sync_os: bool,
@@ -23,14 +26,15 @@ impl DeployCTMConfig {
     pub fn new(
         wallets_config: &WalletsConfig,
         initial_deployment_config: &InitialDeploymentConfig,
-        testnet_verifier: bool,
+        verifier: VerifierType,
         l1_network: L1Network,
         support_l2_legacy_shared_bridge_test: bool,
         vm_option: VMOption,
     ) -> Self {
         Self {
             is_zk_sync_os: vm_option.is_zksync_os(),
-            testnet_verifier,
+            testnet_verifier: verifier.is_testnet(),
+            airbender_verifier: verifier.is_airbender(),
             owner_address: wallets_config.governor.address,
             support_l2_legacy_shared_bridge_test,
             zk_token_asset_id: l1_network.zk_token_asset_id(),

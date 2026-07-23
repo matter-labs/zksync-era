@@ -488,6 +488,7 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
     let body_bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let parsed: AirbenderSnarkInputsResponse = serde_json::from_slice(&body_bytes).unwrap();
     assert_eq!(parsed.l1_batch_number, batch_number.0);
+    assert_eq!(parsed.chain_id, L2ChainId::default().as_u64());
     assert_eq!(parsed.fri_proof, fri_payload);
 
     let mut conn = db_conn_pool.connection().await.unwrap();

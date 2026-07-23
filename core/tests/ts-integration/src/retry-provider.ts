@@ -15,6 +15,20 @@ const IGNORED_ERRORS = [
     'nonetwork'
 ];
 
+// L1 estimates can sit exactly on a nested-call gas-forwarding boundary. Under concurrent CI
+// load, equivalent priority operations have failed with a one-gas difference between the
+// estimate and successful execution. Keep provider-generated L1 transaction envelopes away from
+// that boundary while leaving L2 estimates unchanged.
+const L1_GAS_ESTIMATE_MULTIPLIER_NUMERATOR = 3n;
+const L1_GAS_ESTIMATE_MULTIPLIER_DENOMINATOR = 2n;
+
+export function addL1GasEstimateHeadroom(estimate: bigint): bigint {
+    return (
+        (estimate * L1_GAS_ESTIMATE_MULTIPLIER_NUMERATOR + L1_GAS_ESTIMATE_MULTIPLIER_DENOMINATOR - 1n) /
+        L1_GAS_ESTIMATE_MULTIPLIER_DENOMINATOR
+    );
+}
+
 function isIgnored(err: any): boolean {
     const errString: string = err.toString().toLowerCase();
     return IGNORED_ERRORS.some((sampleErr) => errString.indexOf(sampleErr) !== -1);
@@ -167,6 +181,11 @@ export class EthersRetryProvider extends JsonRpcProvider {
         const fetchRequest = createFetchRequest(url, () => this.pollingInterval, reporter);
         super(fetchRequest, undefined, { batchMaxCount: 1 });
         this.reporter = reporter ?? new Reporter();
+    }
+
+    override async estimateGas(tx: TransactionRequest): Promise<bigint> {
+        const estimate = await super.estimateGas(tx);
+        return this.layer === 'L1' ? addL1GasEstimateHeadroom(estimate) : estimate;
     }
 
     override _wrapTransactionResponse(tx: TransactionResponseParams, network: Network): EthersTransactionResponse {

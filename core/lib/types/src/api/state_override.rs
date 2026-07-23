@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    collections::{hash_map, HashMap},
+    collections::{btree_map, BTreeMap, HashMap},
     fmt,
 };
 
@@ -11,11 +11,11 @@ use crate::Address;
 
 /// Collection of overridden accounts.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct StateOverride(HashMap<Address, OverrideAccount>);
+pub struct StateOverride(BTreeMap<Address, OverrideAccount>);
 
 impl StateOverride {
     /// Wraps the provided account overrides.
-    pub fn new(state: HashMap<Address, OverrideAccount>) -> Self {
+    pub fn new(state: BTreeMap<Address, OverrideAccount>) -> Self {
         Self(state)
     }
 
@@ -37,7 +37,7 @@ impl StateOverride {
 
 impl IntoIterator for StateOverride {
     type Item = (Address, OverrideAccount);
-    type IntoIter = hash_map::IntoIter<Address, OverrideAccount>;
+    type IntoIter = btree_map::IntoIter<Address, OverrideAccount>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()

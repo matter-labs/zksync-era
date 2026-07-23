@@ -1,0 +1,368 @@
+name: Workflow for testing the Airbender prover end-to-end
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # Build the prover on a high-CPU runner; the GPU job gets the binary as an artifact.
+  build-server:
+    runs-on: [matterlabs-ci-runner-high-performance]
+    timeout-minutes: 90
+    # CUDA 13, matching the GPU runner's driver major version.
+    container:
+      image: nvidia/cuda:13.0.0-devel-ubuntu22.04
+    env:
+      # Both cards in the run-job pool: Ada (sm_89) and Blackwell (sm_120).
+      CUDA_ARCH: "89;120"
+      CUDAARCHS: "89;120"
+
+    steps:
+      # The base CUDA image lacks git and a host compiler.
+      - name: Install base build dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential ca-certificates clang curl git libssl-dev lld pkg-config wget
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Setup runner
+        uses: matter-labs/zksync-os-server/.github/actions/runner-setup@24d38529dbeb2f0bdd016005b1e5e0bc491b692f
+
+      # Backs the GPU SNARK wrapper; pinned to match the prod Dockerfile.
+      - name: Build era-bellman-cuda
+        env:
+          BELLMAN_CUDA_COMMIT: d1fa8670ee84ec3477c6cc1c85a3554cfa5e0206
+        run: |
+          git clone https://github.com/matter-labs/era-bellman-cuda.git /tmp/era-bellman-cuda
+          git -C /tmp/era-bellman-cuda checkout "$BELLMAN_CUDA_COMMIT"
+          cmake -B /tmp/era-bellman-cuda/build -S /tmp/era-bellman-cuda -DCMAKE_BUILD_TYPE=Release
+          cmake --build /tmp/era-bellman-cuda/build -j"$(nproc)"
+          echo "BELLMAN_CUDA_DIR=/tmp/era-bellman-cuda" >> "$GITHUB_ENV"
+
+      # build.rs downloads the guest binary + VKs into guest/dist/app and vks/.
+      - name: Build Airbender prover server
+        working-directory: airbender_prover_server
+        env:
+          RUST_BACKTRACE: 1
+        run: |
+          rustup show
+          cargo build --release --locked --features gpu_snark -p eravm-prover-server
+          ls -lh target/release/eravm-prover-server
+
+      # The run-job host has the CUDA driver but no toolkit; ship the runtime libs.
+      - name: Stage CUDA + bellman-cuda runtime libraries
+        run: |
+          mkdir -p airbender_prover_server/cuda-libs
+          cp -v /usr/local/cuda/lib64/libcudart.so* airbender_prover_server/cuda-libs/
+          find "$BELLMAN_CUDA_DIR/build" -type f \( -name '*.so*' -o -name '*.a' \) \
+            -exec cp -v {} airbender_prover_server/cuda-libs/ \;
+          ls -lh airbender_prover_server/cuda-libs
+
+      - name: Upload Airbender prover server binary
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: airbender-prover-server
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            airbender_prover_server/target/release/eravm-prover-server
+            airbender_prover_server/guest/dist/app
+            airbender_prover_server/vks
+            airbender_prover_server/cuda-libs
+
+      - name: Show sccache logs
+        if: always()
+        run: |
+          sccache --show-stats || true
+          cat /tmp/sccache_log.txt || true
+
+  e2e-test:
+    needs: build-server
+    runs-on: [matterlabs-ci-hetzner-rtx6000-gpu]
+    timeout-minutes: 120
+    env:
+      RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
+      YQ_VERSION: "4.45.1"
+
+    steps:
+      # ci_run leaves root-owned files on this persistent runner.
+      - name: Reclaim workspace from prior runs
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}" || true
+
+      - name: Clean stale root-owned workspace files
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} rm -rf airbender_fixture airbender_prover_logs airbender_prover_server
+
+      - name: Free the GPU from orphaned provers
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} pkill -f eravm-prover-server || true
+          for _ in $(seq 1 20); do
+            used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+            echo "GPU memory used: ${used:-unknown} MiB"
+            [ -n "$used" ] && [ "$used" -lt 2000 ] && break
+            ${SUDO} pkill -9 -f eravm-prover-server || true
+            sleep 3
+          done
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+
+      # Some hosts in the pool ship only the compose v2 plugin, but the scripts here invoke
+      # the legacy `docker-compose`.
+      - name: Shim docker-compose onto the compose v2 plugin
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          if ! command -v docker-compose >/dev/null 2>&1; then
+            printf '#!/bin/sh\nexec docker compose "$@"\n' | ${SUDO} tee /usr/local/bin/docker-compose >/dev/null
+            ${SUDO} chmod +x /usr/local/bin/docker-compose
+          fi
+          docker-compose version
+
+      # Named volumes survive between runs; stale L1 state breaks a fresh `ecosystem init`.
+      - name: Reset localnet docker state
+        run: |
+          docker-compose -f "${RUNNER_COMPOSE_FILE}" down --volumes --remove-orphans || true
+
+      # sccache disabled: no GCP metadata service here, and nothing in this job compiles Rust.
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
+          sccache: 'false'
+
+      - name: Install yq
+        run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
+
+      - name: Download Airbender prover server binary
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
+        with:
+          name: airbender-prover-server
+          path: airbender_prover_server
+
+      - name: Make Airbender prover server binary executable
+        run: chmod +x airbender_prover_server/target/release/eravm-prover-server
+
+      # Fail fast on a broken GPU before the ~35-min ecosystem init.
+      - name: Check Airbender prover GPU health
+        run: |
+          mkdir -p airbender_prover_logs
+          cd airbender_prover_server
+          LD_LIBRARY_PATH="$PWD/cuda-libs" RUST_BACKTRACE=1 \
+          PROVER_GUEST_DIST_DIR="$PWD/guest/dist/app" FRI_VK="$PWD/vks/fri_vk.bin" \
+          PROVER_SERVER_URL="http://127.0.0.1:1" \
+          ./target/release/eravm-prover-server --mode fri-only &>../airbender_prover_logs/gpu_health.log &
+          HPID=$!
+          ok=""
+          for _ in $(seq 1 30); do
+            if grep -qi "initialized the GPU memory allocator" ../airbender_prover_logs/gpu_health.log; then ok=1; break; fi
+            if grep -qiE "cudaError|panicked|worker encountered an error|GPU_MANAGER encountered" ../airbender_prover_logs/gpu_health.log; then ok=0; break; fi
+            kill -0 "$HPID" 2>/dev/null || { ok=0; break; }
+            sleep 2
+          done
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          kill -9 "$HPID" 2>/dev/null || true
+          wait "$HPID" 2>/dev/null || true
+          for _ in $(seq 1 20); do
+            used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+            echo "GPU memory used after health check: ${used:-unknown} MiB"
+            [ -n "$used" ] && [ "$used" -lt 2000 ] && break
+            ${SUDO} pkill -9 -f eravm-prover-server 2>/dev/null || true
+            sleep 2
+          done
+          echo "----- prover startup log -----"
+          cat ../airbender_prover_logs/gpu_health.log
+          if [ "$ok" = "1" ]; then
+            echo "GPU prover initialized OK."
+          else
+            echo "::error::Airbender prover failed GPU init; aborting before ecosystem init."
+            exit 1
+          fi
+
+      - name: Init
+        run: |
+          mkdir -p airbender_prover_logs
+          ci_run git config --global --add safe.directory "*"
+          ci_run chmod -R +x ./bin
+
+          ci_run zkstack chain create \
+            --chain-name proving_chain \
+            --chain-id sequential \
+            --prover-mode gpu \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default true \
+            --ignore-prerequisites \
+            --evm-emulator false
+
+          # `--verifier-type airbender` wires the Airbender PLONK verifier into the dual verifier.
+          ci_run zkstack ecosystem init --dev --verifier-type airbender --verbose
+
+          WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' < ./chains/proving_chain/configs/general.yaml)
+          echo "Using Web3 HTTP URL: $WEB3_HTTP_URL"
+          echo "URL=$WEB3_HTTP_URL" >> $GITHUB_ENV
+
+      # So that all precompile txs below land in batch 1, the batch the prover targets.
+      - name: Change block_commit_deadline_ms to 60000 to submit txs to batch 1
+        working-directory: ./chains/proving_chain/configs
+        run: |
+          sudo yq -e -i '.state_keeper.block_commit_deadline_ms = "60000"' general.yaml
+          yq '.state_keeper.block_commit_deadline_ms' general.yaml
+
+      # Neither setting has a zkstack knob, so edit the generated config.
+      - name: Put eth_sender on the Airbender real-proof path
+        working-directory: ./chains/proving_chain/configs
+        run: |
+          sudo yq -e -i '.eth.sender.prover = "Airbender"' general.yaml
+          sudo yq -e -i '.eth.sender.proof_sending_mode = "ONLY_REAL_PROOFS"' general.yaml
+          yq '.eth.sender.prover, .eth.sender.proof_sending_mode' general.yaml
+
+      - name: Run server
+        run: |
+          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip,airbender_proof_data_handler &>airbender_prover_logs/server.log &
+
+      - name: Waiting for web3_json_rpc to become ready
+        env:
+          INTERVAL: 10
+          TIMEOUT: 300
+        run: |
+          PASSED_ENV_VARS="URL,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/web3_json_rpc_checker
+
+      - name: Send txs to new precompiles
+        run: |
+          WEB3_HTTP_URL=$(yq -e '.api.web3_json_rpc.http_url' ./chains/proving_chain/configs/general.yaml)
+          # TODO: newer versions of `zksync-cli` (e.g., 1.12.1) use an incorrect L2 Web3 RPC URL for some reason, so the version below is temporarily pinned to the latest working version
+          ci_run npx zksync-cli@1.11.0 bridge deposit --chain=dockerized-node --amount 3 --pk=0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110 --to=0xa61464658AfeAf65CccaaFD3a512b69A83B77618 --rpc=$WEB3_HTTP_URL
+
+          ci_run cast send 0x0000000000000000000000000000000000000005 0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000208f3b7d5c187f8abbe0581dab5a37644febd35ea6d4fe3213288f9d63ab82a6b1afa9888e351dfdefd862945b0da33c9ea1de907ae830292438df1fa184447777c7e38934b1501e64e5c0bd0ab35b3354520b6e88b81a1f063c37007c65b7efd5 --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000006 0x099c07c9dd1107b9c9b0836da7ecfb7202d10bea1b8d1e88bc51ca476f23d91d28351e12f9219537fc8d6cac7c6444bd7980390d0d3e203fe0d8c1b0d811995021e177a985c3db8ef1d670629972c007ae90c78fb16e3011de1d08f5a44cb6550bd68a7caa07f6adbecbf06fb1f09d32b7bed1369a2a58058d1521bebd8272ac --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000006 0x099c08c9dd1107b9c9b0836da7ecfb7202d10bea1b8d1e88cc51ca476f23d91d28351e12f9219537fc8d6cac7c6444bd7980390d0d3e203fe0d8c1b0d811995021e177a985c3db8ef1d670629972c007ae90c78fb16e3011de1d08f5a44cb6550bd68a7caa07f6adbecbf06fb1f09d32b7bed1369a2a58058d1521bebd8272ac --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000007 0x1a87b0584ce92f4593d161480614f2989035225609f08058ccfa3d0f940febe31a2f3c951f6dadcc7ee9007dff81504b0fcd6d7cf59996efdc33d92bf7f9f8f630644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000000 --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000007 0x000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000001 --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000008 0x2cf44499d5d27bb186308b7af7af02ac5bc9eeb6a3d147c186b21fb1b76e18da2c0f001f52110ccfe69108924926e45f0b0c868df0e7bde1fe16d3242dc715f61fb19bb476f6b9e44e2a32234da8212f61cd63919354bc06aef31e3cfaff3ebc22606845ff186793914e03e21df544c34ffe2f2f3504de8a79d9159eca2d98d92bd368e28381e8eccb5fa81fc26cf3f048eea9abfdd85d7ed3ab3698d63e4f902fe02e47887507adf0ff1743cbac6ba291e66f59be6bd763950bb16041a0a85e000000000000000000000000000000000000000000000000000000000000000130644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd451971ff0471b09fa93caaf13cbf443c1aede09cc4328f5a62aad45f40ec133eb4091058a3141822985733cbdddfed0fd8d6c104e9e9eff40bf5abfef9ab163bc72a23af9a5ce2ba2796c1f4e453a370eb0af8c212d9dc9acd8fc02c2e907baea223a8eb0b0996252cb548a4487da97b02422ebc0e834613f954de6c7e0afdc1fc --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+          ci_run cast send 0x0000000000000000000000000000000000000008 0x0413aa5b0805215b55a5e2dda0662031aad0f5ef13f28b25df20b8670d1c59a616fb4b64ccff216fa5272e1e987c0616d60d8883d5834229c685949047e9411d2d81dbc969f72bc0454ff8b04735b717b725fee98a2fcbcdcf6c5b51b1dff33f075239888fc8448ab781e2a8bb85eb556469474cd707d4b913bee28679920eb61ef1c268b7c4c78959f099a043ecd5e537fe3069ac9197235f16162372848cba209cfadc22f7e80d399d1886f1c53898521a34c62918ed802305f32b4070a3c4 --private-key 0xac1e735be8536c6534bb4f17f06f6afc73b2b5ba84ac2cfb12f7461b20c0bbe3 --rpc-url $WEB3_HTTP_URL --gas-limit 1000000000
+
+      - name: Wait for precompiles txs to be included in the batch
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 10
+          TIMEOUT: 200
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/precompiles_status_checker
+
+      # The prover runs on the host (the zk container's GPU forwarding breaks CUDA). FRI and
+      # SNARK run sequentially so each stage owns the whole GPU.
+      - name: Run Airbender prover server (fri-only)
+        run: |
+          AIRBENDER_PORT=$(yq -e '.airbender_proof_data_handler.http_port' ./chains/proving_chain/configs/general.yaml)
+          echo "Airbender proof data handler port: $AIRBENDER_PORT"
+          cd airbender_prover_server
+          LD_LIBRARY_PATH="$PWD/cuda-libs" \
+          RUST_BACKTRACE=1 \
+          PROVER_GUEST_DIST_DIR="$PWD/guest/dist/app" \
+          FRI_VK="$PWD/vks/fri_vk.bin" \
+          PROVER_SERVER_URL="http://127.0.0.1:$AIRBENDER_PORT" \
+          ./target/release/eravm-prover-server --mode fri-only &>../airbender_prover_logs/prover_server_fri.log &
+
+      - name: Wait for the FRI proof to be generated
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain
+          BATCH_NUMBER: 1
+          INTERVAL: 15
+          TIMEOUT: 1800
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/airbender_proof_status_checker
+
+      # Free the GPU for the SNARK stage.
+      - name: Stop the FRI prover and free the GPU
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} pkill -9 -f eravm-prover-server || true
+          for _ in $(seq 1 20); do
+            used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+            echo "GPU memory used: ${used:-unknown} MiB"
+            [ -n "$used" ] && [ "$used" -lt 2000 ] && break
+            sleep 2
+          done
+
+      # Needs the bellman trusted setup + SNARK VK, and an unbounded stack for the recursion.
+      - name: Run Airbender prover server (snark-only)
+        run: |
+          AIRBENDER_PORT=$(yq -e '.airbender_proof_data_handler.http_port' ./chains/proving_chain/configs/general.yaml)
+          cd airbender_prover_server
+          mkdir -p setup
+          curl --fail --location --retry 5 --retry-delay 5 \
+            "https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_compact.key" \
+            -o setup/setup.key
+          ulimit -s unlimited || true
+          LD_LIBRARY_PATH="$PWD/cuda-libs" \
+          RUST_BACKTRACE=1 \
+          RUST_MIN_STACK=134217728 \
+          PROVER_GUEST_DIST_DIR="$PWD/guest/dist/app" \
+          FRI_VK="$PWD/vks/fri_vk.bin" \
+          SNARK_VK="$PWD/vks/snark_vk.json" \
+          SNARK_TRUSTED_SETUP_FILE="$PWD/setup/setup.key" \
+          PROVER_SERVER_URL="http://127.0.0.1:$AIRBENDER_PORT" \
+          ./target/release/eravm-prover-server --mode snark-only &>../airbender_prover_logs/prover_server_snark.log &
+
+      # Assert on-chain (not via the DB) that the Airbender verifier accepted the proof.
+      - name: Wait for batch to be verified on L1
+        env:
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 2400
+        run: |
+          # Export so ci_run forwards them into the container via PASSED_ENV_VARS.
+          export DIAMOND_PROXY_ADDR=$(yq -e '.l1.diamond_proxy_addr' ./chains/proving_chain/configs/contracts.yaml)
+          export L1_RPC_URL=$(yq -e '.l1.l1_rpc_url' ./chains/proving_chain/configs/secrets.yaml)
+          echo "Diamond proxy: $DIAMOND_PROXY_ADDR   L1 RPC: $L1_RPC_URL"
+          PASSED_ENV_VARS="L1_RPC_URL,DIAMOND_PROXY_ADDR,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_checkers/batch_verified_on_l1_checker
+
+      # Inputs to refresh the era-contracts `AirbenderPlonkProofFixture.sol` from this run's
+      # real proof; see `bin/prepare_airbender_fixture`.
+      - name: Prepare Airbender fixture inputs
+        if: always()
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain
+          BATCH_NUMBER: 1
+        run: |
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER" \
+          ci_run ./bin/prepare_airbender_fixture
+
+      - name: Upload Airbender fixture inputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: airbender_fixture
+          path: airbender_fixture
+          if-no-files-found: warn
+
+      - name: Upload logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: airbender_prover_logs
+          path: airbender_prover_logs
+
+      - name: Stop the Airbender prover
+        if: always()
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} pkill -f eravm-prover-server || true

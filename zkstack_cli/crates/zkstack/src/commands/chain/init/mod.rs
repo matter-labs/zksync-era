@@ -286,6 +286,10 @@ pub async fn send_priority_txs(
         ),
         chain_config.chain_id.as_u64(),
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        contracts_config
+            .l1
+            .access_control_restriction_addr
+            .context("no access_control_restriction_addr")?,
         l1_da_validator_addr,
         commitment_scheme,
         l1_rpc_url.clone(),

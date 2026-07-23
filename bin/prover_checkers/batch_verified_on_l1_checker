@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+
+# Asserts on-chain that the batch's proof was verified on L1 (diamond's getTotalBatchesVerified).
+#
+# Configuration
+# L1_RPC_URL        - L1 (reth) JSON-RPC endpoint
+# DIAMOND_PROXY_ADDR- Chain diamond proxy address on L1
+# BATCH_NUMBER      - The batch number that must be verified
+# INTERVAL          - Poll interval in seconds
+# TIMEOUT           - Overall timeout in seconds
+
+echo "cast: $(command -v cast || echo MISSING) ($(cast --version 2>&1 | head -1))"
+
+# Read a nullary uint256 getter off the diamond as a decimal; no return-type hint so it works
+# across cast versions.
+read_batch_count() {
+    local sig="$1" raw
+    if ! raw=$(cast call "$DIAMOND_PROXY_ADDR" "$sig" --rpc-url "$L1_RPC_URL" 2>&1); then
+        echo "  cast $sig failed: $raw" >&2
+        return 0
+    fi
+    raw=$(printf '%s' "$raw" | tr -d '[:space:]')
+    if [[ "$raw" =~ ^0x[0-9a-fA-F]+$ ]]; then
+        printf '%d' "$((raw))"
+    elif [[ "$raw" =~ ^[0-9]+$ ]]; then
+        printf '%s' "$raw"
+    else
+        echo "  cast $sig returned unparseable value: '$raw'" >&2
+    fi
+}
+
+START_TIME=$(date +%s)
+
+while true; do
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+    if [ "$ELAPSED_TIME" -ge "$TIMEOUT" ]; then
+        echo "Timeout reached. Batch $BATCH_NUMBER was not verified on L1. Failing CI..."
+        exit 1
+    fi
+
+    COMMITTED=$(read_batch_count "getTotalBatchesCommitted()")
+    VERIFIED=$(read_batch_count "getTotalBatchesVerified()")
+
+    if [ -n "$VERIFIED" ] && [ "$VERIFIED" -ge "$BATCH_NUMBER" ]; then
+        echo "Batch $BATCH_NUMBER verified on L1 (getTotalBatchesVerified=$VERIFIED). Success!"
+        exit 0
+    fi
+
+    echo "On L1: committed=${COMMITTED:-?}, verified=${VERIFIED:-?}; waiting for verified >= $BATCH_NUMBER."
+    echo "Retrying in $INTERVAL seconds..."
+    sleep "$INTERVAL"
+done

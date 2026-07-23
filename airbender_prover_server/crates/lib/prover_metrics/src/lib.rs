@@ -31,6 +31,10 @@ impl std::fmt::Display for ProofType {
 /// Labels attached to proof generation metrics.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub struct ProofLabels {
+    /// L2 chain id of the chain the batch belongs to, as reported by the job
+    /// server it was fetched from. Distinguishes chains when one prover serves
+    /// several; 0 when the server predates chain-id reporting.
+    pub chain_id: u64,
     pub batch_number: u32,
     pub proof_type: ProofType,
     pub status: ProofStatus,

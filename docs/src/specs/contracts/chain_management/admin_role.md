@@ -20,7 +20,7 @@ Generally all the functionality of chain admin should be treated with maximal se
 
 ### Setting validators for a chain
 
-The admin of a chain can call `ValidatorTimelock` on the settlement layer to add or remove validators, i.e. addresses that have the right to `commit`/`verify`/`execute` batches etc.
+The admin of a chain can call `ValidatorTimelock` on the settlement layer to add or remove validators via  `addValidator`/`removeValidator` (which grant/revoke all six per-chain roles at once), or assign individual roles granularly via `addValidatorRoles`/`removeValidatorRoles` i.e. for an addresses to have the right to commit/verify/execute batches.
 
 The system is protected against malicious validators, they can never steal funds from users. However, this role is still relatively powerful: If the DA layer is not reliable, and a batch does get executed, the funds may be frozen. This is why the chains should be [cautious about DA layers that they use](#setting-da-layer). Note, that on L1 the `ValidatorTimelock` has 3h delay, while on Gateway this timelock will not be present.
 
@@ -37,8 +37,6 @@ Sometimes, users may need assurances that a chain will never become frozen even 
 Chain also exposes the `AdminFacet.makePermanentRollup` function. It will turn a chain into a permanent rollup, ensuring that DA validator pairs can be only set to values that are approved by decentralized governance to be used for rollups.
 
 This functionality is obviously dangerous in a sense that it is permanent and revokes the right of the chain to change its DA layer. On the other hand, it ensures perpetual safety for users. This is the option that ZKsync Era is using.
-
-This setting is preserved even when migrating to [gateway](../gateway/overview.md). If this setting was set while chain is on top of Gateway, and it migrates back to L1, it will keep this status, i.e. it is fully irrevocable.
 
 ### `changeFeeParams` method
 

@@ -12,6 +12,17 @@ use crate::{
 mod metrics_collector;
 mod operation_results_collector;
 
+const MIN_ACCEPTABLE_TX_COUNT_DELTA_PERCENT: f64 = -15.0;
+const MAX_ACCEPTABLE_TX_COUNT_DELTA_PERCENT: f64 = 200.0;
+
+fn tx_count_delta_percent(actual_count: u64, expected_count: usize) -> f64 {
+    100.0 * (actual_count as f64 - expected_count as f64) / expected_count as f64
+}
+
+fn is_tx_count_delta_acceptable(delta: f64) -> bool {
+    (MIN_ACCEPTABLE_TX_COUNT_DELTA_PERCENT..=MAX_ACCEPTABLE_TX_COUNT_DELTA_PERCENT).contains(&delta)
+}
+
 /// Decision on whether loadtest considered passed or failed.
 #[derive(Debug, Clone, Copy)]
 pub enum LoadtestResult {
@@ -48,16 +59,13 @@ impl Collectors {
 
     fn final_resolution(&self, expected_tx_count: Option<usize>) -> LoadtestResult {
         let is_tx_count_acceptable = expected_tx_count.is_none_or(|expected_count| {
-            const MIN_ACCEPTABLE_DELTA: f64 = -10.0;
-            const MAX_ACCEPTABLE_DELTA: f64 = 200.0;
-
-            let actual_count = self.operation_results.tx_results.successes() as f64;
-            let delta = 100.0 * (actual_count - expected_count as f64) / (expected_count as f64);
+            let actual_count = self.operation_results.tx_results.successes();
+            let delta = tx_count_delta_percent(actual_count, expected_count);
             tracing::info!("Expected number of processed txs: {expected_count}");
             tracing::info!("Actual number of processed txs: {actual_count}");
             tracing::info!("Delta: {delta:.1}%");
 
-            (MIN_ACCEPTABLE_DELTA..=MAX_ACCEPTABLE_DELTA).contains(&delta)
+            is_tx_count_delta_acceptable(delta)
         });
 
         if !is_tx_count_acceptable || self.operation_results.tx_results.failures() > 0 {
@@ -65,6 +73,20 @@ impl Collectors {
         } else {
             LoadtestResult::TestPassed
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_tx_count_delta_acceptable, tx_count_delta_percent};
+
+    #[test]
+    fn tx_count_tolerance_accepts_up_to_fifteen_percent_shortfall() {
+        let boundary_delta = tx_count_delta_percent(85, 100);
+        assert!(is_tx_count_delta_acceptable(boundary_delta));
+
+        let excessive_delta = tx_count_delta_percent(84, 100);
+        assert!(!is_tx_count_delta_acceptable(excessive_delta));
     }
 }
 

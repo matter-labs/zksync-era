@@ -38,7 +38,7 @@ Selected with `--mode` / `PROVER_MODE`:
 
 | Flag               | Env                     | Default                        |
 | ------------------ | ----------------------- | ------------------------------ |
-| `--server-url`     | `PROVER_SERVER_URL`     | (required)                     |
+| `--server-url`     | `PROVER_SERVER_URL`     | (required, repeatable)         |
 | `--mode`           | `PROVER_MODE`           | `fri-only`                     |
 | `--fri-vk`         | `FRI_VK`                | downloaded `vks/fri_vk.bin`    |
 | `--snark-vk`       | `SNARK_VK`              | downloaded `vks/snark_vk.json` |
@@ -46,6 +46,18 @@ Selected with `--mode` / `PROVER_MODE`:
 | `--metrics-port`   | —                       | off                            |
 
 The server loads VKs from disk and never derives them on the fly.
+
+## Proving for multiple chains
+
+One prover can serve several chains running the same guest program: pass several job-server URLs (comma-separated in
+`PROVER_SERVER_URL`, or by repeating `--server-url`). Fetches round-robin across the servers, starting from a random one
+at boot, and the scan resumes after the chain last served — so when every chain has a backlog, each gets an equal share
+of the prover regardless of how many batches it produces, and idle chains donate their share to busy ones. Proofs (and
+failure reports) are always submitted back to the server the job was fetched from. Provers coordinate through nothing
+but the job servers themselves, so any number of provers can compete for the same set of chains; per-chain contention is
+resolved by the servers' locking. Proof metrics and job logs carry a `chain_id` label with the actual L2 chain id
+reported by the job server (from `system_env` for FRI inputs, from the response body for SNARK inputs; 0 if the server
+predates chain-id reporting).
 
 ## Building
 

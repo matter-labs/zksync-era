@@ -1,5 +1,24 @@
 # Changelog
 
+## [31.3.0](https://github.com/matter-labs/zksync-era/compare/core-v31.2.0...core-v31.3.0) (2026-07-20)
+
+
+### Features
+
+* **airbender:** adapt prover server to v31 verifier wire format ([#4880](https://github.com/matter-labs/zksync-era/issues/4880)) ([10d3bd2](https://github.com/matter-labs/zksync-era/commit/10d3bd2dfbee427987fa5ae3434250d9b8857898))
+* **airbender:** round-robin prover fetching across multiple chain job servers ([#4905](https://github.com/matter-labs/zksync-era/issues/4905)) ([b475424](https://github.com/matter-labs/zksync-era/commit/b475424da4eea282ef830b23426909ddbe4ceea9))
+
+
+### Bug Fixes
+
+* **api:** Handle to field properly ([#4913](https://github.com/matter-labs/zksync-era/issues/4913)) ([d32c04d](https://github.com/matter-labs/zksync-era/commit/d32c04df0e8afac664404ef5c5b95d8f5d80ff94))
+* **api:** Use BTreeMap in StateOverride for deterministic iteration ([#4760](https://github.com/matter-labs/zksync-era/issues/4760)) ([64f30e5](https://github.com/matter-labs/zksync-era/commit/64f30e5ec363b4f7354d306aaecdd602a6919572))
+* **ci:** harden flaky integration test workflow ([#4900](https://github.com/matter-labs/zksync-era/issues/4900)) ([8030f53](https://github.com/matter-labs/zksync-era/commit/8030f5329068f9ae46fa6e8f91641fcf1b5f10d9))
+* cover V29_2 in ecosystem upgrade match and fix StateOverride caller ([5f77293](https://github.com/matter-labs/zksync-era/commit/5f7729348d7d5c9067e4b8e28db8e49730a1d42d))
+* **en:** Do not crash node in sync state updater task ([#4247](https://github.com/matter-labs/zksync-era/issues/4247)) ([7bc1f12](https://github.com/matter-labs/zksync-era/commit/7bc1f12998a5444f6be1988a670944da8bab5b38))
+* **eth-proof-manager:** three correctness fixes for validation retries, metrics labels, and verifier panics ([#4723](https://github.com/matter-labs/zksync-era/issues/4723)) ([d88daa4](https://github.com/matter-labs/zksync-era/commit/d88daa4540cf6089946ad0411c2f9c544d919054))
+* use hashed_keys for extracting storage logs from db ([#4606](https://github.com/matter-labs/zksync-era/issues/4606)) ([5be957e](https://github.com/matter-labs/zksync-era/commit/5be957ea9c68e9868937e133d465bee06a498499))
+
 ## [31.2.0](https://github.com/matter-labs/zksync-era/compare/core-v31.1.0...core-v31.2.0) (2026-07-14)
 
 

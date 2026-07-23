@@ -20,11 +20,6 @@ on:
         description: 'Run tests before release.'
         required: false
         default: false
-      org-owner:
-        type: string
-        description: 'Organization to add as owner of the crates.'
-        required: false
-        default: 'github:matter-labs:crates-io'
 
 
 jobs:
@@ -34,14 +29,15 @@ jobs:
     runs-on: matterlabs-ci-runner-highdisk
     env:
       ZKSYNC_USE_CUDA_STUBS: true
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Publish crates
-        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@3f8620bc332855fd588321f4486ecdbcddee9ec3 # v1
+        uses: matter-labs/zksync-ci-common/.github/actions/publish-crates@c488e5a187bfa5b667ec31061045be3ad7f3245a
         with:
           slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }} # Slack webhook for notifications
-          cargo_registry_token: ${{ secrets.CRATES_IO_TOKEN }} # Crates.io token for publishing
           workspace_path: ${{ inputs.component || 'core' }}
-          org_owner: ${{ inputs.org-owner }}
           run_build: ${{ inputs.run-build }}
           run_tests: ${{ inputs.run-tests }}
           gh_token: ${{ secrets.GITHUB_TOKEN }}
