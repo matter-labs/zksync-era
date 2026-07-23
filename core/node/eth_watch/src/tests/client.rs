@@ -7,6 +7,7 @@ use zksync_contracts::{
 use zksync_eth_client::{ContractCallError, EnrichedClientError, EnrichedClientResult};
 use zksync_types::{
     abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData},
+    address_to_h256,
     api::{ChainAggProof, Log},
     bytecode::BytecodeHash,
     ethabi::{self, Token},
@@ -35,6 +36,8 @@ pub struct FakeEthClientData {
     batch_roots: HashMap<u64, Vec<Log>>,
     chain_roots: HashMap<u64, H256>,
     bytecode_preimages: HashMap<H256, Vec<u8>>,
+    // Keyed by the packed *new* protocol version.
+    protocol_version_verifiers: HashMap<H256, Address>,
 }
 
 impl FakeEthClientData {
@@ -51,6 +54,7 @@ impl FakeEthClientData {
             batch_roots: Default::default(),
             chain_roots: Default::default(),
             bytecode_preimages: Default::default(),
+            protocol_version_verifiers: Default::default(),
         }
     }
 
@@ -128,6 +132,15 @@ impl FakeEthClientData {
                 upgrade,
                 eth_block,
             ));
+    }
+
+    fn add_protocol_version_verifier(
+        &mut self,
+        new_protocol_version: ProtocolSemanticVersion,
+        verifier: Address,
+    ) {
+        self.protocol_version_verifiers
+            .insert(u256_to_h256(new_protocol_version.pack()), verifier);
     }
 
     fn set_last_finalized_block_number(&mut self, number: u64) {
@@ -228,6 +241,17 @@ impl MockEthClient {
             .add_diamond_cut(old_protocol_version, upgrade, eth_block);
     }
 
+    pub async fn add_protocol_version_verifier(
+        &mut self,
+        new_protocol_version: ProtocolSemanticVersion,
+        verifier: Address,
+    ) {
+        self.inner
+            .write()
+            .await
+            .add_protocol_version_verifier(new_protocol_version, verifier);
+    }
+
     pub async fn set_last_finalized_block_number(&mut self, number: u64) {
         self.inner
             .write()
@@ -320,9 +344,10 @@ impl EthClient for MockEthClient {
 
     async fn scheduler_vk_hash(
         &self,
-        _verifier_address: Address,
+        verifier_address: Address,
     ) -> Result<H256, ContractCallError> {
-        Ok(H256::zero())
+        // Derive the hash from the address so that tests can check which verifier was used.
+        Ok(address_to_h256(&verifier_address))
     }
 
     async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
@@ -375,6 +400,20 @@ impl EthClient for MockEthClient {
             ));
         }
         Ok(logs.into_iter().map(|log| log.data.0).next())
+    }
+
+    async fn verifier_address_for_version(
+        &self,
+        _old_version: ProtocolSemanticVersion,
+        new_version: ProtocolSemanticVersion,
+    ) -> EnrichedClientResult<Option<Address>> {
+        Ok(self
+            .inner
+            .read()
+            .await
+            .protocol_version_verifiers
+            .get(&u256_to_h256(new_version.pack()))
+            .copied())
     }
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {

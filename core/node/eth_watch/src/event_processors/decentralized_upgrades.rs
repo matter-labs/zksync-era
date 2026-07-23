@@ -143,8 +143,19 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 )));
             }
 
+            // The verifier for the new protocol version is set on the CTM and emitted via the
+            // `NewProtocolVersionVerifier` event next to the upgrade diamond cut. It takes
+            // precedence over the verifier address in the upgrade data, which may be absent
+            // (e.g. for verifier-only patch upgrades).
+            let verifier_address = self
+                .sl_client
+                .verifier_address_for_version(old_protocol_version, upgrade.version)
+                .await
+                .map_err(EventProcessorError::client)?
+                .or(upgrade.verifier_address);
+
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
-            let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+            let scheduler_vk_hash = if let Some(address) = verifier_address {
                 Some(
                     self.sl_client
                         .scheduler_vk_hash(address)
@@ -156,7 +167,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             };
 
             // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
-            let fflonk_scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+            let fflonk_scheduler_vk_hash = if let Some(address) = verifier_address {
                 self.sl_client
                     .fflonk_scheduler_vk_hash(address)
                     .await
