@@ -16,6 +16,7 @@ use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
     ethabi::{decode, Contract, ParamType},
+    h256_to_address,
     protocol_version::ProtocolSemanticVersion,
     u256_to_h256,
     utils::encode_ntv_asset_id,
@@ -63,6 +64,15 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         &self,
         version: ProtocolSemanticVersion,
     ) -> EnrichedClientResult<Option<Vec<u8>>>;
+
+    /// Returns the verifier address set on CTM for the new protocol version `new_version`.
+    /// It is read from the `NewProtocolVersionVerifier` event, which is emitted in the same block
+    /// as the upgrade diamond cut for `old_version`.
+    async fn verifier_address_for_version(
+        &self,
+        old_version: ProtocolSemanticVersion,
+        new_version: ProtocolSemanticVersion,
+    ) -> EnrichedClientResult<Option<Address>>;
 
     async fn get_published_preimages(
         &self,
@@ -113,6 +123,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     client: Box<DynClient<Net>>,
     diamond_proxy_addr: Address,
     new_upgrade_cut_data_signature: H256,
+    new_protocol_version_verifier_signature: H256,
     bytecode_published_signature: H256,
     bytecode_supplier_addr: Option<Address>,
     wrapped_base_token_store: Option<Address>,
@@ -169,6 +180,11 @@ where
             new_upgrade_cut_data_signature: state_transition_manager_contract()
                 .event("NewUpgradeCutData")
                 .context("NewUpgradeCutData event is missing in ABI")
+                .unwrap()
+                .signature(),
+            new_protocol_version_verifier_signature: state_transition_manager_contract()
+                .event("NewProtocolVersionVerifier")
+                .context("NewProtocolVersionVerifier event is missing in ABI")
                 .unwrap()
                 .signature(),
             bytecode_published_signature: bytecode_supplier_contract()
@@ -506,6 +522,56 @@ where
         }
         Ok(logs.into_iter().map(|log| log.data.0).next())
     }
+
+    async fn verifier_address_for_version(
+        &self,
+        old_version: ProtocolSemanticVersion,
+        new_version: ProtocolSemanticVersion,
+    ) -> EnrichedClientResult<Option<Address>> {
+        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
+            return Ok(None);
+        };
+
+        let Some(from_block) = self
+            .block_for_diamond_cut_for_version(old_version.pack())
+            .await
+            .map_err(|e| {
+                EnrichedClientError::custom(
+                    format!(
+                        "Failed to get block for diamond cut for version {old_version}: err {e}"
+                    ),
+                    "verifier_address_for_version",
+                )
+            })?
+        else {
+            return Ok(None);
+        };
+
+        let logs = self
+            .get_events_inner(
+                from_block.into(),
+                from_block.into(),
+                Some(vec![self.new_protocol_version_verifier_signature]),
+                Some(vec![u256_to_h256(new_version.pack())]),
+                Some(vec![state_transition_manager_address]),
+                RETRY_LIMIT,
+            )
+            .await?;
+
+        // If the verifier was set several times within the block, the last event matches
+        // the current `protocolVersionVerifier` mapping value.
+        let Some(log) = logs.last() else {
+            return Ok(None);
+        };
+        let verifier = log.topics.get(2).ok_or_else(|| {
+            EnrichedClientError::custom(
+                "NewProtocolVersionVerifier event is missing the verifier topic",
+                "verifier_address_for_version",
+            )
+        })?;
+        Ok(Some(h256_to_address(verifier)))
+    }
+
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
         self.client.fetch_chain_id().await
     }

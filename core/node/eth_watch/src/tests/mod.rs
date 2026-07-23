@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
-    abi,
+    abi, address_to_h256,
     aggregated_operations::{AggregatedActionType, L1BatchAggregatedActionType},
     api::ChainAggProof,
     block::L1BatchHeader,
@@ -311,6 +311,54 @@ async fn test_rewritten_upgrade_cut_is_used() {
     let db_versions = storage.protocol_versions_dal().all_versions().await;
     assert_eq!(db_versions.len(), 2);
     assert_eq!(db_versions[1], replacement_version);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_verifier_from_ctm_event_is_used_for_vk_hashes() {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    setup_db(&connection_pool).await;
+    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
+
+    let new_version = ProtocolSemanticVersion {
+        minor: ProtocolVersionId::next(),
+        patch: 0.into(),
+    };
+    let verifier = Address::repeat_byte(0x42);
+
+    let mut storage = connection_pool.connection().await.unwrap();
+    client
+        .add_upgrade_timestamp(&[(
+            ProtocolUpgrade {
+                version: new_version,
+                tx: None,
+                // No verifier in the upgrade data itself: it must be picked up from the
+                // CTM `NewProtocolVersionVerifier` event.
+                ..Default::default()
+            },
+            10,
+        )])
+        .await;
+    client
+        .add_protocol_version_verifier(new_version, verifier)
+        .await;
+    client.set_last_finalized_block_number(15).await;
+    watcher.loop_iteration(&mut storage).await.unwrap();
+
+    let db_versions = storage.protocol_versions_dal().all_versions().await;
+    assert_eq!(db_versions.len(), 2);
+    assert_eq!(db_versions[1], new_version);
+
+    let db_version = storage
+        .protocol_versions_dal()
+        .get_protocol_version_with_latest_patch(new_version.minor)
+        .await
+        .unwrap()
+        .expect("expected the new version to be present in DB");
+    // The mock client derives the VK hash from the verifier address.
+    assert_eq!(
+        db_version.l1_verifier_config.snark_wrapper_vk_hash,
+        address_to_h256(&verifier)
+    );
 }
 
 #[test_log::test(tokio::test)]
