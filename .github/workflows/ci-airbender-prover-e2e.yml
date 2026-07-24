@@ -215,20 +215,6 @@ jobs:
           echo "Using Web3 HTTP URL: $WEB3_HTTP_URL"
           echo "URL=$WEB3_HTTP_URL" >> $GITHUB_ENV
 
-      # Fresh chains take their verifier keys from the contracts genesis config, which doesn't
-      # carry the Airbender SNARK-wrapper VK yet, and the job server only hands out batches to
-      # provers whose key is registered for the batch's protocol version. Read the canonical
-      # hash from the deployed dual verifier (type 2 = Airbender PLONK) and register it.
-      - name: Register the Airbender VK hash for the genesis protocol version
-        env:
-          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_proving_chain
-        run: |
-          export VERIFIER_ADDR=$(yq -e '.l1.verifier_addr' ./chains/proving_chain/configs/contracts.yaml)
-          export L1_RPC_URL=$(yq -e '.l1.l1_rpc_url' ./chains/proving_chain/configs/secrets.yaml)
-          echo "Dual verifier: $VERIFIER_ADDR   L1 RPC: $L1_RPC_URL"
-          PASSED_ENV_VARS="VERIFIER_ADDR,L1_RPC_URL,DATABASE_URL" \
-          ci_run ./bin/prover_checkers/airbender_vk_registrar
-
       # So that all precompile txs below land in batch 1, the batch the prover targets.
       - name: Change block_commit_deadline_ms to 60000 to submit txs to batch 1
         working-directory: ./chains/proving_chain/configs
