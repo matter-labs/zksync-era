@@ -304,11 +304,9 @@ jobs:
           load: true
           platforms: ${{ matrix.platforms }}
           file: docker/${{ matrix.components }}/Dockerfile
-          build-args: |
-            SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
-            SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
-            SCCACHE_GCS_RW_MODE=READ_WRITE
-            RUSTC_WRAPPER=sccache
+          # sccache is intentionally disabled for image builds: shipped artifacts
+          # must be built hermetically and never link objects from the shared
+          # cache, which is writable by other CI contexts.
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
             ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}

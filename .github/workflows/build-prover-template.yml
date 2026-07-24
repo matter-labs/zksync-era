@@ -55,6 +55,8 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
+        with:
+          sccache_mode: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: setup rust
         uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1.11.0
@@ -100,6 +102,8 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
+        with:
+          sccache_mode: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: Set env vars
         shell: bash
@@ -121,14 +125,6 @@ jobs:
         if: ( inputs.is_pr_from_fork == true && matrix.components == 'proof-fri-gpu-compressor' )
         run: ./.github/scripts/rate_limit_check.sh
 
-      - name: Hack to set env vars inside docker container
-        shell: bash
-        run: |
-          sed -i '/^FROM matterlabs\/zksync-build-base:latest as builder/a ENV SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage\nENV SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com\nENV SCCACHE_GCS_RW_MODE=READ_WRITE\nENV RUSTC_WRAPPER=sccache' ./docker/${{ matrix.components }}/Dockerfile
-          #TODO: remove AS version =)
-          sed -i '/^FROM matterlabs\/zksync-build-base:latest AS builder/a ENV SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage\nENV SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com\nENV SCCACHE_GCS_RW_MODE=READ_WRITE\nENV RUSTC_WRAPPER=sccache' ./docker/${{ matrix.components }}/Dockerfile
-          cat ./docker/${{ matrix.components }}/Dockerfile
-
       - name: login to Docker registries
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         shell: bash
@@ -149,12 +145,11 @@ jobs:
         with:
           context: .
           load: true
+          # sccache is intentionally disabled for image builds: shipped artifacts
+          # must be built hermetically and never link objects from the shared
+          # cache, which is writable by other CI contexts.
           build-args: |
             CUDA_ARCH=${{ inputs.CUDA_ARCH }}
-            SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
-            SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
-            SCCACHE_GCS_RW_MODE=READ_WRITE
-            RUSTC_WRAPPER=sccache
             PROTOCOL_VERSION=${{ env.PROTOCOL_VERSION }}
             ERA_BELLMAN_CUDA_RELEASE=${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
           file: docker/${{ matrix.components }}/Dockerfile

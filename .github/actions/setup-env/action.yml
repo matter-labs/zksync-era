@@ -4,11 +4,13 @@ inputs:
   runner-compose-file:
     description: 'Path to the runner compose file'
     default: 'docker-compose.yml'
-  sccache:
-    description: >-
-      Wire sccache to the shared GCS cache and start its servers. Disable on runners that can't
-      reach the GCS backend (e.g. the Hetzner GPU hosts, which lack the GCP metadata service).
-    default: 'true'
+  sccache_mode:
+    description: >
+      sccache access mode for the shared GCS cache. Defaults to READ_ONLY so
+      that untrusted (pull_request / fork) builds can read the warm cache but
+      cannot write to it. Only trusted callers (merge_group / push) should pass
+      READ_WRITE.
+    default: 'READ_ONLY'
 
 runs:
   using: composite
@@ -36,7 +38,7 @@ runs:
         echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
         echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
         echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
-        echo SCCACHE_GCS_RW_MODE=READ_WRITE >> $GITHUB_ENV
+        echo SCCACHE_GCS_RW_MODE=${{ inputs.sccache_mode }} >> $GITHUB_ENV
         echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
 
         # sccache outside docker will run it's own server
@@ -50,7 +52,7 @@ runs:
         echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> .env
         echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> .env
         echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> .env
-        echo SCCACHE_GCS_RW_MODE=READ_WRITE >> .env
+        echo SCCACHE_GCS_RW_MODE=${{ inputs.sccache_mode }} >> .env
         echo RUSTC_WRAPPER=sccache >> .env
 
     # The zk-environment image bakes in RUSTC_WRAPPER=sccache; empty means "no wrapper" to cargo.
@@ -86,7 +88,10 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: zkstack
-        key: zkstack-${{ runner.os }}-${{ hashFiles('zkstack_cli/**', 'contracts/l1-contracts/zkstack-out/**/*.json') }}
+        # Trust-prefix the key so untrusted (READ_ONLY) builds and trusted
+        # (READ_WRITE) builds occupy non-overlapping cache namespaces and can
+        # never restore an entry produced across the trust boundary.
+        key: zkstack-${{ inputs.sccache_mode == 'READ_WRITE' && 'trusted' || 'untrusted' }}-${{ runner.os }}-${{ hashFiles('zkstack_cli/**', 'contracts/l1-contracts/zkstack-out/**/*.json') }}
 
     - name: Copy cached zkstack binary to inside docker (on cache hit)
       if: steps.zkstack_cache.outputs.cache-hit == 'true'
