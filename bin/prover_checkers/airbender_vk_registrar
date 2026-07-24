@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+
+# Registers the Airbender SNARK-wrapper VK hash for every protocol patch in the chain DB.
+#
+# Fresh chains take their verifier keys from the contracts genesis config, which does not
+# carry the Airbender key yet, and the job server only hands out batches to provers whose
+# key is registered for the batch's protocol version. Read the canonical hash from the
+# deployed (dual) verifier — verifier type 2 routes to the Airbender PLONK verifier — and
+# register it, so the key always matches whatever VK the deployed contracts bake in.
+#
+# Configuration
+# L1_RPC_URL    - L1 (reth) JSON-RPC endpoint
+# VERIFIER_ADDR - (Dual) verifier address on L1
+# DATABASE_URL  - The URL of the chain database
+
+echo "cast: $(command -v cast || echo MISSING) ($(cast --version 2>&1 | head -1))"
+
+AIRBENDER_VK_HASH=$(cast call "$VERIFIER_ADDR" "verificationKeyHash(uint256)(bytes32)" 2 --rpc-url "$L1_RPC_URL" | tr -d '[:space:]')
+
+if [[ ! "$AIRBENDER_VK_HASH" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+    echo "Unexpected verificationKeyHash(2) result from $VERIFIER_ADDR: '$AIRBENDER_VK_HASH'"
+    exit 1
+fi
+
+echo "Airbender SNARK-wrapper VK hash on L1: $AIRBENDER_VK_HASH"
+
+psql "$DATABASE_URL" -c "UPDATE protocol_patches SET airbender_snark_wrapper_vk_hash = decode('${AIRBENDER_VK_HASH#0x}', 'hex');"
+
+COUNT=$(psql "$DATABASE_URL" -t -A -c "SELECT count(*) FROM protocol_patches WHERE airbender_snark_wrapper_vk_hash IS NOT NULL")
+echo "Registered the Airbender VK hash for $COUNT protocol patch(es)."

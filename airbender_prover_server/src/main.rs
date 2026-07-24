@@ -170,13 +170,12 @@ fn main() -> Result<()> {
     let dist_dir = cli.guest_dist_dir.clone().unwrap_or_else(default_dist_dir);
     let security = SecurityLevel::default();
 
-    let prover_builder = build_prover(&cli, &dist_dir, security)?;
-
     // The prover identifies itself to job servers by the keccak hash of its SNARK-wrapper VK
     // (the same hash the L1 verifier exposes). The wrapper VK commits to the wrapped guest
     // program, so this one hash pins the whole prover release; the server maps it back to the
     // protocol versions this prover can prove. Loaded in every mode — FRI-only provers report
-    // the same hash, since their FRI proofs are destined for this wrapper.
+    // the same hash, since their FRI proofs are destined for this wrapper. Computed before the
+    // provers are built so a missing/corrupt VK file fails fast, ahead of GPU initialization.
     let snark_wrapper_vk_hash = {
         let snark_vk = load_snark_vk(&cli.snark_vk)?;
         let hash = zkos_wrapper::calculate_verification_key_hash(snark_vk);
@@ -184,6 +183,8 @@ fn main() -> Result<()> {
         format!("{hash:?}")
     };
     info!(snark_wrapper_vk_hash, "Computed SNARK-wrapper VK hash");
+
+    let prover_builder = build_prover(&cli, &dist_dir, security)?;
 
     let poll_interval = Duration::from_millis(cli.poll_interval_ms);
 
