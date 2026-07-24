@@ -552,6 +552,7 @@ mod tests {
             rollup_last_leaf_index: 26,
             snark_wrapper_vk_hash: H256::repeat_byte(0x02),
             fflonk_snark_wrapper_vk_hash: None,
+            airbender_snark_wrapper_vk_hash: None,
             fee_account: Address::zero(),
             genesis_commitment: H256::repeat_byte(0x17),
             bootloader_hash: H256::zero(),
