@@ -23,7 +23,7 @@ use zksync_prover_interface::{
     outputs::L1BatchProofForL1,
 };
 use zksync_types::{
-    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId,
+    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId, H256,
 };
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
@@ -55,10 +55,47 @@ impl AirbenderRequestProcessor {
         }
     }
 
+    /// Checks that at least one protocol patch is registered for the VK the prover carries.
+    /// A prover with an unknown VK gets "no job" (204) rather than an error, so a fleet rolled
+    /// out slightly ahead of the upgrade event keeps polling quietly — but the situation is
+    /// surfaced loudly via a warning and a metric, since a *sustained* stream of unknown-VK
+    /// requests means a misdeployed prover that will never receive work.
+    async fn check_vk_is_known(
+        &self,
+        snark_wrapper_vk_hash: H256,
+        stage: ProofStage,
+    ) -> Result<bool, AirbenderProcessorError> {
+        let known = self
+            .pool
+            .connection_tagged("airbender_request_processor")
+            .await?
+            .protocol_versions_dal()
+            .is_airbender_vk_known(snark_wrapper_vk_hash)
+            .await?;
+        if !known {
+            METRICS.airbender_unknown_vk_requests[&stage].inc();
+            tracing::warn!(
+                snark_wrapper_vk_hash = ?snark_wrapper_vk_hash,
+                ?stage,
+                "Prover requested a job with an Airbender SNARK-wrapper VK hash that no \
+                 protocol patch is registered for; returning no job"
+            );
+        }
+        Ok(known)
+    }
+
     pub(crate) async fn get_proof_generation_data(
         &self,
+        snark_wrapper_vk_hash: H256,
     ) -> Result<Option<AirbenderVerifierInput>, AirbenderProcessorError> {
         tracing::debug!("Received request for proof generation data");
+
+        if !self
+            .check_vk_is_known(snark_wrapper_vk_hash, ProofStage::Fri)
+            .await?
+        {
+            return Ok(None);
+        }
 
         let min_batch_number = self.config.first_processed_batch;
         let max_attempts = self.config.max_attempts;
@@ -75,15 +112,16 @@ impl AirbenderRequestProcessor {
 
             // Record the protocol version the batch is proved under at lock time, so `submit_proof`
             // and the SNARK step reuse the exact same version (and blob key) instead of recomputing
-            // it. The version is the batch's own minor version with the latest known patch for that
-            // minor (chosen inside the lock query), so a batch is proven under the protocol it
-            // executed with — not the globally latest version.
+            // it. The version is the batch's own minor version with the highest patch registered
+            // for the prover's VK (chosen inside the lock query), so a batch is proven under the
+            // protocol it executed with, by a prover that holds the right key.
             let Some(locked_batch) = transaction
                 .airbender_proof_generation_dal()
                 .lock_batch_for_proving(
                     self.config.proof_generation_timeout,
                     min_batch_number,
                     self.config.max_proving_attempts,
+                    snark_wrapper_vk_hash,
                 )
                 .await?
             else {
@@ -450,8 +488,16 @@ impl AirbenderRequestProcessor {
 
     pub(crate) async fn get_snark_inputs(
         &self,
+        snark_wrapper_vk_hash: H256,
     ) -> Result<Option<AirbenderSnarkInputsResponse>, AirbenderProcessorError> {
         tracing::debug!("Received request for SNARK inputs");
+
+        if !self
+            .check_vk_is_known(snark_wrapper_vk_hash, ProofStage::Snark)
+            .await?
+        {
+            return Ok(None);
+        }
 
         let min_batch_number = self.config.first_processed_batch;
         let max_attempts = self.config.max_attempts;
@@ -472,6 +518,7 @@ impl AirbenderRequestProcessor {
                     self.config.snark_generation_timeout,
                     min_batch_number,
                     self.config.max_proving_attempts,
+                    snark_wrapper_vk_hash,
                 )
                 .await?
             else {

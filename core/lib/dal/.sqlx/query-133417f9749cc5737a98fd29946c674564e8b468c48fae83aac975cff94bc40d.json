@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                EXISTS(\n                    SELECT 1\n                    FROM protocol_patches\n                    WHERE airbender_snark_wrapper_vk_hash = $1\n                ) AS \"known!\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "known!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "133417f9749cc5737a98fd29946c674564e8b468c48fae83aac975cff94bc40d"
+}

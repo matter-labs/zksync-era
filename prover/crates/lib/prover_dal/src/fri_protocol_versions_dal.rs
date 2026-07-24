@@ -73,6 +73,8 @@ impl FriProtocolVersionsDal<'_, '_> {
                 .fflonk_snark_wrapper_vk_hash
                 .as_ref()
                 .map(|x| H256::from_slice(x)),
+            // Airbender keys aren't tracked in the Boojum prover DB.
+            airbender_snark_wrapper_vk_hash: None,
         })
     }
 
@@ -99,6 +101,8 @@ impl FriProtocolVersionsDal<'_, '_> {
                 .fflonk_snark_wrapper_vk_hash
                 .as_ref()
                 .map(|x| H256::from_slice(x)),
+            // Airbender keys aren't tracked in the Boojum prover DB.
+            airbender_snark_wrapper_vk_hash: None,
         })
     }
 

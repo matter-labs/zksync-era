@@ -781,18 +781,34 @@ impl Aggregator {
             .unwrap()
             .unwrap();
 
-        // `l1_verifier_config.recursion_scheduler_level_vk_hash` is a VK hash that L1 uses.
-        // We may have multiple versions with different verification keys, so we check only for proofs that use
-        // keys that correspond to one on L1.
-        let allowed_patch_versions = storage
-            .protocol_versions_dal()
-            .get_patch_versions_for_vk(minor_version, l1_verifier_config.snark_wrapper_vk_hash)
-            .await
-            .unwrap();
+        // We may have multiple versions with different verification keys, so we check only for
+        // proofs that use keys that correspond to one on L1 — the Boojum plonk VK hash for Boojum
+        // proofs, the Airbender SNARK-wrapper VK hash for Airbender proofs.
+        let allowed_patch_versions = match prover {
+            ProverType::Boojum => storage
+                .protocol_versions_dal()
+                .get_patch_versions_for_vk(minor_version, l1_verifier_config.snark_wrapper_vk_hash)
+                .await
+                .unwrap(),
+            ProverType::Airbender => {
+                let Some(airbender_vk_hash) = l1_verifier_config.airbender_snark_wrapper_vk_hash
+                else {
+                    tracing::warn!(
+                        "The L1 verifier does not expose an Airbender SNARK-wrapper VK; \
+                         cannot submit Airbender proofs"
+                    );
+                    return None;
+                };
+                storage
+                    .protocol_versions_dal()
+                    .get_patch_versions_for_airbender_vk(minor_version, airbender_vk_hash)
+                    .await
+                    .unwrap()
+            }
+        };
         if allowed_patch_versions.is_empty() {
             tracing::warn!(
-                "No patch version corresponds to the verification key on L1: {:?}",
-                l1_verifier_config.snark_wrapper_vk_hash
+                "No patch version corresponds to the verification key on L1 (prover: {prover:?})",
             );
             return None;
         };

@@ -11,7 +11,7 @@ use axum::{
 };
 use tokio::sync::watch;
 use zksync_airbender_prover_interface::api::{
-    AirbenderProofGenerationDataResponse, SubmitAirbenderProofRequest,
+    AirbenderJobRequest, AirbenderProofGenerationDataResponse, SubmitAirbenderProofRequest,
     SubmitAirbenderSnarkProofRequest,
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
@@ -65,15 +65,22 @@ fn create_proof_processing_router(
     Router::new()
         .route(
             "/airbender/proof_inputs",
-            post(|State(proc): State<AirbenderRequestProcessor>| async move {
-                match proc.get_proof_generation_data().await {
-                    Ok(Some(data)) => {
-                        Json(AirbenderProofGenerationDataResponse(Box::new(data))).into_response()
+            post(
+                |State(proc): State<AirbenderRequestProcessor>,
+                 Json(request): Json<AirbenderJobRequest>| async move {
+                    match proc
+                        .get_proof_generation_data(request.snark_wrapper_vk_hash)
+                        .await
+                    {
+                        Ok(Some(data)) => {
+                            Json(AirbenderProofGenerationDataResponse(Box::new(data)))
+                                .into_response()
+                        }
+                        Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                        Err(e) => e.into_response(),
                     }
-                    Ok(None) => StatusCode::NO_CONTENT.into_response(),
-                    Err(e) => e.into_response(),
-                }
-            }),
+                },
+            ),
         )
         .route(
             "/airbender/proof_inputs_no_lock/{batch}",
@@ -110,13 +117,16 @@ fn create_proof_processing_router(
         )
         .route(
             "/airbender/snark_inputs",
-            post(|State(proc): State<AirbenderRequestProcessor>| async move {
-                match proc.get_snark_inputs().await {
-                    Ok(Some(data)) => Json(data).into_response(),
-                    Ok(None) => StatusCode::NO_CONTENT.into_response(),
-                    Err(e) => e.into_response(),
-                }
-            }),
+            post(
+                |State(proc): State<AirbenderRequestProcessor>,
+                 Json(request): Json<AirbenderJobRequest>| async move {
+                    match proc.get_snark_inputs(request.snark_wrapper_vk_hash).await {
+                        Ok(Some(data)) => Json(data).into_response(),
+                        Ok(None) => StatusCode::NO_CONTENT.into_response(),
+                        Err(e) => e.into_response(),
+                    }
+                },
+            ),
         )
         .route(
             "/airbender/submit_snark_proofs",

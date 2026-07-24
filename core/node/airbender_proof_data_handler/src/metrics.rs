@@ -53,6 +53,11 @@ pub(crate) struct AirbenderProofDataHandlerMetrics {
     /// Errors surfaced by the request processor, split by kind.
     #[metrics(labels = ["kind"])]
     pub airbender_processor_errors: LabeledFamily<ProcessorErrorKind, Counter>,
+    /// Job requests from provers carrying an Airbender SNARK-wrapper VK hash that no protocol
+    /// patch is registered for. A non-zero rate right after an upgrade is expected (the upgrade
+    /// event may not be processed yet); a sustained rate means a misdeployed prover.
+    #[metrics(labels = ["stage"])]
+    pub airbender_unknown_vk_requests: LabeledFamily<ProofStage, Counter>,
 }
 
 #[vise::register]

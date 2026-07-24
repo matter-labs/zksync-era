@@ -23,6 +23,8 @@ pub struct L1VerifierConfig {
     )]
     pub snark_wrapper_vk_hash: String,
     pub fflonk_snark_wrapper_vk_hash: Option<String>,
+    #[serde(default)]
+    pub airbender_snark_wrapper_vk_hash: Option<String>,
 }
 
 #[derive(Debug)]
@@ -105,6 +107,10 @@ impl GenesisConfigPatch {
             if let Some(fflonk_vk_hash) = l1_verifier.fflonk_snark_wrapper_vk_hash {
                 self.0
                     .insert("prover.fflonk_snark_wrapper_vk_hash", fflonk_vk_hash)?;
+            }
+            if let Some(airbender_vk_hash) = l1_verifier.airbender_snark_wrapper_vk_hash {
+                self.0
+                    .insert("prover.airbender_snark_wrapper_vk_hash", airbender_vk_hash)?;
             }
         }
         Ok(())

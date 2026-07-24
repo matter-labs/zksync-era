@@ -9,7 +9,7 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber, H256};
 
 use crate::{
     models::{
@@ -63,19 +63,22 @@ pub struct LockedBatch {
 }
 
 impl AirbenderProofGenerationDal<'_, '_> {
-    /// Locks the oldest provable batch for Airbender FRI proving.
+    /// Locks the oldest provable batch for Airbender FRI proving that the requesting prover can
+    /// actually prove, identified by the Airbender SNARK-wrapper VK hash the prover carries.
     ///
     /// On the first lock of a batch (Step 2), the protocol version recorded for proving is the
-    /// batch's own minor version (`l1_batches.protocol_version`) combined with the latest patch
-    /// known for that minor in `protocol_patches`. This is deliberately *not* the globally latest
-    /// version: a batch must be proven under the protocol it was executed with, only picking up
-    /// the newest patch (e.g. an updated verification key) for that minor. Reclaimed batches
-    /// (Step 1) keep the version recorded when they were first locked.
+    /// batch's own minor version (`l1_batches.protocol_version`) combined with the highest patch
+    /// of that minor whose `airbender_snark_wrapper_vk_hash` matches the prover's key. A batch is
+    /// only eligible if such a patch exists, so a prover never receives a job it holds the wrong
+    /// key for; conversely, a key registered for several minors makes batches of all those minors
+    /// eligible. Reclaimed batches (Step 1) keep the version recorded when they were first locked
+    /// and are only handed to provers whose key matches that recorded patch row.
     pub async fn lock_batch_for_proving(
         &mut self,
         processing_timeout: Duration,
         min_batch_number: L1BatchNumber,
         max_attempts: u32,
+        airbender_vk_hash: H256,
     ) -> DalResult<Option<LockedBatch>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
@@ -86,7 +89,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
         // Step 1: Try to reclaim a timed-out or failed batch (row already exists). A batch is only
         // reclaimable while it has retries left (`attempts < max_attempts`); each reclaim bumps
         // `attempts`, so a batch that keeps failing eventually stays in `failed` for good instead
-        // of being retried forever.
+        // of being retried forever. Only batches whose recorded proving version carries the
+        // requesting prover's VK are handed out — the recorded version determines the blob key and
+        // the key the L1 proof is verified against, so it must match the prover doing the retry.
         // FOR UPDATE SKIP LOCKED ensures parallel provers don't pick the same row.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
@@ -115,6 +120,13 @@ impl AirbenderProofGenerationDal<'_, '_> {
                                 AND apgd.prover_taken_at < NOW() - $4::INTERVAL
                             )
                         )
+                        AND EXISTS (
+                            SELECT 1 FROM protocol_patches pp
+                            WHERE
+                                pp.minor = apgd.protocol_version
+                                AND pp.patch = apgd.protocol_version_patch
+                                AND pp.airbender_snark_wrapper_vk_hash = $6
+                        )
                     ORDER BY apgd.l1_batch_number ASC
                     LIMIT 1
                     FOR UPDATE OF apgd SKIP LOCKED
@@ -129,11 +141,13 @@ impl AirbenderProofGenerationDal<'_, '_> {
             min_batch_number,
             processing_timeout,
             max_attempts,
+            airbender_vk_hash.as_bytes(),
         )
         .instrument("lock_batch_for_proving#reclaim")
         .with_arg("processing_timeout", &processing_timeout)
         .with_arg("min_batch_number", &min_batch_number)
         .with_arg("max_attempts", &max_attempts)
+        .with_arg("airbender_vk_hash", &airbender_vk_hash)
         .fetch_optional(self.storage)
         .await?
         .map(Into::into);
@@ -143,11 +157,11 @@ impl AirbenderProofGenerationDal<'_, '_> {
         }
 
         // Step 2: No reclaimable row — try to claim a new batch.
-        // The recorded version is the batch's own minor version with the latest patch known for
-        // that minor, so the batch is proven under the protocol it executed with (newest patch
-        // only). Batches whose minor has no patch in `protocol_patches` are skipped — the proving
-        // version is unknown, and `protocol_version_patch` is NOT NULL so an empty patch can't be
-        // inserted anyway.
+        // The recorded version is the batch's own minor version with the highest patch of that
+        // minor registered for the prover's VK, so the batch is proven under the protocol it
+        // executed with, by a prover holding the right key. Batches whose minor has no patch with
+        // this VK in `protocol_patches` are skipped — either the proving version is unknown or it
+        // belongs to a different prover generation.
         // ON CONFLICT DO NOTHING: if two provers race, one wins and the other gets nothing.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
@@ -167,7 +181,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 (
                     SELECT pp.patch
                     FROM protocol_patches pp
-                    WHERE pp.minor = l.protocol_version
+                    WHERE
+                        pp.minor = l.protocol_version
+                        AND pp.airbender_snark_wrapper_vk_hash = $3
                     ORDER BY pp.patch DESC
                     LIMIT 1
                 )
@@ -180,7 +196,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 AND l.protocol_version IS NOT NULL
                 AND EXISTS (
                     SELECT 1 FROM protocol_patches pp
-                    WHERE pp.minor = l.protocol_version
+                    WHERE
+                        pp.minor = l.protocol_version
+                        AND pp.airbender_snark_wrapper_vk_hash = $3
                 )
                 AND NOT EXISTS (
                     SELECT 1 FROM airbender_proof_generation_details a
@@ -196,9 +214,11 @@ impl AirbenderProofGenerationDal<'_, '_> {
             "#,
             picked,
             min_batch_number,
+            airbender_vk_hash.as_bytes(),
         )
         .instrument("lock_batch_for_proving#new")
         .with_arg("min_batch_number", &min_batch_number)
+        .with_arg("airbender_vk_hash", &airbender_vk_hash)
         .fetch_optional(self.storage)
         .await?
         .map(Into::into);
@@ -326,12 +346,15 @@ impl AirbenderProofGenerationDal<'_, '_> {
 
     /// Lock a batch for SNARK wrapping. Picks the oldest batch whose FRI proof has been
     /// submitted (`status = 'generated'`), or reclaims a `picked_for_snark` batch whose
-    /// `snark_taken_at` exceeded `processing_timeout`.
+    /// `snark_taken_at` exceeded `processing_timeout`. Only batches whose recorded proving
+    /// version carries the requesting prover's Airbender SNARK-wrapper VK are handed out — the
+    /// wrapper proof must verify against the key registered for that protocol version on L1.
     pub async fn lock_batch_for_snark(
         &mut self,
         processing_timeout: Duration,
         min_batch_number: L1BatchNumber,
         max_attempts: u32,
+        airbender_vk_hash: H256,
     ) -> DalResult<Option<LockedBatch>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
@@ -366,6 +389,13 @@ impl AirbenderProofGenerationDal<'_, '_> {
                                 AND apgd.snark_taken_at < NOW() - $4::INTERVAL
                             )
                         )
+                        AND EXISTS (
+                            SELECT 1 FROM protocol_patches pp
+                            WHERE
+                                pp.minor = apgd.protocol_version
+                                AND pp.patch = apgd.protocol_version_patch
+                                AND pp.airbender_snark_wrapper_vk_hash = $6
+                        )
                     ORDER BY apgd.l1_batch_number ASC
                     LIMIT 1
                     FOR UPDATE OF apgd SKIP LOCKED
@@ -380,11 +410,13 @@ impl AirbenderProofGenerationDal<'_, '_> {
             min_batch_number,
             processing_timeout,
             max_attempts,
+            airbender_vk_hash.as_bytes(),
         )
         .instrument("lock_batch_for_snark")
         .with_arg("processing_timeout", &processing_timeout)
         .with_arg("min_batch_number", &min_batch_number)
         .with_arg("max_attempts", &max_attempts)
+        .with_arg("airbender_vk_hash", &airbender_vk_hash)
         .fetch_optional(self.storage)
         .await?
         .map(Into::into);
@@ -766,7 +798,19 @@ mod tests {
     use super::*;
     use crate::{ConnectionPool, CoreDal};
 
+    /// The Airbender SNARK-wrapper VK hash the test prover identifies itself with.
+    const PROVER_VK: H256 = H256::repeat_byte(0xab);
+
     async fn save_patch(conn: &mut Connection<'_, Core>, minor: ProtocolVersionId, patch: u32) {
+        save_patch_with_vk(conn, minor, patch, Some(PROVER_VK)).await;
+    }
+
+    async fn save_patch_with_vk(
+        conn: &mut Connection<'_, Core>,
+        minor: ProtocolVersionId,
+        patch: u32,
+        airbender_vk: Option<H256>,
+    ) {
         conn.protocol_versions_dal()
             .save_protocol_version(
                 ProtocolSemanticVersion {
@@ -774,7 +818,10 @@ mod tests {
                     patch: VersionPatch(patch),
                 },
                 0,
-                L1VerifierConfig::default(),
+                L1VerifierConfig {
+                    airbender_snark_wrapper_vk_hash: airbender_vk,
+                    ..L1VerifierConfig::default()
+                },
                 BaseSystemContractsHashes::default(),
                 None,
             )
@@ -833,7 +880,7 @@ mod tests {
 
         let locked = conn
             .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10)
+            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK)
             .await
             .unwrap()
             .expect("batch should be lockable");
@@ -864,7 +911,7 @@ mod tests {
 
         let first = conn
             .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10)
+            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK)
             .await
             .unwrap()
             .expect("batch should be lockable");
@@ -875,7 +922,7 @@ mod tests {
         // Zero timeout makes the picked batch immediately reclaimable.
         let reclaimed = conn
             .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), 10)
+            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), 10, PROVER_VK)
             .await
             .unwrap()
             .expect("batch should be reclaimable");
@@ -903,7 +950,7 @@ mod tests {
         for _ in 0..max_attempts {
             let mut dal = conn.airbender_proof_generation_dal();
             let locked = dal
-                .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), max_attempts)
+                .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), max_attempts, PROVER_VK)
                 .await
                 .unwrap()
                 .expect("batch should be lockable while attempts remain");
@@ -916,12 +963,187 @@ mod tests {
         // The batch has now been picked `max_attempts` times — it must no longer be reclaimable.
         let exhausted = conn
             .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), max_attempts)
+            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), max_attempts, PROVER_VK)
             .await
             .unwrap();
         assert!(
             exhausted.is_none(),
             "batch should not be reclaimed after exhausting attempts"
         );
+    }
+
+    /// A prover carrying a VK that is not registered for the batch's minor version must not
+    /// receive the batch at all.
+    #[tokio::test]
+    async fn lock_skips_batches_without_matching_vk() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let batch_minor = ProtocolVersionId::latest();
+        save_patch(&mut conn, batch_minor, 0).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
+
+        let wrong_key = H256::repeat_byte(0xcd);
+        let locked = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, wrong_key)
+            .await
+            .unwrap();
+        assert!(
+            locked.is_none(),
+            "batch must not be handed to a prover with an unknown VK"
+        );
+
+        // The right key still gets the batch.
+        let locked = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK)
+            .await
+            .unwrap();
+        assert!(locked.is_some());
+    }
+
+    /// The recorded patch must be the highest patch registered for the *prover's* VK — a newer
+    /// patch carrying a different (e.g. next prover generation's) VK must be ignored.
+    #[tokio::test]
+    async fn lock_records_highest_patch_for_the_provers_vk() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let batch_minor = ProtocolVersionId::latest();
+        let next_gen_vk = H256::repeat_byte(0xcd);
+        save_patch(&mut conn, batch_minor, 0).await;
+        save_patch(&mut conn, batch_minor, 3).await;
+        // A newer patch rotates to a different Airbender VK.
+        save_patch_with_vk(&mut conn, batch_minor, 5, Some(next_gen_vk)).await;
+
+        insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
+
+        let locked = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK)
+            .await
+            .unwrap()
+            .expect("batch should be lockable");
+        assert_eq!(
+            locked.protocol_version,
+            ProtocolSemanticVersion {
+                minor: batch_minor,
+                patch: VersionPatch(3),
+            }
+        );
+    }
+
+    /// One VK registered for two minor versions makes batches of both minors lockable by the same
+    /// prover.
+    #[tokio::test]
+    async fn one_vk_unlocks_batches_of_all_its_minors() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let old_minor = ProtocolVersionId::Version30;
+        let new_minor = ProtocolVersionId::latest();
+        save_patch(&mut conn, old_minor, 2).await;
+        save_patch(&mut conn, new_minor, 0).await;
+
+        insert_provable_batch(&mut conn, L1BatchNumber(1), old_minor).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(2), new_minor).await;
+
+        // Note: not `Duration::MAX` — `pg_interval_from_duration` wraps it to a bogus (possibly
+        // negative) interval, which would make the first lock immediately "reclaimable".
+        let timeout = Duration::from_secs(600);
+        let first = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(timeout, L1BatchNumber(0), 10, PROVER_VK)
+            .await
+            .unwrap()
+            .expect("old-minor batch should be lockable");
+        assert_eq!(first.l1_batch_number, L1BatchNumber(1));
+        assert_eq!(first.protocol_version.minor, old_minor);
+
+        let second = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(timeout, L1BatchNumber(0), 10, PROVER_VK)
+            .await
+            .unwrap()
+            .expect("new-minor batch should be lockable by the same key");
+        assert_eq!(second.l1_batch_number, L1BatchNumber(2));
+        assert_eq!(second.protocol_version.minor, new_minor);
+    }
+
+    /// A timed-out batch must only be reclaimed by a prover whose VK matches the version recorded
+    /// at first lock — the recorded version drives the blob key and the L1 verification key.
+    #[tokio::test]
+    async fn reclaim_requires_matching_vk() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let batch_minor = ProtocolVersionId::latest();
+        save_patch(&mut conn, batch_minor, 0).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
+
+        conn.airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), 10, PROVER_VK)
+            .await
+            .unwrap()
+            .expect("batch should be lockable");
+
+        let wrong_key = H256::repeat_byte(0xcd);
+        let reclaimed = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), 10, wrong_key)
+            .await
+            .unwrap();
+        assert!(
+            reclaimed.is_none(),
+            "a prover with a different VK must not reclaim the job"
+        );
+
+        let reclaimed = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), 10, PROVER_VK)
+            .await
+            .unwrap();
+        assert!(reclaimed.is_some());
+    }
+
+    /// SNARK wrapping jobs are gated by the same VK: the wrapper proof must verify against the
+    /// key registered for the batch's recorded protocol version.
+    #[tokio::test]
+    async fn snark_lock_requires_matching_vk() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let batch_minor = ProtocolVersionId::latest();
+        save_patch(&mut conn, batch_minor, 0).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
+
+        conn.airbender_proof_generation_dal()
+            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK)
+            .await
+            .unwrap()
+            .expect("batch should be lockable");
+        conn.airbender_proof_generation_dal()
+            .save_proof_artifacts_metadata(L1BatchNumber(1), "proof_blob", "prover-1")
+            .await
+            .unwrap();
+
+        let wrong_key = H256::repeat_byte(0xcd);
+        let locked = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_snark(Duration::MAX, L1BatchNumber(0), 10, wrong_key)
+            .await
+            .unwrap();
+        assert!(
+            locked.is_none(),
+            "SNARK job must not be handed to a prover with a different VK"
+        );
+
+        let locked = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_snark(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK)
+            .await
+            .unwrap();
+        assert!(locked.is_some());
     }
 }

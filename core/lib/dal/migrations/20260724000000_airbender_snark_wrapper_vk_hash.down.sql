@@ -1,0 +1,2 @@
+ALTER TABLE protocol_patches
+DROP COLUMN airbender_snark_wrapper_vk_hash;

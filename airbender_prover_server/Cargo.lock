@@ -1707,6 +1707,7 @@ dependencies = [
  "serde_with",
  "tokio",
  "tracing",
+ "zkos-wrapper",
  "zksync_airbender_verifier",
  "zksync_cli_utils 0.1.1",
  "zksync_prover_metrics",

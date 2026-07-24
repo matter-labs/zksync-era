@@ -29,6 +29,9 @@ use zksync_web3_decl::{
 };
 
 const FFLONK_VERIFIER_TYPE: i32 = 0;
+/// Verifier type routed to the Airbender PLONK verifier by the dual verifier contract
+/// (see `EraDualVerifier.sol`: 0 = FFLONK, 1 = PLONK, 2 = Airbender PLONK).
+const AIRBENDER_PLONK_VERIFIER_TYPE: i32 = 2;
 
 /// Common L1 and L2 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]
@@ -54,6 +57,12 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     async fn scheduler_vk_hash(&self, verifier_address: Address)
         -> Result<H256, ContractCallError>;
     async fn fflonk_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError>;
+    /// Returns the Airbender SNARK-wrapper verification key hash by verifier address, or `None`
+    /// if the verifier does not (yet) route an Airbender verifier.
+    async fn airbender_scheduler_vk_hash(
         &self,
         verifier_address: Address,
     ) -> Result<Option<H256>, ContractCallError>;
@@ -459,6 +468,33 @@ where
                     .await
                     .ok(),
             )
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn airbender_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError> {
+        // Same overloaded `verificationKeyHash(uint256)` as for FFLONK, routed to the Airbender
+        // PLONK verifier. Older verifiers without an Airbender route revert, which surfaces as
+        // `None` here.
+        let function = self
+            .verifier_contract_abi
+            .functions_by_name("verificationKeyHash")
+            .map_err(ContractCallError::Function)?
+            .get(1);
+
+        if let Some(function) = function {
+            Ok(CallFunctionArgs::new(
+                "verificationKeyHash",
+                U256::from(AIRBENDER_PLONK_VERIFIER_TYPE),
+            )
+            .for_contract(verifier_address, &self.verifier_contract_abi)
+            .call_with_function(&self.client, function.clone())
+            .await
+            .ok())
         } else {
             Ok(None)
         }

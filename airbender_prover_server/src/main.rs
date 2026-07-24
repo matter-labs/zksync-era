@@ -172,6 +172,19 @@ fn main() -> Result<()> {
 
     let prover_builder = build_prover(&cli, &dist_dir, security)?;
 
+    // The prover identifies itself to job servers by the keccak hash of its SNARK-wrapper VK
+    // (the same hash the L1 verifier exposes). The wrapper VK commits to the wrapped guest
+    // program, so this one hash pins the whole prover release; the server maps it back to the
+    // protocol versions this prover can prove. Loaded in every mode — FRI-only provers report
+    // the same hash, since their FRI proofs are destined for this wrapper.
+    let snark_wrapper_vk_hash = {
+        let snark_vk = load_snark_vk(&cli.snark_vk)?;
+        let hash = zkos_wrapper::calculate_verification_key_hash(snark_vk);
+        // `Debug` on `H256` prints the full 0x-prefixed hex (`Display` truncates).
+        format!("{hash:?}")
+    };
+    info!(snark_wrapper_vk_hash, "Computed SNARK-wrapper VK hash");
+
     let poll_interval = Duration::from_millis(cli.poll_interval_ms);
 
     // Channel capacity 1: the job worker can buffer one job ahead while the prover is busy.
@@ -224,6 +237,7 @@ fn main() -> Result<()> {
             JobServerClient::new(
                 server_index,
                 cli.prover_id.clone(),
+                snark_wrapper_vk_hash.clone(),
                 cli.submit_attempts,
                 server_url.clone(),
                 Duration::from_millis(cli.http_connect_timeout_ms),

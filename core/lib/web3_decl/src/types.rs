@@ -438,6 +438,9 @@ pub struct GenesisConfigDto {
     )]
     pub snark_wrapper_vk_hash: H256,
     pub fflonk_snark_wrapper_vk_hash: Option<H256>,
+    /// `default` so an external node parses responses from main nodes that predate the field.
+    #[serde(default)]
+    pub airbender_snark_wrapper_vk_hash: Option<H256>,
     pub fee_account: Address,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,

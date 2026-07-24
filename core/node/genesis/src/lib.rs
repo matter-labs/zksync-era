@@ -158,6 +158,9 @@ impl From<GenesisParams> for GenesisParamsInitials {
                 prover: L1VerifierConfig {
                     snark_wrapper_vk_hash: genesis_state.config.snark_wrapper_vk_hash,
                     fflonk_snark_wrapper_vk_hash: genesis_state.config.fflonk_snark_wrapper_vk_hash,
+                    airbender_snark_wrapper_vk_hash: genesis_state
+                        .config
+                        .airbender_snark_wrapper_vk_hash,
                 },
             },
             l1_chain_id: genesis_state.config.l1_chain_id,
@@ -262,6 +265,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         l2_chain_id: L2ChainId::default(),
         snark_wrapper_vk_hash: first_l1_verifier_config.snark_wrapper_vk_hash,
         fflonk_snark_wrapper_vk_hash: first_l1_verifier_config.fflonk_snark_wrapper_vk_hash,
+        airbender_snark_wrapper_vk_hash: first_l1_verifier_config.airbender_snark_wrapper_vk_hash,
         fee_account: Default::default(),
         dummy_verifier: false,
         l1_batch_commit_data_generator_mode: Default::default(),
