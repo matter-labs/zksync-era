@@ -58,10 +58,11 @@ pub(crate) struct AirbenderProofDataHandlerMetrics {
     /// event may not be processed yet); a sustained rate means a misdeployed prover.
     #[metrics(labels = ["stage"])]
     pub airbender_unknown_vk_requests: LabeledFamily<ProofStage, Counter>,
-    /// FRI job requests from a prover generation that has been superseded — batches are already
-    /// being proven at a newer protocol version, so it will never receive new work. Expected during
-    /// a rollout; a sustained rate means old pods are still running for no reason.
-    pub airbender_superseded_generation_requests: Counter,
+    /// Job requests from a prover generation that has been superseded — batches are already being
+    /// proven at a newer protocol version, so it will never receive new work. Expected during a
+    /// rollout; a sustained rate means old pods are still running for no reason.
+    #[metrics(labels = ["stage"])]
+    pub airbender_superseded_generation_requests: LabeledFamily<ProofStage, Counter>,
 }
 
 #[vise::register]

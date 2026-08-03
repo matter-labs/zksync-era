@@ -62,6 +62,20 @@ pub struct LockedBatch {
     pub created_at: DateTime<Utc>,
 }
 
+/// Why a prover received no job, as reported by
+/// [`AirbenderProofGenerationDal::diagnose_prover_key`].
+#[derive(Debug, Clone, Copy)]
+pub struct ProverKeyDiagnosis {
+    /// Whether any protocol patch is registered for the prover's key at all. `false` means the
+    /// prover is either misdeployed or running ahead of the upgrade that registers its key.
+    pub key_is_registered: bool,
+    /// Whether a batch has already been claimed at a version newer than any this key is registered
+    /// for. Since recorded versions never decrease (see
+    /// [`AirbenderProofGenerationDal::lock_batch_for_proving`]), such a prover will never be handed
+    /// new work again and can be retired once its in-flight batches are done.
+    pub superseded: bool,
+}
+
 impl AirbenderProofGenerationDal<'_, '_> {
     /// Locks the lowest unclaimed batch for Airbender FRI proving, if the requesting prover can
     /// prove it. A prover is identified by the Airbender SNARK-wrapper VK hash it carries, and the
@@ -266,14 +280,14 @@ impl AirbenderProofGenerationDal<'_, '_> {
         Ok(locked_batch)
     }
 
-    /// Whether the given prover key has been superseded: a batch has already been claimed at a
-    /// version newer than any this key is registered for. Since recorded versions never decrease
-    /// (see [`Self::lock_batch_for_proving`]), such a prover will never be handed new work again.
-    /// Lets an operator tell that apart from an idle queue — both look like endless empty polls.
-    pub async fn is_prover_generation_superseded(
+    /// Explains why a prover carrying `airbender_vk_hash` was handed no job, so that an operator can
+    /// tell a misdeployed or obsolete prover apart from an idle queue — all three look like an
+    /// endless stream of empty polls. Answers both questions in one round trip because it is only
+    /// consulted after a claim came up empty.
+    pub async fn diagnose_prover_key(
         &mut self,
         airbender_vk_hash: H256,
-    ) -> DalResult<bool> {
+    ) -> DalResult<ProverKeyDiagnosis> {
         let row = sqlx::query!(
             r#"
             WITH
@@ -307,6 +321,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
             )
 
             SELECT
+                EXISTS (SELECT 1 FROM prover_best) AS "key_is_registered!",
                 EXISTS (
                     SELECT
                         1
@@ -319,11 +334,14 @@ impl AirbenderProofGenerationDal<'_, '_> {
             "#,
             airbender_vk_hash.as_bytes()
         )
-        .instrument("is_prover_generation_superseded")
+        .instrument("diagnose_prover_key")
         .with_arg("airbender_vk_hash", &airbender_vk_hash)
         .fetch_one(self.storage)
         .await?;
-        Ok(row.superseded)
+        Ok(ProverKeyDiagnosis {
+            key_is_registered: row.key_is_registered,
+            superseded: row.superseded,
+        })
     }
 
     pub async fn unlock_batch(
@@ -1563,6 +1581,58 @@ mod tests {
             .expect("old generation must still SNARK-wrap its own batch");
         assert_eq!(snark.l1_batch_number, L1BatchNumber(10));
         assert_eq!(snark.protocol_version.patch, VersionPatch(1));
+    }
+
+    /// The diagnosis behind an empty poll must distinguish an unregistered key, a superseded
+    /// generation, and a simply idle queue.
+    #[tokio::test]
+    async fn diagnose_prover_key_reports_why_there_is_no_work() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
+        save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
+
+        // A key nothing is registered for.
+        let unknown = conn
+            .airbender_proof_generation_dal()
+            .diagnose_prover_key(H256::repeat_byte(0x99))
+            .await
+            .unwrap();
+        assert!(!unknown.key_is_registered);
+        assert!(!unknown.superseded);
+
+        // Registered keys, with nothing claimed yet: the queue is simply idle.
+        for vk in [PROVER_VK, NEXT_GEN_VK] {
+            let idle = conn
+                .airbender_proof_generation_dal()
+                .diagnose_prover_key(vk)
+                .await
+                .unwrap();
+            assert!(idle.key_is_registered);
+            assert!(!idle.superseded, "nothing is claimed yet");
+        }
+
+        // Once a batch is claimed at v31.2, the v31.1 generation is superseded but the v31.2 one
+        // is not.
+        insert_provable_batch(&mut conn, L1BatchNumber(10), minor).await;
+        lock_for(&mut conn, NEXT_GEN_VK, NO_RECLAIM).await.unwrap();
+
+        let old_gen = conn
+            .airbender_proof_generation_dal()
+            .diagnose_prover_key(PROVER_VK)
+            .await
+            .unwrap();
+        assert!(old_gen.key_is_registered);
+        assert!(old_gen.superseded);
+
+        let new_gen = conn
+            .airbender_proof_generation_dal()
+            .diagnose_prover_key(NEXT_GEN_VK)
+            .await
+            .unwrap();
+        assert!(!new_gen.superseded);
     }
 
     /// SNARK wrapping jobs are gated by the same VK: the wrapper proof must verify against the

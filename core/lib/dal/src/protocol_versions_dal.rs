@@ -377,28 +377,6 @@ impl ProtocolVersionsDal<'_, '_> {
             .collect())
     }
 
-    /// Returns whether any protocol patch is registered for the given Airbender SNARK-wrapper
-    /// VK hash. Used to tell "no work right now" apart from "this prover carries a key the
-    /// server has never heard of" when handing out Airbender jobs.
-    pub async fn is_airbender_vk_known(&mut self, vk_hash: H256) -> DalResult<bool> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                EXISTS(
-                    SELECT 1
-                    FROM protocol_patches
-                    WHERE airbender_snark_wrapper_vk_hash = $1
-                ) AS "known!"
-            "#,
-            vk_hash.as_bytes()
-        )
-        .instrument("is_airbender_vk_known")
-        .with_arg("vk_hash", &vk_hash)
-        .fetch_one(self.storage)
-        .await?;
-        Ok(row.known)
-    }
-
     /// Returns first patch number for the minor version.
     /// Note, that some patch numbers can be skipped, so the result is not always 0.
     pub async fn first_patch_for_version(

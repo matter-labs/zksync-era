@@ -1,4 +1,8 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 
 use anyhow::Context;
 use axum::{extract::Path, Json};
@@ -13,7 +17,9 @@ use zksync_airbender_prover_interface::{
     outputs::{L1BatchAirbenderProofForL1, L1BatchAirbenderSnarkProofForL1},
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{
+    airbender_proof_generation_dal::ProverKeyDiagnosis, Connection, ConnectionPool, Core, CoreDal,
+};
 use zksync_l1_contract_interface::i_executor::commit::kzg::{
     pubdata_to_blob_commitments, pubdata_to_blob_linear_hashes, pubdata_to_blob_versioned_hashes,
 };
@@ -32,12 +38,29 @@ use crate::{
     metrics::{ProcessorErrorKind, ProofStage, METRICS},
 };
 
+/// How long a [`ProverKeyDiagnosis`] is reused before being looked up again. Bounds both the
+/// diagnostic queries and the warnings below to one per key per interval, so an idle fleet polling
+/// every few seconds cannot turn either into a storm.
+const DIAGNOSIS_TTL: Duration = Duration::from_secs(60);
+/// Cap on distinct keys remembered, so a client polling with arbitrary hashes cannot grow the map
+/// without bound. Real deployments only ever see a handful of prover releases.
+const MAX_CACHED_DIAGNOSES: usize = 64;
+
+#[derive(Clone, Copy)]
+struct CachedDiagnosis {
+    diagnosis: ProverKeyDiagnosis,
+    checked_at: Instant,
+}
+
 #[derive(Clone)]
 pub(crate) struct AirbenderRequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: AirbenderProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
+    /// Shared across requests (axum clones the state per request), so a whole fleet polling with
+    /// the same key shares one cached diagnosis.
+    diagnoses: Arc<Mutex<HashMap<H256, CachedDiagnosis>>>,
 }
 
 impl AirbenderRequestProcessor {
@@ -52,35 +75,77 @@ impl AirbenderRequestProcessor {
             pool,
             config,
             l2_chain_id,
+            diagnoses: Arc::default(),
         }
     }
 
-    /// Checks that at least one protocol patch is registered for the VK the prover carries. An
-    /// unknown VK yields "no job" (204) rather than an error, so a fleet rolled out ahead of the
-    /// upgrade event keeps polling quietly; a warning and a metric cover the other case, where a
-    /// sustained stream of unknown-VK requests means a misdeployed prover.
-    async fn check_vk_is_known(
+    /// Records why a prover was handed no job. Runs only *after* a claim came up empty, so the happy
+    /// path costs no extra queries at all, and the answer is cached per key for [`DIAGNOSIS_TTL`], so
+    /// an idle fleet costs at most one query and one warning per key per interval. Metrics are still
+    /// updated on every request, from the cached answer.
+    async fn report_no_job(
         &self,
+        connection: &mut Connection<'_, Core>,
         snark_wrapper_vk_hash: H256,
         stage: ProofStage,
-    ) -> Result<bool, AirbenderProcessorError> {
-        let known = self
-            .pool
-            .connection_tagged("airbender_request_processor")
-            .await?
-            .protocol_versions_dal()
-            .is_airbender_vk_known(snark_wrapper_vk_hash)
-            .await?;
-        if !known {
+    ) -> Result<(), AirbenderProcessorError> {
+        let cached = self
+            .diagnoses
+            .lock()
+            .expect("diagnosis cache poisoned")
+            .get(&snark_wrapper_vk_hash)
+            .filter(|cached| cached.checked_at.elapsed() < DIAGNOSIS_TTL)
+            .map(|cached| cached.diagnosis);
+
+        let diagnosis = match cached {
+            Some(diagnosis) => diagnosis,
+            None => {
+                let diagnosis = connection
+                    .airbender_proof_generation_dal()
+                    .diagnose_prover_key(snark_wrapper_vk_hash)
+                    .await?;
+
+                let mut cache = self.diagnoses.lock().expect("diagnosis cache poisoned");
+                if cache.len() < MAX_CACHED_DIAGNOSES || cache.contains_key(&snark_wrapper_vk_hash)
+                {
+                    cache.insert(
+                        snark_wrapper_vk_hash,
+                        CachedDiagnosis {
+                            diagnosis,
+                            checked_at: Instant::now(),
+                        },
+                    );
+                }
+                drop(cache);
+
+                // Logged here rather than below, i.e. only when the diagnosis was actually
+                // refreshed, which is what keeps these warnings to one per key per interval.
+                if !diagnosis.key_is_registered {
+                    tracing::warn!(
+                        ?snark_wrapper_vk_hash,
+                        ?stage,
+                        "Prover requested a job with an Airbender SNARK-wrapper VK hash that no \
+                         protocol patch is registered for; returning no job"
+                    );
+                } else if diagnosis.superseded {
+                    tracing::warn!(
+                        ?snark_wrapper_vk_hash,
+                        ?stage,
+                        "Prover generation has been superseded: batches are being proven at a newer \
+                         protocol version, so this prover will not receive new work. It can be \
+                         retired once the batches it already holds are wrapped into SNARKs."
+                    );
+                }
+                diagnosis
+            }
+        };
+
+        if !diagnosis.key_is_registered {
             METRICS.airbender_unknown_vk_requests[&stage].inc();
-            tracing::warn!(
-                snark_wrapper_vk_hash = ?snark_wrapper_vk_hash,
-                ?stage,
-                "Prover requested a job with an Airbender SNARK-wrapper VK hash that no \
-                 protocol patch is registered for; returning no job"
-            );
+        } else if diagnosis.superseded {
+            METRICS.airbender_superseded_generation_requests[&stage].inc();
         }
-        Ok(known)
+        Ok(())
     }
 
     pub(crate) async fn get_proof_generation_data(
@@ -88,13 +153,6 @@ impl AirbenderRequestProcessor {
         snark_wrapper_vk_hash: H256,
     ) -> Result<Option<AirbenderVerifierInput>, AirbenderProcessorError> {
         tracing::debug!("Received request for proof generation data");
-
-        if !self
-            .check_vk_is_known(snark_wrapper_vk_hash, ProofStage::Fri)
-            .await?
-        {
-            return Ok(None);
-        }
 
         let min_batch_number = self.config.first_processed_batch;
         let max_attempts = self.config.max_attempts;
@@ -124,22 +182,12 @@ impl AirbenderRequestProcessor {
                 )
                 .await?
             else {
-                // An empty queue looks the same as a prover generation that has been superseded and
-                // will never get work again, so tell the two apart.
-                if transaction
-                    .airbender_proof_generation_dal()
-                    .is_prover_generation_superseded(snark_wrapper_vk_hash)
-                    .await?
-                {
-                    METRICS.airbender_superseded_generation_requests.inc();
-                    tracing::warn!(
-                        snark_wrapper_vk_hash = ?snark_wrapper_vk_hash,
-                        "Prover generation has been superseded: batches are being proven at a newer \
-                         protocol version, so this prover will not receive new work. It can be \
-                         retired once the batches it already holds are wrapped into SNARKs."
-                    );
-                }
-                return Ok(None); // no job available
+                // No job. Release the transaction before diagnosing why — the diagnosis has nothing
+                // to do with the claim and should not extend it.
+                drop(transaction);
+                self.report_no_job(&mut connection, snark_wrapper_vk_hash, ProofStage::Fri)
+                    .await?;
+                return Ok(None);
             };
             let batch_number = locked_batch.l1_batch_number;
 
@@ -506,13 +554,6 @@ impl AirbenderRequestProcessor {
     ) -> Result<Option<AirbenderSnarkInputsResponse>, AirbenderProcessorError> {
         tracing::debug!("Received request for SNARK inputs");
 
-        if !self
-            .check_vk_is_known(snark_wrapper_vk_hash, ProofStage::Snark)
-            .await?
-        {
-            return Ok(None);
-        }
-
         let min_batch_number = self.config.first_processed_batch;
         let max_attempts = self.config.max_attempts;
 
@@ -536,6 +577,9 @@ impl AirbenderRequestProcessor {
                 )
                 .await?
             else {
+                drop(transaction);
+                self.report_no_job(&mut connection, snark_wrapper_vk_hash, ProofStage::Snark)
+                    .await?;
                 return Ok(None);
             };
             let batch_number = locked_batch.l1_batch_number;
