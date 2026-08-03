@@ -125,6 +125,23 @@ impl AirbenderRequestProcessor {
                 )
                 .await?
             else {
+                // No job for this prover. That can simply mean an empty queue, but it also happens
+                // permanently once newer batches are being proven at a newer protocol version —
+                // this prover generation will never get new work again. Surface that, otherwise a
+                // fleet left running past its rollout is indistinguishable from an idle one.
+                if transaction
+                    .airbender_proof_generation_dal()
+                    .is_prover_generation_superseded(snark_wrapper_vk_hash)
+                    .await?
+                {
+                    METRICS.airbender_superseded_generation_requests.inc();
+                    tracing::warn!(
+                        snark_wrapper_vk_hash = ?snark_wrapper_vk_hash,
+                        "Prover generation has been superseded: batches are being proven at a newer \
+                         protocol version, so this prover will not receive new work. It can be \
+                         retired once the batches it already holds are wrapped into SNARKs."
+                    );
+                }
                 return Ok(None); // no job available
             };
             let batch_number = locked_batch.l1_batch_number;

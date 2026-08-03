@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO airbender_proof_generation_details (\n                l1_batch_number, status, created_at, updated_at, prover_taken_at,\n                attempts, protocol_version, protocol_version_patch\n            )\n            SELECT\n                p.l1_batch_number,\n                $1,\n                NOW(),\n                NOW(),\n                NOW(),\n                1,\n                l.protocol_version,\n                prover_patch.patch\n            FROM proof_generation_details p\n            JOIN l1_batches l ON l.number = p.l1_batch_number\n            JOIN LATERAL (\n                SELECT pp.patch\n                FROM protocol_patches pp\n                WHERE\n                    pp.minor = l.protocol_version\n                    AND pp.airbender_snark_wrapper_vk_hash = $3\n                ORDER BY pp.patch DESC\n                LIMIT 1\n            ) prover_patch ON TRUE\n            WHERE\n                p.vm_run_data_blob_url IS NOT NULL\n                AND p.proof_gen_data_blob_url IS NOT NULL\n                AND l.protocol_version IS NOT NULL\n                AND p.l1_batch_number = (\n                    SELECT MIN(l2.number)\n                    FROM l1_batches l2\n                    WHERE\n                        l2.number >= GREATEST($2, 1::BIGINT)\n                        AND NOT EXISTS (\n                            SELECT 1 FROM airbender_proof_generation_details a\n                            WHERE a.l1_batch_number = l2.number\n                        )\n                )\n                AND NOT EXISTS (\n                    SELECT 1\n                    FROM airbender_proof_generation_details prev\n                    WHERE\n                        prev.l1_batch_number = (\n                            SELECT MAX(a.l1_batch_number)\n                            FROM airbender_proof_generation_details a\n                            WHERE\n                                a.l1_batch_number < p.l1_batch_number\n                                AND a.protocol_version IS NOT NULL\n                        )\n                        AND (prev.protocol_version, prev.protocol_version_patch)\n                        > (l.protocol_version, prover_patch.patch)\n                )\n                AND NOT EXISTS (\n                    SELECT 1\n                    FROM airbender_proof_generation_details next_claim\n                    WHERE\n                        next_claim.l1_batch_number = (\n                            SELECT MIN(a.l1_batch_number)\n                            FROM airbender_proof_generation_details a\n                            WHERE\n                                a.l1_batch_number > p.l1_batch_number\n                                AND a.protocol_version IS NOT NULL\n                        )\n                        AND (next_claim.protocol_version, next_claim.protocol_version_patch)\n                        < (l.protocol_version, prover_patch.patch)\n                )\n            LIMIT 1\n            ON CONFLICT (l1_batch_number) DO NOTHING\n            RETURNING l1_batch_number,\n            created_at,\n            protocol_version AS \"protocol_version!\",\n            protocol_version_patch\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 2,
+        "name": "protocol_version!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "8b00f7abcdbd273fd5d3e02f236453c094667f12e282251fb3e2288e7f5d4e87"
+}
