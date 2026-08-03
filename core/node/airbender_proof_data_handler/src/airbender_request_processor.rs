@@ -55,11 +55,10 @@ impl AirbenderRequestProcessor {
         }
     }
 
-    /// Checks that at least one protocol patch is registered for the VK the prover carries.
-    /// A prover with an unknown VK gets "no job" (204) rather than an error, so a fleet rolled
-    /// out slightly ahead of the upgrade event keeps polling quietly — but the situation is
-    /// surfaced loudly via a warning and a metric, since a *sustained* stream of unknown-VK
-    /// requests means a misdeployed prover that will never receive work.
+    /// Checks that at least one protocol patch is registered for the VK the prover carries. An
+    /// unknown VK yields "no job" (204) rather than an error, so a fleet rolled out ahead of the
+    /// upgrade event keeps polling quietly; a warning and a metric cover the other case, where a
+    /// sustained stream of unknown-VK requests means a misdeployed prover.
     async fn check_vk_is_known(
         &self,
         snark_wrapper_vk_hash: H256,
@@ -125,10 +124,8 @@ impl AirbenderRequestProcessor {
                 )
                 .await?
             else {
-                // No job for this prover. That can simply mean an empty queue, but it also happens
-                // permanently once newer batches are being proven at a newer protocol version —
-                // this prover generation will never get new work again. Surface that, otherwise a
-                // fleet left running past its rollout is indistinguishable from an idle one.
+                // An empty queue looks the same as a prover generation that has been superseded and
+                // will never get work again, so tell the two apart.
                 if transaction
                     .airbender_proof_generation_dal()
                     .is_prover_generation_superseded(snark_wrapper_vk_hash)

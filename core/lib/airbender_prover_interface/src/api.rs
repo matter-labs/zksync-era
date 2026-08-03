@@ -52,10 +52,9 @@ pub enum SubmitAirbenderSnarkProofResponse {
 
 // Structs to hold data necessary for making HTTP requests
 
-/// Job poll payload (prover -> server) for both FRI and SNARK jobs. The prover doesn't ask for a
-/// protocol version — it reports the keccak hash of the Airbender SNARK-wrapper verification key
-/// baked into its release (which commits to the wrapped guest program too), and the server maps
-/// that hash back to the protocol version(s) the prover can prove and locks a matching batch.
+/// Job poll payload (prover -> server) for both FRI and SNARK jobs. The prover does not ask for a
+/// protocol version; it reports the hash of the SNARK-wrapper VK baked into its release, and the
+/// server maps that back to the versions it can prove and locks a matching batch.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct AirbenderJobRequest {
     pub snark_wrapper_vk_hash: H256,

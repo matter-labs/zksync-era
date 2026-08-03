@@ -292,10 +292,9 @@ pub struct L1VerifierConfig {
     )]
     pub snark_wrapper_vk_hash: H256,
     pub fflonk_snark_wrapper_vk_hash: Option<H256>,
-    /// Hash of the Airbender SNARK-wrapper verification key. The wrapper VK commits to the
-    /// wrapped RISC-V guest program as well, so this hash identifies the whole Airbender
-    /// prover state; provers report it when asking for jobs and the server maps it back to
-    /// the protocol versions it can prove.
+    /// Hash of the Airbender SNARK-wrapper verification key. The wrapper VK also commits to the
+    /// wrapped RISC-V guest program, so this hash identifies a whole prover release: provers report
+    /// it when asking for jobs and the server maps it back to the versions they can prove.
     #[serde(default)]
     pub airbender_snark_wrapper_vk_hash: Option<H256>,
 }

@@ -63,41 +63,22 @@ pub struct LockedBatch {
 }
 
 impl AirbenderProofGenerationDal<'_, '_> {
-    /// Locks the oldest provable batch for Airbender FRI proving that the requesting prover can
-    /// actually prove, identified by the Airbender SNARK-wrapper VK hash the prover carries.
+    /// Locks the lowest unclaimed batch for Airbender FRI proving, if the requesting prover can
+    /// prove it. A prover is identified by the Airbender SNARK-wrapper VK hash it carries, and the
+    /// version recorded for proving is the batch's own minor version (`l1_batches.protocol_version`)
+    /// with the highest patch of that minor registered for that key.
     ///
-    /// On the first lock of a batch (Step 2), the protocol version recorded for proving is the
-    /// batch's own minor version (`l1_batches.protocol_version`) combined with the highest patch
-    /// of that minor whose `airbender_snark_wrapper_vk_hash` matches the prover's key. A batch is
-    /// only eligible if such a patch exists, so a prover never receives a job it holds the wrong
-    /// key for; conversely, a key registered for several minors makes batches of all those minors
-    /// eligible.
+    /// Recorded versions are kept monotonically non-decreasing in batch number, compared as
+    /// `(minor, patch)`: with batches 10, 11 at v31.1 and 12 at v31.2, batch 13 can only go to
+    /// v31.2 and a v31.1 prover is told there is no work. `eth_sender` proves batches in order
+    /// against the single verification key L1 currently holds, so a version that dips back down
+    /// strands that batch permanently.
     ///
-    /// Recorded versions are additionally kept **monotonically non-decreasing in batch number**,
-    /// compared as `(minor, patch)`. With two prover generations polling at once, this is what
-    /// stops an older generation from claiming a *newer* batch after the newer generation has
-    /// already claimed one: given batches 10, 11 at v31.1 and 12 at v31.2, batch 13 can only go to
-    /// v31.2, and a v31.1 prover is told there is no work. `eth_sender` proves batches strictly in
-    /// order against whichever single verification key L1 currently holds, so a version that dips
-    /// back down would strand that batch permanently. Note the comparison is lexicographic rather
-    /// than on the patch alone, because patch numbering restarts on a minor bump (v30.9 -> v31.0 is
-    /// forward progress, not a regression).
-    ///
-    /// Enforcing that also means batches are claimed **strictly in batch order** — the candidate is
-    /// always the lowest unclaimed batch, so a prover waits for a gap rather than jumping over it.
-    /// Besides being what `eth_sender` needs anyway, that is what makes the check safe under
-    /// concurrency: every poller computes the same candidate and they collide on the primary key,
-    /// instead of each validating a different batch against a version the other has not committed
-    /// yet.
-    ///
-    /// Reclaimed batches (Step 1) keep the version recorded when they were first locked and are
-    /// only handed to provers whose key matches that recorded patch row. The monotonicity guard
-    /// deliberately does *not* apply there: a batch already recorded at v31.1 has its FRI blob key
-    /// and its L1 verification key pinned to v31.1, so it must stay reclaimable by the old
-    /// generation even after newer batches went out at v31.2 — otherwise the batch `eth_sender` is
-    /// waiting on could never be retried and the queue would deadlock. The operational corollary
-    /// is that an old prover generation may only be scaled down once all of its in-flight batches
-    /// have reached `snark_generated`.
+    /// Reclaimed batches (Step 1) keep the version recorded when they were first locked, and are
+    /// only handed to provers whose key matches it — a batch already at v31.1 has its blob key and
+    /// L1 verification key pinned there, so the old generation must be able to retry it even after
+    /// newer batches moved on. The corollary is operational: an old prover generation may only be
+    /// retired once its in-flight batches have reached `snark_generated`.
     pub async fn lock_batch_for_proving(
         &mut self,
         processing_timeout: Duration,
@@ -181,40 +162,20 @@ impl AirbenderProofGenerationDal<'_, '_> {
             return Ok(locked_batch);
         }
 
-        // Step 2: No reclaimable row — try to claim a new batch.
-        // The recorded version is the batch's own minor version with the highest patch of that
-        // minor registered for the prover's VK, so the batch is proven under the protocol it
-        // executed with, by a prover holding the right key. Batches whose minor has no patch with
-        // this VK in `protocol_patches` are skipped (the inner `JOIN LATERAL` yields no row) —
-        // either the proving version is unknown or it belongs to a different prover generation.
+        // Step 2: No reclaimable row — claim the lowest unclaimed batch. Batches whose minor has no
+        // patch for this VK are skipped: the inner `JOIN LATERAL` then yields no row.
         //
-        // Two things keep the recorded version *monotonically non-decreasing in batch number* while
-        // several prover generations run side by side. Without that, a v31.1 prover polling right
-        // after a v31.2 prover claimed batch 12 would happily claim batch 13 at patch 1:
-        // `eth_sender` proves batches strictly in order against the single verification key
-        // currently on L1, so once L1 rotates to the v31.2 key that batch-13 proof can never be
-        // submitted — and it can never be re-proven either (its row exists, so this statement skips
-        // it forever, and the reclaim path is pinned to the recorded version).
+        // The candidate is deliberately the lowest unclaimed batch rather than the lowest *ready*
+        // one, i.e. a prover waits for a gap instead of jumping over it. That is what makes the
+        // version checks safe under concurrency: at READ COMMITTED a poller cannot see another's
+        // uncommitted claim, but since all pollers pick the same candidate they collide on the
+        // primary key and `ON CONFLICT DO NOTHING` leaves the loser with no job. If candidates could
+        // diverge, two prover generations could each pass their own version check and still commit a
+        // decreasing pair. Nothing is lost: `eth_sender` needs batch N before N+1 anyway.
         //
-        // 1. Batches are claimed strictly in order: the candidate is always the *lowest* unclaimed
-        //    batch, so a prover waits for a gap to be filled instead of jumping over it. This is
-        //    also what makes the version checks below safe under concurrency: at READ COMMITTED a
-        //    poller cannot see another's uncommitted claim, but since every poller computes the
-        //    same candidate they collide on the primary key, and `ON CONFLICT DO NOTHING` leaves
-        //    the loser with no job (it simply polls again). Were candidates allowed to diverge —
-        //    as they would if a prover could skip a gap — two generations could each pass their
-        //    own version check and still commit a decreasing pair. Claiming in order costs nothing:
-        //    `eth_sender` needs batch N before N+1 anyway, and provers already contended on the
-        //    lowest batch.
-        // 2. The claimed version may not be lower than that of the closest claimed batch below, nor
-        //    higher than that of the closest claimed batch above. The upper bound only bites when
-        //    healing a gap left behind by an earlier implementation that did claim out of order;
-        //    in steady state nothing is ever claimed above the candidate.
-        //
-        // The comparison is lexicographic on `(minor, patch)`, not on the patch alone: patch
-        // numbering restarts on a minor bump, so v30.9 -> v31.0 is forward progress and a
-        // patch-only comparison would wedge the queue at the first batch of every upgrade.
-        // ON CONFLICT DO NOTHING: if two provers race, one wins and the other gets nothing.
+        // The claimed version must then sit between the closest claimed batch below and the closest
+        // above. The upper bound only bites when healing a gap left by an earlier implementation
+        // that claimed out of order; in steady state nothing is ever claimed above the candidate.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
             r#"
@@ -305,13 +266,10 @@ impl AirbenderProofGenerationDal<'_, '_> {
         Ok(locked_batch)
     }
 
-    /// Whether the given prover key has been superseded: some batch has already been claimed at a
-    /// protocol version newer than any version this key is registered for. Because recorded
-    /// versions never decrease (see [`Self::lock_batch_for_proving`]), such a prover will never be
-    /// handed a new batch again — it can only finish the batches it already holds, and may be
-    /// retired once those reach `snark_generated`. Used to tell "the queue is empty" apart from
-    /// "this prover generation is obsolete", which is otherwise indistinguishable to an operator:
-    /// both look like an endless stream of empty poll responses.
+    /// Whether the given prover key has been superseded: a batch has already been claimed at a
+    /// version newer than any this key is registered for. Since recorded versions never decrease
+    /// (see [`Self::lock_batch_for_proving`]), such a prover will never be handed new work again.
+    /// Lets an operator tell that apart from an idle queue — both look like endless empty polls.
     pub async fn is_prover_generation_superseded(
         &mut self,
         airbender_vk_hash: H256,
@@ -492,10 +450,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
     /// version carries the requesting prover's Airbender SNARK-wrapper VK are handed out — the
     /// wrapper proof must verify against the key registered for that protocol version on L1.
     ///
-    /// Like the reclaim path in [`Self::lock_batch_for_proving`], this is intentionally *not*
-    /// subject to the version-monotonicity guard: the version was fixed when the batch was first
-    /// locked for FRI proving, and an already-generated FRI proof still has to be wrapped under
-    /// that same version even after later batches moved to a newer one.
+    /// Like the reclaim path in [`Self::lock_batch_for_proving`], this is intentionally not subject
+    /// to the version-monotonicity check: an already-generated FRI proof must still be wrapped under
+    /// the version it was produced for, even after later batches moved to a newer one.
     pub async fn lock_batch_for_snark(
         &mut self,
         processing_timeout: Duration,
@@ -987,9 +944,9 @@ mod tests {
         mark_inputs_ready(conn, number).await;
     }
 
-    /// Inserts a batch whose proving inputs are not on GCS yet, so it is *not* claimable. Mirrors a
-    /// batch BWIP hasn't finished with — it proves several batches concurrently, so a higher batch
-    /// can become claimable before a lower one.
+    /// Inserts a batch whose proving inputs are not on GCS yet, so it is not claimable. Mirrors a
+    /// batch BWIP hasn't finished with; it proves several concurrently, so a higher batch can become
+    /// claimable before a lower one.
     async fn insert_batch_without_inputs(
         conn: &mut Connection<'_, Core>,
         number: L1BatchNumber,
@@ -1024,9 +981,8 @@ mod tests {
             .unwrap();
     }
 
-    /// Timeout long enough that no already-picked batch is treated as reclaimable. Note
-    /// `Duration::MAX` cannot be used: `pg_interval_from_duration` overflows it into a bogus
-    /// interval that makes every picked batch look timed out.
+    /// Long enough that no already-picked batch counts as reclaimable. `Duration::MAX` cannot be
+    /// used: `pg_interval_from_duration` overflows it into an interval that times out everything.
     const NO_RECLAIM: Duration = Duration::from_secs(600);
 
     async fn lock_for(
@@ -1534,9 +1490,6 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         assert_versions_non_decreasing(&mut conn).await;
     }
-
-    /// SNARK wrapping jobs are gated by the same VK: the wrapper proof must verify against the
-    /// key registered for the batch's recorded protocol version.
 
     /// Patch numbering restarts on a minor bump, so v30.9 -> v31.0 is forward progress. The guard
     /// compares `(minor, patch)` lexicographically; comparing patches alone would wedge the queue
