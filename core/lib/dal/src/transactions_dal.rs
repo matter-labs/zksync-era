@@ -2013,6 +2013,17 @@ impl TransactionsDal<'_, '_> {
     /// but not included to L1 batch. The order of the transactions is the same as it was
     /// during the previous execution.
     pub async fn get_l2_blocks_to_reexecute(&mut self) -> DalResult<Vec<L2BlockExecutionData>> {
+        // The query below is served by the `pending_l1_batch_txs` partial index, which matches both its
+        // filter and its ordering. Still, on a large `transactions` table the planner sometimes prefers
+        // a full scan followed by an explicit sort, which is orders of magnitude slower. Disabling sorts
+        // for the duration of the transaction forces the planner to use the index ordering.
+        // `SET LOCAL` only has an effect inside a transaction, hence the explicit transaction here.
+        let mut db_transaction = self.storage.start_transaction().await?;
+        sqlx::query("SET LOCAL enable_sort = OFF")
+            .instrument("get_l2_blocks_to_reexecute#disable_sort")
+            .execute(&mut db_transaction)
+            .await?;
+
         let transactions = sqlx::query_as!(
             StorageTransaction,
             r#"
@@ -2029,8 +2040,9 @@ impl TransactionsDal<'_, '_> {
             "#,
         )
         .instrument("get_l2_blocks_to_reexecute#transactions")
-        .fetch_all(self.storage)
+        .fetch_all(&mut db_transaction)
         .await?;
+        db_transaction.commit().await?;
 
         self.map_transactions_to_execution_data(transactions, None)
             .await
