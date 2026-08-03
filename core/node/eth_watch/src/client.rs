@@ -33,6 +33,23 @@ const FFLONK_VERIFIER_TYPE: i32 = 0;
 /// (see `EraDualVerifier.sol`: 0 = FFLONK, 1 = PLONK, 2 = Airbender PLONK).
 const AIRBENDER_PLONK_VERIFIER_TYPE: i32 = 2;
 
+/// Whether a failed `verificationKeyHash` call means the verifier has no such route rather than that
+/// we failed to ask it. Only an error *response* from the node counts: the call reverted with
+/// `UnknownVerifierType`, so "no key" is the real answer.
+///
+/// Everything else — transport failure, timeout, an overloaded node answering with a retriable
+/// error — leaves the key unknown, and must not be reported as "no key": the caller falls back to
+/// the *previous* key, and `save_protocol_version` persists it for the new patch with `ON CONFLICT
+/// DO NOTHING`, permanently pinning the new protocol version to the old prover generation.
+fn verifier_lacks_route(err: &ContractCallError) -> bool {
+    match err {
+        ContractCallError::EthereumGateway(err) => {
+            matches!(err.as_ref(), ClientError::Call(_)) && !err.is_retryable()
+        }
+        _ => false,
+    }
+}
+
 /// Common L1 and L2 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]
 pub trait EthClient: 'static + fmt::Debug + Send + Sync {
@@ -478,25 +495,28 @@ where
         verifier_address: Address,
     ) -> Result<Option<H256>, ContractCallError> {
         // Same overloaded `verificationKeyHash(uint256)` as for FFLONK, routed to the Airbender
-        // PLONK verifier. Older verifiers without an Airbender route revert, which surfaces as
-        // `None` here.
+        // PLONK verifier.
         let function = self
             .verifier_contract_abi
             .functions_by_name("verificationKeyHash")
             .map_err(ContractCallError::Function)?
             .get(1);
 
-        if let Some(function) = function {
-            Ok(CallFunctionArgs::new(
-                "verificationKeyHash",
-                U256::from(AIRBENDER_PLONK_VERIFIER_TYPE),
-            )
-            .for_contract(verifier_address, &self.verifier_contract_abi)
-            .call_with_function(&self.client, function.clone())
-            .await
-            .ok())
-        } else {
-            Ok(None)
+        let Some(function) = function else {
+            return Ok(None);
+        };
+        let result = CallFunctionArgs::new(
+            "verificationKeyHash",
+            U256::from(AIRBENDER_PLONK_VERIFIER_TYPE),
+        )
+        .for_contract(verifier_address, &self.verifier_contract_abi)
+        .call_with_function(&self.client, function.clone())
+        .await;
+
+        match result {
+            Ok(hash) => Ok(Some(hash)),
+            Err(err) if verifier_lacks_route(&err) => Ok(None),
+            Err(err) => Err(err),
         }
     }
 
@@ -808,6 +828,54 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
                 .map(Some)
         } else {
             Ok(None)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_web3_decl::jsonrpsee::types::{
+        error::{INTERNAL_ERROR_CODE, SERVER_IS_BUSY_CODE},
+        ErrorObject,
+    };
+
+    use super::*;
+
+    /// A reverted call is a real "this verifier has no Airbender route" answer, but a failure to
+    /// reach the node is not: reporting the latter as "no key" would silently register the previous
+    /// prover generation's key for the new protocol version.
+    #[test]
+    fn only_an_error_response_means_the_verifier_lacks_the_route() {
+        let reverted = ContractCallError::EthereumGateway(EnrichedClientError::new(
+            ClientError::Call(ErrorObject::owned(3, "execution reverted", None::<()>)),
+            "verificationKeyHash",
+        ));
+        assert!(verifier_lacks_route(&reverted));
+
+        let unreachable = [
+            ClientError::Transport("connection refused".into()),
+            ClientError::RequestTimeout,
+            // An overloaded node answers, but with a retriable error rather than a revert.
+            ClientError::Call(ErrorObject::owned(
+                SERVER_IS_BUSY_CODE,
+                "server is busy",
+                None::<()>,
+            )),
+            ClientError::Call(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "internal error",
+                None::<()>,
+            )),
+        ];
+        for inner in unreachable {
+            let err = ContractCallError::EthereumGateway(EnrichedClientError::new(
+                inner,
+                "verificationKeyHash",
+            ));
+            assert!(
+                !verifier_lacks_route(&err),
+                "must not be mistaken for a missing route: {err}"
+            );
         }
     }
 }

@@ -304,7 +304,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 LIMIT
                     1
             ),
-
+            
             prover_best AS (
                 SELECT
                     pp.minor,
@@ -319,17 +319,23 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 LIMIT
                     1
             )
-
+            
             SELECT
-                EXISTS (SELECT 1 FROM prover_best) AS "key_is_registered!",
-                EXISTS (
+                EXISTS(
                     SELECT
                         1
                     FROM
-                        newest_claim n,
-                        prover_best b
+                        prover_best
+                ) AS "key_is_registered!",
+                EXISTS(
+                    SELECT
+                        1
+                    FROM
+                        newest_claim
+                    CROSS JOIN prover_best
                     WHERE
-                        (n.minor, n.patch) > (b.minor, b.patch)
+                        (newest_claim.minor, newest_claim.patch)
+                        > (prover_best.minor, prover_best.patch)
                 ) AS "superseded!"
             "#,
             airbender_vk_hash.as_bytes()

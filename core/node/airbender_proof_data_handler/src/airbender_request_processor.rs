@@ -48,8 +48,20 @@ const MAX_CACHED_DIAGNOSES: usize = 64;
 
 #[derive(Clone, Copy)]
 struct CachedDiagnosis {
-    diagnosis: ProverKeyDiagnosis,
+    /// `None` while a lookup is in flight. Reserving the slot before querying keeps concurrent
+    /// pollers for the same key from all issuing the same query.
+    diagnosis: Option<ProverKeyDiagnosis>,
     checked_at: Instant,
+}
+
+/// What a poller should do with the diagnosis cache, decided while holding the lock.
+enum DiagnosisAction {
+    /// A fresh answer was cached; report it without touching the database.
+    Report(ProverKeyDiagnosis),
+    /// Another poller is already looking this key up; stay quiet this round.
+    Skip,
+    /// This poller reserved the slot and must perform the lookup.
+    Refresh,
 }
 
 #[derive(Clone)]
@@ -80,46 +92,86 @@ impl AirbenderRequestProcessor {
     }
 
     /// Records why a prover was handed no job. Runs only *after* a claim came up empty, so the happy
-    /// path costs no extra queries at all, and the answer is cached per key for [`DIAGNOSIS_TTL`], so
-    /// an idle fleet costs at most one query and one warning per key per interval. Metrics are still
-    /// updated on every request, from the cached answer.
+    /// path costs no extra queries at all, and the answer is cached per key for [`DIAGNOSIS_TTL`],
+    /// with the slot reserved before the lookup so concurrent pollers do not all issue it. That
+    /// bounds this to one query and one warning per key per interval. Metrics are otherwise updated
+    /// per request from the cached answer; a poller that arrives while a lookup is in flight stays
+    /// quiet rather than waiting for it.
     async fn report_no_job(
         &self,
         connection: &mut Connection<'_, Core>,
         snark_wrapper_vk_hash: H256,
         stage: ProofStage,
     ) -> Result<(), AirbenderProcessorError> {
-        let cached = self
-            .diagnoses
-            .lock()
-            .expect("diagnosis cache poisoned")
-            .get(&snark_wrapper_vk_hash)
-            .filter(|cached| cached.checked_at.elapsed() < DIAGNOSIS_TTL)
-            .map(|cached| cached.diagnosis);
+        let action = {
+            let mut cache = self.diagnoses.lock().expect("diagnosis cache poisoned");
+            // Expired entries first, so the cap below only ever counts live ones and a key seen once
+            // long ago cannot occupy a slot forever.
+            cache.retain(|_, cached| cached.checked_at.elapsed() < DIAGNOSIS_TTL);
 
-        let diagnosis = match cached {
-            Some(diagnosis) => diagnosis,
-            None => {
-                let diagnosis = connection
-                    .airbender_proof_generation_dal()
-                    .diagnose_prover_key(snark_wrapper_vk_hash)
-                    .await?;
-
-                let mut cache = self.diagnoses.lock().expect("diagnosis cache poisoned");
-                if cache.len() < MAX_CACHED_DIAGNOSES || cache.contains_key(&snark_wrapper_vk_hash)
-                {
+            match cache.get(&snark_wrapper_vk_hash) {
+                Some(CachedDiagnosis {
+                    diagnosis: Some(diagnosis),
+                    ..
+                }) => DiagnosisAction::Report(*diagnosis),
+                Some(_) => DiagnosisAction::Skip,
+                None => {
+                    // Evict the oldest live entry when full, so a fleet rolling through keys keeps
+                    // getting cached rather than falling back to querying on every poll.
+                    if cache.len() >= MAX_CACHED_DIAGNOSES {
+                        let oldest = cache
+                            .iter()
+                            .min_by_key(|(_, cached)| cached.checked_at)
+                            .map(|(key, _)| *key);
+                        if let Some(oldest) = oldest {
+                            cache.remove(&oldest);
+                        }
+                    }
                     cache.insert(
                         snark_wrapper_vk_hash,
                         CachedDiagnosis {
-                            diagnosis,
+                            diagnosis: None,
                             checked_at: Instant::now(),
                         },
                     );
+                    DiagnosisAction::Refresh
                 }
-                drop(cache);
+            }
+        };
 
-                // Logged here rather than below, i.e. only when the diagnosis was actually
-                // refreshed, which is what keeps these warnings to one per key per interval.
+        let diagnosis = match action {
+            DiagnosisAction::Report(diagnosis) => diagnosis,
+            DiagnosisAction::Skip => return Ok(()),
+            DiagnosisAction::Refresh => {
+                let looked_up = connection
+                    .airbender_proof_generation_dal()
+                    .diagnose_prover_key(snark_wrapper_vk_hash)
+                    .await;
+                let diagnosis = match looked_up {
+                    Ok(diagnosis) => diagnosis,
+                    Err(err) => {
+                        // Release the slot so the next poll retries instead of staying quiet for a
+                        // whole interval.
+                        self.diagnoses
+                            .lock()
+                            .expect("diagnosis cache poisoned")
+                            .remove(&snark_wrapper_vk_hash);
+                        return Err(err.into());
+                    }
+                };
+                self.diagnoses
+                    .lock()
+                    .expect("diagnosis cache poisoned")
+                    .insert(
+                        snark_wrapper_vk_hash,
+                        CachedDiagnosis {
+                            diagnosis: Some(diagnosis),
+                            checked_at: Instant::now(),
+                        },
+                    );
+
+                // Logged only on refresh, which is what keeps these warnings to one per key per
+                // interval instead of one per poll.
                 if !diagnosis.key_is_registered {
                     tracing::warn!(
                         ?snark_wrapper_vk_hash,
