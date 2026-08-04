@@ -19,10 +19,13 @@ jobs:
 
   # Prepare the release PR with changelog updates and create github releases
   release-please:
-    uses: matter-labs/zksync-ci-common/.github/workflows/release-please.yaml@c3b31c6f11bada204069c8b4621044e4c1cbc1df
+    uses: matter-labs/zksync-ci-common/.github/workflows/release-please.yaml@fcfe16cdf551d9a6b99d9e28d4c705faf0f4c27e # main
     secrets:
       slack_webhook: ${{ secrets.SLACK_WEBHOOK_RELEASES }}  # Slack webhook for notifications
-      gh_token: ${{ secrets.RELEASE_TOKEN }}                # GitHub token for release-please
+      # Org-level secrets of the GitHub App used to mint installation tokens.
+      # API commits are auto-signed.
+      MATTERLABS_BOTS_APP_ID: ${{ secrets.MATTERLABS_BOTS_APP_ID }}
+      MATTERLABS_BOTS_PRIVATE_KEY: ${{ secrets.MATTERLABS_BOTS_PRIVATE_KEY }}
     with:
       config: '.github/release-please/config.json'          # Path to the configuration file
       manifest: '.github/release-please/manifest.json'      # Path to the manifest file
