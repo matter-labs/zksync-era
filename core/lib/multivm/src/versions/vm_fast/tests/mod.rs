@@ -165,7 +165,7 @@ where
         let main_storage = &mut self.world.storage;
         storage_changes
             .get(&(*key.account().address(), h256_to_u256(*key.key())))
-            .copied()
+            .map(|entry| entry.value)
             .unwrap_or_else(|| h256_to_u256(main_storage.read_value(&key)))
     }
 

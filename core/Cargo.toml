@@ -258,25 +258,30 @@ rust-eigenda-signers = "0.1.6"
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,
 # Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
 
-circuit_encodings = "=0.153.12"
-circuit_sequencer_api = "=0.153.12"
-circuit_definitions = "=0.153.12"
+# The current protocol version comes from a `zksync-protocol` git tag: the repo is no
+# longer published to crates.io (it has a git-only `airbender-crypto` dependency).
+# `vm2` and `zksync-crypto-gpu` pin the exact same URL + tag, so the graph stays unified.
+circuit_encodings = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
+circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
+circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
 crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.32.10" }
 
-kzg = { package = "zksync_kzg", version = "=0.153.12" }
+kzg = { package = "zksync_kzg", git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
 
+# Historical protocol versions stay on crates.io: they are frozen releases that predate
+# the move to git-only publishing and cannot be sourced from the current tag.
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
 zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.151.8" }
-zk_evm_1_5_2 = { package = "zk_evm", version = "=0.153.12" }
+zk_evm_1_5_2 = { package = "zk_evm", git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
 
 fflonk = "=0.32.10"
 bellman = { package = "zksync_bellman", version = "=0.32.10" }
 
 # New VM
-zksync_vm2 = "=0.5.0-5"
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2", tag = "v0.6.2" }
 
 # Airbender guest cycle-count model: the VM-agnostic feature schema, calibrated cost
 # model and estimator (single source of truth, shared with the fast-VM tracer). era
