@@ -47,6 +47,12 @@ ignore = [
   # ^0.39.2, and bumping it pulls in crates requiring Rust 1.88 which our nightly toolchain lacks).
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
+  # Incorrect overflow flags / truncated shift amounts in `ruint`'s `Uint` shift operations.
+  # Reached transitively via alloy-primitives, celestia-types and nybbles; we don't seem to call any of
+  # the affected APIs (`{overflowing,checked,strict,saturating,wrapping}_sh{l,r}`, `to_base_be`)
+  # ourselves. The fix only exists in ruint >=1.20.0, which requires Rust 1.90 while our pinned
+  # nightly is 1.87
+  "RUSTSEC-2026-0220",
 ]
 
 [licenses]
