@@ -34,12 +34,6 @@ The order of the files here only roughly represents the order of reading. A lot 
     - [Custom DA support](../contracts/settlement_contracts/data_availability/custom_da.md)
     - [Rollup DA support](../contracts/settlement_contracts/data_availability/rollup_da.md)
     - [Standard pubdata format](../contracts/settlement_contracts/data_availability/standard_pubdata_format.md)
-- [Gateway](../contracts/gateway/overview.md)
-  - [Chain migration](../contracts/gateway/chain_migration.md)
-  - [L1->L2 messaging via gateway](../contracts/gateway/messaging_via_gateway.md)
-  - [L2->L1 messaging via gateway](../contracts/gateway/l2_gw_l1_messaging.md)
-  - [Gateway protocol versioning](../contracts/gateway/gateway_protocol_upgrades.md)
-  - [DA handling on Gateway](../contracts/gateway/gateway_da.md)
 - [zkEVM](../contracts/zkevm/overview.md)
   - [Batches and blocks on ZKsync](../contracts/zkevm/batches_and_blocks_on_zksync.md)
   - [Bootloader](../contracts/zkevm/bootloader.md)
@@ -71,6 +65,6 @@ This section is for auditors of the codebase. It includes some of the important 
 - GW → L1 migration never fails. If it is possible to get into a state where the migration is not possible to finish, then the chain is basically lost. There are some exceptions where for now it is the expected behavior. (check out the “Migration invariants & protocol upgradability” section)
 - The general consistency of chains when migration between different settlement layers is done. Including the feasibility of emergency upgrades, etc. I.e. whether the whole system is thought-through.
 - Preimage attacks in the L2→L1 tree, we apply special prefixes to ensure that the tree structure is fixed, i.e. all logs are 88 bytes long (this is for backwards compatibility reasons). For batch leaves and chain id leaves we use special prefixes.
-- Data availability guarantees. Whether rollup users can always restore all their storage slots, etc. An example of a potential tricky issue can be found in “Security notes for Gateway-based rollups” [in this document](./gateway/gateway_da.md).
+- Data availability guarantees. Whether rollup users can always restore all their storage slots, etc.
 
 The desired properties of the system are that funds can not be stolen from the L1 contracts, and that L2 constracts are executed securely.

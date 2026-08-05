@@ -72,18 +72,19 @@ smart-config = "=0.2.0-pre"
 fflonk = "=0.32.10"
 franklin-crypto = "=0.32.10"
 
-# zksync-protocol dependencies (git tag: no longer published to crates.io — git-only airbender-crypto dep)
-circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.13" }
-circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.13" }
-zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.13" }
+# zksync-protocol dependencies
+# Pinned to a git tag: zksync-protocol is no longer published to crates.io (it has a
+# git-only `airbender-crypto` dependency). Must match the tag used in `core/Cargo.toml`.
+circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
+circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
+zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
 
-# zksync-crypto-gpu dependencies (git tag: it pins zksync-protocol via git, so it is
-# no longer published to crates.io either).
-proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.3" }
-fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.3" }
-wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.3" }
-shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.3" }
-boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.3" }
+# zksync-crypto-gpu dependencies
+proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.4" }
+fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.4" }
+wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.4" }
+shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.4" }
+boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.4" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
