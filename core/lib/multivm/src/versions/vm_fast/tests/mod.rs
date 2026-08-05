@@ -141,12 +141,15 @@ where
     }
 
     fn manually_decommit(&mut self, code_hash: H256) -> bool {
-        let (_, is_fresh) = self.inner.world_diff_mut().decommit_opcode(
+        // Must go through `VirtualMachine::manually_decommit` rather than
+        // `WorldDiff::decommit_opcode`: only the former materializes a code page and records the
+        // hash as decommitted, so a later `decommit` opcode on it is refunded rather than charged
+        // again (which would diverge from the legacy VM).
+        self.inner.manually_decommit(
             &mut self.world,
             &mut WithBuiltinTracers::mock(),
             h256_to_u256(code_hash),
-        );
-        is_fresh
+        )
     }
 
     fn verify_required_bootloader_heap(&self, required_values: &[(u32, U256)]) {
@@ -165,7 +168,7 @@ where
         let main_storage = &mut self.world.storage;
         storage_changes
             .get(&(*key.account().address(), h256_to_u256(*key.key())))
-            .copied()
+            .map(|entry| entry.value)
             .unwrap_or_else(|| h256_to_u256(main_storage.read_value(&key)))
     }
 
