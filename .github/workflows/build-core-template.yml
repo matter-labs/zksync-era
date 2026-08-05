@@ -113,6 +113,8 @@ jobs:
       - name: Pre-download compilers
         if: env.BUILD_CONTRACTS == 'true'
         shell: bash
+        env:
+          COMPILERS_JSON: ${{ inputs.compilers }}
         run: |
           # Download needed versions of vyper compiler
           # Not sanitized due to unconventional path and tags
@@ -122,7 +124,6 @@ jobs:
           chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
           chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3
 
-          COMPILERS_JSON='${{ inputs.compilers }}'
           echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
             mkdir -p "./hardhat-nodejs/compilers-v2/$compiler"
             wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
@@ -253,10 +254,14 @@ jobs:
 
       - name: Set env vars
         shell: bash
+        env:
+          MATRIX_PLATFORMS: ${{ matrix.platforms }}
+          IMAGE_TAG_SUFFIX_INPUT: ${{ inputs.image_tag_suffix }}
+          IMAGE_TAG_SUFFIX_ENV: ${{ env.IMAGE_TAG_SUFFIX }}
         run: |
-          echo PLATFORM=$(echo ${{ matrix.platforms }} | tr '/' '-') >> $GITHUB_ENV
-          if [ -n "${{ inputs.image_tag_suffix }}" ]; then
-            echo IMAGE_TAG_SHA_TS="${{ env.IMAGE_TAG_SUFFIX }}" >> $GITHUB_ENV
+          echo PLATFORM=$(echo "$MATRIX_PLATFORMS" | tr '/' '-') >> $GITHUB_ENV
+          if [ -n "$IMAGE_TAG_SUFFIX_INPUT" ]; then
+            echo IMAGE_TAG_SHA_TS="$IMAGE_TAG_SUFFIX_ENV" >> $GITHUB_ENV
           else
             echo IMAGE_TAG_SHA_TS=$(git rev-parse --short HEAD)-$(date +%s) >> $GITHUB_ENV
           fi
