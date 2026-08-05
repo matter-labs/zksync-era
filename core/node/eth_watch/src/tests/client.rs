@@ -180,6 +180,27 @@ impl FakeEthClientData {
             ));
     }
 
+    /// Emulates `setUpgradeDiamondCut` on a modern CTM: the cut for an already-scheduled upgrade is
+    /// rewritten in place, so only the `NewUpgradeCutData` keyed by the *old* protocol version is
+    /// re-emitted. There is no new `NewProtocolVersion`, and no backwards-compatible copy keyed by
+    /// the new version — this is the one shape that is discoverable solely under the old-version key.
+    fn rewrite_upgrade_cut(
+        &mut self,
+        old_protocol_version: ProtocolSemanticVersion,
+        upgrade: ProtocolUpgrade,
+        eth_block: u64,
+    ) {
+        self.add_bytecode_preimages(&upgrade.tx);
+        self.diamond_upgrades
+            .entry(eth_block)
+            .or_default()
+            .push(diamond_upgrade_log(
+                old_protocol_version,
+                upgrade,
+                eth_block,
+            ));
+    }
+
     fn add_protocol_version_verifier(
         &mut self,
         new_protocol_version: ProtocolSemanticVersion,
@@ -309,6 +330,18 @@ impl MockEthClient {
             .write()
             .await
             .add_diamond_cut(old_protocol_version, upgrade, eth_block);
+    }
+
+    pub async fn rewrite_upgrade_cut(
+        &mut self,
+        old_protocol_version: ProtocolSemanticVersion,
+        upgrade: ProtocolUpgrade,
+        eth_block: u64,
+    ) {
+        self.inner
+            .write()
+            .await
+            .rewrite_upgrade_cut(old_protocol_version, upgrade, eth_block);
     }
 
     pub async fn add_protocol_version_verifier(
