@@ -26,8 +26,10 @@ jobs:
           submodules: "recursive"
 
       - name: Download FFLONK key and setup data
+        env:
+          SETUP_KEYS_ID: ${{ inputs.setup_keys_id }}
         run: |
-          gsutil -m rsync -x "setup_(basic|leaf|node|recursion_tip|scheduler)" -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/proof-fri-gpu-compressor-gar
+          gsutil -m rsync -x "setup_(basic|leaf|node|recursion_tip|scheduler)" -r gs://matterlabs-setup-data-us/${SETUP_KEYS_ID} docker/proof-fri-gpu-compressor-gar
           gsutil -m cp -r gs://matterlabs-setup-keys-us/setup-keys/setup_compact.key docker/proof-fri-gpu-compressor-gar
 
       - name: Login to us-central1 GAR

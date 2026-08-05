@@ -18,6 +18,8 @@ runs:
 
     - name: Setup misc environment variables
       shell: bash
+      env:
+        RUNNER_COMPOSE_FILE: ${{ inputs.runner-compose-file }}
       run: |
         echo CACHE_DIR=/usr/src/cache >> .env
         echo CACHE_DIR=/usr/src/cache >> $GITHUB_PATH
@@ -28,17 +30,19 @@ runs:
         echo IN_DOCKER=1 >> .env
         echo CI=1 >> .env
         echo DOCKER_PWD=$(pwd) >> .env
-        echo RUNNER_COMPOSE_FILE=${{ inputs.runner-compose-file }} >> $GITHUB_ENV
+        echo "RUNNER_COMPOSE_FILE=${RUNNER_COMPOSE_FILE}" >> $GITHUB_ENV
 
     - name: Setup sccache for building rust code outside Docker
       if: inputs.sccache == 'true'
       shell: bash
+      env:
+        SCCACHE_MODE: ${{ inputs.sccache_mode }}
       run: |
         echo SCCACHE_CACHE_SIZE=50G >> $GITHUB_ENV
         echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
         echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
         echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
-        echo SCCACHE_GCS_RW_MODE=${{ inputs.sccache_mode }} >> $GITHUB_ENV
+        echo SCCACHE_GCS_RW_MODE=${SCCACHE_MODE} >> $GITHUB_ENV
         echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
 
         # sccache outside docker will run it's own server
@@ -47,12 +51,14 @@ runs:
     - name: Setup sccache for building rust code inside Docker
       if: inputs.sccache == 'true'
       shell: bash
+      env:
+        SCCACHE_MODE: ${{ inputs.sccache_mode }}
       run: |
         echo SCCACHE_CACHE_SIZE=50G >> .env
         echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> .env
         echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> .env
         echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> .env
-        echo SCCACHE_GCS_RW_MODE=${{ inputs.sccache_mode }} >> .env
+        echo SCCACHE_GCS_RW_MODE=${SCCACHE_MODE} >> .env
         echo RUSTC_WRAPPER=sccache >> .env
 
     # The zk-environment image bakes in RUSTC_WRAPPER=sccache; empty means "no wrapper" to cargo.

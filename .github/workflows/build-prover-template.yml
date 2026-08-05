@@ -107,10 +107,12 @@ jobs:
 
       - name: Set env vars
         shell: bash
+        env:
+          IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
         run: |
           # Support for custom tag suffix
-          if [ -n "${{ inputs.image_tag_suffix }}" ]; then
-            echo IMAGE_TAG_SHA_TS="${{ inputs.image_tag_suffix }}" >> $GITHUB_ENV
+          if [ -n "${IMAGE_TAG_SUFFIX}" ]; then
+            echo "IMAGE_TAG_SHA_TS=${IMAGE_TAG_SUFFIX}" >> $GITHUB_ENV
           else
             echo IMAGE_TAG_SHA_TS=$(git rev-parse --short HEAD)-$(date +%s) >> $GITHUB_ENV
           fi

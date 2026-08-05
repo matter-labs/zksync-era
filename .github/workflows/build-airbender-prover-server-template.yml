@@ -53,10 +53,12 @@ jobs:
 
       - name: Set env vars
         shell: bash
+        env:
+          IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
         run: |
           # Support for custom tag suffix; fall back to a short-sha + timestamp.
-          if [ -n "${{ inputs.image_tag_suffix }}" ]; then
-            echo IMAGE_TAG_SUFFIX="${{ inputs.image_tag_suffix }}" >> $GITHUB_ENV
+          if [ -n "${IMAGE_TAG_SUFFIX}" ]; then
+            echo "IMAGE_TAG_SUFFIX=${IMAGE_TAG_SUFFIX}" >> $GITHUB_ENV
           else
             echo IMAGE_TAG_SUFFIX="$(git rev-parse --short HEAD)-$(date +%s)" >> $GITHUB_ENV
           fi

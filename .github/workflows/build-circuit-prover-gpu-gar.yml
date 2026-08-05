@@ -26,8 +26,10 @@ jobs:
           submodules: "recursive"
 
       - name: Download Setup data
+        env:
+          SETUP_KEYS_ID: ${{ inputs.setup_keys_id }}
         run: |
-          gsutil -m rsync -x "fflonk|plonk|setup_compression" -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/circuit-prover-gpu-gar
+          gsutil -m rsync -x "fflonk|plonk|setup_compression" -r gs://matterlabs-setup-data-us/${SETUP_KEYS_ID} docker/circuit-prover-gpu-gar
 
       - name: Login to us-central1 GAR
         run: |

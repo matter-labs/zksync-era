@@ -19,21 +19,25 @@ jobs:
           gcloud auth configure-docker us-docker.pkg.dev -q
 
       - name: Check if alpha image exists
+        env:
+          TAG_NAME: ${{ inputs.tag_name }}
         run: |
           set +e
-          docker manifest inspect matterlabs/external-node:${{ inputs.tag_name }}-alpha >/dev/null 2>&1
+          docker manifest inspect "matterlabs/external-node:${TAG_NAME}-alpha" >/dev/null 2>&1
           exitcode=$?
           set -e
           if [[ "$exitcode" -eq "1" ]]; then
-            echo "Image matterlabs/external-node:${{ inputs.tag_name }}-alpha doesn't exist"
+            echo "Image matterlabs/external-node:${TAG_NAME}-alpha doesn't exist"
             exit 1
           fi
 
       - name: Push stable image
+        env:
+          TAG_NAME: ${{ inputs.tag_name }}
         run: |
           docker_repositories=("matterlabs/external-node" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/external-node")
           platforms=("linux/amd64" "linux/arm64")
-          tag_name="${{ inputs.tag_name }}"
+          tag_name="${TAG_NAME}"
           for repo in "${docker_repositories[@]}"; do
             platform_tags=""
             for platform in "${platforms[@]}"; do
