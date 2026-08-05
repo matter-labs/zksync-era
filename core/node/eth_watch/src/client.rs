@@ -16,7 +16,7 @@ use zksync_types::{
     abi::ZkChainSpecificUpgradeData,
     api::{ChainAggProof, Log},
     ethabi::{decode, Contract, ParamType},
-    h256_to_address,
+    h256_to_address, h256_to_u256,
     protocol_version::ProtocolSemanticVersion,
     u256_to_h256,
     utils::encode_ntv_asset_id,
@@ -30,6 +30,16 @@ use zksync_web3_decl::{
 };
 
 const FFLONK_VERIFIER_TYPE: i32 = 0;
+
+/// Protocol version scheduled on the CTM, as read from its `NewProtocolVersion` event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScheduledProtocolVersion {
+    /// Protocol version the chain is scheduled to upgrade to.
+    pub version: ProtocolSemanticVersion,
+    /// SL block in which the upgrade was scheduled. The upgrade diamond cut and the verifier for
+    /// `version` are emitted in this very block, so it is a lower bound for looking them up.
+    pub block_number: u64,
+}
 
 /// Common L1 and L2 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
 #[async_trait::async_trait]
@@ -59,19 +69,34 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         verifier_address: Address,
     ) -> Result<Option<H256>, ContractCallError>;
 
-    /// Returns the latest upgrade diamond cut for the old/from protocol version.
+    /// Resolves the protocol version scheduled from `old_version`.
+    ///
+    /// It is read from the `NewProtocolVersion` event emitted by the CTM, where topic1 is the old
+    /// protocol version and topic2 is the new protocol version. Both CTM generations emit it.
+    async fn scheduled_protocol_version(
+        &self,
+        old_version: ProtocolSemanticVersion,
+    ) -> EnrichedClientResult<Option<ScheduledProtocolVersion>>;
+
+    /// Returns the latest upgrade diamond cut emitted for `version` at or after `from_block`.
+    ///
+    /// Which version the cut is keyed by depends on the CTM generation, see
+    /// [`DecentralizedUpgradesEventProcessor`](crate::event_processors::DecentralizedUpgradesEventProcessor).
     async fn diamond_cut_for_version(
         &self,
         version: ProtocolSemanticVersion,
+        from_block: u64,
     ) -> EnrichedClientResult<Option<Vec<u8>>>;
 
-    /// Returns the verifier address set on CTM for the new protocol version `new_version`.
-    /// It is read from the `NewProtocolVersionVerifier` event, which is emitted in the same block
-    /// as the upgrade diamond cut for `old_version`.
+    /// Returns the verifier address set on the CTM for `new_version`, as read from the
+    /// `NewProtocolVersionVerifier` event emitted at or after `from_block`.
+    ///
+    /// Legacy CTMs do not have this event; there the verifier is part of the upgrade calldata and
+    /// this returns `None`.
     async fn verifier_address_for_version(
         &self,
-        old_version: ProtocolSemanticVersion,
         new_version: ProtocolSemanticVersion,
+        from_block: u64,
     ) -> EnrichedClientResult<Option<Address>>;
 
     async fn get_published_preimages(
@@ -123,6 +148,7 @@ pub struct EthHttpQueryClient<Net: Network> {
     client: Box<DynClient<Net>>,
     diamond_proxy_addr: Address,
     new_upgrade_cut_data_signature: H256,
+    new_protocol_version_signature: H256,
     new_protocol_version_verifier_signature: H256,
     bytecode_published_signature: H256,
     bytecode_supplier_addr: Option<Address>,
@@ -136,7 +162,6 @@ pub struct EthHttpQueryClient<Net: Network> {
     bridgehub_proxy_addr: Option<Address>,
     verifier_contract_abi: Contract,
     getters_facet_contract_abi: Contract,
-    chain_type_manager_abi: Contract,
     message_root_abi: Contract,
     l1_asset_router_abi: Contract,
     settlement_layer_v31_upgrade_abi: Contract,
@@ -182,6 +207,11 @@ where
                 .context("NewUpgradeCutData event is missing in ABI")
                 .unwrap()
                 .signature(),
+            new_protocol_version_signature: state_transition_manager_contract()
+                .event("NewProtocolVersion")
+                .context("NewProtocolVersion event is missing in ABI")
+                .unwrap()
+                .signature(),
             new_protocol_version_verifier_signature: state_transition_manager_contract()
                 .event("NewProtocolVersionVerifier")
                 .context("NewProtocolVersionVerifier event is missing in ABI")
@@ -194,7 +224,6 @@ where
                 .signature(),
             verifier_contract_abi: verifier_contract(),
             getters_facet_contract_abi: getters_facet_contract(),
-            chain_type_manager_abi: state_transition_manager_contract(),
             message_root_abi: l2_message_root(),
             l1_asset_router_abi: l1_asset_router_contract(),
             settlement_layer_v31_upgrade_abi: settlement_layer_v31_upgrade_contract(),
@@ -327,25 +356,53 @@ where
         result
     }
 
-    async fn block_for_diamond_cut_for_version(
+    /// Fetches CTM events with `topic1 == signature` and `topic2 == packed_version`, ordered from
+    /// the oldest to the newest.
+    ///
+    /// `from_block` bounds the search below; `None` looks back [`LOOK_BACK_BLOCK_RANGE`] blocks. The
+    /// upper bound is [`EthClient::confirmed_block_number()`] — the same visibility rule `EthWatch`
+    /// applies to the `UpgradeTimestampUpdated` events that trigger these look-ups. Bounding by the
+    /// finalized block instead would miss an upgrade that was just scheduled, since finalization
+    /// lags the confirmed block whenever `confirmations_for_eth_event` is small.
+    ///
+    /// Returns an empty vector if the CTM address is not configured.
+    async fn ctm_events_for_version(
         &self,
+        signature: H256,
         packed_version: U256,
-    ) -> Result<Option<U64>, ContractCallError> {
+        from_block: Option<u64>,
+        method_name: &'static str,
+    ) -> EnrichedClientResult<Vec<Log>> {
         let Some(state_transition_manager_address) = self.state_transition_manager_address else {
-            return Ok(None);
+            return Ok(vec![]);
         };
 
-        let result: U256 = CallFunctionArgs::new("upgradeCutDataBlock", packed_version)
-            .for_contract(
-                state_transition_manager_address,
-                &self.chain_type_manager_abi,
+        let to_block = self.confirmed_block_number().await.map_err(|e| {
+            EnrichedClientError::custom(
+                format!("Failed to get confirmed block number: err {e}"),
+                method_name,
             )
-            .call(&self.client)
+        })?;
+        let from_block =
+            from_block.unwrap_or_else(|| to_block.saturating_sub(LOOK_BACK_BLOCK_RANGE));
+
+        let mut logs = self
+            .get_events_inner(
+                from_block.into(),
+                to_block.into(),
+                Some(vec![signature]),
+                Some(vec![u256_to_h256(packed_version)]),
+                Some(vec![state_transition_manager_address]),
+                RETRY_LIMIT,
+            )
             .await?;
-        if result.is_zero() {
-            return Ok(None);
-        }
-        Ok(Some(U64::from(result.as_u64())))
+        logs.sort_by_key(|log| {
+            (
+                log.block_number.unwrap_or_default(),
+                log.log_index.unwrap_or_default(),
+            )
+        });
+        Ok(logs)
     }
 }
 
@@ -480,86 +537,87 @@ where
         }
     }
 
-    async fn diamond_cut_for_version(
+    async fn scheduled_protocol_version(
         &self,
-        version: ProtocolSemanticVersion,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
-            return Ok(None);
-        };
-
-        let Some(from_block) = self
-            .block_for_diamond_cut_for_version(version.pack())
-            .await
-            .map_err(|e| {
-                EnrichedClientError::custom(
-                    format!("Failed to get block for diamond cut for version {version}: err {e}"),
-                    "diamond_cut_for_version",
-                )
-            })?
-        else {
-            return Ok(None);
-        };
-
+        old_version: ProtocolSemanticVersion,
+    ) -> EnrichedClientResult<Option<ScheduledProtocolVersion>> {
         let logs = self
-            .get_events_inner(
-                from_block.into(),
-                from_block.into(),
-                Some(vec![self.new_upgrade_cut_data_signature]),
-                Some(vec![u256_to_h256(version.pack())]),
-                Some(vec![state_transition_manager_address]),
-                RETRY_LIMIT,
+            .ctm_events_for_version(
+                self.new_protocol_version_signature,
+                old_version.pack(),
+                None,
+                "scheduled_protocol_version",
             )
             .await?;
 
-        if logs.len() > 1 {
-            return Err(EnrichedClientError::custom(
-                format!(
-                    "Multiple NewUpgradeCutData events in block {from_block} for version {version}"
-                ),
+        // If several upgrades were scheduled from the same old version, the one emitted in the
+        // latest block corresponds to the currently active upgrade path.
+        let Some(log) = logs.last() else {
+            return Ok(None);
+        };
+        let new_version = log.topics.get(2).ok_or_else(|| {
+            EnrichedClientError::custom(
+                "NewProtocolVersion event is missing the new version topic",
+                "scheduled_protocol_version",
+            )
+        })?;
+        let version = ProtocolSemanticVersion::try_from_packed(h256_to_u256(*new_version))
+            .map_err(|err| {
+                EnrichedClientError::custom(
+                    format!("Failed to parse new protocol version: {err}"),
+                    "scheduled_protocol_version",
+                )
+            })?;
+        let block_number = log
+            .block_number
+            .ok_or_else(|| {
+                EnrichedClientError::custom(
+                    "NewProtocolVersion event is missing the block number",
+                    "scheduled_protocol_version",
+                )
+            })?
+            .as_u64();
+        Ok(Some(ScheduledProtocolVersion {
+            version,
+            block_number,
+        }))
+    }
+
+    async fn diamond_cut_for_version(
+        &self,
+        version: ProtocolSemanticVersion,
+        from_block: u64,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        let logs = self
+            .ctm_events_for_version(
+                self.new_upgrade_cut_data_signature,
+                version.pack(),
+                Some(from_block),
                 "diamond_cut_for_version",
-            ));
-        }
-        Ok(logs.into_iter().map(|log| log.data.0).next())
+            )
+            .await?;
+
+        // The cut may be rewritten after it was first scheduled, in which case the latest event
+        // holds the cut that will actually be applied.
+        Ok(logs.into_iter().next_back().map(|log| log.data.0))
     }
 
     async fn verifier_address_for_version(
         &self,
-        old_version: ProtocolSemanticVersion,
         new_version: ProtocolSemanticVersion,
+        from_block: u64,
     ) -> EnrichedClientResult<Option<Address>> {
-        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
-            return Ok(None);
-        };
-
-        let Some(from_block) = self
-            .block_for_diamond_cut_for_version(old_version.pack())
-            .await
-            .map_err(|e| {
-                EnrichedClientError::custom(
-                    format!(
-                        "Failed to get block for diamond cut for version {old_version}: err {e}"
-                    ),
-                    "verifier_address_for_version",
-                )
-            })?
-        else {
-            return Ok(None);
-        };
-
         let logs = self
-            .get_events_inner(
-                from_block.into(),
-                from_block.into(),
-                Some(vec![self.new_protocol_version_verifier_signature]),
-                Some(vec![u256_to_h256(new_version.pack())]),
-                Some(vec![state_transition_manager_address]),
-                RETRY_LIMIT,
+            .ctm_events_for_version(
+                self.new_protocol_version_verifier_signature,
+                new_version.pack(),
+                Some(from_block),
+                "verifier_address_for_version",
             )
             .await?;
 
-        // If the verifier was set several times within the block, the last event matches
-        // the current `protocolVersionVerifier` mapping value.
+        // If the verifier was set several times, the last event matches the current
+        // `protocolVersionVerifier` mapping value.
         let Some(log) = logs.last() else {
             return Ok(None);
         };
