@@ -224,6 +224,7 @@ jobs:
         build-prover-images,
         build-airbender-prover-server-images,
         e2e-for-prover,
+        e2e-for-airbender-prover,
       ]
     steps:
       - name: Status
