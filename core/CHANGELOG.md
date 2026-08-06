@@ -1,5 +1,24 @@
 # Changelog
 
+## [31.4.0](https://github.com/matter-labs/zksync-era/compare/core-v31.3.0...core-v31.4.0) (2026-08-06)
+
+
+### Features
+
+* **eth_watch:** set vk hashes from CTM NewProtocolVersionVerifier event ([#4917](https://github.com/matter-labs/zksync-era/issues/4917)) ([2695446](https://github.com/matter-labs/zksync-era/commit/269544639571d1424a6b58fad4bb8f696d68fe98))
+* **protocol:** Protocol Upgrade 29.5 ([#4923](https://github.com/matter-labs/zksync-era/issues/4923)) ([f3c2f8e](https://github.com/matter-labs/zksync-era/commit/f3c2f8efdb1e3cd4ccf016678d816a8d33655042))
+
+
+### Bug Fixes
+
+* **eth_watch:** support both CTM upgrade-event generations ([#4925](https://github.com/matter-labs/zksync-era/issues/4925)) ([03abcbe](https://github.com/matter-labs/zksync-era/commit/03abcbe364f22706aafc8c589fac56a15edb42e1))
+* **verifier:** mask factory dependency hashes positionally, not by scanning ([#4888](https://github.com/matter-labs/zksync-era/issues/4888)) ([7745c9d](https://github.com/matter-labs/zksync-era/commit/7745c9d28a404b555bcdef1e789180541aa96e83))
+
+
+### Performance Improvements
+
+* **dal:** disable sort for `get_l2_blocks_to_reexecute` query ([#4921](https://github.com/matter-labs/zksync-era/issues/4921)) ([948aeaf](https://github.com/matter-labs/zksync-era/commit/948aeaf5786ebc4e9b7dd947cc08a6a1df9a7e21))
+
 ## [31.3.0](https://github.com/matter-labs/zksync-era/compare/core-v31.2.0...core-v31.3.0) (2026-07-20)
 
 

@@ -17,7 +17,10 @@ use zksync_types::{
     ProtocolUpgrade, ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256,
 };
 
-use crate::{tests::client::MockEthClient, EthWatch, ZkSyncExtentionEthClient};
+use crate::{
+    tests::client::{CtmGeneration, MockEthClient},
+    EthWatch, ZkSyncExtentionEthClient,
+};
 
 mod client;
 
@@ -264,10 +267,20 @@ async fn test_upgrade_timestamp_wrong_chain_ignored() {
 }
 
 #[test_log::test(tokio::test)]
-async fn test_rewritten_upgrade_cut_is_used() {
+async fn test_rewritten_upgrade_cut_is_used_on_legacy_ctm() {
+    test_rewritten_upgrade_cut_is_used(CtmGeneration::Legacy).await;
+}
+
+#[test_log::test(tokio::test)]
+async fn test_rewritten_upgrade_cut_is_used_on_modern_ctm() {
+    test_rewritten_upgrade_cut_is_used(CtmGeneration::Modern).await;
+}
+
+async fn test_rewritten_upgrade_cut_is_used(ctm_generation: CtmGeneration) {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
     let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
+    client.set_ctm_generation(ctm_generation).await;
 
     let old_protocol_version = ProtocolSemanticVersion {
         minor: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
@@ -313,11 +326,71 @@ async fn test_rewritten_upgrade_cut_is_used() {
     assert_eq!(db_versions[1], replacement_version);
 }
 
+/// A cut rewritten in place via `setUpgradeDiamondCut` on a modern CTM re-emits only
+/// `NewUpgradeCutData` keyed by the *old* protocol version — no new `NewProtocolVersion` and no
+/// backwards-compatible copy keyed by the new version. This is the shape that is discoverable
+/// solely under the old-version key, so it is what the new-version fallback alone would miss.
+#[test_log::test(tokio::test)]
+async fn test_in_place_cut_rewrite_is_used_on_modern_ctm() {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    setup_db(&connection_pool).await;
+    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
+    client.set_ctm_generation(CtmGeneration::Modern).await;
+
+    let old_protocol_version = ProtocolSemanticVersion {
+        minor: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
+        patch: 0.into(),
+    };
+    let replacement_version = ProtocolSemanticVersion {
+        minor: ProtocolVersionId::next(),
+        patch: 0.into(),
+    };
+
+    let mut storage = connection_pool.connection().await.unwrap();
+    client
+        .add_upgrade_timestamp(&[(
+            ProtocolUpgrade {
+                version: ProtocolSemanticVersion {
+                    minor: ProtocolVersionId::latest(),
+                    patch: 0.into(),
+                },
+                tx: None,
+                ..Default::default()
+            },
+            10,
+        )])
+        .await;
+
+    // Governance rewrites the cut in place at a later block; the upgrade is never re-scheduled, so
+    // the scheduling block stays at 10 and only the old-version key carries the new cut.
+    client
+        .rewrite_upgrade_cut(
+            old_protocol_version,
+            ProtocolUpgrade {
+                version: replacement_version,
+                tx: None,
+                ..Default::default()
+            },
+            15,
+        )
+        .await;
+    client.set_last_finalized_block_number(20).await;
+    watcher.loop_iteration(&mut storage).await.unwrap();
+
+    let db_versions = storage.protocol_versions_dal().all_versions().await;
+    assert_eq!(db_versions.len(), 2);
+    assert_eq!(db_versions[1], replacement_version);
+}
+
+/// Modern CTMs announce the verifier for the new protocol version via
+/// `NewProtocolVersionVerifier`; it takes precedence over the upgrade calldata, which may not carry
+/// a verifier at all.
 #[test_log::test(tokio::test)]
 async fn test_verifier_from_ctm_event_is_used_for_vk_hashes() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
     let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
+    client.set_ctm_generation(CtmGeneration::Modern).await;
 
     let new_version = ProtocolSemanticVersion {
         minor: ProtocolVersionId::next(),
@@ -339,7 +412,54 @@ async fn test_verifier_from_ctm_event_is_used_for_vk_hashes() {
         )])
         .await;
     client
-        .add_protocol_version_verifier(new_version, verifier)
+        .add_protocol_version_verifier(new_version, verifier, 10)
+        .await;
+    client.set_last_finalized_block_number(15).await;
+    watcher.loop_iteration(&mut storage).await.unwrap();
+
+    let db_versions = storage.protocol_versions_dal().all_versions().await;
+    assert_eq!(db_versions.len(), 2);
+    assert_eq!(db_versions[1], new_version);
+
+    let db_version = storage
+        .protocol_versions_dal()
+        .get_protocol_version_with_latest_patch(new_version.minor)
+        .await
+        .unwrap()
+        .expect("expected the new version to be present in DB");
+    // The mock client derives the VK hash from the verifier address.
+    assert_eq!(
+        db_version.l1_verifier_config.snark_wrapper_vk_hash,
+        address_to_h256(&verifier)
+    );
+}
+
+/// Legacy CTMs have no `NewProtocolVersionVerifier` event, so the verifier embedded in the upgrade
+/// calldata is the only source.
+#[test_log::test(tokio::test)]
+async fn test_verifier_from_upgrade_data_is_used_for_vk_hashes_on_legacy_ctm() {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    setup_db(&connection_pool).await;
+    let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
+    client.set_ctm_generation(CtmGeneration::Legacy).await;
+
+    let new_version = ProtocolSemanticVersion {
+        minor: ProtocolVersionId::next(),
+        patch: 0.into(),
+    };
+    let verifier = Address::repeat_byte(0x42);
+
+    let mut storage = connection_pool.connection().await.unwrap();
+    client
+        .add_upgrade_timestamp(&[(
+            ProtocolUpgrade {
+                version: new_version,
+                tx: None,
+                verifier_address: Some(verifier),
+                ..Default::default()
+            },
+            10,
+        )])
         .await;
     client.set_last_finalized_block_number(15).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
@@ -362,12 +482,22 @@ async fn test_verifier_from_ctm_event_is_used_for_vk_hashes() {
 }
 
 #[test_log::test(tokio::test)]
-async fn test_normal_operation_upgrade_timestamp() {
+async fn test_normal_operation_upgrade_timestamp_on_legacy_ctm() {
+    test_normal_operation_upgrade_timestamp(CtmGeneration::Legacy).await;
+}
+
+#[test_log::test(tokio::test)]
+async fn test_normal_operation_upgrade_timestamp_on_modern_ctm() {
+    test_normal_operation_upgrade_timestamp(CtmGeneration::Modern).await;
+}
+
+async fn test_normal_operation_upgrade_timestamp(ctm_generation: CtmGeneration) {
     zksync_concurrency::testonly::abort_on_panic();
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
 
     let mut client = MockEthClient::new(SLChainId(42));
+    client.set_ctm_generation(ctm_generation).await;
     let mut watcher = EthWatch::new(
         Box::new(client.clone()),
         Box::new(client.clone()),

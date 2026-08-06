@@ -112,15 +112,50 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 continue;
             }
 
-            let diamond_cut = self
+            // The CTM emits a `NewProtocolVersion` event mapping the old protocol version (topic1)
+            // to the new protocol version (topic2). Both CTM generations emit it, and it pins down
+            // the block in which the upgrade was scheduled.
+            let scheduled = self
                 .sl_client
-                .diamond_cut_for_version(old_protocol_version)
+                .scheduled_protocol_version(old_protocol_version)
                 .await
                 .map_err(EventProcessorError::client)?
                 .with_context(|| {
-                    format!("No diamond cuts found for protocol version {old_protocol_version}")
+                    format!(
+                        "No NewProtocolVersion event found for old protocol version \
+                         {old_protocol_version} in the CTM look-back window (event {event:?})"
+                    )
                 })
                 .map_err(EventProcessorError::internal)?;
+
+            // Modern CTMs key `NewUpgradeCutData` by the *old* protocol version, which lets
+            // governance rewrite the cut after the upgrade was scheduled. Legacy CTMs key it by the
+            // *new* protocol version and cannot express a rewrite at all, so the new-version key is
+            // only consulted when the old-version one yields nothing. Both look-ups start at the
+            // scheduling block so that cuts emitted for earlier upgrades are not picked up — on a
+            // modern CTM the previous upgrade also emitted a backwards-compatible
+            // `NewUpgradeCutData` keyed by what is now the old version.
+            let diamond_cut = match self
+                .sl_client
+                .diamond_cut_for_version(old_protocol_version, scheduled.block_number)
+                .await
+                .map_err(EventProcessorError::client)?
+            {
+                Some(diamond_cut) => diamond_cut,
+                None => self
+                    .sl_client
+                    .diamond_cut_for_version(scheduled.version, scheduled.block_number)
+                    .await
+                    .map_err(EventProcessorError::client)?
+                    .with_context(|| {
+                        format!(
+                            "No diamond cuts found for upgrade from protocol version \
+                             {old_protocol_version} to {} scheduled in block {}",
+                            scheduled.version, scheduled.block_number
+                        )
+                    })
+                    .map_err(EventProcessorError::internal)?,
+            };
 
             let upgrade = ProtocolUpgrade {
                 timestamp,
@@ -143,13 +178,23 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 )));
             }
 
-            // The verifier for the new protocol version is set on the CTM and emitted via the
-            // `NewProtocolVersionVerifier` event next to the upgrade diamond cut. It takes
-            // precedence over the verifier address in the upgrade data, which may be absent
-            // (e.g. for verifier-only patch upgrades).
+            if upgrade.version != scheduled.version {
+                tracing::warn!(
+                    "Diamond cut for the upgrade from {old_protocol_version} declares version {}, \
+                     while the CTM scheduled {}",
+                    upgrade.version,
+                    scheduled.version
+                );
+            }
+
+            // Modern CTMs set the verifier for the new protocol version on the CTM itself and emit
+            // it via the `NewProtocolVersionVerifier` event next to the upgrade diamond cut. It
+            // takes precedence over the verifier address in the upgrade data, which may be absent
+            // (e.g. for verifier-only patch upgrades). Legacy CTMs have no such event, so there the
+            // verifier from the upgrade data is the only source.
             let verifier_address = self
                 .sl_client
-                .verifier_address_for_version(old_protocol_version, upgrade.version)
+                .verifier_address_for_version(upgrade.version, scheduled.block_number)
                 .await
                 .map_err(EventProcessorError::client)?
                 .or(upgrade.verifier_address);

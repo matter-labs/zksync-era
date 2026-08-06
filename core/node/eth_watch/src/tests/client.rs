@@ -4,13 +4,14 @@ use tokio::sync::RwLock;
 use zksync_contracts::{
     hyperchain_contract, server_notifier_contract, state_transition_manager_contract,
 };
-use zksync_eth_client::{ContractCallError, EnrichedClientError, EnrichedClientResult};
+use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
     abi::{self, ProposedUpgrade, ZkChainSpecificUpgradeData},
     address_to_h256,
     api::{ChainAggProof, Log},
     bytecode::BytecodeHash,
     ethabi::{self, Token},
+    h256_to_address, h256_to_u256,
     l1::L1Tx,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
@@ -21,12 +22,28 @@ use zksync_types::{
     H256, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256, U64,
 };
 
-use crate::client::{EthClient, ZkSyncExtentionEthClient, RETRY_LIMIT};
+use crate::client::{EthClient, ScheduledProtocolVersion, ZkSyncExtentionEthClient};
+
+/// Generation of the CTM the mock client emulates. The two generations announce upgrades with
+/// different events, and the server is expected to support both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CtmGeneration {
+    /// `NewUpgradeCutData` is keyed by the new protocol version and there is no
+    /// `NewProtocolVersionVerifier` event; the verifier comes from the upgrade calldata.
+    #[default]
+    Legacy,
+    /// `NewUpgradeCutData` is keyed by the old protocol version (plus a backwards-compatible copy
+    /// keyed by the new one), and the verifier is announced via `NewProtocolVersionVerifier`.
+    Modern,
+}
 
 #[derive(Debug)]
 pub struct FakeEthClientData {
+    ctm_generation: CtmGeneration,
     transactions: HashMap<u64, Vec<Log>>,
     diamond_upgrades: HashMap<u64, Vec<Log>>,
+    // `NewProtocolVersion` events mapping an old protocol version (topic1) to a new one (topic2).
+    new_protocol_versions: HashMap<u64, Vec<Log>>,
     upgrade_timestamp: HashMap<u64, Vec<Log>>,
     last_finalized_block_number: u64,
     chain_id: SLChainId,
@@ -36,15 +53,17 @@ pub struct FakeEthClientData {
     batch_roots: HashMap<u64, Vec<Log>>,
     chain_roots: HashMap<u64, H256>,
     bytecode_preimages: HashMap<H256, Vec<u8>>,
-    // Keyed by the packed *new* protocol version.
-    protocol_version_verifiers: HashMap<H256, Address>,
+    // `NewProtocolVersionVerifier` events keyed by the packed *new* protocol version.
+    protocol_version_verifiers: HashMap<u64, Vec<Log>>,
 }
 
 impl FakeEthClientData {
     fn new(chain_id: SLChainId) -> Self {
         Self {
+            ctm_generation: CtmGeneration::default(),
             transactions: Default::default(),
             diamond_upgrades: Default::default(),
+            new_protocol_versions: Default::default(),
             upgrade_timestamp: Default::default(),
             last_finalized_block_number: 0,
             chain_id,
@@ -56,6 +75,30 @@ impl FakeEthClientData {
             bytecode_preimages: Default::default(),
             protocol_version_verifiers: Default::default(),
         }
+    }
+
+    /// Emits the `NewUpgradeCutData` event(s) that the emulated CTM generation would emit when
+    /// scheduling `upgrade` as an upgrade from `old_protocol_version`.
+    fn push_diamond_cut_logs(
+        &mut self,
+        old_protocol_version: ProtocolSemanticVersion,
+        upgrade: &ProtocolUpgrade,
+        eth_block: u64,
+    ) {
+        let logs = self.diamond_upgrades.entry(eth_block).or_default();
+        if self.ctm_generation == CtmGeneration::Modern {
+            logs.push(diamond_upgrade_log(
+                old_protocol_version,
+                upgrade.clone(),
+                eth_block,
+            ));
+        }
+        // Legacy CTMs only emit this one; modern ones emit it for backwards compatibility.
+        logs.push(diamond_upgrade_log(
+            upgrade.version,
+            upgrade.clone(),
+            eth_block,
+        ));
     }
 
     fn add_transactions(&mut self, transactions: &[L1Tx]) {
@@ -83,12 +126,13 @@ impl FakeEthClientData {
                     u256_to_h256(old_protocol_version.pack()),
                     *eth_block,
                 ));
-            self.diamond_upgrades
+            self.push_diamond_cut_logs(old_protocol_version, upgrade, *eth_block);
+            self.new_protocol_versions
                 .entry(*eth_block)
                 .or_default()
-                .push(diamond_upgrade_log(
+                .push(new_protocol_version_log(
                     old_protocol_version,
-                    upgrade.clone(),
+                    upgrade.version,
                     *eth_block,
                 ));
             self.add_bytecode_preimages(&upgrade.tx);
@@ -124,6 +168,29 @@ impl FakeEthClientData {
         eth_block: u64,
     ) {
         self.add_bytecode_preimages(&upgrade.tx);
+        let new_protocol_version = upgrade.version;
+        self.push_diamond_cut_logs(old_protocol_version, &upgrade, eth_block);
+        self.new_protocol_versions
+            .entry(eth_block)
+            .or_default()
+            .push(new_protocol_version_log(
+                old_protocol_version,
+                new_protocol_version,
+                eth_block,
+            ));
+    }
+
+    /// Emulates `setUpgradeDiamondCut` on a modern CTM: the cut for an already-scheduled upgrade is
+    /// rewritten in place, so only the `NewUpgradeCutData` keyed by the *old* protocol version is
+    /// re-emitted. There is no new `NewProtocolVersion`, and no backwards-compatible copy keyed by
+    /// the new version — this is the one shape that is discoverable solely under the old-version key.
+    fn rewrite_upgrade_cut(
+        &mut self,
+        old_protocol_version: ProtocolSemanticVersion,
+        upgrade: ProtocolUpgrade,
+        eth_block: u64,
+    ) {
+        self.add_bytecode_preimages(&upgrade.tx);
         self.diamond_upgrades
             .entry(eth_block)
             .or_default()
@@ -138,9 +205,33 @@ impl FakeEthClientData {
         &mut self,
         new_protocol_version: ProtocolSemanticVersion,
         verifier: Address,
+        eth_block: u64,
     ) {
         self.protocol_version_verifiers
-            .insert(u256_to_h256(new_protocol_version.pack()), verifier);
+            .entry(eth_block)
+            .or_default()
+            .push(protocol_version_verifier_log(
+                new_protocol_version,
+                verifier,
+                eth_block,
+            ));
+    }
+
+    fn set_ctm_generation(&mut self, generation: CtmGeneration) {
+        self.ctm_generation = generation;
+    }
+
+    /// Iterates over logs in `[from_block, confirmed block]`, the range the real client queries the
+    /// CTM over. The mock reports the same number as both the confirmed and the finalized block.
+    fn confirmed_logs<'a>(
+        &self,
+        logs: &'a HashMap<u64, Vec<Log>>,
+        from_block: u64,
+    ) -> impl Iterator<Item = &'a Log> {
+        let range = from_block..=self.last_finalized_block_number;
+        logs.iter()
+            .filter(move |(block_number, _)| range.contains(block_number))
+            .flat_map(|(_, logs)| logs)
     }
 
     fn set_last_finalized_block_number(&mut self, number: u64) {
@@ -241,15 +332,33 @@ impl MockEthClient {
             .add_diamond_cut(old_protocol_version, upgrade, eth_block);
     }
 
-    pub async fn add_protocol_version_verifier(
+    pub async fn rewrite_upgrade_cut(
         &mut self,
-        new_protocol_version: ProtocolSemanticVersion,
-        verifier: Address,
+        old_protocol_version: ProtocolSemanticVersion,
+        upgrade: ProtocolUpgrade,
+        eth_block: u64,
     ) {
         self.inner
             .write()
             .await
-            .add_protocol_version_verifier(new_protocol_version, verifier);
+            .rewrite_upgrade_cut(old_protocol_version, upgrade, eth_block);
+    }
+
+    pub async fn add_protocol_version_verifier(
+        &mut self,
+        new_protocol_version: ProtocolSemanticVersion,
+        verifier: Address,
+        eth_block: u64,
+    ) {
+        self.inner.write().await.add_protocol_version_verifier(
+            new_protocol_version,
+            verifier,
+            eth_block,
+        );
+    }
+
+    pub async fn set_ctm_generation(&mut self, generation: CtmGeneration) {
+        self.inner.write().await.set_ctm_generation(generation);
     }
 
     pub async fn set_last_finalized_block_number(&mut self, number: u64) {
@@ -358,62 +467,73 @@ impl EthClient for MockEthClient {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 
+    async fn scheduled_protocol_version(
+        &self,
+        old_version: ProtocolSemanticVersion,
+    ) -> EnrichedClientResult<Option<ScheduledProtocolVersion>> {
+        let packed_old = u256_to_h256(old_version.pack());
+        let guard = self.inner.read().await;
+        // If several upgrades were scheduled from the same old version, the one in the latest
+        // block corresponds to the currently active upgrade path.
+        let scheduled = latest_log(
+            guard.confirmed_logs(&guard.new_protocol_versions, 0),
+            |log| {
+                log.topics.first()
+                    == Some(
+                        &state_transition_manager_contract()
+                            .event("NewProtocolVersion")
+                            .unwrap()
+                            .signature(),
+                    )
+                    && log.topics.get(1) == Some(&packed_old)
+            },
+        )
+        .map(|log| ScheduledProtocolVersion {
+            version: ProtocolSemanticVersion::try_from_packed(h256_to_u256(log.topics[2])).unwrap(),
+            block_number: log.block_number.unwrap().as_u64(),
+        });
+        Ok(scheduled)
+    }
+
     async fn diamond_cut_for_version(
         &self,
         version: ProtocolSemanticVersion,
+        from_block: u64,
     ) -> EnrichedClientResult<Option<Vec<u8>>> {
         let packed_version = u256_to_h256(version.pack());
-        let from_block = self
-            .inner
-            .read()
-            .await
-            .diamond_upgrades
-            .iter()
-            .filter_map(|(block_number, logs)| {
-                logs.iter()
-                    .any(|log| log.topics.get(1) == Some(&packed_version))
-                    .then_some(*block_number)
-            })
-            .max()
-            .unwrap_or(0);
-        let logs = self
-            .get_events(
-                U64::from(from_block).into(),
-                U64::from(from_block).into(),
-                Some(
-                    state_transition_manager_contract()
-                        .event("NewUpgradeCutData")
-                        .unwrap()
-                        .signature(),
-                ),
-                Some(packed_version),
-                RETRY_LIMIT,
-            )
-            .await?;
-
-        if logs.len() > 1 {
-            return Err(EnrichedClientError::custom(
-                format!(
-                    "Multiple NewUpgradeCutData events in block {from_block} for version {version}"
-                ),
-                "diamond_cut_for_version",
-            ));
-        }
-        Ok(logs.into_iter().map(|log| log.data.0).next())
+        let guard = self.inner.read().await;
+        // The cut may be rewritten after it was first scheduled, in which case the latest event
+        // holds the cut that will actually be applied.
+        Ok(latest_log(
+            guard.confirmed_logs(&guard.diamond_upgrades, from_block),
+            |log| {
+                log.topics.first()
+                    == Some(
+                        &state_transition_manager_contract()
+                            .event("NewUpgradeCutData")
+                            .unwrap()
+                            .signature(),
+                    )
+                    && log.topics.get(1) == Some(&packed_version)
+            },
+        )
+        .map(|log| log.data.0.clone()))
     }
 
     async fn verifier_address_for_version(
         &self,
-        _old_version: ProtocolSemanticVersion,
         new_version: ProtocolSemanticVersion,
+        from_block: u64,
     ) -> EnrichedClientResult<Option<Address>> {
-        Ok(self
-            .inner
-            .read()
-            .await
-            .protocol_version_verifiers
-            .get(&u256_to_h256(new_version.pack()))
-            .copied())
+        let packed_version = u256_to_h256(new_version.pack());
+        let guard = self.inner.read().await;
+        // If the verifier was set several times, the last event matches the current
+        // `protocolVersionVerifier` mapping value.
+        Ok(latest_log(
+            guard.confirmed_logs(&guard.protocol_version_verifiers, from_block),
+            |log| log.topics.get(1) == Some(&packed_version),
+        )
+        .map(|log| h256_to_address(&log.topics[2])))
     }
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
@@ -595,8 +715,24 @@ fn init_calldata(protocol_upgrade: ProtocolUpgrade) -> Vec<u8> {
     calldata
 }
 
+/// Returns the log matching `predicate` that the CTM emitted last, mirroring how the real client
+/// orders logs by `(block_number, log_index)`.
+fn latest_log<'a>(
+    logs: impl Iterator<Item = &'a Log>,
+    predicate: impl Fn(&Log) -> bool,
+) -> Option<&'a Log> {
+    logs.filter(|log| predicate(log)).max_by_key(|log| {
+        (
+            log.block_number.unwrap_or_default(),
+            log.log_index.unwrap_or_default(),
+        )
+    })
+}
+
+/// Builds a `NewUpgradeCutData` log carrying `upgrade`, keyed by `cut_key_version`, which is the old
+/// or the new protocol version depending on the [`CtmGeneration`].
 fn diamond_upgrade_log(
-    old_protocol_version: ProtocolSemanticVersion,
+    cut_key_version: ProtocolSemanticVersion,
     upgrade: ProtocolUpgrade,
     eth_block: u64,
 ) -> Log {
@@ -605,7 +741,7 @@ fn diamond_upgrade_log(
     //     address initAddress;
     //     bytes initCalldata;
     // }
-    let version = u256_to_h256(old_protocol_version.pack());
+    let version = u256_to_h256(cut_key_version.pack());
     let final_data = ethabi::encode(&[Token::Tuple(vec![
         Token::Array(vec![]),
         Token::Address(Address::zero()),
@@ -634,6 +770,64 @@ fn diamond_upgrade_log(
         block_timestamp: None,
     }
 }
+
+fn new_protocol_version_log(
+    old_protocol_version: ProtocolSemanticVersion,
+    new_protocol_version: ProtocolSemanticVersion,
+    eth_block: u64,
+) -> Log {
+    Log {
+        address: Address::repeat_byte(0x1),
+        topics: vec![
+            state_transition_manager_contract()
+                .event("NewProtocolVersion")
+                .unwrap()
+                .signature(),
+            u256_to_h256(old_protocol_version.pack()),
+            u256_to_h256(new_protocol_version.pack()),
+        ],
+        data: Default::default(),
+        block_hash: Some(H256::repeat_byte(0x11)),
+        block_number: Some(eth_block.into()),
+        l1_batch_number: None,
+        transaction_hash: Some(H256::random()),
+        transaction_index: Some(0u64.into()),
+        log_index: Some(0u64.into()),
+        transaction_log_index: Some(0u64.into()),
+        log_type: None,
+        removed: None,
+        block_timestamp: None,
+    }
+}
+fn protocol_version_verifier_log(
+    new_protocol_version: ProtocolSemanticVersion,
+    verifier: Address,
+    eth_block: u64,
+) -> Log {
+    Log {
+        address: Address::repeat_byte(0x1),
+        topics: vec![
+            state_transition_manager_contract()
+                .event("NewProtocolVersionVerifier")
+                .unwrap()
+                .signature(),
+            u256_to_h256(new_protocol_version.pack()),
+            address_to_h256(&verifier),
+        ],
+        data: Default::default(),
+        block_hash: Some(H256::repeat_byte(0x11)),
+        block_number: Some(eth_block.into()),
+        l1_batch_number: None,
+        transaction_hash: Some(H256::random()),
+        transaction_index: Some(0u64.into()),
+        log_index: Some(0u64.into()),
+        transaction_log_index: Some(0u64.into()),
+        log_type: None,
+        removed: None,
+        block_timestamp: None,
+    }
+}
+
 fn upgrade_timestamp_log(packed_version: H256, eth_block: u64) -> Log {
     upgrade_timestamp_log_for_chain(L2ChainId::default(), packed_version, eth_block)
 }
