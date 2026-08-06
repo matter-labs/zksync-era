@@ -4,7 +4,10 @@ use anyhow::Context as _;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use zksync_types::contract_verification::api::{CompilationArtifacts, ImmutableReference};
+use zksync_types::{
+    contract_verification::api::{CompilationArtifacts, ImmutableReference},
+    H256,
+};
 
 pub(crate) use self::{
     solc::{Solc, SolcInput},
@@ -300,7 +303,10 @@ fn parse_immutable_refs(
     }
 }
 
-fn parse_factory_dependency_refs(contract: &Value, bytecode: &[u8]) -> Vec<ImmutableReference> {
+/// Collects the 32-byte factory dependency bytecode hashes reported in the compiler output.
+/// The verifier uses these values to locate dependency-hash words during bytecode comparison
+/// (see [`CompilationArtifacts::patch_immutable_bytecodes`]); the link offsets are not needed.
+fn parse_factory_dependency_hashes(contract: &Value) -> Vec<H256> {
     let Some(deps) = contract
         .get("factoryDependencies")
         .and_then(serde_json::Value::as_object)
@@ -308,28 +314,12 @@ fn parse_factory_dependency_refs(contract: &Value, bytecode: &[u8]) -> Vec<Immut
         return Vec::new();
     };
 
-    let mut refs = Vec::new();
-    for hash in deps.keys() {
-        let Ok(hash) = hex::decode(hash.strip_prefix("0x").unwrap_or(hash)) else {
-            continue;
-        };
-        if hash.len() != 32 {
-            continue;
-        }
-
-        refs.extend(
-            bytecode
-                .windows(hash.len())
-                .enumerate()
-                .filter_map(|(start, window)| {
-                    (window == hash.as_slice()).then_some(ImmutableReference {
-                        start,
-                        length: hash.len(),
-                    })
-                }),
-        );
-    }
-    refs
+    deps.keys()
+        .filter_map(|hash| {
+            let hash = hex::decode(hash.strip_prefix("0x").unwrap_or(hash)).ok()?;
+            (hash.len() == 32).then(|| H256::from_slice(&hash))
+        })
+        .collect()
 }
 
 /// Parsing logic shared between `solc` and `zksolc`.
@@ -404,7 +394,7 @@ fn parse_standard_json_output(
     let immutable_refs =
         parse_immutable_refs(contract.pointer("/evm/deployedBytecode/immutableReferences"))
             .unwrap_or_default();
-    let factory_dependency_refs = parse_factory_dependency_refs(contract, &bytecode);
+    let factory_dependency_hashes = parse_factory_dependency_hashes(contract);
 
     let mut abi = contract["abi"].clone();
     if abi.is_null() {
@@ -424,7 +414,7 @@ fn parse_standard_json_output(
         deployed_bytecode,
         abi,
         immutable_refs,
-        factory_dependency_refs,
+        factory_dependency_hashes,
     })
 }
 
@@ -505,9 +495,10 @@ mod parser_tests {
     }
 
     #[test]
-    fn parses_factory_dependency_hash_refs() {
-        let dependency_hash = "010002f3aa6cac6815f2300b1a4ed078983900fa5a0268f6575db307b09ae610";
-        let bytecode = format!("11223344{dependency_hash}55667788{dependency_hash}");
+    fn parses_factory_dependency_hashes() {
+        let dep_a = "010002f3aa6cac6815f2300b1a4ed078983900fa5a0268f6575db307b09ae610";
+        let dep_b = "010004a1bb6cac6815f2300b1a4ed078983900fa5a0268f6575db307b09ae611";
+        // Hashes come from the `factoryDependencies` keys; the bytecode content is not scanned.
         let output = serde_json::json!({
             "contracts": {
                 "Counter.sol": {
@@ -515,11 +506,12 @@ mod parser_tests {
                         "abi": [],
                         "evm": {
                             "bytecode": {
-                                "object": bytecode,
+                                "object": "00",
                             }
                         },
                         "factoryDependencies": {
-                            dependency_hash: "CounterDependency.sol:CounterDependency"
+                            dep_a: "A.sol:A",
+                            dep_b: "B.sol:B",
                         }
                     }
                 }
@@ -534,18 +526,13 @@ mod parser_tests {
         )
         .unwrap();
 
-        assert_eq!(
-            artifacts.factory_dependency_refs,
-            vec![
-                zksync_types::contract_verification::api::ImmutableReference {
-                    start: 4,
-                    length: 32,
-                },
-                zksync_types::contract_verification::api::ImmutableReference {
-                    start: 40,
-                    length: 32,
-                },
-            ]
-        );
+        let mut hashes = artifacts.factory_dependency_hashes;
+        hashes.sort();
+        let mut expected = vec![
+            zksync_types::H256::from_slice(&hex::decode(dep_a).unwrap()),
+            zksync_types::H256::from_slice(&hex::decode(dep_b).unwrap()),
+        ];
+        expected.sort();
+        assert_eq!(hashes, expected);
     }
 }

@@ -7,7 +7,7 @@ use serde::{
 };
 use zksync_basic_types::bytecode::BytecodeMarker;
 
-use crate::{contract_verification::contract_identifier::CborMetadata, web3::Bytes, Address};
+use crate::{contract_verification::contract_identifier::CborMetadata, web3::Bytes, Address, H256};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "codeFormat", content = "sourceCode")]
@@ -329,10 +329,12 @@ pub struct CompilationArtifacts {
     /// Defaults to empty if no immutables are found.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub immutable_refs: HashMap<String, Vec<ImmutableReference>>,
-    /// Offsets of linked factory dependency bytecode hashes in EraVM bytecode.
-    /// These hashes may differ for dependencies with deployment-specific bytecode.
+    /// Bytecode hashes of the contract's factory dependencies, as reported by the compiler.
+    /// A dependency with deployment-specific bytecode is linked into the deployed EraVM bytecode
+    /// under a different hash, so words holding these hashes are compared leniently (see
+    /// [`Self::patch_immutable_bytecodes`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub factory_dependency_refs: Vec<ImmutableReference>,
+    pub factory_dependency_hashes: Vec<H256>,
 }
 
 /// Stores each immutable reference offset and length in deployed bytecode.
@@ -347,8 +349,8 @@ impl CompilationArtifacts {
         self.deployed_bytecode.as_deref().unwrap_or(&self.bytecode)
     }
 
-    /// Patches the provided `compiled_code` and `deployed_code` slices by zeroing
-    /// out the bytes corresponding to each immutable reference.
+    /// Zeroes byte ranges that are expected to legitimately differ between the compiled and
+    /// deployed bytecode: immutable references and linked factory dependency hashes.
     pub fn patch_immutable_bytecodes(&self, compiled_code: &mut [u8], deployed_code: &mut [u8]) {
         for spans in self.immutable_refs.values() {
             for span in spans {
@@ -360,15 +362,48 @@ impl CompilationArtifacts {
                 }
             }
         }
-        for span in &self.factory_dependency_refs {
-            let start = span.start;
-            let end = start + span.length;
-            if end <= compiled_code.len() && end <= deployed_code.len() {
-                compiled_code[start..end].fill(0);
-                deployed_code[start..end].fill(0);
+        self.patch_factory_dependency_hashes(compiled_code, deployed_code);
+    }
+
+    /// Zeroes the EraVM words that hold linked factory dependency hashes, which may differ between
+    /// the compiled and deployed bytecode when a dependency has deployment-specific bytecode.
+    ///
+    /// The link slots are located positionally rather than by scanning for hash bytes: a 32-byte
+    /// word is masked only where it differs and the compiled side is a compiler-reported dependency
+    /// hash while the deployed side is itself a well-formed EraVM bytecode hash. An ordinary runtime
+    /// constant that merely collides with a dependency hash therefore stays part of the comparison.
+    fn patch_factory_dependency_hashes(&self, compiled_code: &mut [u8], deployed_code: &mut [u8]) {
+        if self.factory_dependency_hashes.is_empty() {
+            return;
+        }
+        let shared_len = compiled_code.len().min(deployed_code.len());
+        let mut start = 0;
+        while start + 32 <= shared_len {
+            let word = start..start + 32;
+            if compiled_code[word.clone()] != deployed_code[word.clone()]
+                && self
+                    .factory_dependency_hashes
+                    .iter()
+                    .any(|hash| hash.as_bytes() == &compiled_code[word.clone()])
+                && is_eravm_bytecode_hash(&deployed_code[word.clone()])
+            {
+                compiled_code[word.clone()].fill(0);
+                deployed_code[word].fill(0);
             }
+            start += 32;
         }
     }
+}
+
+/// Checks whether `word` has the structure of an EraVM bytecode hash, the format used for
+/// linked factory dependency hashes: a 32-byte value whose first byte is the EraVM marker,
+/// second byte is zero, and word-length field is odd (EraVM bytecodes have an odd number of
+/// 32-byte words).
+fn is_eravm_bytecode_hash(word: &[u8]) -> bool {
+    word.len() == 32
+        && word[0] == BytecodeMarker::EraVm as u8
+        && word[1] == 0
+        && u16::from_be_bytes([word[2], word[3]]) % 2 == 1
 }
 
 /// Non-critical issues detected during verification.
@@ -419,7 +454,19 @@ mod tests {
     use assert_matches::assert_matches;
 
     use super::*;
-    use crate::contract_verification::contract_identifier::{CborCompilerVersion, CborMetadata};
+    use crate::contract_verification::contract_identifier::{
+        CborCompilerVersion, CborMetadata, ContractIdentifier, Match,
+    };
+
+    /// Builds a value with the structure of an EraVM bytecode hash (marker byte, zero reserved
+    /// byte, odd word-length field), varying only by `tag` in the hash tail.
+    fn eravm_bytecode_hash(tag: u8) -> [u8; 32] {
+        let mut hash = [tag; 32];
+        hash[0] = BytecodeMarker::EraVm as u8;
+        hash[1] = 0;
+        hash[2..4].copy_from_slice(&1u16.to_be_bytes());
+        hash
+    }
 
     #[test]
     fn source_code_deserialization() {
@@ -751,23 +798,118 @@ mod tests {
     }
 
     #[test]
-    fn patches_factory_dependency_refs() {
+    fn patches_factory_dependency_hashes() {
         let artifacts = CompilationArtifacts {
             bytecode: vec![],
             deployed_bytecode: None,
             abi: serde_json::Value::Array(vec![]),
             immutable_refs: Default::default(),
-            factory_dependency_refs: vec![ImmutableReference {
-                start: 4,
-                length: 4,
-            }],
+            factory_dependency_hashes: vec![H256(eravm_bytecode_hash(0xaa))],
         };
-        let mut compiled = vec![1, 2, 3, 4, 0xaa, 0xaa, 0xaa, 0xaa, 9];
-        let mut deployed = vec![1, 2, 3, 4, 0xbb, 0xbb, 0xbb, 0xbb, 9];
+        let mut compiled = [0x11; 32].to_vec();
+        compiled.extend_from_slice(&eravm_bytecode_hash(0xaa));
+        let mut deployed = [0x11; 32].to_vec();
+        deployed.extend_from_slice(&eravm_bytecode_hash(0xbb));
 
         artifacts.patch_immutable_bytecodes(&mut compiled, &mut deployed);
 
-        assert_eq!(compiled, vec![1, 2, 3, 4, 0, 0, 0, 0, 9]);
-        assert_eq!(deployed, vec![1, 2, 3, 4, 0, 0, 0, 0, 9]);
+        let mut expected = [0x11; 32].to_vec();
+        expected.extend_from_slice(&[0; 32]);
+        assert_eq!(compiled, expected);
+        assert_eq!(deployed, expected);
+    }
+
+    #[test]
+    fn patches_factory_dependency_hashes_with_different_bytecode_lengths() {
+        let dependency_hash = eravm_bytecode_hash(0xaa);
+        let artifacts = CompilationArtifacts {
+            bytecode: vec![],
+            deployed_bytecode: None,
+            abi: serde_json::Value::Array(vec![]),
+            immutable_refs: Default::default(),
+            factory_dependency_hashes: vec![H256(dependency_hash)],
+        };
+        let mut compiled = [0x11; 32].to_vec();
+        compiled.extend_from_slice(&dependency_hash);
+        let mut deployed = [0x11; 32].to_vec();
+        deployed.extend_from_slice(&eravm_bytecode_hash(0xbb));
+        deployed.extend_from_slice(&[0x22; 32]);
+
+        artifacts.patch_immutable_bytecodes(&mut compiled, &mut deployed);
+
+        assert_eq!(&compiled[32..64], &[0; 32]);
+        assert_eq!(&deployed[32..64], &[0; 32]);
+        assert_eq!(&deployed[64..], &[0x22; 32]);
+    }
+
+    #[test]
+    fn does_not_mask_runtime_constant_colliding_with_dependency_hash() {
+        // A legitimately linked dependency hash lives at offset 32; an ordinary runtime
+        // constant that happens to equal the same hash lives at offset 64. Only the deployed
+        // link slot holds another well-formed EraVM bytecode hash, so only it may be masked.
+        let dependency_hash = eravm_bytecode_hash(0xaa);
+        let attacker_constant = [0xcc; 32];
+
+        let build = |link_slot: &[u8; 32], constant: &[u8; 32]| {
+            let mut bytecode = [0x11; 32].to_vec();
+            bytecode.extend_from_slice(link_slot);
+            bytecode.extend_from_slice(constant);
+            bytecode.extend_from_slice(&[0x22; 32]);
+            bytecode.extend_from_slice(&[0x33; 32]);
+            bytecode
+        };
+        let mut compiled = build(&dependency_hash, &dependency_hash);
+        let mut deployed = build(&eravm_bytecode_hash(0xbb), &attacker_constant);
+
+        assert_eq!(
+            ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &compiled).matches(
+                &ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &deployed)
+            ),
+            Match::None
+        );
+
+        let artifacts = CompilationArtifacts {
+            bytecode: compiled.clone(),
+            deployed_bytecode: None,
+            abi: serde_json::Value::Array(vec![]),
+            immutable_refs: Default::default(),
+            factory_dependency_hashes: vec![H256(dependency_hash)],
+        };
+
+        artifacts.patch_immutable_bytecodes(&mut compiled, &mut deployed);
+
+        // The tampered runtime constant at offset 64 remains, so the mismatch is still visible.
+        assert_eq!(&deployed[64..96], &attacker_constant);
+        assert_eq!(
+            ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &compiled).matches(
+                &ContractIdentifier::from_bytecode(BytecodeMarker::EraVm, &deployed)
+            ),
+            Match::None
+        );
+    }
+
+    #[test]
+    fn does_not_mask_unaligned_dependency_hash_occurrence() {
+        // The dependency hash sits at an unaligned offset (4), straddling word boundaries, so the
+        // word-aligned masking never examines it and a deployed-side change stays visible.
+        let dependency_hash = eravm_bytecode_hash(0xaa);
+        let mut compiled = [0x11; 4].to_vec();
+        compiled.extend_from_slice(&dependency_hash);
+        compiled.extend_from_slice(&[0x11; 28]);
+        let mut deployed = compiled.clone();
+        deployed[4..36].copy_from_slice(&[0xcc; 32]);
+
+        let artifacts = CompilationArtifacts {
+            bytecode: compiled.clone(),
+            deployed_bytecode: None,
+            abi: serde_json::Value::Array(vec![]),
+            immutable_refs: Default::default(),
+            factory_dependency_hashes: vec![H256(dependency_hash)],
+        };
+
+        artifacts.patch_immutable_bytecodes(&mut compiled, &mut deployed);
+
+        assert_eq!(&compiled[4..36], &dependency_hash);
+        assert_eq!(&deployed[4..36], &[0xcc; 32]);
     }
 }

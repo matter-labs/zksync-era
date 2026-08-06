@@ -24,6 +24,7 @@ jobs:
         uses: ./.github/actions/setup-env
         with:
           runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
+          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: Install yq
         run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq

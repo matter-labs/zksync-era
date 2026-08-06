@@ -17,8 +17,6 @@ Overall, it is the main registry for all the contracts. Note, that a clone of Br
 
 ![Contracts](./img/gateway_architecture.png)
 
-> This document will not cover how ZK Gateway works, you can check it out in [a separate doc](../gateway/overview.md).
-
 ## Asset router as the main asset bridging entrypoint
 
 The main entry for passing value between chains is the AssetRouter, it is responsible for facilitating bridging between multiple asset types. To read more in detail on how it works, please refer to custom [asset bridging documentation](./asset_router_and_ntv/overview.md).
@@ -150,7 +148,7 @@ This call will return the parameters to call the l2 contract with (the address o
 
 ## Generic usage of `BridgeHub.requestL2TransactionTwoBridges`
 
-`L1AssetRouter` is the only bridge that can handle base tokens. However, the `BridgeHub.requestL2TransactionTwoBridges` could be used by `secondBridgeAddress` on L1. A notable example of how it is done is how our CTMDeploymentTracker uses it to register the correct CTM address on Gateway. You can read more about how Gateway works in [its documentation](../gateway/overview.md).
+`L1AssetRouter` is the only bridge that can handle base tokens. However, the `BridgeHub.requestL2TransactionTwoBridges` could be used by `secondBridgeAddress` on L1.
 
 Let’s do a quick recap on how it works:
 

@@ -39,6 +39,11 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
+        with:
+          # This job compiles and runs contributor-supplied benchmark code from
+          # (possibly forked) PRs, so it must never be able to write the shared
+          # sccache cache that trusted release builds read from.
+          sccache_mode: READ_ONLY
 
       - name: run benchmarks on base branch
         shell: bash
