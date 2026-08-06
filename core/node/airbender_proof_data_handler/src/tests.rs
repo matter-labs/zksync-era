@@ -67,6 +67,7 @@ async fn request_airbender_proof_inputs() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response = app
@@ -93,6 +94,7 @@ async fn request_airbender_proof_inputs_no_lock_returns_404_for_missing_batch() 
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response = app
@@ -120,6 +122,7 @@ async fn request_airbender_proof_inputs_no_lock_returns_404_for_missing_blob_dat
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response = app
@@ -144,6 +147,7 @@ async fn present_batches_returns_null_fields_when_empty() {
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response = app
@@ -175,6 +179,7 @@ async fn present_batches_returns_oldest_and_latest_batches() {
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response = app
@@ -225,6 +230,7 @@ async fn submit_airbender_proof() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response = send_submit_airbender_proof_request(&app, &uri, &airbender_proof_request).await;
@@ -293,6 +299,7 @@ async fn submit_airbender_proof_rejects_when_not_picked() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response = send_submit_airbender_proof_request(
@@ -334,6 +341,7 @@ async fn submit_airbender_proof_failure_marks_batch_failed() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response =
@@ -369,6 +377,7 @@ async fn submit_airbender_proof_failure_rejects_when_not_picked() {
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response =
@@ -396,6 +405,7 @@ async fn submit_airbender_snark_proof_failure_reverts_to_generated() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response =
@@ -421,6 +431,7 @@ async fn snark_inputs_returns_no_content_when_empty() {
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response = app
@@ -483,6 +494,7 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response = app
@@ -542,6 +554,7 @@ async fn snark_inputs_rolls_back_lock_when_fri_proof_missing_in_gcs() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response = app
@@ -589,6 +602,7 @@ async fn submit_snark_proof_succeeds_when_picked_for_snark() {
         db_conn_pool.clone(),
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response =
@@ -635,6 +649,7 @@ async fn submit_snark_proof_rejects_when_not_picked_for_snark() {
         db_conn_pool,
         test_config(),
         L2ChainId::default(),
+        None,
     );
 
     let response =

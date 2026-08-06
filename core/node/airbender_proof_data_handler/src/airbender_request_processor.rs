@@ -1,7 +1,6 @@
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
 };
 
 use anyhow::Context;
@@ -17,9 +16,7 @@ use zksync_airbender_prover_interface::{
     outputs::{L1BatchAirbenderProofForL1, L1BatchAirbenderSnarkProofForL1},
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
-use zksync_dal::{
-    airbender_proof_generation_dal::ProverKeyDiagnosis, Connection, ConnectionPool, Core, CoreDal,
-};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::commit::kzg::{
     pubdata_to_blob_commitments, pubdata_to_blob_linear_hashes, pubdata_to_blob_versioned_hashes,
 };
@@ -29,7 +26,8 @@ use zksync_prover_interface::{
     outputs::L1BatchProofForL1,
 };
 use zksync_types::{
-    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId, H256,
+    blob::num_blobs_required, commitment::L1BatchCommitmentMode,
+    protocol_version::ProtocolSemanticVersion, L1BatchNumber, L2ChainId, H256,
 };
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
@@ -38,30 +36,56 @@ use crate::{
     metrics::{ProcessorErrorKind, ProofStage, METRICS},
 };
 
-/// How long a [`ProverKeyDiagnosis`] is reused before being looked up again. Bounds both the
-/// diagnostic queries and the warnings below to one per key per interval, so an idle fleet polling
-/// every few seconds cannot turn either into a storm.
-const DIAGNOSIS_TTL: Duration = Duration::from_secs(60);
-/// Cap on distinct keys remembered, so a client polling with arbitrary hashes cannot grow the map
-/// without bound. Real deployments only ever see a handful of prover releases.
-const MAX_CACHED_DIAGNOSES: usize = 64;
+/// Cap on distinct keys remembered for warning suppression. A client polling with arbitrary hashes
+/// would otherwise grow the set without bound; real deployments only see a handful of prover
+/// releases, so hitting the cap means the set is junk and is simply dropped.
+const MAX_REMEMBERED_KEYS: usize = 64;
 
-#[derive(Clone, Copy)]
-struct CachedDiagnosis {
-    /// `None` while a lookup is in flight. Reserving the slot before querying keeps concurrent
-    /// pollers for the same key from all issuing the same query.
-    diagnosis: Option<ProverKeyDiagnosis>,
-    checked_at: Instant,
+/// The highest protocol version any batch has been claimed at, held in memory so that the claim
+/// query is a plain lower-bound check instead of a correlated lookup over previous claims.
+///
+/// The safety property is one-directional: this may run *ahead* of committed state, never behind.
+/// Ahead only starves an old prover generation of new work, which stalls and recovers; behind would
+/// let it record a version below one already committed for an earlier batch, which strands that
+/// batch on L1 for good. Two things keep it from lagging:
+///
+/// - It is seeded from the database when the handler starts, so a restart cannot forget an upgrade
+///   that already happened.
+/// - It is promoted immediately after the claim `INSERT` and before that transaction commits, so by
+///   the time a claim is visible to anyone else the watermark already covers it. In the window
+///   where the row is still uncommitted, other pollers compute the same candidate batch and lose on
+///   the primary key, which is what covers the gap.
+#[derive(Default)]
+struct ProvingWatermark {
+    version: Option<ProtocolSemanticVersion>,
+    /// Keys already warned about, cleared whenever the watermark moves so that a genuinely new
+    /// situation is reported again. Keeps an idle fleet from turning every poll into a log line
+    /// without needing an expiry.
+    warned: HashSet<H256>,
 }
 
-/// What a poller should do with the diagnosis cache, decided while holding the lock.
-enum DiagnosisAction {
-    /// A fresh answer was cached; report it without touching the database.
-    Report(ProverKeyDiagnosis),
-    /// Another poller is already looking this key up; stay quiet this round.
-    Skip,
-    /// This poller reserved the slot and must perform the lookup.
-    Refresh,
+impl ProvingWatermark {
+    fn current(&self) -> Option<ProtocolSemanticVersion> {
+        self.version
+    }
+
+    /// Raises the watermark to `version` if it is higher. Never lowers it: a reclaim or an
+    /// out-of-order heal handing back an older version must not reopen the door for the generation
+    /// that version belongs to.
+    fn promote(&mut self, version: ProtocolSemanticVersion) {
+        if self.version.is_none_or(|current| version > current) {
+            self.version = Some(version);
+            self.warned.clear();
+        }
+    }
+
+    /// Whether this key should be warned about now, remembering that it was.
+    fn should_warn(&mut self, key: H256) -> bool {
+        if self.warned.len() >= MAX_REMEMBERED_KEYS {
+            self.warned.clear();
+        }
+        self.warned.insert(key)
+    }
 }
 
 #[derive(Clone)]
@@ -70,9 +94,9 @@ pub(crate) struct AirbenderRequestProcessor {
     pool: ConnectionPool<Core>,
     config: AirbenderProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
-    /// Shared across requests (axum clones the state per request), so a whole fleet polling with
-    /// the same key shares one cached diagnosis.
-    diagnoses: Arc<Mutex<HashMap<H256, CachedDiagnosis>>>,
+    /// Shared across requests (axum clones the state per request), so the whole fleet is gated on
+    /// one watermark.
+    watermark: Arc<Mutex<ProvingWatermark>>,
 }
 
 impl AirbenderRequestProcessor {
@@ -81,121 +105,76 @@ impl AirbenderRequestProcessor {
         pool: ConnectionPool<Core>,
         config: AirbenderProofDataHandlerConfig,
         l2_chain_id: L2ChainId,
+        watermark_seed: Option<ProtocolSemanticVersion>,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
             l2_chain_id,
-            diagnoses: Arc::default(),
+            watermark: Arc::new(Mutex::new(ProvingWatermark {
+                version: watermark_seed,
+                warned: HashSet::new(),
+            })),
         }
     }
 
-    /// Records why a prover was handed no job. Runs only *after* a claim came up empty, so the happy
-    /// path costs no extra queries at all, and the answer is cached per key for [`DIAGNOSIS_TTL`],
-    /// with the slot reserved before the lookup so concurrent pollers do not all issue it. That
-    /// bounds this to one query and one warning per key per interval. Metrics are otherwise updated
-    /// per request from the cached answer; a poller that arrives while a lookup is in flight stays
-    /// quiet rather than waiting for it.
+    /// Records why a prover was handed no job, so that an operator can tell a misdeployed prover and
+    /// a superseded generation apart from a simply idle queue — all three look the same from
+    /// outside, an endless stream of empty polls. Runs only *after* a claim came up empty, so the
+    /// happy path pays nothing.
+    ///
+    /// Only "is this key registered at all" needs the database; whether the generation is superseded
+    /// is answered from the watermark we already hold. The warning is emitted once per key and
+    /// re-armed whenever the watermark moves, so an idle fleet doesn't turn each poll into a log
+    /// line.
     async fn report_no_job(
         &self,
         connection: &mut Connection<'_, Core>,
         snark_wrapper_vk_hash: H256,
         stage: ProofStage,
     ) -> Result<(), AirbenderProcessorError> {
-        let action = {
-            let mut cache = self.diagnoses.lock().expect("diagnosis cache poisoned");
-            // Expired entries first, so the cap below only ever counts live ones and a key seen once
-            // long ago cannot occupy a slot forever.
-            cache.retain(|_, cached| cached.checked_at.elapsed() < DIAGNOSIS_TTL);
+        let key_version = connection
+            .airbender_proof_generation_dal()
+            .latest_version_for_key(snark_wrapper_vk_hash)
+            .await?;
 
-            match cache.get(&snark_wrapper_vk_hash) {
-                Some(CachedDiagnosis {
-                    diagnosis: Some(diagnosis),
-                    ..
-                }) => DiagnosisAction::Report(*diagnosis),
-                Some(_) => DiagnosisAction::Skip,
-                None => {
-                    // Evict the oldest live entry when full, so a fleet rolling through keys keeps
-                    // getting cached rather than falling back to querying on every poll.
-                    if cache.len() >= MAX_CACHED_DIAGNOSES {
-                        let oldest = cache
-                            .iter()
-                            .min_by_key(|(_, cached)| cached.checked_at)
-                            .map(|(key, _)| *key);
-                        if let Some(oldest) = oldest {
-                            cache.remove(&oldest);
-                        }
-                    }
-                    cache.insert(
-                        snark_wrapper_vk_hash,
-                        CachedDiagnosis {
-                            diagnosis: None,
-                            checked_at: Instant::now(),
-                        },
-                    );
-                    DiagnosisAction::Refresh
-                }
-            }
+        let (watermark, should_warn) = {
+            let mut watermark = self.watermark.lock().expect("watermark poisoned");
+            (
+                watermark.current(),
+                watermark.should_warn(snark_wrapper_vk_hash),
+            )
         };
 
-        let diagnosis = match action {
-            DiagnosisAction::Report(diagnosis) => diagnosis,
-            DiagnosisAction::Skip => return Ok(()),
-            DiagnosisAction::Refresh => {
-                let looked_up = connection
-                    .airbender_proof_generation_dal()
-                    .diagnose_prover_key(snark_wrapper_vk_hash)
-                    .await;
-                let diagnosis = match looked_up {
-                    Ok(diagnosis) => diagnosis,
-                    Err(err) => {
-                        // Release the slot so the next poll retries instead of staying quiet for a
-                        // whole interval.
-                        self.diagnoses
-                            .lock()
-                            .expect("diagnosis cache poisoned")
-                            .remove(&snark_wrapper_vk_hash);
-                        return Err(err.into());
-                    }
-                };
-                self.diagnoses
-                    .lock()
-                    .expect("diagnosis cache poisoned")
-                    .insert(
-                        snark_wrapper_vk_hash,
-                        CachedDiagnosis {
-                            diagnosis: Some(diagnosis),
-                            checked_at: Instant::now(),
-                        },
-                    );
-
-                // Logged only on refresh, which is what keeps these warnings to one per key per
-                // interval instead of one per poll.
-                if !diagnosis.key_is_registered {
+        match key_version {
+            None => {
+                METRICS.airbender_unknown_vk_requests[&stage].inc();
+                if should_warn {
                     tracing::warn!(
                         ?snark_wrapper_vk_hash,
                         ?stage,
                         "Prover requested a job with an Airbender SNARK-wrapper VK hash that no \
                          protocol patch is registered for; returning no job"
                     );
-                } else if diagnosis.superseded {
+                }
+            }
+            Some(key_version) if watermark.is_some_and(|watermark| key_version < watermark) => {
+                METRICS.airbender_superseded_generation_requests[&stage].inc();
+                if should_warn {
                     tracing::warn!(
                         ?snark_wrapper_vk_hash,
                         ?stage,
+                        %key_version,
+                        watermark = %watermark.expect("checked above"),
                         "Prover generation has been superseded: batches are being proven at a newer \
                          protocol version, so this prover will not receive new work. It can be \
                          retired once the batches it already holds are wrapped into SNARKs."
                     );
                 }
-                diagnosis
             }
-        };
-
-        if !diagnosis.key_is_registered {
-            METRICS.airbender_unknown_vk_requests[&stage].inc();
-        } else if diagnosis.superseded {
-            METRICS.airbender_superseded_generation_requests[&stage].inc();
+            // Registered and current — the queue is simply idle.
+            Some(_) => {}
         }
         Ok(())
     }
@@ -223,17 +202,32 @@ impl AirbenderRequestProcessor {
             // and the SNARK step reuse the exact same version (and blob key) instead of recomputing
             // it. The version is the batch's own minor version with the highest patch registered
             // for the prover's VK (chosen inside the lock query), so a batch is proven under the
-            // protocol it executed with, by a prover that holds the right key.
-            let Some(locked_batch) = transaction
+            // protocol it executed with, by a prover that holds the right key. The watermark keeps
+            // that version from going backwards across prover generations.
+            let watermark = self.watermark.lock().expect("watermark poisoned").current();
+            let locked_batch = transaction
                 .airbender_proof_generation_dal()
                 .lock_batch_for_proving(
                     self.config.proof_generation_timeout,
                     min_batch_number,
                     self.config.max_proving_attempts,
                     snark_wrapper_vk_hash,
+                    watermark,
                 )
-                .await?
-            else {
+                .await?;
+
+            // Promote before the commit below, and before the object-store reads that sit between
+            // the two: a watermark that lagged a committed claim would let an older generation
+            // record a lower version for a later batch, which strands it on L1 permanently. Running
+            // ahead of a claim that later rolls back only costs a stalled poll.
+            if let Some(locked_batch) = &locked_batch {
+                self.watermark
+                    .lock()
+                    .expect("watermark poisoned")
+                    .promote(locked_batch.protocol_version);
+            }
+
+            let Some(locked_batch) = locked_batch else {
                 // No job. Release the transaction before diagnosing why — the diagnosis has nothing
                 // to do with the claim and should not extend it.
                 drop(transaction);
