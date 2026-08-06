@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::Context;
 use axum::{extract::Path, Json};
@@ -23,8 +23,7 @@ use zksync_prover_interface::{
     outputs::L1BatchProofForL1,
 };
 use zksync_types::{
-    blob::num_blobs_required, commitment::L1BatchCommitmentMode,
-    protocol_version::ProtocolSemanticVersion, L1BatchNumber, L2ChainId, H256,
+    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId, H256,
 };
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
@@ -33,28 +32,12 @@ use crate::{
     metrics::{ProcessorErrorKind, ProofStage, METRICS},
 };
 
-/// The highest protocol version any batch has been claimed at, so the claim query is a plain
-/// lower-bound check instead of a correlated lookup over previous claims.
-///
-/// The safety property is one-directional: this may run *ahead* of committed state, never behind.
-/// Ahead only starves an old prover generation of new work, which stalls and recovers; behind lets
-/// it record a version below one already committed for an earlier batch, stranding that batch on L1
-/// for good. Two things keep it from lagging: it is seeded from the database at startup, so a
-/// restart cannot forget an upgrade; and it is promoted right after the claim `INSERT`, before that
-/// transaction commits, so a claim is never visible to anyone else before the watermark covers it.
-/// While the row is still uncommitted, other pollers aim at the same batch and lose on the primary
-/// key.
-type ProvingWatermark = Arc<Mutex<Option<ProtocolSemanticVersion>>>;
-
 #[derive(Clone)]
 pub(crate) struct AirbenderRequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: AirbenderProofDataHandlerConfig,
     l2_chain_id: L2ChainId,
-    /// Shared across requests (axum clones the state per request), so the whole fleet is gated on
-    /// one watermark.
-    watermark: ProvingWatermark,
 }
 
 impl AirbenderRequestProcessor {
@@ -63,23 +46,12 @@ impl AirbenderRequestProcessor {
         pool: ConnectionPool<Core>,
         config: AirbenderProofDataHandlerConfig,
         l2_chain_id: L2ChainId,
-        watermark_seed: Option<ProtocolSemanticVersion>,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
             l2_chain_id,
-            watermark: Arc::new(Mutex::new(watermark_seed)),
-        }
-    }
-
-    /// Raises the watermark to `version` if it is higher. Never lowers it: a reclaim hands back the
-    /// version recorded when the batch was first locked, which may be older than the current one.
-    fn promote_watermark(&self, version: ProtocolSemanticVersion) {
-        let mut watermark = self.watermark.lock().expect("watermark poisoned");
-        if watermark.is_none_or(|current| version > current) {
-            *watermark = Some(version);
         }
     }
 
@@ -106,28 +78,18 @@ impl AirbenderRequestProcessor {
             // and the SNARK step reuse the same version (and blob key) instead of recomputing it.
             // It is the batch's own minor with the highest patch registered for the prover's VK, so
             // a batch is proven under the protocol it executed with, by a prover holding the right
-            // key. The watermark keeps it from going backwards across prover generations.
-            let watermark = *self.watermark.lock().expect("watermark poisoned");
-            let locked_batch = transaction
+            // key. Keeping that version from going backwards across prover generations is the
+            // claim statement's job, decided against the database — see `lock_batch_for_proving`.
+            let Some(locked_batch) = transaction
                 .airbender_proof_generation_dal()
                 .lock_batch_for_proving(
                     self.config.proof_generation_timeout,
                     min_batch_number,
                     self.config.max_proving_attempts,
                     snark_wrapper_vk_hash,
-                    watermark,
                 )
-                .await?;
-
-            // Promote before the commit, and before the object-store reads in between: a watermark
-            // lagging a committed claim would let an older generation record a lower version for a
-            // later batch, stranding it on L1. Running ahead of a claim that later rolls back only
-            // costs a stalled poll.
-            if let Some(locked_batch) = &locked_batch {
-                self.promote_watermark(locked_batch.protocol_version);
-            }
-
-            let Some(locked_batch) = locked_batch else {
+                .await?
+            else {
                 return Ok(None);
             };
             let batch_number = locked_batch.l1_batch_number;

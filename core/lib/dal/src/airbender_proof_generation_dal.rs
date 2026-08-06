@@ -18,7 +18,7 @@ use crate::{
             StorageAirbenderProof, StorageAirbenderSnarkProof, StorageLockedBatch,
         },
     },
-    Core, CoreDal,
+    Core,
 };
 
 #[derive(Debug)]
@@ -63,58 +63,35 @@ pub struct LockedBatch {
 }
 
 impl AirbenderProofGenerationDal<'_, '_> {
-    /// Locks the next batch for Airbender FRI proving, if the requesting prover can prove it. A
-    /// prover is identified by the Airbender SNARK-wrapper VK hash it carries, and the version
-    /// recorded for proving is the batch's own minor version (`l1_batches.protocol_version`) with
-    /// the highest patch of that minor registered for that key.
+    /// Locks the next batch for Airbender FRI proving. A prover is identified by the Airbender
+    /// SNARK-wrapper VK hash it carries; the recorded version is the batch's own minor with the
+    /// highest patch of that minor registered for that key.
     ///
-    /// Recorded versions must never decrease in batch number, compared as `(minor, patch)`: with
-    /// batches 10, 11 at v31.1 and 12 at v31.2, batch 13 can only go to v31.2. `eth_sender` submits
-    /// strictly in order against the single verification key L1 holds, so a batch proven with a
-    /// superseded key can never be submitted, and blocks every batch behind it.
-    ///
-    /// `watermark` is the highest version anything has been claimed at, held in memory by the caller
-    /// (see `AirbenderRequestProcessor`) and seeded from [`Self::latest_claimed_version`]. Claims
-    /// below it are refused here. The caller must promote it before committing, so it can only ever
-    /// run ahead of committed state; the window where it lags the *uncommitted* row is covered by
-    /// the primary-key collision below.
-    ///
-    /// Batches are claimed strictly in order — a prover waits for a gap instead of jumping over it.
-    /// That is what makes the watermark safe under concurrency: at READ COMMITTED a poller cannot
-    /// see another's uncommitted claim, but since all pollers aim at the same batch they collide on
-    /// the primary key and `ON CONFLICT DO NOTHING` leaves the loser with no job. Nothing is lost:
-    /// `eth_sender` needs batch N before N+1 anyway.
+    /// Recorded versions must never decrease in batch number, compared as `(minor, patch)`:
+    /// `eth_sender` submits strictly in order against the single key L1 holds, so a batch proven
+    /// with a superseded key blocks every batch behind it. Step 2 enforces that against the
+    /// database, with no process-local state.
     ///
     /// Reclaims (Step 1) keep the version recorded at first lock and only go to provers whose key
-    /// matches it — that version pins the blob key and the L1 verification key, so the old
-    /// generation must be able to retry its own batches after newer ones have moved on. Operational
-    /// corollary: retire an old prover generation only once its batches reach `snark_generated`.
+    /// matches it, so an old generation can always finish its own batches. Operational corollary:
+    /// retire a prover generation only once its batches reach `snark_generated`.
     pub async fn lock_batch_for_proving(
         &mut self,
         processing_timeout: Duration,
         min_batch_number: L1BatchNumber,
         max_attempts: u32,
         airbender_vk_hash: H256,
-        watermark: Option<ProtocolSemanticVersion>,
     ) -> DalResult<Option<LockedBatch>> {
-        let mut transactions = self.storage.start_transaction().await?;
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
         let max_attempts = i16::try_from(max_attempts).unwrap_or(i16::MAX);
         let picked = AirbenderProofGenerationJobStatus::PickedByProver.to_string();
         let failed = AirbenderProofGenerationJobStatus::Failed.to_string();
-        // No watermark (nothing claimed yet) is the floor `(0, 0)`, which every real version clears.
-        let (watermark_minor, watermark_patch) = watermark.map_or((0, 0), |version| {
-            (version.minor as i32, version.patch.0 as i32)
-        });
 
-        // Step 1: Try to reclaim a timed-out or failed batch (row already exists). A batch is only
-        // reclaimable while it has retries left (`attempts < max_attempts`); each reclaim bumps
-        // `attempts`, so a batch that keeps failing eventually stays in `failed` for good instead
-        // of being retried forever. Only batches whose recorded proving version carries the
-        // requesting prover's VK are handed out — the recorded version determines the blob key and
-        // the key the L1 proof is verified against, so it must match the prover doing the retry.
-        // FOR UPDATE SKIP LOCKED ensures parallel provers don't pick the same row.
+        // Step 1: reclaim a timed-out or failed batch. Each reclaim bumps `attempts`, so a batch
+        // that keeps failing is eventually abandoned rather than retried forever. Only batches
+        // whose recorded version carries the requesting VK are handed out: that version determines
+        // the blob key and the key L1 verifies against. SKIP LOCKED keeps provers off each other.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
             r#"
@@ -170,27 +147,41 @@ impl AirbenderProofGenerationDal<'_, '_> {
         .with_arg("min_batch_number", &min_batch_number)
         .with_arg("max_attempts", &max_attempts)
         .with_arg("airbender_vk_hash", &airbender_vk_hash)
-        .fetch_optional(&mut transactions)
+        .fetch_optional(&mut *self.storage)
         .await?
         .map(Into::into);
 
         if locked_batch.is_some() {
-            transactions.commit().await?;
             return Ok(locked_batch);
         }
 
-        // Step 2: no reclaimable row — claim the next batch in line. Resolving which batch that is
-        // up front lets the claim address one row by primary key instead of searching for it.
-        let Some(candidate) = transactions
-            .airbender_proof_generation_dal()
-            .next_batch_to_claim(min_batch_number)
-            .await?
-        else {
-            return Ok(None);
-        };
-
-        // A VK with no patch for the batch's minor yields no row from the `JOIN LATERAL`, which also
-        // covers a NULL `protocol_version`.
+        // Step 2: claim the next batch in line. One statement, so the candidate, the version floor
+        // and the prover's patch all come from one snapshot.
+        //
+        // The candidate (`l.number = ...`) is one past the highest existing assignment, or — before
+        // anything has been assigned — the oldest surviving batch at or above `min_batch_number`
+        // (not `min_batch_number` itself, which a pruned node would aim under forever).
+        // Deliberately not "the lowest batch without an assignment": that walks backwards into an
+        // old gap when `first_processed_batch` is lowered, so lowering it is a no-op instead.
+        //
+        // `version_floor` is the highest `(minor, patch)` already assigned, `(0, 0)` if none. The
+        // insert is refused below it.
+        //
+        // Why two handler processes cannot commit a decreasing sequence: assignments are only
+        // created at `MAX + 1`, so the committed set is a contiguous run. A claim committed before
+        // another's snapshot is visible to it in both the candidate and the floor; one still
+        // uncommitted is invisible, so both resolve the same candidate and collide on the primary
+        // key (`ON CONFLICT DO NOTHING` waits out the other, then yields no job — or takes the
+        // batch if it rolled back, since an uncommitted version constrains nothing). Either way the
+        // winner of batch `m + 1` saw the whole committed prefix, so by induction versions never
+        // decrease.
+        //
+        // That rests on `min_batch_number` agreeing across the fleet: *raising*
+        // `first_processed_batch` deliberately leaves a gap, so roll it out on its own rather than
+        // alongside a key rotation.
+        //
+        // A VK with no patch for the batch's minor yields no row from the `JOIN LATERAL`, which
+        // also covers a NULL `protocol_version`.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
             r#"
@@ -218,11 +209,35 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 ORDER BY pp.patch DESC
                 LIMIT 1
             ) prover_patch ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT
+                    apgd.protocol_version AS minor,
+                    apgd.protocol_version_patch AS patch
+                FROM airbender_proof_generation_details apgd
+                WHERE apgd.protocol_version IS NOT NULL
+                ORDER BY apgd.protocol_version DESC, apgd.protocol_version_patch DESC
+                LIMIT 1
+            ) version_floor ON TRUE
             WHERE
-                l.number = $2
+                l.number = COALESCE(
+                    (
+                        SELECT GREATEST(assigned.highest + 1, $2, 1::BIGINT)
+                        FROM (
+                            SELECT MAX(l1_batch_number) AS highest
+                            FROM airbender_proof_generation_details
+                        ) assigned
+                        WHERE assigned.highest IS NOT NULL
+                    ),
+                    (
+                        SELECT MIN(number)
+                        FROM l1_batches
+                        WHERE number >= GREATEST($2, 1::BIGINT)
+                    )
+                )
                 AND p.vm_run_data_blob_url IS NOT NULL
                 AND p.proof_gen_data_blob_url IS NOT NULL
-                AND (l.protocol_version, prover_patch.patch) >= ($4::INT, $5::INT)
+                AND (l.protocol_version, prover_patch.patch)
+                >= (COALESCE(version_floor.minor, 0), COALESCE(version_floor.patch, 0))
             ON CONFLICT (l1_batch_number) DO NOTHING
             RETURNING l1_batch_number,
             created_at,
@@ -230,107 +245,17 @@ impl AirbenderProofGenerationDal<'_, '_> {
             protocol_version_patch
             "#,
             picked,
-            candidate,
+            min_batch_number,
             airbender_vk_hash.as_bytes(),
-            watermark_minor,
-            watermark_patch,
         )
         .instrument("lock_batch_for_proving#new")
-        .with_arg("candidate", &candidate)
+        .with_arg("min_batch_number", &min_batch_number)
         .with_arg("airbender_vk_hash", &airbender_vk_hash)
-        .with_arg("watermark", &watermark)
-        .fetch_optional(&mut transactions)
+        .fetch_optional(&mut *self.storage)
         .await?
         .map(Into::into);
-        transactions.commit().await?;
 
         Ok(locked_batch)
-    }
-
-    /// The batch [`Self::lock_batch_for_proving`] should aim at next: one past the highest claimed
-    /// batch. Claims go out in order and rows are never deleted, so the claimed set is contiguous
-    /// and this is an index-only lookup on the primary key.
-    ///
-    /// Before anything has been claimed it is instead the oldest surviving batch at or above
-    /// `min_batch_number` — not `min_batch_number` itself, since `l1_batches` rows are pruned and a
-    /// node that starts proving after a prune would otherwise aim below the surviving range forever.
-    /// `None` means there is nothing to aim at yet.
-    ///
-    /// Deliberately not "the lowest batch without a claim row": that walks backwards into a gap if
-    /// `first_processed_batch` is lowered beneath existing claims, and claiming underneath existing
-    /// rows is where the watermark stops implying an order. This makes lowering it a no-op instead.
-    async fn next_batch_to_claim(&mut self, min_batch_number: i64) -> DalResult<Option<i64>> {
-        let highest_claimed = sqlx::query_scalar!(
-            r#"
-            SELECT
-                MAX(l1_batch_number) AS "highest?"
-            FROM
-                airbender_proof_generation_details
-            "#
-        )
-        .instrument("lock_batch_for_proving#highest_claimed")
-        .fetch_one(self.storage)
-        .await?;
-
-        if let Some(highest_claimed) = highest_claimed {
-            return Ok(Some((highest_claimed + 1).max(min_batch_number).max(1)));
-        }
-
-        sqlx::query_scalar!(
-            r#"
-            SELECT
-                MIN(number) AS "oldest?"
-            FROM
-                l1_batches
-            WHERE
-                number >= GREATEST($1, 1::BIGINT)
-            "#,
-            min_batch_number,
-        )
-        .instrument("lock_batch_for_proving#oldest_batch")
-        .with_arg("min_batch_number", &min_batch_number)
-        .fetch_one(self.storage)
-        .await
-    }
-
-    /// The highest version any batch has been claimed at. Read once at handler startup to seed the
-    /// watermark [`Self::lock_batch_for_proving`] is gated on — an empty watermark would let a
-    /// surviving old prover generation claim new batches at its own version, the exact regression
-    /// the watermark exists to prevent.
-    ///
-    /// `MAX((minor, patch))` rather than the version of the highest claimed batch: the two agree
-    /// while the invariant holds, and the max also recovers if a row was ever patched by hand.
-    pub async fn latest_claimed_version(&mut self) -> DalResult<Option<ProtocolSemanticVersion>> {
-        sqlx::query!(
-            r#"
-            SELECT
-                protocol_version,
-                protocol_version_patch
-            FROM
-                airbender_proof_generation_details
-            WHERE
-                protocol_version IS NOT NULL
-            ORDER BY
-                protocol_version DESC,
-                protocol_version_patch DESC
-            LIMIT
-                1
-            "#
-        )
-        .try_map(|row| {
-            row.protocol_version
-                .map(|minor| {
-                    parse_protocol_version(minor).map(|minor| ProtocolSemanticVersion {
-                        minor,
-                        patch: (row.protocol_version_patch as u32).into(),
-                    })
-                })
-                .transpose()
-        })
-        .instrument("latest_claimed_version")
-        .fetch_optional(self.storage)
-        .await
-        .map(Option::flatten)
     }
 
     pub async fn unlock_batch(
@@ -893,13 +818,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
         Ok(row.count)
     }
 }
-
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{Arc, Mutex},
-        time::Duration,
-    };
+    use std::time::Duration;
 
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
@@ -954,9 +875,8 @@ mod tests {
         mark_inputs_ready(conn, number).await;
     }
 
-    /// Inserts a batch whose proving inputs are not on GCS yet, so it is not claimable. Mirrors a
-    /// batch BWIP hasn't finished with; it proves several concurrently, so a higher batch can become
-    /// claimable before a lower one.
+    /// Inserts a batch whose proving inputs are not on GCS yet, so it is not claimable. BWIP proves
+    /// several batches concurrently, so a higher batch can become claimable before a lower one.
     async fn insert_batch_without_inputs(
         conn: &mut Connection<'_, Core>,
         number: L1BatchNumber,
@@ -995,55 +915,23 @@ mod tests {
     /// used: `pg_interval_from_duration` overflows it into an interval that times out everything.
     const NO_RECLAIM: Duration = Duration::from_secs(600);
 
-    /// The in-memory watermark the request processor keeps, modelled here so the DAL tests exercise
-    /// the same gate production runs behind. One instance per test stands for one handler process.
-    #[derive(Default, Clone)]
-    struct Watermark(Arc<Mutex<Option<ProtocolSemanticVersion>>>);
-
-    impl Watermark {
-        /// Rebuilds the watermark from the database, as the handler does when it starts.
-        async fn seeded_from(conn: &mut Connection<'_, Core>) -> Self {
-            let version = conn
-                .airbender_proof_generation_dal()
-                .latest_claimed_version()
-                .await
-                .unwrap();
-            Self(Arc::new(Mutex::new(version)))
-        }
-
-        fn get(&self) -> Option<ProtocolSemanticVersion> {
-            *self.0.lock().unwrap()
-        }
-
-        fn promote(&self, version: ProtocolSemanticVersion) {
-            let mut current = self.0.lock().unwrap();
-            if current.is_none_or(|current| version > current) {
-                *current = Some(version);
-            }
-        }
-    }
-
-    /// Claims through the watermark exactly as the processor does: gate on it, then promote from
-    /// whatever version was recorded.
-    async fn lock_for(
-        conn: &mut Connection<'_, Core>,
-        vk: H256,
-        timeout: Duration,
-        watermark: &Watermark,
-    ) -> Option<LockedBatch> {
-        let locked = conn
+    /// One poll on the boundaries `AirbenderRequestProcessor::get_proof_generation_data` runs on:
+    /// own pooled connection, own transaction. Nothing outlives the call, so two calls with
+    /// different keys model two handler processes.
+    async fn poll(pool: &ConnectionPool<Core>, vk: H256, timeout: Duration) -> Option<LockedBatch> {
+        let mut conn = pool.connection().await.unwrap();
+        let mut transaction = conn.start_transaction().await.unwrap();
+        let locked = transaction
             .airbender_proof_generation_dal()
-            .lock_batch_for_proving(timeout, L1BatchNumber(0), 10, vk, watermark.get())
+            .lock_batch_for_proving(timeout, L1BatchNumber(0), 10, vk)
             .await
             .unwrap();
-        if let Some(locked) = &locked {
-            watermark.promote(locked.protocol_version);
-        }
+        transaction.commit().await.unwrap();
         locked
     }
 
-    /// Records a claim directly at an explicit version, bypassing the lock. Used to set up a shape
-    /// the lock itself would not produce.
+    /// Records an assignment at an explicit version, bypassing the lock, to set up a shape the lock
+    /// itself would not produce.
     async fn insert_claim_at_version(
         conn: &mut Connection<'_, Core>,
         number: L1BatchNumber,
@@ -1070,9 +958,9 @@ mod tests {
         .unwrap();
     }
 
-    /// Asserts the core invariant: recorded proving versions never decrease as batch numbers grow.
-    async fn assert_versions_non_decreasing(conn: &mut Connection<'_, Core>) {
-        let rows = sqlx::query!(
+    /// The recorded proving version of every assignment, in batch order.
+    async fn recorded_versions(conn: &mut Connection<'_, Core>) -> Vec<(i64, i32, i32)> {
+        sqlx::query!(
             r#"
             SELECT
                 l1_batch_number,
@@ -1086,15 +974,18 @@ mod tests {
         )
         .fetch_all(conn.conn())
         .await
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .filter_map(|row| {
+            row.protocol_version
+                .map(|minor| (row.l1_batch_number, minor, row.protocol_version_patch))
+        })
+        .collect()
+    }
 
-        let versions: Vec<_> = rows
-            .iter()
-            .filter_map(|row| {
-                row.protocol_version
-                    .map(|minor| (row.l1_batch_number, minor, row.protocol_version_patch))
-            })
-            .collect();
+    /// Asserts the core invariant: recorded proving versions never decrease as batch numbers grow.
+    async fn assert_versions_non_decreasing(conn: &mut Connection<'_, Core>) {
+        let versions = recorded_versions(conn).await;
         for pair in versions.windows(2) {
             let (prev_batch, prev_minor, prev_patch) = pair[0];
             let (batch, minor, patch) = pair[1];
@@ -1106,8 +997,8 @@ mod tests {
         }
     }
 
-    /// The first lock must record the batch's own minor version with the latest patch known for
-    /// that minor — *not* the globally latest protocol version.
+    /// The recorded version is the batch's own minor with the latest patch for that minor — not the
+    /// globally latest protocol version.
     #[tokio::test]
     async fn lock_records_batch_minor_with_latest_patch() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1125,11 +1016,8 @@ mod tests {
 
         insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
 
-        let locked = conn
-            .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK, None)
+        let locked = poll(&pool, PROVER_VK, NO_RECLAIM)
             .await
-            .unwrap()
             .expect("batch should be lockable");
 
         assert_eq!(locked.l1_batch_number, L1BatchNumber(1));
@@ -1143,8 +1031,7 @@ mod tests {
         );
     }
 
-    /// Reclaiming a timed-out batch must preserve the version recorded at first lock instead of
-    /// recomputing it.
+    /// A reclaim preserves the version recorded at first lock instead of recomputing it.
     #[tokio::test]
     async fn reclaim_preserves_recorded_version() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1156,22 +1043,16 @@ mod tests {
 
         insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
 
-        let first = conn
-            .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK, None)
+        let first = poll(&pool, PROVER_VK, NO_RECLAIM)
             .await
-            .unwrap()
             .expect("batch should be lockable");
 
         // A newer patch appears after the batch was first locked.
         save_patch(&mut conn, batch_minor, 7).await;
 
         // Zero timeout makes the picked batch immediately reclaimable.
-        let reclaimed = conn
-            .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), 10, PROVER_VK, None)
+        let reclaimed = poll(&pool, PROVER_VK, Duration::ZERO)
             .await
-            .unwrap()
             .expect("batch should be reclaimable");
 
         assert_eq!(reclaimed.l1_batch_number, L1BatchNumber(1));
@@ -1179,8 +1060,7 @@ mod tests {
         assert_eq!(reclaimed.protocol_version.patch, VersionPatch(3));
     }
 
-    /// A batch that keeps failing must stop being reclaimed once it has used up `max_attempts`
-    /// picks, instead of being retried forever.
+    /// A batch that keeps failing stops being reclaimed once it has used up `max_attempts` picks.
     #[tokio::test]
     async fn reclaim_stops_after_max_attempts() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1197,13 +1077,7 @@ mod tests {
         for _ in 0..max_attempts {
             let mut dal = conn.airbender_proof_generation_dal();
             let locked = dal
-                .lock_batch_for_proving(
-                    Duration::ZERO,
-                    L1BatchNumber(0),
-                    max_attempts,
-                    PROVER_VK,
-                    None,
-                )
+                .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), max_attempts, PROVER_VK)
                 .await
                 .unwrap()
                 .expect("batch should be lockable while attempts remain");
@@ -1216,13 +1090,7 @@ mod tests {
         // The batch has now been picked `max_attempts` times — it must no longer be reclaimable.
         let exhausted = conn
             .airbender_proof_generation_dal()
-            .lock_batch_for_proving(
-                Duration::ZERO,
-                L1BatchNumber(0),
-                max_attempts,
-                PROVER_VK,
-                None,
-            )
+            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), max_attempts, PROVER_VK)
             .await
             .unwrap();
         assert!(
@@ -1231,8 +1099,7 @@ mod tests {
         );
     }
 
-    /// A prover carrying a VK that is not registered for the batch's minor version must not
-    /// receive the batch at all.
+    /// A VK not registered for the batch's minor does not get the batch.
     #[tokio::test]
     async fn lock_skips_batches_without_matching_vk() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1242,47 +1109,32 @@ mod tests {
         save_patch(&mut conn, batch_minor, 0).await;
         insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
 
-        let wrong_key = H256::repeat_byte(0xcd);
-        let locked = conn
-            .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, wrong_key, None)
-            .await
-            .unwrap();
         assert!(
-            locked.is_none(),
+            poll(&pool, NEXT_GEN_VK, NO_RECLAIM).await.is_none(),
             "batch must not be handed to a prover with an unknown VK"
         );
 
         // The right key still gets the batch.
-        let locked = conn
-            .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK, None)
-            .await
-            .unwrap();
-        assert!(locked.is_some());
+        assert!(poll(&pool, PROVER_VK, NO_RECLAIM).await.is_some());
     }
 
-    /// The recorded patch must be the highest patch registered for the *prover's* VK — a newer
-    /// patch carrying a different (e.g. next prover generation's) VK must be ignored.
+    /// The recorded patch is the highest one registered for the *prover's* VK; a newer patch under
+    /// a different key is ignored.
     #[tokio::test]
     async fn lock_records_highest_patch_for_the_provers_vk() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
 
         let batch_minor = ProtocolVersionId::latest();
-        let next_gen_vk = H256::repeat_byte(0xcd);
         save_patch(&mut conn, batch_minor, 0).await;
         save_patch(&mut conn, batch_minor, 3).await;
         // A newer patch rotates to a different Airbender VK.
-        save_patch_with_vk(&mut conn, batch_minor, 5, Some(next_gen_vk)).await;
+        save_patch_with_vk(&mut conn, batch_minor, 5, Some(NEXT_GEN_VK)).await;
 
         insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
 
-        let locked = conn
-            .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK, None)
+        let locked = poll(&pool, PROVER_VK, NO_RECLAIM)
             .await
-            .unwrap()
             .expect("batch should be lockable");
         assert_eq!(
             locked.protocol_version,
@@ -1293,8 +1145,8 @@ mod tests {
         );
     }
 
-    /// One VK registered for two minor versions makes batches of both minors lockable by the same
-    /// prover.
+    /// An unchanged key registered for two minors keeps taking the next sequential batch straight
+    /// through a minor bump.
     #[tokio::test]
     async fn one_vk_unlocks_batches_of_all_its_minors() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1308,22 +1160,61 @@ mod tests {
         insert_provable_batch(&mut conn, L1BatchNumber(1), old_minor).await;
         insert_provable_batch(&mut conn, L1BatchNumber(2), new_minor).await;
 
-        let watermark = Watermark::default();
-        let first = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
+        let first = poll(&pool, PROVER_VK, NO_RECLAIM)
             .await
             .expect("old-minor batch should be lockable");
         assert_eq!(first.l1_batch_number, L1BatchNumber(1));
         assert_eq!(first.protocol_version.minor, old_minor);
 
-        let second = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
+        let second = poll(&pool, PROVER_VK, NO_RECLAIM)
             .await
             .expect("new-minor batch should be lockable by the same key");
         assert_eq!(second.l1_batch_number, L1BatchNumber(2));
         assert_eq!(second.protocol_version.minor, new_minor);
     }
 
-    /// A timed-out batch must only be reclaimed by a prover whose VK matches the version recorded
-    /// at first lock — the recorded version drives the blob key and the L1 verification key.
+    /// When the key *and* the minor both change, each generation only gets batches whose minor its
+    /// key is registered for — the old key is not blocked, it simply has no patch for the new minor.
+    #[tokio::test]
+    async fn a_key_only_gets_batches_of_the_minors_registered_for_it() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let old_minor = ProtocolVersionId::Version30;
+        let new_minor = ProtocolVersionId::latest();
+        save_patch_with_vk(&mut conn, old_minor, 2, Some(PROVER_VK)).await;
+        save_patch_with_vk(&mut conn, new_minor, 0, Some(NEXT_GEN_VK)).await;
+
+        insert_provable_batch(&mut conn, L1BatchNumber(1), old_minor).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(2), new_minor).await;
+
+        // The new generation's key is not registered for the old minor, so batch 1 is not for it.
+        assert!(
+            poll(&pool, NEXT_GEN_VK, NO_RECLAIM).await.is_none(),
+            "the new key must not take a batch of a minor it has no patch for"
+        );
+
+        let old = poll(&pool, PROVER_VK, NO_RECLAIM)
+            .await
+            .expect("the old key owns the old-minor batch");
+        assert_eq!(old.l1_batch_number, L1BatchNumber(1));
+        assert_eq!(old.protocol_version.minor, old_minor);
+
+        // ... and symmetrically, the old key has nothing registered for the new minor.
+        assert!(
+            poll(&pool, PROVER_VK, NO_RECLAIM).await.is_none(),
+            "the old key must not take a batch of a minor it has no patch for"
+        );
+
+        let new = poll(&pool, NEXT_GEN_VK, NO_RECLAIM)
+            .await
+            .expect("the new key owns the new-minor batch");
+        assert_eq!(new.l1_batch_number, L1BatchNumber(2));
+        assert_eq!(new.protocol_version.minor, new_minor);
+        assert_versions_non_decreasing(&mut conn).await;
+    }
+
+    /// A timed-out batch is only reclaimed by a VK matching the version recorded at first lock.
     #[tokio::test]
     async fn reclaim_requires_matching_vk() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1333,36 +1224,20 @@ mod tests {
         save_patch(&mut conn, batch_minor, 0).await;
         insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
 
-        conn.airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), 10, PROVER_VK, None)
+        poll(&pool, PROVER_VK, Duration::ZERO)
             .await
-            .unwrap()
             .expect("batch should be lockable");
 
-        let wrong_key = H256::repeat_byte(0xcd);
-        let reclaimed = conn
-            .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), 10, wrong_key, None)
-            .await
-            .unwrap();
         assert!(
-            reclaimed.is_none(),
+            poll(&pool, NEXT_GEN_VK, Duration::ZERO).await.is_none(),
             "a prover with a different VK must not reclaim the job"
         );
-
-        let reclaimed = conn
-            .airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::ZERO, L1BatchNumber(0), 10, PROVER_VK, None)
-            .await
-            .unwrap();
-        assert!(reclaimed.is_some());
+        assert!(poll(&pool, PROVER_VK, Duration::ZERO).await.is_some());
     }
 
-    /// Two prover generations poll at once (v31.1 and v31.2, different keys). Once a batch has gone
-    /// out under the newer version, no later batch may go out under the older one: batches 10, 11
-    /// at v31.1 and 12 at v31.2 means batch 13 must be v31.2, never v31.1.
+    /// Two generations polling as separate handler processes must not produce 31.1 -> 31.2 -> 31.1.
     #[tokio::test]
-    async fn stale_generation_cannot_claim_after_newer_generation() {
+    async fn two_handler_processes_cannot_record_a_decreasing_sequence() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
 
@@ -1372,44 +1247,183 @@ mod tests {
         for number in 10..=13 {
             insert_provable_batch(&mut conn, L1BatchNumber(number), minor).await;
         }
-        let watermark = Watermark::default();
 
         // The old generation takes batches 10 and 11.
         for number in [10, 11] {
-            let locked = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
+            let locked = poll(&pool, PROVER_VK, NO_RECLAIM)
                 .await
                 .expect("old generation should claim");
             assert_eq!(locked.l1_batch_number, L1BatchNumber(number));
             assert_eq!(locked.protocol_version.patch, VersionPatch(1));
         }
 
-        // The new generation takes batch 12.
-        let locked = lock_for(&mut conn, NEXT_GEN_VK, NO_RECLAIM, &watermark)
+        // A different handler process, on the new generation, takes batch 12.
+        let locked = poll(&pool, NEXT_GEN_VK, NO_RECLAIM)
             .await
             .expect("new generation should claim");
         assert_eq!(locked.l1_batch_number, L1BatchNumber(12));
         assert_eq!(locked.protocol_version.patch, VersionPatch(2));
 
-        // Batch 13 must NOT go out at v31.1 — the old generation is starved from here on.
+        // Batch 13 must not go out at v31.1; the old generation is starved from here on.
         assert!(
-            lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
-                .await
-                .is_none(),
+            poll(&pool, PROVER_VK, NO_RECLAIM).await.is_none(),
             "batch 13 must not be claimed at v31.1 after batch 12 went out at v31.2"
         );
 
-        // The new generation gets it instead.
-        let locked = lock_for(&mut conn, NEXT_GEN_VK, NO_RECLAIM, &watermark)
+        let locked = poll(&pool, NEXT_GEN_VK, NO_RECLAIM)
             .await
             .expect("new generation should claim batch 13");
         assert_eq!(locked.l1_batch_number, L1BatchNumber(13));
         assert_eq!(locked.protocol_version.patch, VersionPatch(2));
+        assert_versions_non_decreasing(&mut conn).await;
     }
 
-    /// Batches do not become claimable in batch order — BWIP proves several concurrently and each
-    /// publishes its inputs when it finishes. A prover must wait for the gap rather than jump over
-    /// it: claiming out of order is what would let two generations commit a decreasing pair without
-    /// either noticing (neither sees the other's uncommitted claim at READ COMMITTED).
+    /// The version committed for the previous batch is the floor for the next one, whoever asks.
+    #[tokio::test]
+    async fn a_committed_assignment_is_the_floor_for_the_next_batch() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
+        save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(10), minor).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(11), minor).await;
+
+        let first = poll(&pool, NEXT_GEN_VK, NO_RECLAIM)
+            .await
+            .expect("the new generation takes the first batch");
+        assert_eq!(first.protocol_version.patch, VersionPatch(2));
+
+        assert!(
+            poll(&pool, PROVER_VK, NO_RECLAIM).await.is_none(),
+            "v31.2 is committed, so v31.1 can no longer take the next batch"
+        );
+
+        let second = poll(&pool, NEXT_GEN_VK, NO_RECLAIM)
+            .await
+            .expect("the current generation gets it instead");
+        assert_eq!(second.l1_batch_number, L1BatchNumber(11));
+        assert_eq!(second.protocol_version.patch, VersionPatch(2));
+    }
+
+    /// A handler whose transaction predates another process's v31.2 commit still sees that floor:
+    /// at READ COMMITTED each statement snapshots as of the claim, not as of `BEGIN`. This is what
+    /// lets handlers restart in any order without a startup seed.
+    #[tokio::test]
+    async fn a_handler_that_predates_a_newer_commit_still_sees_its_floor() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
+        save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
+        for number in 10..=12 {
+            insert_provable_batch(&mut conn, L1BatchNumber(number), minor).await;
+        }
+
+        let first = poll(&pool, PROVER_VK, NO_RECLAIM).await.unwrap();
+        assert_eq!(first.l1_batch_number, L1BatchNumber(10));
+
+        // The stale handler's request begins here, before v31.2 exists anywhere.
+        let mut stale_conn = pool.connection().await.unwrap();
+        let mut stale_tx = stale_conn.start_transaction().await.unwrap();
+
+        // Meanwhile another process claims batch 11 at v31.2 and commits.
+        let newer = poll(&pool, NEXT_GEN_VK, NO_RECLAIM).await.unwrap();
+        assert_eq!(newer.l1_batch_number, L1BatchNumber(11));
+        assert_eq!(newer.protocol_version.patch, VersionPatch(2));
+
+        // Only now does the stale handler run its claim, inside the transaction it opened earlier.
+        let stale = stale_tx
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(NO_RECLAIM, L1BatchNumber(0), 10, PROVER_VK)
+            .await
+            .unwrap();
+        assert!(
+            stale.is_none(),
+            "a handler that started before the v31.2 commit must not assign batch 12 at v31.1"
+        );
+        stale_tx.commit().await.unwrap();
+        assert_versions_non_decreasing(&mut conn).await;
+    }
+
+    /// Racing for the same candidate, the loser gets nothing rather than a different batch — the
+    /// primary-key collision that covers the window where neither sees the other's uncommitted row.
+    #[tokio::test]
+    async fn concurrent_generations_produce_at_most_one_assignment() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
+        save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
+        // Exactly one claimable batch, so a second assignment could only be a duplicate.
+        insert_provable_batch(&mut conn, L1BatchNumber(10), minor).await;
+        drop(conn);
+
+        let old = tokio::spawn({
+            let pool = pool.clone();
+            async move { poll(&pool, PROVER_VK, NO_RECLAIM).await }
+        });
+        let new = tokio::spawn({
+            let pool = pool.clone();
+            async move { poll(&pool, NEXT_GEN_VK, NO_RECLAIM).await }
+        });
+        let (old, new) = (old.await.unwrap(), new.await.unwrap());
+
+        assert_eq!(
+            usize::from(old.is_some()) + usize::from(new.is_some()),
+            1,
+            "exactly one of the two racing generations may be handed batch 10"
+        );
+        let mut conn = pool.connection().await.unwrap();
+        assert_eq!(recorded_versions(&mut conn).await.len(), 1);
+    }
+
+    /// A claim that was never committed constrains nothing: after an aborted v31.2 claim the old
+    /// generation may still take the batch at v31.1.
+    #[tokio::test]
+    async fn a_rolled_back_newer_assignment_does_not_constrain_the_next_claim() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
+        save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(10), minor).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(11), minor).await;
+
+        let first = poll(&pool, PROVER_VK, NO_RECLAIM).await.unwrap();
+        assert_eq!(first.l1_batch_number, L1BatchNumber(10));
+
+        // The new generation claims batch 11 at v31.2, then its request fails (as on a missing
+        // object-store input) and the transaction rolls back.
+        {
+            let mut rolling_back = pool.connection().await.unwrap();
+            let mut transaction = rolling_back.start_transaction().await.unwrap();
+            let claimed = transaction
+                .airbender_proof_generation_dal()
+                .lock_batch_for_proving(NO_RECLAIM, L1BatchNumber(0), 10, NEXT_GEN_VK)
+                .await
+                .unwrap()
+                .expect("the new generation should claim batch 11");
+            assert_eq!(claimed.protocol_version.patch, VersionPatch(2));
+            drop(transaction);
+        }
+
+        let retaken = poll(&pool, PROVER_VK, NO_RECLAIM)
+            .await
+            .expect("batch 11 is free again, and nothing newer was ever committed");
+        assert_eq!(retaken.l1_batch_number, L1BatchNumber(11));
+        assert_eq!(retaken.protocol_version.patch, VersionPatch(1));
+        assert_versions_non_decreasing(&mut conn).await;
+        assert_eq!(recorded_versions(&mut conn).await.len(), 2);
+    }
+
+    /// Batches do not become claimable in batch order. A prover waits for the gap rather than
+    /// jumping it: out-of-order claims are what would let two generations miss each other's
+    /// uncommitted claim and commit a decreasing pair.
     #[tokio::test]
     async fn claims_do_not_jump_ahead_of_a_gap() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1421,167 +1435,31 @@ mod tests {
         // Batch 13's inputs land first; batch 12 is still being processed.
         insert_batch_without_inputs(&mut conn, L1BatchNumber(12), minor).await;
         insert_provable_batch(&mut conn, L1BatchNumber(13), minor).await;
-        let watermark = Watermark::default();
 
         for vk in [PROVER_VK, NEXT_GEN_VK] {
             assert!(
-                lock_for(&mut conn, vk, NO_RECLAIM, &watermark)
-                    .await
-                    .is_none(),
+                poll(&pool, vk, NO_RECLAIM).await.is_none(),
                 "batch 13 must not be claimed while batch 12 is still unclaimed"
             );
         }
 
         // Once the gap is filled, work resumes in order.
         mark_inputs_ready(&mut conn, L1BatchNumber(12)).await;
-        let locked = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
+        let locked = poll(&pool, PROVER_VK, NO_RECLAIM)
             .await
             .expect("batch 12 should now be claimable");
         assert_eq!(locked.l1_batch_number, L1BatchNumber(12));
         assert_eq!(locked.protocol_version.patch, VersionPatch(1));
 
-        let locked = lock_for(&mut conn, NEXT_GEN_VK, NO_RECLAIM, &watermark)
+        let locked = poll(&pool, NEXT_GEN_VK, NO_RECLAIM)
             .await
             .expect("batch 13 should follow");
         assert_eq!(locked.l1_batch_number, L1BatchNumber(13));
         assert_eq!(locked.protocol_version.patch, VersionPatch(2));
     }
 
-    /// The watermark lives in memory, so a restart must rebuild it from the database before serving
-    /// a poll. Otherwise batch 13 goes back to the v31.1 generation after batch 12 went out at
-    /// v31.2, and `eth_sender` — strictly in order against the single key L1 holds — could never
-    /// submit it, nor anything behind it. Restarts coincide with prover upgrades.
-    #[tokio::test]
-    async fn a_restart_reseeds_the_watermark_from_the_database() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-
-        let minor = ProtocolVersionId::latest();
-        save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
-        save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
-        for number in 10..=13 {
-            insert_provable_batch(&mut conn, L1BatchNumber(number), minor).await;
-        }
-
-        // Claimed before the restart: 10 and 11 by the old generation, 12 by the new one.
-        insert_claim_at_version(&mut conn, L1BatchNumber(10), minor, 1).await;
-        insert_claim_at_version(&mut conn, L1BatchNumber(11), minor, 1).await;
-        insert_claim_at_version(&mut conn, L1BatchNumber(12), minor, 2).await;
-
-        // The handler comes back up and reads the watermark off the database.
-        let watermark = Watermark::seeded_from(&mut conn).await;
-        assert_eq!(
-            watermark.get(),
-            Some(ProtocolSemanticVersion {
-                minor,
-                patch: VersionPatch(2),
-            })
-        );
-
-        assert!(
-            lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
-                .await
-                .is_none(),
-            "the superseded generation must not be handed batch 13 after a restart"
-        );
-
-        let locked = lock_for(&mut conn, NEXT_GEN_VK, NO_RECLAIM, &watermark)
-            .await
-            .expect("the current generation should claim batch 13");
-        assert_eq!(locked.l1_batch_number, L1BatchNumber(13));
-        assert_eq!(locked.protocol_version.patch, VersionPatch(2));
-        assert_versions_non_decreasing(&mut conn).await;
-    }
-
-    /// Pins the contract the test above rests on: monotonicity comes from the caller's watermark,
-    /// not the query. Unseeded, the query happily records v31.1 for a batch following a v31.2 one —
-    /// which is why the seed is load-bearing. If this ever moves into SQL, delete this test rather
-    /// than "fixing" it.
-    #[tokio::test]
-    async fn the_query_relies_on_the_caller_for_monotonicity() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-
-        let minor = ProtocolVersionId::latest();
-        save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
-        save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
-        insert_provable_batch(&mut conn, L1BatchNumber(12), minor).await;
-        insert_provable_batch(&mut conn, L1BatchNumber(13), minor).await;
-        insert_claim_at_version(&mut conn, L1BatchNumber(12), minor, 2).await;
-
-        let unseeded = Watermark::default();
-        let locked = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &unseeded)
-            .await
-            .expect("without a watermark the query does not look at previous claims");
-        assert_eq!(locked.l1_batch_number, L1BatchNumber(13));
-        assert_eq!(locked.protocol_version.patch, VersionPatch(1));
-    }
-
-    /// Two generations polling concurrently must not commit a decreasing pair. The claim runs inside
-    /// a transaction that stays open while the prover's inputs are fetched, so a second poller
-    /// genuinely races an uncommitted claim; because both compute the same candidate they collide on
-    /// the primary key instead of each claiming a different batch. That collision is what covers the
-    /// only window in which the watermark can lag a claim.
-    #[tokio::test]
-    async fn concurrent_generations_cannot_commit_a_decreasing_pair() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-
-        let minor = ProtocolVersionId::latest();
-        save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
-        save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
-        for number in 10..=12 {
-            insert_provable_batch(&mut conn, L1BatchNumber(number), minor).await;
-        }
-        drop(conn);
-
-        // One watermark for both pollers, as one handler process has.
-        let watermark = Watermark::default();
-
-        // The old generation claims and holds the transaction open, as the request processor does
-        // while it downloads the batch's inputs. The watermark is promoted before the commit.
-        let mut holder = pool.connection().await.unwrap();
-        let mut open_tx = holder.start_transaction().await.unwrap();
-        let held = open_tx
-            .airbender_proof_generation_dal()
-            .lock_batch_for_proving(NO_RECLAIM, L1BatchNumber(0), 10, PROVER_VK, watermark.get())
-            .await
-            .unwrap()
-            .expect("old generation should claim the first batch");
-        assert_eq!(held.l1_batch_number, L1BatchNumber(10));
-        watermark.promote(held.protocol_version);
-
-        // The new generation polls while that claim is still uncommitted.
-        let racer_pool = pool.clone();
-        let racer_watermark = watermark.clone();
-        let racer = tokio::spawn(async move {
-            let mut conn = racer_pool.connection().await.unwrap();
-            lock_for(&mut conn, NEXT_GEN_VK, NO_RECLAIM, &racer_watermark).await
-        });
-        // Give the racer time to reach the insert and block on the primary key. If it happens to
-        // run after the commit instead, the assertions below still hold — they check the invariant,
-        // not the interleaving.
-        tokio::time::sleep(Duration::from_millis(300)).await;
-        open_tx.commit().await.unwrap();
-        let raced = racer.await.unwrap();
-
-        // Whatever the interleaving, the racer must not have taken a *different* batch at a version
-        // that inverts the order.
-        if let Some(raced) = raced {
-            assert_ne!(
-                raced.l1_batch_number,
-                L1BatchNumber(10),
-                "two provers must not both claim the same batch"
-            );
-            assert_eq!(raced.l1_batch_number, L1BatchNumber(11));
-        }
-        let mut conn = pool.connection().await.unwrap();
-        assert_versions_non_decreasing(&mut conn).await;
-    }
-
-    /// Patch numbering restarts on a minor bump, so v30.9 -> v31.0 is forward progress. The guard
-    /// compares `(minor, patch)` lexicographically; comparing patches alone would wedge the queue
-    /// at the first batch of every new minor version.
+    /// Patch numbering restarts on a minor bump, so v30.9 -> v31.0 is forward progress: the floor
+    /// compares `(minor, patch)` lexicographically, not patches alone.
     #[tokio::test]
     async fn minor_bump_with_restarted_patch_is_not_a_regression() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1595,15 +1473,14 @@ mod tests {
 
         insert_provable_batch(&mut conn, L1BatchNumber(20), old_minor).await;
         insert_provable_batch(&mut conn, L1BatchNumber(21), new_minor).await;
-        let watermark = Watermark::default();
 
-        let locked = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
+        let locked = poll(&pool, PROVER_VK, NO_RECLAIM)
             .await
             .expect("old-minor batch should be claimable");
         assert_eq!(locked.l1_batch_number, L1BatchNumber(20));
         assert_eq!(locked.protocol_version.patch, VersionPatch(9));
 
-        let locked = lock_for(&mut conn, NEXT_GEN_VK, NO_RECLAIM, &watermark)
+        let locked = poll(&pool, NEXT_GEN_VK, NO_RECLAIM)
             .await
             .expect("a minor bump must not read as a version regression");
         assert_eq!(locked.l1_batch_number, L1BatchNumber(21));
@@ -1611,11 +1488,10 @@ mod tests {
         assert_eq!(locked.protocol_version.patch, VersionPatch(0));
     }
 
-    /// Starving the old generation of *new* work must not strand the work it already holds: its
-    /// batches keep their recorded version, so it must still be able to retry them and wrap them
-    /// into SNARKs — otherwise `eth_sender`, which needs those batches in order, deadlocks.
+    /// Starving the old generation of *new* work must not strand what it already holds: it can
+    /// still retry its own batches at their recorded version.
     #[tokio::test]
-    async fn stale_generation_can_still_finish_its_own_batches() {
+    async fn a_stale_generation_can_still_reclaim_its_own_batch() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
 
@@ -1624,27 +1500,38 @@ mod tests {
         save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
         insert_provable_batch(&mut conn, L1BatchNumber(10), minor).await;
         insert_provable_batch(&mut conn, L1BatchNumber(11), minor).await;
-        let watermark = Watermark::default();
 
-        let old = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
-            .await
-            .unwrap();
+        let old = poll(&pool, PROVER_VK, NO_RECLAIM).await.unwrap();
         assert_eq!(old.l1_batch_number, L1BatchNumber(10));
-        let new = lock_for(&mut conn, NEXT_GEN_VK, NO_RECLAIM, &watermark)
-            .await
-            .unwrap();
+        let new = poll(&pool, NEXT_GEN_VK, NO_RECLAIM).await.unwrap();
         assert_eq!(new.l1_batch_number, L1BatchNumber(11));
         assert_eq!(new.protocol_version.patch, VersionPatch(2));
 
-        // Batch 10 times out. Even though a newer version has already gone out for batch 11, the
-        // old generation must be able to reclaim its own batch — at its recorded version.
-        let reclaimed = lock_for(&mut conn, PROVER_VK, Duration::ZERO, &watermark)
+        // Batch 10 times out; the old generation reclaims it at its recorded version.
+        let reclaimed = poll(&pool, PROVER_VK, Duration::ZERO)
             .await
             .expect("old generation must still reclaim its own timed-out batch");
         assert_eq!(reclaimed.l1_batch_number, L1BatchNumber(10));
         assert_eq!(reclaimed.protocol_version.patch, VersionPatch(1));
+    }
 
-        // And once its FRI proof lands, it must still be wrappable by the old generation.
+    /// SNARK wrapping is likewise ungated by the floor: a v31.1 FRI proof stays wrappable by the
+    /// v31.1 key after v31.2 batches have been assigned.
+    #[tokio::test]
+    async fn a_stale_generation_can_still_snark_wrap_its_own_batch() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
+        save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(10), minor).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(11), minor).await;
+
+        poll(&pool, PROVER_VK, NO_RECLAIM).await.unwrap();
+        let new = poll(&pool, NEXT_GEN_VK, NO_RECLAIM).await.unwrap();
+        assert_eq!(new.protocol_version.patch, VersionPatch(2));
+
         conn.airbender_proof_generation_dal()
             .save_proof_artifacts_metadata(L1BatchNumber(10), "fri-blob", "old-prover")
             .await
@@ -1659,42 +1546,8 @@ mod tests {
         assert_eq!(snark.protocol_version.patch, VersionPatch(1));
     }
 
-    /// The watermark seed: `None` while nothing has been claimed, then the highest version claimed
-    /// so far.
-    #[tokio::test]
-    async fn latest_claimed_version_tracks_the_highest_claim() {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-
-        let minor = ProtocolVersionId::latest();
-        save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
-        save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
-
-        assert!(Watermark::seeded_from(&mut conn).await.get().is_none());
-
-        insert_provable_batch(&mut conn, L1BatchNumber(10), minor).await;
-        insert_provable_batch(&mut conn, L1BatchNumber(11), minor).await;
-        let watermark = Watermark::default();
-        lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
-            .await
-            .unwrap();
-        assert_eq!(
-            Watermark::seeded_from(&mut conn).await.get().unwrap().patch,
-            VersionPatch(1)
-        );
-
-        lock_for(&mut conn, NEXT_GEN_VK, NO_RECLAIM, &watermark)
-            .await
-            .unwrap();
-        assert_eq!(
-            Watermark::seeded_from(&mut conn).await.get().unwrap().patch,
-            VersionPatch(2)
-        );
-    }
-
-    /// Claims aim one past the highest claim, so a batch stream that starts above
-    /// `first_processed_batch` — as it does on a pruned node or one restored from a snapshot — is
-    /// still picked up rather than aimed under forever.
+    /// On a pruned node the batch stream starts above `first_processed_batch`; the first claim must
+    /// aim at the oldest surviving batch rather than under it forever.
     #[tokio::test]
     async fn the_first_claim_starts_at_the_oldest_surviving_batch() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1706,20 +1559,45 @@ mod tests {
         insert_provable_batch(&mut conn, L1BatchNumber(100), minor).await;
         insert_provable_batch(&mut conn, L1BatchNumber(101), minor).await;
 
-        let watermark = Watermark::default();
-        let first = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
+        let first = poll(&pool, PROVER_VK, NO_RECLAIM)
             .await
             .expect("the oldest surviving batch should be claimable");
         assert_eq!(first.l1_batch_number, L1BatchNumber(100));
 
-        let second = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
+        let second = poll(&pool, PROVER_VK, NO_RECLAIM)
             .await
             .expect("and then the one after it");
         assert_eq!(second.l1_batch_number, L1BatchNumber(101));
     }
 
-    /// SNARK wrapping jobs are gated by the same VK: the wrapper proof must verify against the
-    /// key registered for the batch's recorded protocol version.
+    /// Lowering `first_processed_batch` under existing assignments must not walk backwards into the
+    /// gap beneath them.
+    #[tokio::test]
+    async fn lowering_the_first_processed_batch_does_not_walk_backwards() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch(&mut conn, minor, 0).await;
+        for number in [100, 101, 102] {
+            insert_provable_batch(&mut conn, L1BatchNumber(number), minor).await;
+        }
+        // Assigned while `first_processed_batch` was 100.
+        insert_claim_at_version(&mut conn, L1BatchNumber(100), minor, 0).await;
+        insert_claim_at_version(&mut conn, L1BatchNumber(101), minor, 0).await;
+
+        // Lowered to 0: the next claim is still 102, not 1.
+        let locked = conn
+            .airbender_proof_generation_dal()
+            .lock_batch_for_proving(NO_RECLAIM, L1BatchNumber(0), 10, PROVER_VK)
+            .await
+            .unwrap()
+            .expect("the claim should continue past the highest assignment");
+        assert_eq!(locked.l1_batch_number, L1BatchNumber(102));
+    }
+
+    /// SNARK jobs are gated by the same VK: the wrapper proof must verify against the key
+    /// registered for the batch's recorded version.
     #[tokio::test]
     async fn snark_lock_requires_matching_vk() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1729,20 +1607,17 @@ mod tests {
         save_patch(&mut conn, batch_minor, 0).await;
         insert_provable_batch(&mut conn, L1BatchNumber(1), batch_minor).await;
 
-        conn.airbender_proof_generation_dal()
-            .lock_batch_for_proving(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK, None)
+        poll(&pool, PROVER_VK, NO_RECLAIM)
             .await
-            .unwrap()
             .expect("batch should be lockable");
         conn.airbender_proof_generation_dal()
             .save_proof_artifacts_metadata(L1BatchNumber(1), "proof_blob", "prover-1")
             .await
             .unwrap();
 
-        let wrong_key = H256::repeat_byte(0xcd);
         let locked = conn
             .airbender_proof_generation_dal()
-            .lock_batch_for_snark(Duration::MAX, L1BatchNumber(0), 10, wrong_key)
+            .lock_batch_for_snark(NO_RECLAIM, L1BatchNumber(0), 10, NEXT_GEN_VK)
             .await
             .unwrap();
         assert!(
@@ -1752,7 +1627,7 @@ mod tests {
 
         let locked = conn
             .airbender_proof_generation_dal()
-            .lock_batch_for_snark(Duration::MAX, L1BatchNumber(0), 10, PROVER_VK)
+            .lock_batch_for_snark(NO_RECLAIM, L1BatchNumber(0), 10, PROVER_VK)
             .await
             .unwrap();
         assert!(locked.is_some());
