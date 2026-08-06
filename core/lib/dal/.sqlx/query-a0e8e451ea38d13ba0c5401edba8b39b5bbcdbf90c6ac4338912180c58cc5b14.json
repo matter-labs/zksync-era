@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MAX(l1_batch_number) AS \"highest?\"\n            FROM\n                airbender_proof_generation_details\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "highest?",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a0e8e451ea38d13ba0c5401edba8b39b5bbcdbf90c6ac4338912180c58cc5b14"
+}

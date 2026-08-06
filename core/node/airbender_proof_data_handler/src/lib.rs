@@ -37,10 +37,9 @@ pub async fn run_server(
     tracing::info!("Starting proof data handler server on {bind_address}");
 
     // Seed the proving watermark before serving a single poll. An empty watermark would let a
-    // prover generation that survived the restart claim new batches at its own, older version —
-    // which `eth_sender` could then never submit, because L1 has already rotated to the newer
-    // verification key. Restarts and prover upgrades coincide, so this is the common case, not a
-    // corner one.
+    // prover generation that survived the restart claim new batches at its own older version, which
+    // `eth_sender` could never submit once L1 has rotated to the newer key. Restarts and prover
+    // upgrades coincide, so this is the common case rather than a corner one.
     let watermark_seed = connection_pool
         .connection_tagged("airbender_proof_data_handler")
         .await

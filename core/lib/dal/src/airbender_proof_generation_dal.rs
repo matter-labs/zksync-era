@@ -63,42 +63,32 @@ pub struct LockedBatch {
 }
 
 impl AirbenderProofGenerationDal<'_, '_> {
-    /// Locks the lowest unclaimed batch for Airbender FRI proving, if the requesting prover can
-    /// prove it. A prover is identified by the Airbender SNARK-wrapper VK hash it carries, and the
-    /// version recorded for proving is the batch's own minor version (`l1_batches.protocol_version`)
-    /// with the highest patch of that minor registered for that key.
+    /// Locks the next batch for Airbender FRI proving, if the requesting prover can prove it. A
+    /// prover is identified by the Airbender SNARK-wrapper VK hash it carries, and the version
+    /// recorded for proving is the batch's own minor version (`l1_batches.protocol_version`) with
+    /// the highest patch of that minor registered for that key.
     ///
-    /// Recorded versions must stay monotonically non-decreasing in batch number, compared as
-    /// `(minor, patch)`: with batches 10, 11 at v31.1 and 12 at v31.2, batch 13 can only go to
-    /// v31.2 and a v31.1 prover is told there is no work. `eth_sender` proves batches strictly in
-    /// order against the single verification key L1 currently holds, so a version that dips back
-    /// down strands that batch permanently — and every batch behind it with it.
+    /// Recorded versions must never decrease in batch number, compared as `(minor, patch)`: with
+    /// batches 10, 11 at v31.1 and 12 at v31.2, batch 13 can only go to v31.2. `eth_sender` submits
+    /// strictly in order against the single verification key L1 holds, so a batch proven with a
+    /// superseded key can never be submitted, and blocks every batch behind it.
     ///
-    /// `watermark` is the highest version anything has been claimed at, held in memory by the
-    /// caller (see `AirbenderRequestProcessor`) and seeded at startup from
-    /// [`Self::latest_claimed_version`]. A claim below it is refused here. The caller must promote
-    /// the watermark from the returned version *before* committing, which is what keeps the
-    /// watermark from ever lagging committed state; the window in which it lags the *uncommitted*
-    /// row is covered by the primary-key collision described below.
+    /// `watermark` is the highest version anything has been claimed at, held in memory by the caller
+    /// (see `AirbenderRequestProcessor`) and seeded from [`Self::latest_claimed_version`]. Claims
+    /// below it are refused here. The caller must promote it before committing, so it can only ever
+    /// run ahead of committed state; the window where it lags the *uncommitted* row is covered by
+    /// the primary-key collision below.
     ///
-    /// The candidate is deliberately the lowest unclaimed batch rather than the lowest *ready* one,
-    /// i.e. a prover waits for a gap instead of jumping over it. That is what makes the watermark
-    /// safe under concurrency: at READ COMMITTED a poller cannot see another's uncommitted claim,
-    /// but since all pollers pick the same candidate they collide on the primary key and
-    /// `ON CONFLICT DO NOTHING` leaves the loser with no job. If candidates could diverge, two
-    /// prover generations could each pass the check against a stale watermark and still commit a
-    /// decreasing pair. Nothing is lost: `eth_sender` needs batch N before N+1 anyway.
+    /// Batches are claimed strictly in order — a prover waits for a gap instead of jumping over it.
+    /// That is what makes the watermark safe under concurrency: at READ COMMITTED a poller cannot
+    /// see another's uncommitted claim, but since all pollers aim at the same batch they collide on
+    /// the primary key and `ON CONFLICT DO NOTHING` leaves the loser with no job. Nothing is lost:
+    /// `eth_sender` needs batch N before N+1 anyway.
     ///
-    /// The corollary is a deployment constraint: lowering `first_processed_batch` below batches
-    /// that are already claimed puts the candidate *underneath* existing claims, where the
-    /// watermark (a lower bound) no longer implies order against the rows above it. Don't do that
-    /// while two prover generations are live.
-    ///
-    /// Reclaimed batches (Step 1) keep the version recorded when they were first locked, and are
-    /// only handed to provers whose key matches it — a batch already at v31.1 has its blob key and
-    /// L1 verification key pinned there, so the old generation must be able to retry it even after
-    /// newer batches moved on. The corollary is operational: an old prover generation may only be
-    /// retired once its in-flight batches have reached `snark_generated`.
+    /// Reclaims (Step 1) keep the version recorded at first lock and only go to provers whose key
+    /// matches it — that version pins the blob key and the L1 verification key, so the old
+    /// generation must be able to retry its own batches after newer ones have moved on. Operational
+    /// corollary: retire an old prover generation only once its batches reach `snark_generated`.
     pub async fn lock_batch_for_proving(
         &mut self,
         processing_timeout: Duration,
@@ -187,10 +177,14 @@ impl AirbenderProofGenerationDal<'_, '_> {
             return Ok(locked_batch);
         }
 
-        // Step 2: No reclaimable row — claim the lowest unclaimed batch. Batches whose minor has no
-        // patch for this VK are skipped: the inner `JOIN LATERAL` then yields no row. The version
-        // that would be recorded must clear the caller's watermark; see the doc comment for why a
-        // lower bound is sufficient.
+        // Step 2: no reclaimable row — claim the next batch in line. Resolving which batch that is
+        // up front lets the claim address one row by primary key instead of searching for it.
+        let Some(candidate) = self.next_batch_to_claim(min_batch_number).await? else {
+            return Ok(None);
+        };
+
+        // A VK with no patch for the batch's minor yields no row from the `JOIN LATERAL`, which also
+        // covers a NULL `protocol_version`.
         let locked_batch = sqlx::query_as!(
             StorageLockedBatch,
             r#"
@@ -199,7 +193,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 attempts, protocol_version, protocol_version_patch
             )
             SELECT
-                p.l1_batch_number,
+                l.number,
                 $1,
                 NOW(),
                 NOW(),
@@ -207,8 +201,8 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 1,
                 l.protocol_version,
                 prover_patch.patch
-            FROM proof_generation_details p
-            JOIN l1_batches l ON l.number = p.l1_batch_number
+            FROM l1_batches l
+            JOIN proof_generation_details p ON p.l1_batch_number = l.number
             JOIN LATERAL (
                 SELECT pp.patch
                 FROM protocol_patches pp
@@ -219,21 +213,10 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 LIMIT 1
             ) prover_patch ON TRUE
             WHERE
-                p.vm_run_data_blob_url IS NOT NULL
+                l.number = $2
+                AND p.vm_run_data_blob_url IS NOT NULL
                 AND p.proof_gen_data_blob_url IS NOT NULL
-                AND l.protocol_version IS NOT NULL
                 AND (l.protocol_version, prover_patch.patch) >= ($4::INT, $5::INT)
-                AND p.l1_batch_number = (
-                    SELECT MIN(l2.number)
-                    FROM l1_batches l2
-                    WHERE
-                        l2.number >= GREATEST($2, 1::BIGINT)
-                        AND NOT EXISTS (
-                            SELECT 1 FROM airbender_proof_generation_details a
-                            WHERE a.l1_batch_number = l2.number
-                        )
-                )
-            LIMIT 1
             ON CONFLICT (l1_batch_number) DO NOTHING
             RETURNING l1_batch_number,
             created_at,
@@ -241,13 +224,13 @@ impl AirbenderProofGenerationDal<'_, '_> {
             protocol_version_patch
             "#,
             picked,
-            min_batch_number,
+            candidate,
             airbender_vk_hash.as_bytes(),
             watermark_minor,
             watermark_patch,
         )
         .instrument("lock_batch_for_proving#new")
-        .with_arg("min_batch_number", &min_batch_number)
+        .with_arg("candidate", &candidate)
         .with_arg("airbender_vk_hash", &airbender_vk_hash)
         .with_arg("watermark", &watermark)
         .fetch_optional(self.storage)
@@ -257,15 +240,59 @@ impl AirbenderProofGenerationDal<'_, '_> {
         Ok(locked_batch)
     }
 
-    /// The highest version any batch has been claimed at, used to seed the in-memory watermark that
-    /// [`Self::lock_batch_for_proving`] is gated on. Read once when the proof data handler starts:
-    /// a handler that came up with an empty watermark would let a surviving old prover generation
-    /// claim new batches at its own version again, which is exactly the regression the watermark
-    /// exists to prevent.
+    /// The batch [`Self::lock_batch_for_proving`] should aim at next: one past the highest claimed
+    /// batch. Claims go out in order and rows are never deleted, so the claimed set is contiguous
+    /// and this is an index-only lookup on the primary key.
     ///
-    /// This is `MAX((minor, patch))` rather than the version of the highest claimed batch. The two
-    /// agree while the invariant holds; taking the max also recovers the watermark if a row was ever
-    /// patched by hand.
+    /// Before anything has been claimed it is instead the oldest surviving batch at or above
+    /// `min_batch_number` — not `min_batch_number` itself, since `l1_batches` rows are pruned and a
+    /// node that starts proving after a prune would otherwise aim below the surviving range forever.
+    /// `None` means there is nothing to aim at yet.
+    ///
+    /// Deliberately not "the lowest batch without a claim row": that walks backwards into a gap if
+    /// `first_processed_batch` is lowered beneath existing claims, and claiming underneath existing
+    /// rows is where the watermark stops implying an order. This makes lowering it a no-op instead.
+    async fn next_batch_to_claim(&mut self, min_batch_number: i64) -> DalResult<Option<i64>> {
+        let highest_claimed = sqlx::query_scalar!(
+            r#"
+            SELECT
+                MAX(l1_batch_number) AS "highest?"
+            FROM
+                airbender_proof_generation_details
+            "#
+        )
+        .instrument("lock_batch_for_proving#highest_claimed")
+        .fetch_one(self.storage)
+        .await?;
+
+        if let Some(highest_claimed) = highest_claimed {
+            return Ok(Some((highest_claimed + 1).max(min_batch_number).max(1)));
+        }
+
+        sqlx::query_scalar!(
+            r#"
+            SELECT
+                MIN(number) AS "oldest?"
+            FROM
+                l1_batches
+            WHERE
+                number >= GREATEST($1, 1::BIGINT)
+            "#,
+            min_batch_number,
+        )
+        .instrument("lock_batch_for_proving#oldest_batch")
+        .with_arg("min_batch_number", &min_batch_number)
+        .fetch_one(self.storage)
+        .await
+    }
+
+    /// The highest version any batch has been claimed at. Read once at handler startup to seed the
+    /// watermark [`Self::lock_batch_for_proving`] is gated on — an empty watermark would let a
+    /// surviving old prover generation claim new batches at its own version, the exact regression
+    /// the watermark exists to prevent.
+    ///
+    /// `MAX((minor, patch))` rather than the version of the highest claimed batch: the two agree
+    /// while the invariant holds, and the max also recovers if a row was ever patched by hand.
     pub async fn latest_claimed_version(&mut self) -> DalResult<Option<ProtocolSemanticVersion>> {
         sqlx::query!(
             r#"
@@ -297,43 +324,6 @@ impl AirbenderProofGenerationDal<'_, '_> {
         .fetch_optional(self.storage)
         .await
         .map(Option::flatten)
-    }
-
-    /// The newest protocol version the prover's key is registered for, or `None` if no patch carries
-    /// that key at all. Consulted only after a claim came up empty, to tell a misdeployed prover
-    /// (`None`) and a superseded generation (below the watermark) apart from a simply idle queue —
-    /// all three look like an endless stream of empty polls from the outside.
-    pub async fn latest_version_for_key(
-        &mut self,
-        airbender_vk_hash: H256,
-    ) -> DalResult<Option<ProtocolSemanticVersion>> {
-        sqlx::query!(
-            r#"
-            SELECT
-                minor,
-                patch
-            FROM
-                protocol_patches
-            WHERE
-                airbender_snark_wrapper_vk_hash = $1
-            ORDER BY
-                minor DESC,
-                patch DESC
-            LIMIT
-                1
-            "#,
-            airbender_vk_hash.as_bytes()
-        )
-        .try_map(|row| {
-            parse_protocol_version(row.minor).map(|minor| ProtocolSemanticVersion {
-                minor,
-                patch: (row.patch as u32).into(),
-            })
-        })
-        .instrument("latest_version_for_key")
-        .with_arg("airbender_vk_hash", &airbender_vk_hash)
-        .fetch_optional(self.storage)
-        .await
     }
 
     pub async fn unlock_batch(
@@ -1450,11 +1440,10 @@ mod tests {
         assert_eq!(locked.protocol_version.patch, VersionPatch(2));
     }
 
-    /// The watermark lives in the handler's memory, so a restart must rebuild it from the database
-    /// before serving a poll. An empty watermark would hand batch 13 back to the v31.1 generation
-    /// after batch 12 already went out at v31.2 — and `eth_sender` submits strictly in order against
-    /// the single key L1 holds, so that batch could never be submitted and would block every batch
-    /// behind it. Restarts coincide with prover upgrades, which is exactly when this matters.
+    /// The watermark lives in memory, so a restart must rebuild it from the database before serving
+    /// a poll. Otherwise batch 13 goes back to the v31.1 generation after batch 12 went out at
+    /// v31.2, and `eth_sender` — strictly in order against the single key L1 holds — could never
+    /// submit it, nor anything behind it. Restarts coincide with prover upgrades.
     #[tokio::test]
     async fn a_restart_reseeds_the_watermark_from_the_database() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1497,11 +1486,10 @@ mod tests {
         assert_versions_non_decreasing(&mut conn).await;
     }
 
-    /// Pins the contract the test above depends on: monotonicity is enforced by the caller's
-    /// watermark, not by the query. With no watermark the query happily records v31.1 for a batch
-    /// that follows a v31.2 one — which is why [`AirbenderProofGenerationDal::latest_claimed_version`]
-    /// must be consulted at startup. If this behaviour is ever moved into SQL, delete this test
-    /// rather than "fixing" it.
+    /// Pins the contract the test above rests on: monotonicity comes from the caller's watermark,
+    /// not the query. Unseeded, the query happily records v31.1 for a batch following a v31.2 one —
+    /// which is why the seed is load-bearing. If this ever moves into SQL, delete this test rather
+    /// than "fixing" it.
     #[tokio::test]
     async fn the_query_relies_on_the_caller_for_monotonicity() {
         let pool = ConnectionPool::<Core>::test_pool().await;
@@ -1664,11 +1652,10 @@ mod tests {
         assert_eq!(snark.protocol_version.patch, VersionPatch(1));
     }
 
-    /// The two lookups behind an empty poll: the key's newest registered version (`None` for a
-    /// misdeployed prover) and the watermark seed. Together they let the handler tell an
-    /// unregistered key and a superseded generation apart from a simply idle queue.
+    /// The watermark seed: `None` while nothing has been claimed, then the highest version claimed
+    /// so far.
     #[tokio::test]
-    async fn empty_poll_lookups_explain_why_there_is_no_work() {
+    async fn latest_claimed_version_tracks_the_highest_claim() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
 
@@ -1676,57 +1663,52 @@ mod tests {
         save_patch_with_vk(&mut conn, minor, 1, Some(PROVER_VK)).await;
         save_patch_with_vk(&mut conn, minor, 2, Some(NEXT_GEN_VK)).await;
 
-        // A key nothing is registered for: the prover is misdeployed, or ahead of the upgrade that
-        // registers it.
-        assert!(conn
-            .airbender_proof_generation_dal()
-            .latest_version_for_key(H256::repeat_byte(0x99))
-            .await
-            .unwrap()
-            .is_none());
+        assert!(Watermark::seeded_from(&mut conn).await.get().is_none());
 
-        // Registered keys resolve to their newest patch.
-        for (vk, patch) in [(PROVER_VK, 1), (NEXT_GEN_VK, 2)] {
-            let version = conn
-                .airbender_proof_generation_dal()
-                .latest_version_for_key(vk)
-                .await
-                .unwrap();
-            assert_eq!(
-                version,
-                Some(ProtocolSemanticVersion {
-                    minor,
-                    patch: VersionPatch(patch),
-                })
-            );
-        }
-
-        // Nothing claimed yet: no watermark, so nobody is superseded.
-        assert!(conn
-            .airbender_proof_generation_dal()
-            .latest_claimed_version()
-            .await
-            .unwrap()
-            .is_none());
-
-        // Once a batch goes out at v31.2, the seed puts v31.1 below the watermark.
         insert_provable_batch(&mut conn, L1BatchNumber(10), minor).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(11), minor).await;
         let watermark = Watermark::default();
+        lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
+            .await
+            .unwrap();
+        assert_eq!(
+            Watermark::seeded_from(&mut conn).await.get().unwrap().patch,
+            VersionPatch(1)
+        );
+
         lock_for(&mut conn, NEXT_GEN_VK, NO_RECLAIM, &watermark)
             .await
             .unwrap();
+        assert_eq!(
+            Watermark::seeded_from(&mut conn).await.get().unwrap().patch,
+            VersionPatch(2)
+        );
+    }
 
-        let seeded = Watermark::seeded_from(&mut conn).await.get().unwrap();
-        assert_eq!(seeded.patch, VersionPatch(2));
-        for (vk, superseded) in [(PROVER_VK, true), (NEXT_GEN_VK, false)] {
-            let version = conn
-                .airbender_proof_generation_dal()
-                .latest_version_for_key(vk)
-                .await
-                .unwrap()
-                .unwrap();
-            assert_eq!(version < seeded, superseded);
-        }
+    /// Claims aim one past the highest claim, so a batch stream that starts above
+    /// `first_processed_batch` — as it does on a pruned node or one restored from a snapshot — is
+    /// still picked up rather than aimed under forever.
+    #[tokio::test]
+    async fn the_first_claim_starts_at_the_oldest_surviving_batch() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch(&mut conn, minor, 0).await;
+        // Batches 1..=99 are long gone; the table starts at 100.
+        insert_provable_batch(&mut conn, L1BatchNumber(100), minor).await;
+        insert_provable_batch(&mut conn, L1BatchNumber(101), minor).await;
+
+        let watermark = Watermark::default();
+        let first = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
+            .await
+            .expect("the oldest surviving batch should be claimable");
+        assert_eq!(first.l1_batch_number, L1BatchNumber(100));
+
+        let second = lock_for(&mut conn, PROVER_VK, NO_RECLAIM, &watermark)
+            .await
+            .expect("and then the one after it");
+        assert_eq!(second.l1_batch_number, L1BatchNumber(101));
     }
 
     /// SNARK wrapping jobs are gated by the same VK: the wrapper proof must verify against the

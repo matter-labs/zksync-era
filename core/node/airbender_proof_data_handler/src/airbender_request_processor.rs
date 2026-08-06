@@ -1,7 +1,4 @@
-use std::{
-    collections::HashSet,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
 use axum::{extract::Path, Json};
@@ -36,57 +33,18 @@ use crate::{
     metrics::{ProcessorErrorKind, ProofStage, METRICS},
 };
 
-/// Cap on distinct keys remembered for warning suppression. A client polling with arbitrary hashes
-/// would otherwise grow the set without bound; real deployments only see a handful of prover
-/// releases, so hitting the cap means the set is junk and is simply dropped.
-const MAX_REMEMBERED_KEYS: usize = 64;
-
-/// The highest protocol version any batch has been claimed at, held in memory so that the claim
-/// query is a plain lower-bound check instead of a correlated lookup over previous claims.
+/// The highest protocol version any batch has been claimed at, so the claim query is a plain
+/// lower-bound check instead of a correlated lookup over previous claims.
 ///
 /// The safety property is one-directional: this may run *ahead* of committed state, never behind.
-/// Ahead only starves an old prover generation of new work, which stalls and recovers; behind would
-/// let it record a version below one already committed for an earlier batch, which strands that
-/// batch on L1 for good. Two things keep it from lagging:
-///
-/// - It is seeded from the database when the handler starts, so a restart cannot forget an upgrade
-///   that already happened.
-/// - It is promoted immediately after the claim `INSERT` and before that transaction commits, so by
-///   the time a claim is visible to anyone else the watermark already covers it. In the window
-///   where the row is still uncommitted, other pollers compute the same candidate batch and lose on
-///   the primary key, which is what covers the gap.
-#[derive(Default)]
-struct ProvingWatermark {
-    version: Option<ProtocolSemanticVersion>,
-    /// Keys already warned about, cleared whenever the watermark moves so that a genuinely new
-    /// situation is reported again. Keeps an idle fleet from turning every poll into a log line
-    /// without needing an expiry.
-    warned: HashSet<H256>,
-}
-
-impl ProvingWatermark {
-    fn current(&self) -> Option<ProtocolSemanticVersion> {
-        self.version
-    }
-
-    /// Raises the watermark to `version` if it is higher. Never lowers it: a reclaim or an
-    /// out-of-order heal handing back an older version must not reopen the door for the generation
-    /// that version belongs to.
-    fn promote(&mut self, version: ProtocolSemanticVersion) {
-        if self.version.is_none_or(|current| version > current) {
-            self.version = Some(version);
-            self.warned.clear();
-        }
-    }
-
-    /// Whether this key should be warned about now, remembering that it was.
-    fn should_warn(&mut self, key: H256) -> bool {
-        if self.warned.len() >= MAX_REMEMBERED_KEYS {
-            self.warned.clear();
-        }
-        self.warned.insert(key)
-    }
-}
+/// Ahead only starves an old prover generation of new work, which stalls and recovers; behind lets
+/// it record a version below one already committed for an earlier batch, stranding that batch on L1
+/// for good. Two things keep it from lagging: it is seeded from the database at startup, so a
+/// restart cannot forget an upgrade; and it is promoted right after the claim `INSERT`, before that
+/// transaction commits, so a claim is never visible to anyone else before the watermark covers it.
+/// While the row is still uncommitted, other pollers aim at the same batch and lose on the primary
+/// key.
+type ProvingWatermark = Arc<Mutex<Option<ProtocolSemanticVersion>>>;
 
 #[derive(Clone)]
 pub(crate) struct AirbenderRequestProcessor {
@@ -96,7 +54,7 @@ pub(crate) struct AirbenderRequestProcessor {
     l2_chain_id: L2ChainId,
     /// Shared across requests (axum clones the state per request), so the whole fleet is gated on
     /// one watermark.
-    watermark: Arc<Mutex<ProvingWatermark>>,
+    watermark: ProvingWatermark,
 }
 
 impl AirbenderRequestProcessor {
@@ -112,71 +70,17 @@ impl AirbenderRequestProcessor {
             pool,
             config,
             l2_chain_id,
-            watermark: Arc::new(Mutex::new(ProvingWatermark {
-                version: watermark_seed,
-                warned: HashSet::new(),
-            })),
+            watermark: Arc::new(Mutex::new(watermark_seed)),
         }
     }
 
-    /// Records why a prover was handed no job, so that an operator can tell a misdeployed prover and
-    /// a superseded generation apart from a simply idle queue — all three look the same from
-    /// outside, an endless stream of empty polls. Runs only *after* a claim came up empty, so the
-    /// happy path pays nothing.
-    ///
-    /// Only "is this key registered at all" needs the database; whether the generation is superseded
-    /// is answered from the watermark we already hold. The warning is emitted once per key and
-    /// re-armed whenever the watermark moves, so an idle fleet doesn't turn each poll into a log
-    /// line.
-    async fn report_no_job(
-        &self,
-        connection: &mut Connection<'_, Core>,
-        snark_wrapper_vk_hash: H256,
-        stage: ProofStage,
-    ) -> Result<(), AirbenderProcessorError> {
-        let key_version = connection
-            .airbender_proof_generation_dal()
-            .latest_version_for_key(snark_wrapper_vk_hash)
-            .await?;
-
-        let (watermark, should_warn) = {
-            let mut watermark = self.watermark.lock().expect("watermark poisoned");
-            (
-                watermark.current(),
-                watermark.should_warn(snark_wrapper_vk_hash),
-            )
-        };
-
-        match key_version {
-            None => {
-                METRICS.airbender_unknown_vk_requests[&stage].inc();
-                if should_warn {
-                    tracing::warn!(
-                        ?snark_wrapper_vk_hash,
-                        ?stage,
-                        "Prover requested a job with an Airbender SNARK-wrapper VK hash that no \
-                         protocol patch is registered for; returning no job"
-                    );
-                }
-            }
-            Some(key_version) if watermark.is_some_and(|watermark| key_version < watermark) => {
-                METRICS.airbender_superseded_generation_requests[&stage].inc();
-                if should_warn {
-                    tracing::warn!(
-                        ?snark_wrapper_vk_hash,
-                        ?stage,
-                        %key_version,
-                        watermark = %watermark.expect("checked above"),
-                        "Prover generation has been superseded: batches are being proven at a newer \
-                         protocol version, so this prover will not receive new work. It can be \
-                         retired once the batches it already holds are wrapped into SNARKs."
-                    );
-                }
-            }
-            // Registered and current — the queue is simply idle.
-            Some(_) => {}
+    /// Raises the watermark to `version` if it is higher. Never lowers it: a reclaim hands back the
+    /// version recorded when the batch was first locked, which may be older than the current one.
+    fn promote_watermark(&self, version: ProtocolSemanticVersion) {
+        let mut watermark = self.watermark.lock().expect("watermark poisoned");
+        if watermark.is_none_or(|current| version > current) {
+            *watermark = Some(version);
         }
-        Ok(())
     }
 
     pub(crate) async fn get_proof_generation_data(
@@ -199,12 +103,11 @@ impl AirbenderRequestProcessor {
             let mut transaction = connection.start_transaction().await?;
 
             // Record the protocol version the batch is proved under at lock time, so `submit_proof`
-            // and the SNARK step reuse the exact same version (and blob key) instead of recomputing
-            // it. The version is the batch's own minor version with the highest patch registered
-            // for the prover's VK (chosen inside the lock query), so a batch is proven under the
-            // protocol it executed with, by a prover that holds the right key. The watermark keeps
-            // that version from going backwards across prover generations.
-            let watermark = self.watermark.lock().expect("watermark poisoned").current();
+            // and the SNARK step reuse the same version (and blob key) instead of recomputing it.
+            // It is the batch's own minor with the highest patch registered for the prover's VK, so
+            // a batch is proven under the protocol it executed with, by a prover holding the right
+            // key. The watermark keeps it from going backwards across prover generations.
+            let watermark = *self.watermark.lock().expect("watermark poisoned");
             let locked_batch = transaction
                 .airbender_proof_generation_dal()
                 .lock_batch_for_proving(
@@ -216,23 +119,15 @@ impl AirbenderRequestProcessor {
                 )
                 .await?;
 
-            // Promote before the commit below, and before the object-store reads that sit between
-            // the two: a watermark that lagged a committed claim would let an older generation
-            // record a lower version for a later batch, which strands it on L1 permanently. Running
-            // ahead of a claim that later rolls back only costs a stalled poll.
+            // Promote before the commit, and before the object-store reads in between: a watermark
+            // lagging a committed claim would let an older generation record a lower version for a
+            // later batch, stranding it on L1. Running ahead of a claim that later rolls back only
+            // costs a stalled poll.
             if let Some(locked_batch) = &locked_batch {
-                self.watermark
-                    .lock()
-                    .expect("watermark poisoned")
-                    .promote(locked_batch.protocol_version);
+                self.promote_watermark(locked_batch.protocol_version);
             }
 
             let Some(locked_batch) = locked_batch else {
-                // No job. Release the transaction before diagnosing why — the diagnosis has nothing
-                // to do with the claim and should not extend it.
-                drop(transaction);
-                self.report_no_job(&mut connection, snark_wrapper_vk_hash, ProofStage::Fri)
-                    .await?;
                 return Ok(None);
             };
             let batch_number = locked_batch.l1_batch_number;
@@ -623,9 +518,6 @@ impl AirbenderRequestProcessor {
                 )
                 .await?
             else {
-                drop(transaction);
-                self.report_no_job(&mut connection, snark_wrapper_vk_hash, ProofStage::Snark)
-                    .await?;
                 return Ok(None);
             };
             let batch_number = locked_batch.l1_batch_number;
