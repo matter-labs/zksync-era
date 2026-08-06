@@ -222,7 +222,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             };
             // Airbender SNARK-wrapper VK is likewise hard coded in the (dual) verifier contract;
             // `None` if the verifier doesn't route an Airbender verifier yet.
-            let airbender_scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+            let airbender_scheduler_vk_hash = if let Some(address) = verifier_address {
                 self.sl_client
                     .airbender_scheduler_vk_hash(address)
                     .await
