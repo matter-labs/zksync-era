@@ -18,7 +18,7 @@ use crate::{
             StorageAirbenderProof, StorageAirbenderSnarkProof, StorageLockedBatch,
         },
     },
-    Core,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
@@ -97,6 +97,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
         airbender_vk_hash: H256,
         watermark: Option<ProtocolSemanticVersion>,
     ) -> DalResult<Option<LockedBatch>> {
+        let mut transactions = self.storage.start_transaction().await?;
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = i64::from(min_batch_number.0);
         let max_attempts = i16::try_from(max_attempts).unwrap_or(i16::MAX);
@@ -169,17 +170,22 @@ impl AirbenderProofGenerationDal<'_, '_> {
         .with_arg("min_batch_number", &min_batch_number)
         .with_arg("max_attempts", &max_attempts)
         .with_arg("airbender_vk_hash", &airbender_vk_hash)
-        .fetch_optional(self.storage)
+        .fetch_optional(&mut transactions)
         .await?
         .map(Into::into);
 
         if locked_batch.is_some() {
+            transactions.commit().await?;
             return Ok(locked_batch);
         }
 
         // Step 2: no reclaimable row — claim the next batch in line. Resolving which batch that is
         // up front lets the claim address one row by primary key instead of searching for it.
-        let Some(candidate) = self.next_batch_to_claim(min_batch_number).await? else {
+        let Some(candidate) = transactions
+            .airbender_proof_generation_dal()
+            .next_batch_to_claim(min_batch_number)
+            .await?
+        else {
             return Ok(None);
         };
 
@@ -233,9 +239,10 @@ impl AirbenderProofGenerationDal<'_, '_> {
         .with_arg("candidate", &candidate)
         .with_arg("airbender_vk_hash", &airbender_vk_hash)
         .with_arg("watermark", &watermark)
-        .fetch_optional(self.storage)
+        .fetch_optional(&mut transactions)
         .await?
         .map(Into::into);
+        transactions.commit().await?;
 
         Ok(locked_batch)
     }
