@@ -1,0 +1,72 @@
+# Caller for the reusable cargo-deny AI auto-fix workflow
+# (.github/workflows/cargo-deny-ai-fix-reusable.yml).
+#
+# This repo has FOUR independent Cargo workspaces (core, prover, zkstack_cli,
+# airbender_prover_server), all sharing the single deny.toml at the repo root
+# (cargo-deny doesn't auto-discover it from nested workspaces, hence the explicit
+# `--config ../deny.toml` — a relative --config resolves from the workspace root
+# directory, and all four workspaces sit one level below the repo root). One run
+# covers all four and produces at most one combined fix PR (or diagnosis issue).
+# The existing PR-time gate (cargo-license.yaml) only covers `core`; this proactive
+# workflow runs on a schedule, independent of PRs.
+#
+# `deny-action-args` intentionally matches cargo-license.yaml exactly so this
+# proactive check and the PR-time gate always agree on what is red.
+#
+# When the reusable workflow moves to matter-labs/zksync-ci-common, switch `uses:`
+# to a reviewed FULL COMMIT SHA — never a branch ref, which would hand the central
+# workflow standing access to this repo's secrets and write permissions:
+#   matter-labs/zksync-ci-common/.github/workflows/cargo-deny-ai-fix-reusable.yml@<full-sha>
+
+name: Cargo Deny AI Fix
+
+# No `push` trigger: claude-code-action does not support push events (it fails with
+# "Unsupported event type: push"). The daily schedule catches new advisories within a
+# day; use workflow_dispatch for an immediate run (`gh workflow run` can target any
+# ref the workflow file exists on).
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily, independent of the existing PR-time gate
+  workflow_dispatch: {}
+
+# Serializes overlapping scheduled and manual runs. Default single-pending behavior
+# is intentional: the newest pending run covers everything an older pending one
+# would have done, and the detect gate re-arms on the next tick regardless.
+concurrency:
+  group: cargo-deny-ai-fix-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  cargo-deny-ai-fix:
+    # A called reusable workflow can only downgrade the caller's GITHUB_TOKEN, so this
+    # grants the maximum any of its jobs needs: issues write for label management and
+    # closing stale diagnosis issues; everything else is read-only. Pushes and
+    # PR/issue creation use the separately-passed publishing credential, and the AI
+    # job itself runs with contents: read only.
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    uses: ./.github/workflows/cargo-deny-ai-fix-reusable.yml
+    with:
+      manifest-paths: |
+        core/Cargo.toml
+        prover/Cargo.toml
+        zkstack_cli/Cargo.toml
+        airbender_prover_server/Cargo.toml
+      policy-path: "deny.toml" # the shared root config --config points at, allowed for AI edits
+      deny-action-args: "--config ../deny.toml --allow unmaintained --hide-inclusion-graph"
+      # Credential-free compile check of the applied fix; a failure publishes the PR
+      # as a draft with a warning instead of merge-ready. Bounded to zkstack_cli:
+      # core/prover need the zk-environment image and airbender_prover_server needs
+      # CUDA, so their compilation is verified by the fix PR's own CI instead.
+      validation-commands: |
+        cd zkstack_cli && cargo check --workspace --locked
+      validation-timeout-minutes: 60
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Publishing credential, held only by the publish job (never exposed to Claude
+      # or cargo). Prefer a repository-scoped GitHub App once one is provisioned
+      # (pass GH_APP_ID + GH_APP_PRIVATE_KEY instead); until then this is the same
+      # bot PAT release-please uses, which also makes fix PRs trigger CI.
+      GH_PAT: ${{ secrets.RELEASE_TOKEN }}

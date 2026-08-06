@@ -1,3 +1,17 @@
+# Shared cargo-deny configuration for ALL Cargo workspaces in this repo
+# (core, prover, zkstack_cli, airbender_prover_server).
+#
+# cargo-deny does not auto-discover this file from nested workspaces, so every
+# invocation must pass it explicitly. CI runs cargo-deny 0.18.x, where --config is a
+# `check` argument and a RELATIVE path resolves from the workspace root directory:
+#   cargo deny --manifest-path <workspace>/Cargo.toml check --config ../deny.toml ...
+# (see cargo-license.yaml and .github/workflows/cargo-deny-ai-fix.yml). In cargo-deny
+# 0.19+ the flag moved to a top-level argument: cargo deny --config deny.toml ... check
+#
+# Because the config is shared, an `advisories.ignore` entry added for one workspace
+# also silences that advisory in the others, and ignores may be unused in some
+# workspaces (cargo-deny reports those as warnings, not errors).
+
 [graph]
 targets = []
 all-features = false
@@ -32,19 +46,14 @@ ignore = [
   "RUSTSEC-2026-0098", # URI name constraints incorrectly accepted; affects 0.101.7 and 0.102.8 (0.103.13 patched)
   "RUSTSEC-2026-0099", # Name constraints accept wildcard cert names; affects 0.101.7 and 0.102.8 (0.103.13 patched)
   "RUSTSEC-2026-0104", # Reachable panic in CRL parsing; affects 0.101.7 and 0.102.8 (0.103.13 patched). We don't use CRLs.
-  # `rand` 0.8.x unsoundness in `ThreadRng` reseed under a custom logger calling rand from
-  # log macros. Patch only exists for >=0.9.3 / >=0.10.1; no fix backported to 0.8.x. We
-  # bumped 0.9.x to 0.9.4; rand 0.8.5 remains via many transitive deps (alloy-primitives,
-  # sqlx-postgres, jsonrpsee, boojum, secp256k1, foundry-compilers, ...) that haven't
-  # migrated to rand 0.9. The unsoundness requires a custom logger that calls rand from
-  # logging callbacks, which we don't do.
-  "RUSTSEC-2026-0097",
   # `quick-xml` <0.41.0 XML-parsing DoS advisories (quadratic attribute-duplicate check and
   # unbounded namespace-declaration allocation in `NsReader`). Reached only transitively via
-  # sentry -> sentry-contexts -> os_info -> plist, which parses local system `.plist` files to
-  # report OS info -- not untrusted network input, so the DoS vectors are not reachable for us.
-  # No released `plist` depends on the patched quick-xml >=0.41.0 yet (latest 1.9.0 caps at
-  # ^0.39.2, and bumping it pulls in crates requiring Rust 1.88 which our nightly toolchain lacks).
+  # sentry -> sentry-contexts -> os_info -> plist in core (parses local system `.plist` files),
+  # and via zksync-airbender's riscv_transpiler -> inferno (flamegraph rendering for profiling,
+  # parses locally generated profiling data) in airbender_prover_server -- not untrusted
+  # network input in either case, so the DoS vectors are not reachable for us. No released
+  # `plist` or `inferno` depends on the patched quick-xml >=0.41.0 yet (and for `plist`,
+  # bumping pulls in crates requiring Rust 1.88 which our nightly toolchain lacks).
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
 ]
@@ -66,7 +75,12 @@ allow = [
   "BSL-1.0",
   "Unicode-3.0",
   "BUSL-1.1",
-  "CDLA-Permissive-2.0"
+  "CDLA-Permissive-2.0",
+  # CDDL-1.0 (weak, file-level copyleft, similar in spirit to MPL-2.0 which is already
+  # allowed): needed for `inferno` (flamegraph rendering), a mandatory transitive
+  # dependency of zksync-airbender's `riscv_transpiler` in the airbender_prover_server
+  # workspace. Only that workspace uses it today; the shared config allows it repo-wide.
+  "CDDL-1.0"
 ]
 confidence-threshold = 0.8
 
