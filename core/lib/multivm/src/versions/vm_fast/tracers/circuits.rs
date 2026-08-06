@@ -112,10 +112,13 @@ impl Tracer for CircuitsTracer {
                 self.storage_sorter_cycles += FAR_CALL_STORAGE_SORTER_CYCLES;
                 self.log_demuxer_cycles += FAR_CALL_LOG_DEMUXER_CYCLES;
             }
-            Opcode::AuxHeapWrite | Opcode::HeapWrite /* StaticMemoryWrite */ => {
+            Opcode::AuxHeapWrite | Opcode::HeapWrite | Opcode::StaticMemoryWrite => {
                 self.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
             }
-            Opcode::AuxHeapRead | Opcode::HeapRead | Opcode::PointerRead /* StaticMemoryRead */ => {
+            Opcode::AuxHeapRead
+            | Opcode::HeapRead
+            | Opcode::PointerRead
+            | Opcode::StaticMemoryRead => {
                 self.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
             }
         }

@@ -73,16 +73,18 @@ fflonk = "=0.32.10"
 franklin-crypto = "=0.32.10"
 
 # zksync-protocol dependencies
-circuit_definitions = "=0.153.12"
-circuit_sequencer_api = "=0.153.12"
-zkevm_test_harness = "=0.153.12"
+# Pinned to a git tag: zksync-protocol is no longer published to crates.io (it has a
+# git-only `airbender-crypto` dependency). Must match the tag used in `core/Cargo.toml`.
+circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
+circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
+zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.14" }
 
 # zksync-crypto-gpu dependencies
-proof-compression-gpu = { package = "proof-compression", version = "=0.156.2" }
-fflonk-gpu = { package = "fflonk-cuda", version = "=0.156.2" }
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.156.2" }
-shivini = "=0.156.2"
-boojum-cuda = "=0.156.2"
+proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.4" }
+fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.4" }
+wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.4" }
+shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.4" }
+boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.4" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }

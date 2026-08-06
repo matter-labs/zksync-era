@@ -511,6 +511,7 @@ impl AirbenderRequestProcessor {
 
             return Ok(Some(AirbenderSnarkInputsResponse {
                 l1_batch_number: batch_number.0,
+                chain_id: self.l2_chain_id.as_u64(),
                 fri_proof: proof.proof,
             }));
         }

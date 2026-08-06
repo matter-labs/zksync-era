@@ -3,14 +3,31 @@ use clap::ValueEnum;
 use eravm_prover_host::SnarkWrapperProof;
 use zksync_prover_metrics::ProofType;
 
+/// Where a job came from. Travels with the job through the prover and back so
+/// results are submitted to the originating server — batch numbers alone are
+/// ambiguous because independent chains number their batches independently.
+#[derive(Copy, Clone, Debug)]
+pub struct JobOrigin {
+    /// Index of the job server in the configured server-URL list. Routing
+    /// only: results go back to this client. Deployment-local, so it never
+    /// appears in metrics.
+    pub server: usize,
+    /// L2 chain id reported by the job server (from `system_env` for FRI
+    /// inputs, from the response body for SNARK inputs). Used in metrics and
+    /// logs to identify the chain; 0 when the server predates reporting it.
+    pub chain_id: u64,
+}
+
 /// Jobs received from the job worker. Which variant is expected is implied
 /// by which pipelines the worker was built with; a mismatch is a job-worker bug.
 pub enum WorkerJob {
     Fri {
+        origin: JobOrigin,
         batch_number: u32,
         input_words: Vec<u32>,
     },
     Snark {
+        origin: JobOrigin,
         batch_number: u32,
         proof: Box<Proof>,
     },
@@ -22,6 +39,12 @@ impl WorkerJob {
             WorkerJob::Fri { batch_number, .. } | WorkerJob::Snark { batch_number, .. } => {
                 *batch_number
             }
+        }
+    }
+
+    pub fn origin(&self) -> JobOrigin {
+        match self {
+            WorkerJob::Fri { origin, .. } | WorkerJob::Snark { origin, .. } => *origin,
         }
     }
 
@@ -53,6 +76,8 @@ pub enum ProverMode {
 /// `pending_jobs` bucket (FRI then SNARK) as it lands.
 pub enum ProofOutcome {
     Fri {
+        /// Origin of the job; the proof is submitted back to its server.
+        origin: JobOrigin,
         batch_number: u32,
         proof: Box<Proof>,
         /// Guest cycles executed by the FRI prover's RISC-V run for this batch,
@@ -60,6 +85,8 @@ pub enum ProofOutcome {
         cycles_used: u64,
     },
     Snark {
+        /// Origin of the job; the proof is submitted back to its server.
+        origin: JobOrigin,
         batch_number: u32,
         proof: Box<SnarkWrapperProof>,
     },
@@ -75,9 +102,10 @@ impl ProofOutcome {
 }
 
 /// Failure detail carried in the `Err` arm of [`ProverResult`]. Holds the
-/// kind and batch number so the job worker can route the failure log without
-/// inspecting the success type.
+/// kind, batch number, and job origin so the job worker can report the
+/// failure to the right job server without inspecting the success type.
 pub struct FailedProof {
+    pub origin: JobOrigin,
     pub batch_number: u32,
     pub kind: ProofType,
     /// Full anyhow error chain (`{err:#}`) captured at the point of failure.
@@ -85,8 +113,9 @@ pub struct FailedProof {
 }
 
 impl FailedProof {
-    pub fn new(batch_number: u32, kind: ProofType, err: anyhow::Error) -> Self {
+    pub fn new(origin: JobOrigin, batch_number: u32, kind: ProofType, err: anyhow::Error) -> Self {
         Self {
+            origin,
             batch_number,
             kind,
             reason: format!("{err:#}"),

@@ -2,9 +2,9 @@
 
 ## Introduction
 
-The message root is the contract on ZKsync chains that collects messages from different chains and aggregates them into a single Merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the `MessageRoot`, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains. 
+The message root is the contract on ZKsync chains that collects messages from different chains and aggregates them into a single Merkle tree. This makes interop more efficient, since instead of having to import each individual message, chains can import the `MessageRoot`, which is an aggregate of messages in a single batch, then across batches of a single chain, and then across chains.
 
-The `MessageRoot` contract is deployed both on L1 and all ZKsync chains, but on ZKsync chains it is only used on GW (since it's the only ZKsync chain which is whitelisted as settlement layer, as of now). On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1. Read about it [here](../gateway/messaging_via_gateway.md).
+The `MessageRoot` contract is deployed both on L1 and all ZKsync chains, but on ZKsync chains it is only used on GW (which is now deprecated). On GW it is used to aggregate messages for chains that are settling on GW, in the same way that it is done on L1.
 
 ![MessageRoot](../img/message_root.png)
 
@@ -29,7 +29,7 @@ The structure has the following recursive format:
     - `chain_id` — the chain id of the chain the batches of which are aggregated.
 - `MessageRoot` — the root of the binary full merkle tree over `ChainIdLeaf[]`.
 
-Note that the `MessageRoot` appears twice in the structure. So the structure is recursive, chains can aggregate other chains, this is used for the [`Gateway`](../gateway/l2_gw_l1_messaging.md)
+Note that the `MessageRoot` appears twice in the structure. So the structure is recursive, chains can aggregate other chains, this is used for the Gateway.
 
 ## Appending new batch root leaves
 
