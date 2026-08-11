@@ -1,5 +1,12 @@
 # Changelog
 
+## [31.5.0](https://github.com/matter-labs/zksync-era/compare/core-v31.4.0...core-v31.5.0) (2026-08-07)
+
+
+### Features
+
+* **v32:** Update vm2 ([#4912](https://github.com/matter-labs/zksync-era/issues/4912)) ([5a48038](https://github.com/matter-labs/zksync-era/commit/5a4803889be327d0b41b402c7f5327217fd570bc))
+
 ## [31.4.0](https://github.com/matter-labs/zksync-era/compare/core-v31.3.0...core-v31.4.0) (2026-08-06)
 
 
