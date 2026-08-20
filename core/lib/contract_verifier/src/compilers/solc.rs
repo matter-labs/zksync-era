@@ -1,7 +1,6 @@
-use std::{collections::HashMap, path::PathBuf, process::Stdio};
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
-use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
 use zksync_types::contract_verification::api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
@@ -9,11 +8,12 @@ use zksync_types::contract_verification::api::{
 
 use crate::{
     compilers::{
-        has_unsupported_import_roots, parse_standard_json_output, process_contract_name,
-        sanitize_compiler_stderr, validate_remappings, validate_source_paths, Settings, Source,
-        StandardJson,
+        parse_standard_json_input, parse_standard_json_output, process_contract_name,
+        sanitize_compiler_stderr, validate_contract_target, CompilerFlavor, Optimizer, Settings,
+        Source, StandardJson,
     },
     error::ContractVerifierError,
+    process::run_compiler,
     resolver::Compiler,
 };
 
@@ -39,6 +39,17 @@ impl Solc {
         req: VerificationIncomingRequest,
     ) -> Result<SolcInput, ContractVerifierError> {
         let (file_name, contract_name) = process_contract_name(&req.contract_name, "sol");
+        validate_contract_target(&file_name, &contract_name)?;
+        if req.is_system || req.force_evmla {
+            return Err(ContractVerifierError::UnsupportedVerificationInput(
+                "system mode and force-EVMLA are not accepted".to_owned(),
+            ));
+        }
+        if req.optimizer_mode.is_some() {
+            return Err(ContractVerifierError::UnsupportedVerificationInput(
+                "optimizer mode is not supported by solc verification".to_owned(),
+            ));
+        }
         let default_output_selection = serde_json::json!({
             "*": {
                 "*": [ "abi", "evm.bytecode", "evm.deployedBytecode" ],
@@ -48,50 +59,40 @@ impl Solc {
 
         let standard_json = match req.source_code_data {
             SourceCodeData::SolSingleFile(source_code) => {
-                if has_unsupported_import_roots(&source_code) {
-                    return Err(ContractVerifierError::InvalidSourcePath(
-                        "import with absolute path".to_owned(),
-                    ));
-                }
                 let source = Source {
                     content: source_code,
                 };
                 let sources = HashMap::from([(file_name.clone(), source)]);
-                let mut settings = Settings {
+                let optimizer_runs = req
+                    .evm_specific
+                    .optimizer_runs
+                    .map(u32::try_from)
+                    .transpose()
+                    .map_err(|_| {
+                        ContractVerifierError::UnsupportedVerificationInput(
+                            "optimizer runs exceeds the allowed limit".to_owned(),
+                        )
+                    })?;
+                let settings = Settings {
                     output_selection: Some(default_output_selection),
-                    other: serde_json::json!({
-                        "optimizer": {
-                            "enabled": req.optimization_used,
-                        },
+                    optimizer: Some(Optimizer {
+                        enabled: Some(req.optimization_used),
+                        runs: optimizer_runs,
+                        mode: None,
+                        ..Optimizer::default()
                     }),
+                    evm_version: req.evm_specific.evm_version,
+                    ..Settings::default()
                 };
-                if let Some(runs) = req.evm_specific.optimizer_runs {
-                    settings.other["optimizer"]["runs"] = serde_json::json!(runs);
-                }
-                if let Some(evm_version) = req.evm_specific.evm_version {
-                    settings.other["evmVersion"] = serde_json::json!(evm_version);
-                }
 
                 StandardJson {
                     language: "Solidity".to_owned(),
                     sources,
-                    other: serde_json::json!({}),
                     settings,
                 }
             }
             SourceCodeData::StandardJsonInput(map) => {
-                let mut compiler_input: StandardJson =
-                    serde_json::from_value(serde_json::Value::Object(map))
-                        .map_err(|_| ContractVerifierError::FailedToDeserializeInput)?;
-                validate_source_paths(&compiler_input.sources)?;
-                validate_remappings(&compiler_input.settings.other)?;
-                for source in compiler_input.sources.values() {
-                    if has_unsupported_import_roots(&source.content) {
-                        return Err(ContractVerifierError::InvalidSourcePath(
-                            "import with absolute path".to_owned(),
-                        ));
-                    }
-                }
+                let mut compiler_input = parse_standard_json_input(map, CompilerFlavor::Solc)?;
                 // Set default output selection even if it is different in request.
                 compiler_input.settings.output_selection = Some(default_output_selection);
                 compiler_input
@@ -103,21 +104,29 @@ impl Solc {
                 let sources = HashMap::from([(file_name.clone(), source)]);
                 let settings = Settings {
                     output_selection: Some(default_output_selection),
-                    other: serde_json::json!({
-                        "optimizer": {
-                            "enabled": req.optimization_used,
-                        },
+                    optimizer: Some(Optimizer {
+                        enabled: Some(req.optimization_used),
+                        ..Optimizer::default()
                     }),
+                    ..Settings::default()
                 };
                 StandardJson {
                     language: "Yul".to_owned(),
                     sources,
-                    other: serde_json::json!({}),
                     settings,
                 }
             }
-            other => unreachable!("Unexpected `SourceCodeData` variant: {other:?}"),
+            SourceCodeData::VyperMultiFile(_) => {
+                return Err(ContractVerifierError::UnsupportedVerificationInput(
+                    "Vyper verification is disabled".to_owned(),
+                ));
+            }
         };
+        if standard_json.language == "Yul" {
+            standard_json.validate_yul(CompilerFlavor::Solc)?;
+        } else {
+            standard_json.validate(CompilerFlavor::Solc)?;
+        }
 
         Ok(SolcInput {
             standard_json,
@@ -244,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn build_input_drops_source_url_references() {
+    fn build_input_rejects_source_url_references() {
         // A source may only be provided as inline `content`; any `urls` field (which solc would
         // resolve against the filesystem) must never reach the compiler.
         let input = serde_json::json!({
@@ -258,11 +267,10 @@ mod tests {
             "settings": {},
         });
 
-        let built = Solc::build_input(standard_json_req(input, "src/Test.sol:Test")).unwrap();
-        let serialized = serde_json::to_string(&built.standard_json).unwrap();
+        let err = Solc::build_input(standard_json_req(input, "src/Test.sol:Test")).unwrap_err();
         assert!(
-            !serialized.contains("urls") && !serialized.contains("/some/host/path"),
-            "url references must be stripped before reaching the compiler: {serialized}"
+            matches!(err, ContractVerifierError::FailedToDeserializeInput),
+            "url references must be rejected, got: {err:?}"
         );
     }
 
@@ -288,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn build_input_rejects_non_hermetic_remapping() {
+    fn build_input_erases_remappings() {
         let input = serde_json::json!({
             "language": "Solidity",
             "sources": {
@@ -316,10 +324,11 @@ mod tests {
             evm_specific: Default::default(),
         };
 
-        let err = Solc::build_input(req).unwrap_err();
+        let input = Solc::build_input(req).unwrap();
+        let serialized = serde_json::to_value(input.standard_json).unwrap();
         assert!(
-            matches!(err, ContractVerifierError::InvalidSourcePath(_)),
-            "non-hermetic remapping must be rejected, got: {err:?}"
+            serialized.pointer("/settings/remappings").is_none(),
+            "remappings must never reach the compiler: {serialized}"
         );
     }
 
@@ -383,6 +392,16 @@ mod tests {
             "standalone EVM solc should use explicit bytecode selectors: {selected_outputs:?}"
         );
     }
+
+    #[test]
+    fn build_input_retains_private_yul_capability() {
+        let mut req = standard_json_req(serde_json::json!({}), "Empty");
+        req.source_code_data = SourceCodeData::YulSingleFile("object \"Empty\" {}".to_owned());
+
+        let input = Solc::build_input(req).unwrap();
+
+        assert_eq!(input.standard_json.language, "Yul");
+    }
 }
 
 #[async_trait]
@@ -403,33 +422,19 @@ impl Compiler<SolcInput> for Solc {
             .await
             .context("failed to canonicalize solc path")?;
 
+        let content = serde_json::to_vec(&input.standard_json)
+            .context("cannot encode standard JSON input for solc")?;
         let mut command = tokio::process::Command::new(&solc_path);
-        let mut child = command
+        command
             .current_dir(compile_dir.path())
             .arg("--standard-json")
             .arg("--allow-paths")
-            .arg(compile_dir.path())
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .context("failed spawning solc")?;
-        let stdin = child.stdin.as_mut().unwrap();
-        let content = serde_json::to_vec(&input.standard_json)
-            .context("cannot encode standard JSON input for solc")?;
-        stdin
-            .write_all(&content)
-            .await
-            .context("failed writing standard JSON to solc stdin")?;
-        stdin
-            .flush()
-            .await
-            .context("failed flushing standard JSON to solc")?;
+            .arg(compile_dir.path());
 
-        let output = child.wait_with_output().await.context("solc failed")?;
+        let output = run_compiler(&mut command, Some(&content)).await?;
         if output.status.success() {
-            let output = serde_json::from_slice(&output.stdout)
-                .context("zksolc output is not valid JSON")?;
+            let output =
+                serde_json::from_slice(&output.stdout).context("solc output is not valid JSON")?;
             parse_standard_json_output(&output, input.contract_name, input.file_name, true)
         } else {
             Err(ContractVerifierError::CompilerError(

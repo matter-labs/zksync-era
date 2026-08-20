@@ -4,6 +4,7 @@ use std::{
 };
 
 use tokio::sync::RwLock;
+use zksync_contract_verifier_lib::{is_public_vyper_enabled, is_public_zksolc_version};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_types::contract_verification::api::CompilerVersions;
 
@@ -25,18 +26,19 @@ impl SupportedCompilerVersions {
                 compiler_zksolc_version,
             } => {
                 self.solc.contains(compiler_solc_version)
-                    && compiler_zksolc_version
-                        .as_ref()
-                        .is_none_or(|ver| self.zksolc.contains(ver))
+                    && compiler_zksolc_version.as_ref().is_none_or(|ver| {
+                        is_public_zksolc_version(ver) && self.zksolc.contains(ver)
+                    })
             }
             CompilerVersions::Vyper {
                 compiler_vyper_version,
                 compiler_zkvyper_version,
             } => {
-                self.vyper.contains(compiler_vyper_version)
+                is_public_vyper_enabled()
+                    && self.vyper.contains(compiler_vyper_version)
                     && compiler_zkvyper_version
                         .as_ref()
-                        .is_none_or(|ver| self.zkvyper.contains(ver))
+                        .is_none_or(|version| self.zkvyper.contains(version))
             }
         }
     }
@@ -52,19 +54,34 @@ impl SupportedCompilerVersions {
             .contract_verification_dal()
             .get_zksolc_versions()
             .await?;
-        let vyper = connection
-            .contract_verification_dal()
-            .get_vyper_versions()
-            .await?;
-        let zkvyper = connection
-            .contract_verification_dal()
-            .get_zkvyper_versions()
-            .await?;
+        // The database is shared with verifier workers and can briefly contain a broader inventory
+        // during a rolling deployment. Apply public policy again at the API boundary.
+        let zksolc = zksolc
+            .into_iter()
+            .filter(|version| is_public_zksolc_version(version))
+            .collect();
+        let (vyper, zkvyper) = if is_public_vyper_enabled() {
+            let vyper = connection
+                .contract_verification_dal()
+                .get_vyper_versions()
+                .await?
+                .into_iter()
+                .collect();
+            let zkvyper = connection
+                .contract_verification_dal()
+                .get_zkvyper_versions()
+                .await?
+                .into_iter()
+                .collect();
+            (vyper, zkvyper)
+        } else {
+            (HashSet::new(), HashSet::new())
+        };
         Ok(Self {
             solc: solc.into_iter().collect(),
-            zksolc: zksolc.into_iter().collect(),
-            vyper: vyper.into_iter().collect(),
-            zkvyper: zkvyper.into_iter().collect(),
+            zksolc,
+            vyper,
+            zkvyper,
         })
     }
 }

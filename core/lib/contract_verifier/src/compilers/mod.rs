@@ -22,42 +22,121 @@ mod vyper;
 mod zksolc;
 mod zkvyper;
 
-fn default_json_object() -> Value {
-    serde_json::json!({})
+const MAX_SOURCE_COUNT: usize = 512;
+const MAX_SOURCE_PATH_BYTES: usize = 256;
+const MAX_SOURCE_BYTES: usize = 512 * 1024;
+const MAX_TOTAL_SOURCE_BYTES: usize = 3 * 1024 * 1024;
+const MAX_OPTIMIZER_RUNS: u32 = 1_000_000;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CompilerFlavor {
+    Solc,
+    ZkSolc,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct StandardJson {
     pub language: String,
     pub sources: HashMap<String, Source>,
-    #[serde(flatten, default = "default_json_object")]
-    other: Value,
     #[serde(default)]
-    settings: Settings,
+    pub settings: Settings,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct Settings {
+    /// Accepted for API compatibility, but always replaced with a verifier-owned selection.
+    pub output_selection: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub optimizer: Option<Optimizer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub libraries: Option<HashMap<String, HashMap<String, String>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evm_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub via_ir: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<Metadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codegen: Option<String>,
+
+    // These modes are retained for direct / private compiler use. Public requests reject enabled
+    // values before compiler input is built.
+    #[serde(
+        rename = "enableEraVMExtensions",
+        skip_serializing_if = "is_none_or_false"
+    )]
+    pub(crate) enable_eravm_extensions: Option<bool>,
+    #[serde(rename = "forceEVMLA", skip_serializing_if = "is_none_or_false")]
+    pub(crate) force_evmla: Option<bool>,
+    // Older requests use these spellings. They are normalized to the canonical fields above.
+    #[serde(rename = "isSystem", skip_serializing)]
+    legacy_is_system: Option<bool>,
+    #[serde(rename = "forceEvmla", skip_serializing)]
+    legacy_force_evmla: Option<bool>,
+
+    // Known legacy wrapper fields. Their values are accepted for wire compatibility but never
+    // forwarded to a compiler. Keeping them here avoids breaking ordinary requests produced by
+    // old tooling while forbidding the underlying operations.
+    #[serde(skip_serializing)]
+    detect_missing_libraries: Option<bool>,
+    #[serde(skip_serializing)]
+    are_libraries_missing: Option<bool>,
+    #[serde(skip_serializing)]
+    enabled: Option<bool>,
+    #[serde(skip_serializing)]
+    runs: Option<u32>,
+    /// Remappings have historically exposed filesystem access, so they are never forwarded.
+    #[serde(skip_serializing)]
+    remappings: Option<Value>,
+}
+
+fn is_none_or_false(value: &Option<bool>) -> bool {
+    !value.unwrap_or(false)
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct Optimizer {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runs: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    // Known zksolc / wrapper extensions. Their evolving semantics are intentionally not
+    // interpreted by the public verifier; values are accepted for compatibility and erased.
+    #[serde(rename = "disable_system_request_memoization", skip_serializing)]
+    disable_system_request_memoization: Option<bool>,
+    #[serde(rename = "fallback_to_optimizing_for_size", skip_serializing)]
+    fallback_to_optimizing_for_size: Option<bool>,
+    #[serde(rename = "fallbackToOptimizingForSize", skip_serializing)]
+    fallback_to_optimizing_for_size_camel: Option<bool>,
+    #[serde(rename = "size_fallback", skip_serializing)]
+    size_fallback: Option<bool>,
+    #[serde(skip_serializing)]
+    codegen: Option<String>,
+    #[serde(rename = "suppressedErrors", skip_serializing)]
+    suppressed_errors: Option<Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Settings {
-    /// The output selection filters.
-    output_selection: Option<serde_json::Value>,
-    /// Other settings (only filled when parsing `StandardJson` input from the request).
-    #[serde(flatten)]
-    other: serde_json::Value,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            output_selection: None,
-            other: default_json_object(),
-        }
-    }
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct Metadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) bytecode_hash: Option<String>,
+    /// zksolc 1.5.x calls Solidity's `bytecodeHash` setting `hashType`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) hash_type: Option<String>,
+    #[serde(rename = "appendCBOR", skip_serializing_if = "Option::is_none")]
+    pub(crate) append_cbor: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) use_literal_content: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Source {
     /// The source code file content.
     pub content: String,
@@ -70,9 +149,18 @@ pub(crate) fn validate_source_paths(
     sources: &HashMap<String, Source>,
 ) -> Result<(), ContractVerifierError> {
     for path in sources.keys() {
-        if path.starts_with('/')
+        if path.is_empty()
+            || path.len() > MAX_SOURCE_PATH_BYTES
+            || path.starts_with('/')
             || path.starts_with("file://")
-            || path.split('/').any(|component| component == "..")
+            || path.contains(['\\', '\0', ':'])
+            || path
+                .split('/')
+                .any(|component| component.is_empty() || component == "." || component == "..")
+            || !path.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric()
+                    || matches!(byte, b'_' | b'-' | b'.' | b'/' | b'@' | b'+' | b'$')
+            })
         {
             return Err(ContractVerifierError::InvalidSourcePath(path.clone()));
         }
@@ -80,32 +168,289 @@ pub(crate) fn validate_source_paths(
     Ok(())
 }
 
-/// Validates the `settings.remappings` array of a standard-JSON input.
-///
-/// A remapping has the form `[context:]prefix=target`. Verification inputs are expected to
-/// resolve against the submitted source map. A remapping target that is absolute (`/…`,
-/// `file://…`) or points outside the provided source tree with `..` adds another lookup root,
-/// so targets are constrained to stay relative and within the source tree.
-pub(crate) fn validate_remappings(settings: &Value) -> Result<(), ContractVerifierError> {
-    let Some(remappings) = settings.get("remappings").and_then(Value::as_array) else {
-        return Ok(());
-    };
-    for entry in remappings {
-        let Some(remapping) = entry.as_str() else {
-            return Err(ContractVerifierError::InvalidSourcePath(
-                "non-string remapping".to_owned(),
-            ));
-        };
-        // Split off the optional `context:` prefix and the mandatory `prefix=` to isolate the target.
-        let target = remapping.split_once('=').map_or("", |(_, target)| target);
-        if target.starts_with('/')
-            || target.starts_with("file://")
-            || target.split('/').any(|component| component == "..")
-        {
-            return Err(ContractVerifierError::InvalidSourcePath(
-                remapping.to_owned(),
+pub(crate) fn parse_standard_json_input(
+    map: serde_json::Map<String, Value>,
+    flavor: CompilerFlavor,
+) -> Result<StandardJson, ContractVerifierError> {
+    let mut input: StandardJson = serde_json::from_value(Value::Object(map)).map_err(|err| {
+        tracing::debug!(%err, "rejected non-canonical standard JSON compiler input");
+        ContractVerifierError::FailedToDeserializeInput
+    })?;
+    input.settings.normalize(flavor)?;
+    input.validate(flavor)?;
+    Ok(input)
+}
+
+impl StandardJson {
+    pub(crate) fn validate(&self, flavor: CompilerFlavor) -> Result<(), ContractVerifierError> {
+        if self.language != "Solidity" {
+            return Err(ContractVerifierError::UnsupportedVerificationInput(
+                "only Solidity sources are accepted".to_owned(),
             ));
         }
+        self.validate_sources(true)?;
+        self.settings.validate(flavor)
+    }
+
+    pub(crate) fn validate_yul(&self, flavor: CompilerFlavor) -> Result<(), ContractVerifierError> {
+        if self.language != "Yul" {
+            return Err(ContractVerifierError::UnsupportedVerificationInput(
+                "expected Yul sources".to_owned(),
+            ));
+        }
+        self.validate_sources(false)?;
+        self.settings.validate(flavor)
+    }
+
+    fn validate_sources(&self, check_import_roots: bool) -> Result<(), ContractVerifierError> {
+        if self.sources.is_empty() || self.sources.len() > MAX_SOURCE_COUNT {
+            return Err(ContractVerifierError::UnsupportedVerificationInput(
+                "source count is outside the allowed range".to_owned(),
+            ));
+        }
+        validate_source_paths(&self.sources)?;
+
+        let mut total_source_bytes = 0usize;
+        for source in self.sources.values() {
+            let source_bytes = source.content.len();
+            if source_bytes > MAX_SOURCE_BYTES {
+                return Err(ContractVerifierError::UnsupportedVerificationInput(
+                    "a source file exceeds the allowed size".to_owned(),
+                ));
+            }
+            total_source_bytes = total_source_bytes.saturating_add(source_bytes);
+            if total_source_bytes > MAX_TOTAL_SOURCE_BYTES {
+                return Err(ContractVerifierError::UnsupportedVerificationInput(
+                    "total source size exceeds the allowed limit".to_owned(),
+                ));
+            }
+            if check_import_roots && has_unsupported_import_roots(&source.content) {
+                return Err(ContractVerifierError::InvalidSourcePath(
+                    "import with absolute path".to_owned(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Settings {
+    fn normalize(&mut self, flavor: CompilerFlavor) -> Result<(), ContractVerifierError> {
+        self.enable_eravm_extensions =
+            merge_legacy_bool(self.enable_eravm_extensions, self.legacy_is_system.take())?;
+        self.force_evmla = merge_legacy_bool(self.force_evmla, self.legacy_force_evmla.take())?;
+
+        if let Some(metadata) = &mut self.metadata {
+            if metadata.bytecode_hash.is_some() && metadata.hash_type.is_some() {
+                return Err(ContractVerifierError::UnsupportedVerificationInput(
+                    "specify only one metadata hash setting".to_owned(),
+                ));
+            }
+            match flavor {
+                CompilerFlavor::Solc => {
+                    metadata.bytecode_hash =
+                        metadata.hash_type.take().or(metadata.bytecode_hash.take());
+                }
+                CompilerFlavor::ZkSolc => {
+                    metadata.hash_type =
+                        metadata.bytecode_hash.take().or(metadata.hash_type.take());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn validate(&self, flavor: CompilerFlavor) -> Result<(), ContractVerifierError> {
+        let normalized_flags = [
+            ("detectMissingLibraries", self.detect_missing_libraries),
+            ("areLibrariesMissing", self.are_libraries_missing),
+        ]
+        .into_iter()
+        .filter_map(|(name, value)| value.is_some().then_some(name))
+        .collect::<Vec<_>>();
+        if self.remappings.is_some() || !normalized_flags.is_empty() {
+            tracing::debug!(
+                ?normalized_flags,
+                has_remappings = self.remappings.is_some(),
+                "erasing unsupported legacy compiler settings"
+            );
+        }
+        if flavor == CompilerFlavor::Solc
+            && (self.enable_eravm_extensions == Some(true) || self.force_evmla == Some(true))
+        {
+            return Err(ContractVerifierError::UnsupportedVerificationInput(
+                "system compilation modes require zksolc".to_owned(),
+            ));
+        }
+        if self.runs.is_some_and(|runs| runs > MAX_OPTIMIZER_RUNS) {
+            return Err(ContractVerifierError::UnsupportedVerificationInput(
+                "optimizer runs exceeds the allowed limit".to_owned(),
+            ));
+        }
+        if let (Some(enabled), Some(optimizer_enabled)) = (
+            self.enabled,
+            self.optimizer
+                .as_ref()
+                .and_then(|optimizer| optimizer.enabled),
+        ) {
+            if enabled != optimizer_enabled {
+                return Err(ContractVerifierError::UnsupportedVerificationInput(
+                    "conflicting optimizer settings".to_owned(),
+                ));
+            }
+        }
+        if let Some(optimizer) = &self.optimizer {
+            optimizer.validate(flavor)?;
+        }
+        if let Some(evm_version) = &self.evm_version {
+            const ALLOWED_EVM_VERSIONS: &[&str] = &[
+                "homestead",
+                "tangerineWhistle",
+                "spuriousDragon",
+                "byzantium",
+                "constantinople",
+                "petersburg",
+                "istanbul",
+                "berlin",
+                "london",
+                "paris",
+                "shanghai",
+                "cancun",
+                "prague",
+                "osaka",
+            ];
+            if !ALLOWED_EVM_VERSIONS.contains(&evm_version.as_str()) {
+                return Err(ContractVerifierError::UnsupportedVerificationInput(
+                    "unsupported EVM version".to_owned(),
+                ));
+            }
+        }
+        if let Some(codegen) = &self.codegen {
+            if flavor != CompilerFlavor::ZkSolc || codegen != "yul" {
+                return Err(ContractVerifierError::UnsupportedVerificationInput(
+                    "unsupported code generation mode".to_owned(),
+                ));
+            }
+        }
+        if let Some(metadata) = &self.metadata {
+            metadata.validate()?;
+        }
+        if let Some(libraries) = &self.libraries {
+            for (source_path, source_libraries) in libraries {
+                validate_source_paths(&HashMap::from([(
+                    source_path.clone(),
+                    Source {
+                        content: String::new(),
+                    },
+                )]))?;
+                for (contract_name, address) in source_libraries {
+                    if !is_solidity_identifier(contract_name) || !is_address(address) {
+                        return Err(ContractVerifierError::UnsupportedVerificationInput(
+                            "invalid library name or address".to_owned(),
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn system_mode_enabled(&self) -> bool {
+        self.enable_eravm_extensions == Some(true)
+    }
+
+    pub(crate) fn force_evmla_enabled(&self) -> bool {
+        self.force_evmla == Some(true)
+    }
+}
+
+fn merge_legacy_bool(
+    canonical: Option<bool>,
+    legacy: Option<bool>,
+) -> Result<Option<bool>, ContractVerifierError> {
+    match (canonical, legacy) {
+        (Some(canonical), Some(legacy)) if canonical != legacy => {
+            Err(ContractVerifierError::UnsupportedVerificationInput(
+                "conflicting system compilation settings".to_owned(),
+            ))
+        }
+        (canonical, legacy) => Ok(canonical.or(legacy)),
+    }
+}
+
+impl Optimizer {
+    fn validate(&self, flavor: CompilerFlavor) -> Result<(), ContractVerifierError> {
+        if self.runs.is_some_and(|runs| runs > MAX_OPTIMIZER_RUNS) {
+            return Err(ContractVerifierError::UnsupportedVerificationInput(
+                "optimizer runs exceeds the allowed limit".to_owned(),
+            ));
+        }
+        if let Some(mode) = &self.mode {
+            if flavor != CompilerFlavor::ZkSolc || !matches!(mode.as_str(), "3" | "z") {
+                return Err(ContractVerifierError::UnsupportedVerificationInput(
+                    "unsupported optimizer mode".to_owned(),
+                ));
+            }
+        }
+        if self.disable_system_request_memoization.is_some()
+            || self.fallback_to_optimizing_for_size.is_some()
+            || self.fallback_to_optimizing_for_size_camel.is_some()
+            || self.size_fallback.is_some()
+            || self.codegen.is_some()
+            || self.suppressed_errors.is_some()
+        {
+            tracing::debug!("erasing unsupported legacy optimizer settings");
+        }
+        Ok(())
+    }
+}
+
+impl Metadata {
+    fn validate(&self) -> Result<(), ContractVerifierError> {
+        if self
+            .bytecode_hash
+            .as_ref()
+            .or(self.hash_type.as_ref())
+            .map(String::as_str)
+            .is_some_and(|hash| !matches!(hash, "none" | "ipfs" | "bzzr1" | "keccak256"))
+        {
+            return Err(ContractVerifierError::UnsupportedVerificationInput(
+                "unsupported metadata hash mode".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn is_solidity_identifier(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || matches!(first, b'_' | b'$'))
+        && bytes.all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$'))
+        && value.len() <= 128
+}
+
+fn is_address(value: &str) -> bool {
+    let value = value.strip_prefix("0x").unwrap_or(value);
+    value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+pub(crate) fn validate_contract_target(
+    file_name: &str,
+    contract_name: &str,
+) -> Result<(), ContractVerifierError> {
+    validate_source_paths(&HashMap::from([(
+        file_name.to_owned(),
+        Source {
+            content: String::new(),
+        },
+    )]))?;
+    if !is_solidity_identifier(contract_name) {
+        return Err(ContractVerifierError::UnsupportedVerificationInput(
+            "invalid contract name".to_owned(),
+        ));
     }
     Ok(())
 }
@@ -170,42 +515,137 @@ pub(crate) fn sanitize_compiler_stderr(stderr: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        has_unsupported_import_roots, sanitize_compiler_stderr, strip_source_snippets,
-        validate_remappings,
+        has_unsupported_import_roots, parse_standard_json_input, sanitize_compiler_stderr,
+        strip_source_snippets, validate_source_paths, CompilerFlavor, Source,
     };
 
     #[test]
-    fn rejects_external_remapping_targets() {
-        for target in [
-            "@x/=/abs/path",
-            "@x/=file:///abs/path",
-            "@x/=../../../../outside/tree",
-            "ctx:@x/=../outside",
-            "@x/=lib/../../outside",
+    fn rejects_noncanonical_source_paths() {
+        for path in [
+            "../etc/passwd",
+            "src/../../etc/passwd",
+            "/etc/passwd",
+            "file:///etc/passwd",
+            "./Counter.sol",
+            "src//Counter.sol",
+            "src\\Counter.sol",
+            "C:/Counter.sol",
+            "src/Counter.sol\0suffix",
         ] {
-            let settings = serde_json::json!({ "remappings": [target] });
+            let sources = std::collections::HashMap::from([(
+                path.to_owned(),
+                Source {
+                    content: String::new(),
+                },
+            )]);
             assert!(
-                validate_remappings(&settings).is_err(),
-                "remapping must be rejected: {target}"
+                validate_source_paths(&sources).is_err(),
+                "accepted {path:?}"
+            );
+        }
+
+        let sources = std::collections::HashMap::from([(
+            "@openzeppelin/contracts/token/ERC20/ERC20.sol".to_owned(),
+            Source {
+                content: String::new(),
+            },
+        )]);
+        validate_source_paths(&sources).unwrap();
+    }
+
+    #[test]
+    fn rejects_arbitrary_compiler_options() {
+        for settings in [
+            serde_json::json!({ "LLVMOptions": ["--exec-on-ir-change=/bin/sh"] }),
+            serde_json::json!({ "llvmOptions": ["--exec-on-ir-change=/bin/sh"] }),
+            serde_json::json!({ "optimizer": { "details": {} } }),
+        ] {
+            let input = serde_json::json!({
+                "language": "Solidity",
+                "sources": { "Counter.sol": { "content": "contract Counter {}" } },
+                "settings": settings,
+            });
+            let err = parse_standard_json_input(
+                input.as_object().unwrap().clone(),
+                CompilerFlavor::ZkSolc,
+            )
+            .unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    crate::error::ContractVerifierError::FailedToDeserializeInput
+                        | crate::error::ContractVerifierError::UnsupportedVerificationInput(_)
+                ),
+                "unexpected error: {err:?}"
             );
         }
     }
 
     #[test]
-    fn allows_relative_remapping_targets() {
-        let settings = serde_json::json!({
-            "remappings": [
-                "@openzeppelin/=node_modules/@openzeppelin/",
-                "ds-test/=lib/forge-std/lib/ds-test/src/",
-                "@x/=contracts/x/",
-            ]
+    fn erases_unsafe_options_but_retains_private_system_modes() {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": { "Counter.sol": { "content": "contract Counter {}" } },
+            "settings": {
+                "remappings": ["@x/=../../outside/"],
+                "isSystem": true,
+                "forceEvmla": true,
+                "optimizer": {
+                    "enabled": true,
+                    "mode": "3",
+                    "disable_system_request_memoization": true
+                }
+            },
         });
-        assert!(validate_remappings(&settings).is_ok());
+        let input =
+            parse_standard_json_input(input.as_object().unwrap().clone(), CompilerFlavor::ZkSolc)
+                .unwrap();
+        let serialized = serde_json::to_string(&input).unwrap();
+        for forbidden in ["remappings", "disable_system_request_memoization"] {
+            assert!(
+                !serialized.contains(forbidden),
+                "{forbidden} reached compiler input: {serialized}"
+            );
+        }
+        let serialized: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(
+            serialized["settings"]["enableEraVMExtensions"],
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            serialized["settings"]["forceEVMLA"],
+            serde_json::json!(true)
+        );
     }
 
     #[test]
-    fn allows_missing_remappings() {
-        assert!(validate_remappings(&serde_json::json!({})).is_ok());
+    fn normalizes_metadata_hash_field_for_each_compiler() {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": { "Counter.sol": { "content": "contract Counter {}" } },
+            "settings": { "metadata": { "bytecodeHash": "ipfs", "appendCBOR": true } },
+        });
+        let zksolc_input =
+            parse_standard_json_input(input.as_object().unwrap().clone(), CompilerFlavor::ZkSolc)
+                .unwrap();
+        let serialized = serde_json::to_value(zksolc_input).unwrap();
+        assert_eq!(serialized["settings"]["metadata"]["hashType"], "ipfs");
+        assert_eq!(serialized["settings"]["metadata"]["appendCBOR"], true);
+        assert!(serialized["settings"]["metadata"]
+            .get("bytecodeHash")
+            .is_none());
+
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": { "Counter.sol": { "content": "contract Counter {}" } },
+            "settings": { "metadata": { "hashType": "none" } },
+        });
+        let solc_input =
+            parse_standard_json_input(input.as_object().unwrap().clone(), CompilerFlavor::Solc)
+                .unwrap();
+        let serialized = serde_json::to_value(solc_input).unwrap();
+        assert_eq!(serialized["settings"]["metadata"]["bytecodeHash"], "none");
+        assert!(serialized["settings"]["metadata"].get("hashType").is_none());
     }
 
     #[test]

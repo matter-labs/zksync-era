@@ -4,6 +4,7 @@ use std::{str, vec};
 
 use test_casing::test_casing;
 use utils::{mock_verification_info, MockApiClient, MockContractVerifier};
+use zksync_dal::CoreDal;
 use zksync_types::{
     bytecode::BytecodeMarker,
     contract_verification::{
@@ -109,9 +110,26 @@ async fn getting_compiler_versions() {
     let mut storage = pool.connection().await.unwrap();
     let client = MockApiClient::new(pool.clone());
     prepare_storage(&mut storage).await;
+    storage
+        .contract_verification_dal()
+        .set_zksolc_versions(&[ZKSOLC_VERSION.to_owned(), "v1.5.14".to_owned()])
+        .await
+        .unwrap();
+    storage
+        .contract_verification_dal()
+        .set_vyper_versions(&["0.3.10".to_owned()])
+        .await
+        .unwrap();
+    storage
+        .contract_verification_dal()
+        .set_zkvyper_versions(&["v1.5.4".to_owned()])
+        .await
+        .unwrap();
 
     assert_eq!(client.zksolc_versions().await, &[ZKSOLC_VERSION]);
     assert_eq!(client.solc_versions().await, &[SOLC_VERSION]);
+    assert!(client.vyper_versions().await.is_empty());
+    assert!(client.zkvyper_versions().await.is_empty());
 }
 
 #[test_casing(2, [BytecodeMarker::EraVm, BytecodeMarker::Evm])]
@@ -660,11 +678,16 @@ async fn submitting_request_with_unsupported_solc(bytecode_kind: BytecodeMarker)
 }
 
 #[tokio::test]
-async fn submitting_request_with_unsupported_zksolc() {
+async fn submitting_request_with_disallowed_installed_zksolc() {
     let pool = ConnectionPool::test_pool().await;
     let client = MockApiClient::new(pool.clone());
     let mut storage = pool.connection().await.unwrap();
     prepare_storage(&mut storage).await;
+    storage
+        .contract_verification_dal()
+        .set_zksolc_versions(&[ZKSOLC_VERSION.to_owned(), "v1.5.14".to_owned()])
+        .await
+        .unwrap();
 
     let address = Address::repeat_byte(0x23);
     mock_deploy_contract(&mut storage, address, BytecodeMarker::EraVm).await;
@@ -673,7 +696,7 @@ async fn submitting_request_with_unsupported_zksolc() {
         "contractAddress": address,
         "sourceCode": "contract Test {}",
         "contractName": "Test",
-        "compilerZksolcVersion": "1000.0.0",
+        "compilerZksolcVersion": "v1.5.14",
         "compilerSolcVersion": SOLC_VERSION,
         "optimizationUsed": true,
     });
@@ -682,6 +705,48 @@ async fn submitting_request_with_unsupported_zksolc() {
             &verification_request,
             ApiError::UnsupportedCompilerVersions,
         )
+        .await;
+}
+
+#[tokio::test]
+async fn submitting_request_rejects_llvm_options_before_queueing() {
+    let pool = ConnectionPool::test_pool().await;
+    let client = MockApiClient::new(pool.clone());
+    let mut storage = pool.connection().await.unwrap();
+    prepare_storage(&mut storage).await;
+
+    let address = Address::repeat_byte(0x23);
+    mock_deploy_contract(&mut storage, address, BytecodeMarker::EraVm).await;
+    let verification_request = serde_json::json!({
+        "contractAddress": address,
+        "sourceCode": {
+            "language": "Solidity",
+            "sources": { "Test.sol": { "content": "contract Test {}" } },
+            "settings": { "LLVMOptions": ["--exec-on-ir-change=/bin/sh"] }
+        },
+        "codeFormat": "solidity-standard-json-input",
+        "contractName": "Test.sol:Test",
+        "compilerZksolcVersion": ZKSOLC_VERSION,
+        "compilerSolcVersion": SOLC_VERSION,
+        "optimizationUsed": true,
+    });
+
+    client
+        .assert_verification_request_error(
+            &verification_request,
+            ApiError::UnsupportedVerificationInput(
+                "Failed to deserialize standard JSON input".to_owned(),
+            ),
+        )
+        .await;
+}
+
+#[tokio::test]
+async fn oversized_request_is_rejected() {
+    let pool = ConnectionPool::test_pool().await;
+    let client = MockApiClient::new(pool);
+    client
+        .assert_oversized_verification_request_rejected()
         .await;
 }
 

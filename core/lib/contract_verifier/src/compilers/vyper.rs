@@ -1,7 +1,6 @@
-use std::{collections::HashMap, mem, path::PathBuf, process::Stdio};
+use std::{collections::HashMap, mem, path::PathBuf};
 
 use anyhow::Context;
-use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
 use zksync_types::contract_verification::api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
@@ -10,9 +9,10 @@ use zksync_types::contract_verification::api::{
 use crate::{
     compilers::{
         parse_standard_json_output, process_contract_name, sanitize_compiler_stderr,
-        validate_source_paths, Settings, Source, StandardJson,
+        validate_contract_target, validate_source_paths, Source,
     },
     error::ContractVerifierError,
+    process::run_compiler,
     resolver::Compiler,
 };
 
@@ -27,6 +27,7 @@ pub(crate) struct VyperInput {
 impl VyperInput {
     pub fn new(req: VerificationIncomingRequest) -> Result<Self, ContractVerifierError> {
         let (file_name, contract_name) = process_contract_name(&req.contract_name, "vy");
+        validate_contract_target(&file_name, &contract_name)?;
 
         let sources = match req.source_code_data {
             SourceCodeData::VyperMultiFile(s) => s,
@@ -51,25 +52,23 @@ impl VyperInput {
         })
     }
 
-    fn take_standard_json(&mut self) -> StandardJson {
+    fn take_standard_json(&mut self) -> serde_json::Value {
         let sources = mem::take(&mut self.sources);
-        let sources = sources
+        let sources: HashMap<_, _> = sources
             .into_iter()
-            .map(|(name, content)| (name, Source { content }));
+            .map(|(name, content)| (name, Source { content }))
+            .collect();
 
-        StandardJson {
-            language: "Vyper".to_owned(),
-            sources: sources.collect(),
-            other: serde_json::json!({}),
-            settings: Settings {
-                output_selection: Some(serde_json::json!({
+        serde_json::json!({
+            "language": "Vyper",
+            "sources": sources,
+            "settings": {
+                "outputSelection": {
                     "*": [ "abi", "evm.bytecode", "evm.deployedBytecode" ],
-                })),
-                other: serde_json::json!({
-                    "optimize": self.optimizer_mode.as_deref(),
-                }),
-            },
-        }
+                },
+                "optimize": self.optimizer_mode.as_deref(),
+            }
+        })
     }
 }
 
@@ -97,31 +96,20 @@ impl Compiler<VyperInput> for Vyper {
         // will fail with "file not found" rather than resolving against the host FS.
         let compile_dir = tempfile::tempdir().context("failed to create temp dir for vyper")?;
 
-        let mut command = tokio::process::Command::new(&self.path);
-        let mut child = command
-            .arg("--standard-json")
-            .arg("-p")
-            .arg(compile_dir.path())
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .context("cannot spawn vyper")?;
-        let mut stdin = child.stdin.take().unwrap();
+        let compiler_path = tokio::fs::canonicalize(&self.path)
+            .await
+            .context("failed to canonicalize vyper path")?;
         let standard_json = input.take_standard_json();
         let content = serde_json::to_vec(&standard_json)
             .context("cannot encode standard JSON input for vyper")?;
-        stdin
-            .write_all(&content)
-            .await
-            .context("failed writing standard JSON to vyper stdin")?;
-        stdin
-            .flush()
-            .await
-            .context("failed flushing standard JSON to vyper")?;
-        drop(stdin);
+        let mut command = tokio::process::Command::new(compiler_path);
+        command
+            .current_dir(compile_dir.path())
+            .arg("--standard-json")
+            .arg("-p")
+            .arg(compile_dir.path());
 
-        let output = child.wait_with_output().await.context("vyper failed")?;
+        let output = run_compiler(&mut command, Some(&content)).await?;
         if output.status.success() {
             let output =
                 serde_json::from_slice(&output.stdout).context("vyper output is not valid JSON")?;

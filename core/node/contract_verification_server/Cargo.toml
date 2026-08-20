@@ -14,6 +14,7 @@ categories.workspace = true
 zksync_config.workspace = true
 zksync_dal = { workspace = true, features = ["node_framework"] }
 zksync_types = { workspace = true, features = ["contract-verification"] }
+zksync_contract_verifier_lib.workspace = true
 zksync_node_framework.workspace = true
 vise.workspace = true
 

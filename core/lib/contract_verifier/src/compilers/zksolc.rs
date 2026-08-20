@@ -1,10 +1,8 @@
-use std::{collections::HashMap, io::Write, process::Stdio};
+use std::{collections::HashMap, io::Write as _};
 
 use anyhow::Context as _;
 use regex::Regex;
 use semver::Version;
-use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
 use zksync_queued_job_processor::async_trait;
 use zksync_types::contract_verification::api::{
     CompilationArtifacts, SourceCodeData, VerificationIncomingRequest,
@@ -12,11 +10,12 @@ use zksync_types::contract_verification::api::{
 
 use crate::{
     compilers::{
-        default_json_object, has_unsupported_import_roots, parse_standard_json_output,
-        process_contract_name, sanitize_compiler_stderr, validate_remappings,
-        validate_source_paths, Source,
+        parse_standard_json_input, parse_standard_json_output, process_contract_name,
+        sanitize_compiler_stderr, validate_contract_target, CompilerFlavor, Optimizer, Settings,
+        Source, StandardJson,
     },
     error::ContractVerifierError,
+    process::run_compiler,
     resolver::{Compiler, CompilerPaths},
 };
 
@@ -33,49 +32,6 @@ pub(crate) enum ZkSolcInput {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct StandardJson {
-    /// The input language.
-    pub language: String,
-    /// The input source code files hashmap.
-    pub sources: HashMap<String, Source>,
-    /// Other root-level keys preserved from the original request.
-    #[serde(flatten, default = "default_json_object")]
-    pub other: serde_json::Value,
-    /// The compiler settings.
-    pub settings: Settings,
-}
-
-/// Compiler settings.
-/// There are fields like `output_selection`, `is_system`, `force_evmla` which are accessed by contract verifier explicitly.
-/// Other fields are accumulated in `other`, this way every field that was in the original request will be passed to a compiler.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct Settings {
-    /// The output selection filters.
-    pub output_selection: Option<serde_json::Value>,
-    /// Flag for system compilation mode.
-    #[serde(rename = "enableEraVMExtensions", default)]
-    pub is_system: bool,
-    /// Flag to force `evmla` IR.
-    #[serde(rename = "forceEVMLA", default)]
-    pub force_evmla: bool,
-    /// Other settings (only filled when parsing `StandardJson` input from the request).
-    #[serde(flatten)]
-    pub other: serde_json::Value,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct Optimizer {
-    /// Whether the optimizer is enabled.
-    pub enabled: bool,
-    /// The optimization mode string.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mode: Option<char>,
-}
-
 #[derive(Debug)]
 pub(crate) struct ZkSolc {
     paths: CompilerPaths,
@@ -84,7 +40,7 @@ pub(crate) struct ZkSolc {
 
 impl ZkSolc {
     pub fn new(paths: CompilerPaths, zksolc_version: String) -> Self {
-        ZkSolc {
+        Self {
             paths,
             zksolc_version,
         }
@@ -95,61 +51,65 @@ impl ZkSolc {
         zksolc_version: &str,
     ) -> Result<ZkSolcInput, ContractVerifierError> {
         let (file_name, contract_name) = process_contract_name(&req.contract_name, "sol");
+        validate_contract_target(&file_name, &contract_name)?;
+        let is_system = req.is_system;
+        let force_evmla = req.force_evmla;
 
         match req.source_code_data {
             SourceCodeData::SolSingleFile(source_code) => {
-                if has_unsupported_import_roots(&source_code) {
-                    return Err(ContractVerifierError::InvalidSourcePath(
-                        "import with absolute path".to_owned(),
-                    ));
-                }
                 let source = Source {
                     content: source_code,
                 };
                 let sources = HashMap::from([(file_name.clone(), source)]);
+                let optimizer_runs = req
+                    .evm_specific
+                    .optimizer_runs
+                    .map(u32::try_from)
+                    .transpose()
+                    .map_err(|_| {
+                        ContractVerifierError::UnsupportedVerificationInput(
+                            "optimizer runs exceeds the allowed limit".to_owned(),
+                        )
+                    })?;
                 let settings = Settings {
                     output_selection: Some(Self::required_output_selection(
-                        None,
                         &file_name,
                         &contract_name,
                         Self::is_post_1_5_0(zksolc_version),
                     )),
-                    is_system: req.is_system,
-                    force_evmla: req.force_evmla,
-                    other: serde_json::json!({
-                        "optimizer": Optimizer {
-                            enabled: req.optimization_used,
-                            mode: req.optimizer_mode.and_then(|s| s.chars().next()),
-                        },
+                    optimizer: Some(Optimizer {
+                        enabled: Some(req.optimization_used),
+                        runs: optimizer_runs,
+                        mode: req.optimizer_mode,
+                        ..Optimizer::default()
                     }),
+                    evm_version: req.evm_specific.evm_version,
+                    enable_eravm_extensions: is_system.then_some(true),
+                    force_evmla: force_evmla.then_some(true),
+                    ..Settings::default()
                 };
 
+                let input = StandardJson {
+                    language: "Solidity".to_string(),
+                    sources,
+                    settings,
+                };
+                input.validate(CompilerFlavor::ZkSolc)?;
                 Ok(ZkSolcInput::StandardJson {
-                    input: StandardJson {
-                        language: "Solidity".to_string(),
-                        sources,
-                        other: default_json_object(),
-                        settings,
-                    },
+                    input,
                     contract_name,
                     file_name,
                 })
             }
             SourceCodeData::StandardJsonInput(map) => {
-                let mut compiler_input: StandardJson =
-                    serde_json::from_value(serde_json::Value::Object(map))
-                        .map_err(|_| ContractVerifierError::FailedToDeserializeInput)?;
-                validate_source_paths(&compiler_input.sources)?;
-                validate_remappings(&compiler_input.settings.other)?;
-                for source in compiler_input.sources.values() {
-                    if has_unsupported_import_roots(&source.content) {
-                        return Err(ContractVerifierError::InvalidSourcePath(
-                            "import with absolute path".to_owned(),
-                        ));
-                    }
+                let mut compiler_input = parse_standard_json_input(map, CompilerFlavor::ZkSolc)?;
+                if is_system {
+                    compiler_input.settings.enable_eravm_extensions = Some(true);
+                }
+                if force_evmla {
+                    compiler_input.settings.force_evmla = Some(true);
                 }
                 compiler_input.settings.output_selection = Some(Self::required_output_selection(
-                    compiler_input.settings.output_selection.take(),
                     &file_name,
                     &contract_name,
                     Self::is_post_1_5_0(zksolc_version),
@@ -160,34 +120,50 @@ impl ZkSolc {
                     file_name,
                 })
             }
-            SourceCodeData::YulSingleFile(source_code) => Ok(ZkSolcInput::YulSingleFile {
-                source_code,
-                is_system: req.is_system,
-            }),
-            other => unreachable!("Unexpected `SourceCodeData` variant: {other:?}"),
+            SourceCodeData::YulSingleFile(source_code) => {
+                let validation_input = StandardJson {
+                    language: "Yul".to_owned(),
+                    sources: HashMap::from([(
+                        file_name,
+                        Source {
+                            content: source_code.clone(),
+                        },
+                    )]),
+                    settings: Settings::default(),
+                };
+                validation_input.validate_yul(CompilerFlavor::ZkSolc)?;
+                Ok(ZkSolcInput::YulSingleFile {
+                    source_code,
+                    is_system,
+                })
+            }
+            SourceCodeData::VyperMultiFile(_) => {
+                Err(ContractVerifierError::UnsupportedVerificationInput(
+                    "Vyper verification is disabled".to_owned(),
+                ))
+            }
         }
     }
 
     fn parse_single_file_yul_output(
         output: &str,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let cap = if output.contains("Binary:\n") {
-            // Format of the new output
-            // ======= /tmp/input.yul:Empty =======
-            // Binary:
-            // 00000001002 <..>
-            let re = Regex::new(r"Binary:\n([\da-f]+)").unwrap();
-            re.captures(output)
+        let captures = if output.contains("Binary:\n") {
+            Regex::new(r"Binary:\n([\da-f]+)")
+                .unwrap()
+                .captures(output)
                 .with_context(|| format!("Yul output doesn't match regex. Output: {output}"))?
         } else {
-            // Old compiler versions
-            let re_old = Regex::new(r"Contract `.*` bytecode: 0x([\da-f]+)").unwrap();
-            re_old
+            Regex::new(r"Contract `.*` bytecode: 0x([\da-f]+)")
+                .unwrap()
                 .captures(output)
                 .with_context(|| format!("Yul output doesn't match regex. Output: {output}"))?
         };
-        let bytecode_str = cap.get(1).context("no matches in Yul output")?.as_str();
-        let bytecode = hex::decode(bytecode_str).context("invalid Yul output bytecode")?;
+        let bytecode = captures
+            .get(1)
+            .context("no matches in Yul output")?
+            .as_str();
+        let bytecode = hex::decode(bytecode).context("invalid Yul output bytecode")?;
 
         Ok(CompilationArtifacts {
             bytecode,
@@ -199,12 +175,11 @@ impl ZkSolc {
     }
 
     fn required_output_selection(
-        output_selection: Option<serde_json::Value>,
         file_name: &str,
         contract_name: &str,
         is_post_1_5_0: bool,
     ) -> serde_json::Value {
-        let mut output_selection = output_selection.unwrap_or_else(|| serde_json::json!({}));
+        let mut output_selection = serde_json::json!({});
         let contract_outputs = if is_post_1_5_0 {
             &["abi", "evm"][..]
         } else {
@@ -289,19 +264,16 @@ impl Compiler<ZkSolcInput> for ZkSolc {
             .context("failed to canonicalize solc path")?;
 
         let mut command = tokio::process::Command::new(&zksolc_path);
-        command.stdout(Stdio::piped()).stderr(Stdio::piped());
-
         match &input {
             ZkSolcInput::StandardJson { input, .. } => {
                 if !Self::is_post_1_5_0(&self.zksolc_version) {
-                    if input.settings.is_system {
+                    if input.settings.system_mode_enabled() {
                         command.arg("--system-mode");
                     }
-                    if input.settings.force_evmla {
+                    if input.settings.force_evmla_enabled() {
                         command.arg("--force-evmla");
                     }
                 }
-
                 command.arg("--solc").arg(&solc_path);
             }
             ZkSolcInput::YulSingleFile { is_system, .. } => {
@@ -319,38 +291,26 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 }
             }
         }
+
         match input {
             ZkSolcInput::StandardJson {
                 input,
                 contract_name,
                 file_name,
             } => {
-                // Run solc (invoked internally by zksolc) from an empty temp dir so
-                // standard-JSON imports must be provided by the input source map.
+                // Run solc (invoked internally by zksolc) from an empty temp dir so standard-JSON
+                // imports must be provided by the input source map.
                 let compile_dir =
                     tempfile::tempdir().context("failed to create temp dir for zksolc")?;
-
-                let mut child = command
+                let content = serde_json::to_vec(&input)
+                    .context("cannot encode standard JSON input for zksolc")?;
+                command
                     .current_dir(compile_dir.path())
                     .arg("--standard-json")
                     .arg("--allow-paths")
-                    .arg(compile_dir.path())
-                    .stdin(Stdio::piped())
-                    .spawn()
-                    .context("failed spawning zksolc")?;
-                let stdin = child.stdin.as_mut().unwrap();
-                let content = serde_json::to_vec(&input)
-                    .context("cannot encode standard JSON input for zksolc")?;
-                stdin
-                    .write_all(&content)
-                    .await
-                    .context("failed writing standard JSON to zksolc stdin")?;
-                stdin
-                    .flush()
-                    .await
-                    .context("failed flushing standard JSON to zksolc")?;
+                    .arg(compile_dir.path());
 
-                let output = child.wait_with_output().await.context("zksolc failed")?;
+                let output = run_compiler(&mut command, Some(&content)).await?;
                 if output.status.success() {
                     let output = serde_json::from_slice(&output.stdout)
                         .context("zksolc output is not valid JSON")?;
@@ -363,26 +323,24 @@ impl Compiler<ZkSolcInput> for ZkSolc {
                 }
             }
             ZkSolcInput::YulSingleFile { source_code, .. } => {
-                let mut file = tempfile::Builder::new()
-                    .prefix("input")
-                    .suffix(".yul")
-                    .rand_bytes(0)
-                    .tempfile()
+                let compile_dir =
+                    tempfile::tempdir().context("cannot create temporary Yul directory")?;
+                let source_path = compile_dir.path().join("input.yul");
+                let mut source_file = std::fs::File::create(&source_path)
                     .context("cannot create temporary Yul file")?;
-                file.write_all(source_code.as_bytes())
+                source_file
+                    .write_all(source_code.as_bytes())
                     .context("failed writing Yul file")?;
+                drop(source_file);
 
-                // TODO: `zksolc` support standard JSON for `yul` since 1.5.0, so we don't have
-                // to parse `--bin` output.
-                let child = command
-                    .arg(file.path().to_str().unwrap())
+                command
+                    .current_dir(compile_dir.path())
+                    .arg(&source_path)
                     .arg("--optimization")
                     .arg("3")
                     .arg("--yul")
-                    .arg("--bin")
-                    .spawn()
-                    .context("failed spawning zksolc")?;
-                let output = child.wait_with_output().await.context("zksolc failed")?;
+                    .arg("--bin");
+                let output = run_compiler(&mut command, None).await?;
                 if output.status.success() {
                     let output =
                         String::from_utf8(output.stdout).context("zksolc output is not UTF-8")?;
@@ -429,8 +387,7 @@ mod tests {
                         "outputSelection": output_selection,
                         "optimizer": {
                             "enabled": true,
-                        },
-                        "suppressedWarnings": ["sendtransfer"],
+                        }
                     },
                 })
                 .as_object()
@@ -453,7 +410,7 @@ mod tests {
 
     fn standard_json_input(input: &ZkSolcInput) -> &StandardJson {
         let ZkSolcInput::StandardJson { input, .. } = input else {
-            panic!("unexpected input: {input:?}");
+            panic!("expected standard JSON input: {input:?}");
         };
         input
     }
@@ -519,14 +476,9 @@ mod tests {
         let standard_json = standard_json_input(&input);
         let output_selection = standard_json.settings.output_selection.as_ref().unwrap();
 
-        assert_selector_contains(
-            output_selection,
-            "*",
-            "*",
-            &["metadata", "evm.methodIdentifiers", "abi"],
-        );
+        assert_selector_contains(output_selection, "*", "*", &["abi"]);
         assert_selector_excludes(output_selection, "*", "*", "evm");
-        assert_selector_contains(output_selection, "*", "", &["ast", "abi"]);
+        assert_selector_contains(output_selection, "*", "", &["abi"]);
         assert_selector_contains(
             output_selection,
             "contracts/Counter.sol",
@@ -534,10 +486,6 @@ mod tests {
             &["abi"],
         );
         assert_selector_excludes(output_selection, "contracts/Counter.sol", "Counter", "evm");
-        assert_eq!(
-            standard_json.settings.other["suppressedWarnings"],
-            serde_json::json!(["sendtransfer"])
-        );
     }
 
     #[test]
@@ -560,7 +508,7 @@ mod tests {
             output_selection,
             "contracts/Counter.sol",
             "Counter",
-            &["metadata", "abi", "evm"],
+            &["abi", "evm"],
         );
     }
 
@@ -580,7 +528,7 @@ mod tests {
     }
 
     #[test]
-    fn build_input_preserves_existing_standard_json_output_selection() {
+    fn build_input_replaces_existing_standard_json_output_selection() {
         let req = VerificationIncomingRequest {
             contract_address: Default::default(),
             source_code_data: SourceCodeData::StandardJsonInput(
@@ -620,17 +568,15 @@ mod tests {
             evm_specific: Default::default(),
         };
 
-        let ZkSolcInput::StandardJson { input, .. } = ZkSolc::build_input(req, "1.5.4").unwrap()
-        else {
-            panic!("expected standard-json input");
-        };
+        let input = ZkSolc::build_input(req, "1.5.4").unwrap();
+        let input = standard_json_input(&input);
 
         assert_eq!(
             input.settings.output_selection,
             Some(serde_json::json!({
                 "*": {
-                    "*": ["storageLayout", "abi"],
-                    "": ["ast", "abi"]
+                    "*": ["abi"],
+                    "": ["abi"]
                 },
                 "Counter.sol": {
                     "Counter": ["abi", "evm"]
@@ -640,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn build_input_preserves_root_level_standard_json_fields() {
+    fn build_input_rejects_root_level_standard_json_fields() {
         let req = VerificationIncomingRequest {
             contract_address: Default::default(),
             source_code_data: SourceCodeData::StandardJsonInput(
@@ -678,19 +624,56 @@ mod tests {
             evm_specific: Default::default(),
         };
 
-        let ZkSolcInput::StandardJson { input, .. } = ZkSolc::build_input(req, "1.5.4").unwrap()
-        else {
-            panic!("expected standard-json input");
-        };
-        let serialized = serde_json::to_value(&input).unwrap();
+        assert!(matches!(
+            ZkSolc::build_input(req, "1.5.4"),
+            Err(ContractVerifierError::FailedToDeserializeInput)
+        ));
+    }
 
-        assert_eq!(
-            serialized["suppressedErrors"],
-            serde_json::json!(["sendtransfer"])
-        );
-        assert_eq!(
-            serialized["suppressedWarnings"],
-            serde_json::json!(["txorigin"])
-        );
+    #[test]
+    fn build_input_rejects_llvm_options() {
+        let mut req = standard_json_request(serde_json::json!({}));
+        let SourceCodeData::StandardJsonInput(input) = &mut req.source_code_data else {
+            unreachable!();
+        };
+        input["settings"]["LLVMOptions"] = serde_json::json!(["--exec-on-ir-change=/bin/sh"]);
+
+        assert!(matches!(
+            ZkSolc::build_input(req, "1.5.17"),
+            Err(ContractVerifierError::FailedToDeserializeInput)
+        ));
+    }
+
+    #[test]
+    fn build_input_retains_private_request_modes() {
+        let mut system_req = standard_json_request(serde_json::json!({}));
+        system_req.is_system = true;
+        let system_input = ZkSolc::build_input(system_req, "v1.5.17").unwrap();
+        assert!(standard_json_input(&system_input)
+            .settings
+            .system_mode_enabled());
+
+        let mut evmla_req = standard_json_request(serde_json::json!({}));
+        evmla_req.force_evmla = true;
+        let evmla_input = ZkSolc::build_input(evmla_req, "v1.5.17").unwrap();
+        assert!(standard_json_input(&evmla_input)
+            .settings
+            .force_evmla_enabled());
+    }
+
+    #[test]
+    fn build_input_retains_private_yul_capability() {
+        let mut req = standard_json_request(serde_json::json!({}));
+        req.source_code_data = SourceCodeData::YulSingleFile("object \"Empty\" {}".to_owned());
+        req.contract_name = "Empty".to_owned();
+        req.is_system = true;
+
+        assert!(matches!(
+            ZkSolc::build_input(req, "v1.5.17"),
+            Ok(ZkSolcInput::YulSingleFile {
+                is_system: true,
+                ..
+            })
+        ));
     }
 }

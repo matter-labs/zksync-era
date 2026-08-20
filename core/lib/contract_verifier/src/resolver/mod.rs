@@ -2,15 +2,13 @@ use std::{
     collections::HashSet,
     fmt,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
-use anyhow::Context as _;
 use tokio::fs;
 use zksync_queued_job_processor::async_trait;
 use zksync_types::contract_verification::api::CompilationArtifacts;
 
-pub(crate) use self::{env::EnvCompilerResolver, github::GitHubCompilerResolver};
+pub(crate) use self::env::EnvCompilerResolver;
 use crate::{
     compilers::{SolcInput, VyperInput, ZkSolcInput},
     error::ContractVerifierError,
@@ -18,7 +16,6 @@ use crate::{
 };
 
 mod env;
-mod github;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum CompilerType {
@@ -53,12 +50,12 @@ impl CompilerType {
             .join(self.as_str())
     }
 
-    async fn exists(self, home_dir: &Path, version: &str) -> Result<bool, ContractVerifierError> {
-        let path = self.bin_path_unchecked(home_dir, version);
-        let exists = fs::try_exists(&path)
-            .await
-            .with_context(|| format!("failed accessing `{}`", self.as_str()))?;
-        Ok(exists)
+    fn is_safe_version(version: &str) -> bool {
+        !version.is_empty()
+            && version.len() <= 64
+            && version.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'+' | b'-')
+            })
     }
 
     async fn bin_path(
@@ -66,17 +63,62 @@ impl CompilerType {
         home_dir: &Path,
         version: &str,
     ) -> Result<PathBuf, ContractVerifierError> {
-        let path = self.bin_path_unchecked(home_dir, version);
-        if !fs::try_exists(&path)
-            .await
-            .with_context(|| format!("failed accessing `{}`", self.as_str()))?
-        {
+        if !Self::is_safe_version(version) {
             return Err(ContractVerifierError::UnknownCompilerVersion(
                 self.as_str(),
                 version.to_owned(),
             ));
         }
-        Ok(path)
+        let path = self.bin_path_unchecked(home_dir, version);
+        let compiler_root = path
+            .parent()
+            .and_then(Path::parent)
+            .expect("compiler path must have a version and root directory");
+        let (canonical_root, canonical_path) = match (
+            fs::canonicalize(compiler_root).await,
+            fs::canonicalize(&path).await,
+        ) {
+            (Ok(root), Ok(path)) => (root, path),
+            _ => {
+                return Err(ContractVerifierError::UnknownCompilerVersion(
+                    self.as_str(),
+                    version.to_owned(),
+                ));
+            }
+        };
+        let is_regular_file = fs::metadata(&canonical_path)
+            .await
+            .map(|metadata| metadata.is_file())
+            .unwrap_or(false);
+        if !canonical_path.starts_with(&canonical_root) || !is_regular_file {
+            return Err(ContractVerifierError::UnknownCompilerVersion(
+                self.as_str(),
+                version.to_owned(),
+            ));
+        }
+        Ok(canonical_path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CompilerType;
+
+    #[test]
+    fn compiler_versions_are_not_paths() {
+        for version in [
+            "../../tmp/evil",
+            "/tmp/evil",
+            "file://tmp/evil",
+            "v1.5.17/../../evil",
+            "v1.5.17\\..\\evil",
+            "",
+        ] {
+            assert!(!CompilerType::is_safe_version(version), "{version}");
+        }
+        for version in ["0.8.35", "v1.5.17", "zkVM-0.8.30-1.0.2"] {
+            assert!(CompilerType::is_safe_version(version), "{version}");
+        }
     }
 }
 
@@ -94,20 +136,8 @@ pub(crate) struct SupportedCompilerVersions {
 }
 
 impl SupportedCompilerVersions {
-    fn merge(&mut self, other: SupportedCompilerVersions) {
-        self.solc.extend(other.solc);
-        self.zksolc.extend(other.zksolc);
-        self.vyper.extend(other.vyper);
-        self.zkvyper.extend(other.zkvyper);
-    }
-}
-
-impl SupportedCompilerVersions {
     pub fn lacks_any_compiler(&self) -> bool {
-        self.solc.is_empty()
-            || self.zksolc.is_empty()
-            || self.vyper.is_empty()
-            || self.zkvyper.is_empty()
+        self.solc.is_empty() || self.zksolc.is_empty()
     }
 }
 
@@ -141,13 +171,13 @@ pub(crate) trait CompilerResolver: fmt::Debug + Send + Sync {
         version: &ZkCompilerVersions,
     ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError>;
 
-    /// Resolves a `vyper` compiler.
+    /// Resolves a `vyper` compiler. This capability is not exposed by the public policy.
     async fn resolve_vyper(
         &self,
         version: &str,
     ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError>;
 
-    /// Resolves a `zkvyper` compiler.
+    /// Resolves a `zkvyper` compiler. This capability is not exposed by the public policy.
     async fn resolve_zkvyper(
         &self,
         version: &ZkCompilerVersions,
@@ -162,117 +192,4 @@ pub(crate) trait Compiler<In>: Send + fmt::Debug {
         self: Box<Self>,
         input: In,
     ) -> Result<CompilationArtifacts, ContractVerifierError>;
-}
-
-#[derive(Debug)]
-pub struct ResolverMultiplexer {
-    resolvers: Vec<Arc<dyn CompilerResolver>>,
-}
-
-impl ResolverMultiplexer {
-    pub fn new(resolver: Arc<dyn CompilerResolver>) -> Self {
-        Self {
-            resolvers: vec![resolver],
-        }
-    }
-
-    pub fn with_resolver(mut self, resolver: Arc<dyn CompilerResolver>) -> Self {
-        self.resolvers.push(resolver);
-        self
-    }
-}
-
-#[async_trait]
-impl CompilerResolver for ResolverMultiplexer {
-    async fn supported_versions(&self) -> anyhow::Result<SupportedCompilerVersions> {
-        let mut versions = SupportedCompilerVersions::default();
-        for resolver in &self.resolvers {
-            versions.merge(resolver.supported_versions().await?);
-        }
-        Ok(versions)
-    }
-
-    /// Resolves a `solc` compiler.
-    async fn resolve_solc(
-        &self,
-        version: &str,
-    ) -> Result<Box<dyn Compiler<SolcInput>>, ContractVerifierError> {
-        for resolver in &self.resolvers {
-            match resolver.resolve_solc(version).await {
-                Ok(compiler) => return Ok(compiler),
-                Err(ContractVerifierError::UnknownCompilerVersion(..)) => {
-                    continue;
-                }
-                Err(err) => return Err(err),
-            }
-        }
-        Err(ContractVerifierError::UnknownCompilerVersion(
-            "solc",
-            version.to_owned(),
-        ))
-    }
-
-    /// Resolves a `zksolc` compiler.
-    async fn resolve_zksolc(
-        &self,
-        version: &ZkCompilerVersions,
-    ) -> Result<Box<dyn Compiler<ZkSolcInput>>, ContractVerifierError> {
-        let mut last_error = Err(ContractVerifierError::UnknownCompilerVersion(
-            "zksolc",
-            version.zk.to_owned(),
-        ));
-        for resolver in &self.resolvers {
-            match resolver.resolve_zksolc(version).await {
-                Ok(compiler) => return Ok(compiler),
-                err @ Err(ContractVerifierError::UnknownCompilerVersion(..)) => {
-                    last_error = err;
-                    continue;
-                }
-                Err(err) => return Err(err),
-            }
-        }
-        last_error
-    }
-
-    /// Resolves a `vyper` compiler.
-    async fn resolve_vyper(
-        &self,
-        version: &str,
-    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
-        for resolver in &self.resolvers {
-            match resolver.resolve_vyper(version).await {
-                Ok(compiler) => return Ok(compiler),
-                Err(ContractVerifierError::UnknownCompilerVersion(..)) => {
-                    continue;
-                }
-                Err(err) => return Err(err),
-            }
-        }
-        Err(ContractVerifierError::UnknownCompilerVersion(
-            "vyper",
-            version.to_owned(),
-        ))
-    }
-
-    /// Resolves a `zkvyper` compiler.
-    async fn resolve_zkvyper(
-        &self,
-        version: &ZkCompilerVersions,
-    ) -> Result<Box<dyn Compiler<VyperInput>>, ContractVerifierError> {
-        let mut last_error = Err(ContractVerifierError::UnknownCompilerVersion(
-            "zkvyper",
-            version.zk.to_owned(),
-        ));
-        for resolver in &self.resolvers {
-            match resolver.resolve_zkvyper(version).await {
-                Ok(compiler) => return Ok(compiler),
-                err @ Err(ContractVerifierError::UnknownCompilerVersion(..)) => {
-                    last_error = err;
-                    continue;
-                }
-                Err(err) => return Err(err),
-            }
-        }
-        last_error
-    }
 }

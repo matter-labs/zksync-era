@@ -9,7 +9,6 @@ use std::{
 use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
-use resolver::{GitHubCompilerResolver, ResolverMultiplexer};
 use tokio::time;
 use zksync_dal::{contract_verification_dal::DeployedContractData, ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
@@ -29,6 +28,7 @@ use crate::{
     compilers::{Solc, VyperInput, ZkSolc},
     error::ContractVerifierError,
     metrics::API_CONTRACT_VERIFIER_METRICS,
+    public_api::retain_public_compiler_versions,
     resolver::{CompilerResolver, EnvCompilerResolver},
 };
 
@@ -36,9 +36,15 @@ mod compilers;
 pub mod error;
 pub mod etherscan;
 mod metrics;
+mod process;
+mod public_api;
 mod resolver;
 #[cfg(test)]
 mod tests;
+
+pub use self::public_api::{
+    is_public_vyper_enabled, is_public_zksolc_version, validate_incoming_request,
+};
 
 #[derive(Debug)]
 struct ZkCompilerVersions {
@@ -148,29 +154,21 @@ impl ContractVerifier {
     }
 
     /// Creates a new verifier instance.
+    ///
+    /// `compiler_download_timeout` remains in this interface for configuration compatibility;
+    /// compiler binaries must now be installed before the verifier starts.
     pub async fn new(
         compilation_timeout: Duration,
-        compiler_download_timeout: Duration,
+        _compiler_download_timeout: Duration,
         connection_pool: ConnectionPool<Core>,
         etherscan_verifier_enabled: bool,
     ) -> anyhow::Result<Self> {
-        let env_resolver = Arc::<EnvCompilerResolver>::default();
-        let gh_resolver = Arc::new(GitHubCompilerResolver::new(compiler_download_timeout).await?);
-        let mut resolver = ResolverMultiplexer::new(env_resolver);
-
-        // Killer switch: if anything goes wrong with GH resolver, we can disable it without having to rollback.
-        // TODO: Remove once GH resolver is proven to be stable.
-        let disable_gh_resolver = std::env::var("DISABLE_GITHUB_RESOLVER").is_ok();
-        if !disable_gh_resolver {
-            resolver = resolver.with_resolver(gh_resolver);
-        } else {
-            tracing::warn!("GitHub resolver was disabled via DISABLE_GITHUB_RESOLVER env variable")
-        }
+        process::harden_verifier_process()?;
 
         Self::with_resolver(
             compilation_timeout,
             connection_pool,
-            Arc::new(resolver),
+            Arc::<EnvCompilerResolver>::default(),
             etherscan_verifier_enabled,
         )
         .await
@@ -218,10 +216,11 @@ impl ContractVerifier {
         resolver: &dyn CompilerResolver,
         pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
-        let supported_versions = resolver
+        let mut supported_versions = resolver
             .supported_versions()
             .await
             .context("cannot get supported compilers")?;
+        retain_public_compiler_versions(&mut supported_versions);
         if supported_versions.lacks_any_compiler() {
             tracing::warn!(
                 ?supported_versions,
@@ -516,6 +515,7 @@ impl ContractVerifier {
         let zkvyper = self.compiler_resolver.resolve_zkvyper(version).await?;
         tracing::debug!(?zkvyper, ?version, "resolved compiler");
         let input = VyperInput::new(req)?;
+
         time::timeout(self.compilation_timeout, zkvyper.compile(input))
             .await
             .map_err(|_| ContractVerifierError::CompilationTimeout)?
@@ -555,6 +555,7 @@ impl ContractVerifier {
         req: VerificationIncomingRequest,
         bytecode_marker: BytecodeMarker,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        validate_incoming_request(&req)?;
         let compiler_type = req.source_code_data.compiler_type();
         let compiler_type_by_versions = req.compiler_versions.compiler_type();
         if compiler_type != compiler_type_by_versions {

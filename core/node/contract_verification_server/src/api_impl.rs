@@ -8,13 +8,14 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use zksync_contract_verifier_lib::{error::ContractVerifierError, validate_incoming_request};
 use zksync_dal::{contract_verification_dal::ContractVerificationDal, CoreDal, DalError};
 use zksync_types::{
     bytecode::{trim_bytecode, BytecodeHash, BytecodeMarker},
     contract_verification::{
         api::{
-            CompilerVersions, SourceCodeData, VerificationIncomingRequest, VerificationInfo,
-            VerificationProblem, VerificationRequestStatus,
+            CompilerVersions, VerificationIncomingRequest, VerificationInfo, VerificationProblem,
+            VerificationRequestStatus,
         },
         contract_identifier::ContractIdentifier,
         etherscan::{
@@ -49,6 +50,8 @@ pub(crate) enum ApiError {
     Internal(anyhow::Error),
     DeserializationError(anyhow::Error),
     UnsupportedContentType,
+    RequestTooLarge,
+    UnsupportedVerificationInput(String),
 }
 
 impl From<anyhow::Error> for ApiError {
@@ -81,6 +84,8 @@ impl ApiError {
             }
             Self::Internal(_) => "internal server error".into(),
             Self::UnsupportedContentType => "Specified content type is not supported".into(),
+            Self::RequestTooLarge => "verification request exceeds the allowed size".into(),
+            Self::UnsupportedVerificationInput(message) => message.clone(),
             Self::DeserializationError(e) => format!("Failed to deserialize the request: {}", e),
         }
     }
@@ -96,9 +101,12 @@ impl IntoResponse for ApiError {
             | Self::NoDeployedContract
             | Self::AlreadyVerified
             | Self::ActiveRequestExists(_)
+            | Self::UnsupportedVerificationInput(_)
             | Self::DeserializationError(_) => StatusCode::BAD_REQUEST,
 
             Self::UnsupportedContentType => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+
+            Self::RequestTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
 
             Self::RequestNotFound | Self::VerificationInfoNotFound => StatusCode::NOT_FOUND,
 
@@ -133,6 +141,12 @@ impl RestApi {
         if query.source_code_data.compiler_type() != query.compiler_versions.compiler_type() {
             return Err(ApiError::IncorrectCompilerVersions);
         }
+        validate_incoming_request(query).map_err(|err| match err {
+            ContractVerifierError::UnknownCompilerVersion(..) => {
+                ApiError::UnsupportedCompilerVersions
+            }
+            err => ApiError::UnsupportedVerificationInput(err.to_string()),
+        })?;
         Ok(())
     }
 
@@ -165,9 +179,10 @@ impl RestApi {
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
 
-        let body_bytes = to_bytes(body, usize::MAX)
+        const MAX_REQUEST_BYTES: usize = 4 * 1024 * 1024;
+        let body_bytes = to_bytes(body, MAX_REQUEST_BYTES)
             .await
-            .map_err(|e| ApiError::Internal(anyhow::anyhow!(e)))?;
+            .map_err(|_| ApiError::RequestTooLarge)?;
 
         match content_type {
             // ZKsync verification request in JSON format
@@ -337,21 +352,9 @@ impl RestApi {
             .await?;
         if let Some(verification_info) = verification_info {
             let fully_verified = verification_info.verification_problems.is_empty();
-            // System contracts can be force deployed during an upgrade, so it should be possible
-            // to re-verify them.
-            let is_system = match &verification_info.request.req.source_code_data {
-                SourceCodeData::SolSingleFile(_) | SourceCodeData::YulSingleFile(_) => {
-                    verification_info.request.req.is_system
-                }
-                SourceCodeData::StandardJsonInput(input) => input
-                    .get("settings")
-                    .and_then(|s| s.get("isSystem").or_else(|| s.get("enableEraVMExtensions")))
-                    .and_then(|s| s.as_bool())
-                    .unwrap_or(false),
-                _ => false,
-            };
-
-            if fully_verified && !is_system {
+            // Public system-contract verification is disabled by the canonical input policy, so
+            // legacy flags must not retain the old fully-verified requeue exception.
+            if fully_verified {
                 return Err(ApiError::AlreadyVerified);
             }
         }

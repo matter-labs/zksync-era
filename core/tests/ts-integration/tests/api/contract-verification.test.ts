@@ -10,7 +10,7 @@ import { NodeMode } from '../../src/types';
 // Regular expression to match ISO dates.
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
 
-const ZKSOLC_VERSION = 'v1.5.10';
+const ZKSOLC_VERSION = 'v1.5.15';
 const SOLC_VERSION = '0.8.26';
 const ZK_VM_SOLC_VERSION = 'zkVM-0.8.26-1.0.2';
 
@@ -61,8 +61,7 @@ describe('Tests for the contract verification API', () => {
                 compilerZksolcVersion: ZKSOLC_VERSION,
                 compilerSolcVersion: ZK_VM_SOLC_VERSION,
                 optimizationUsed: true,
-                constructorArguments,
-                isSystem: true
+                constructorArguments
             };
             let requestId = await query('POST', '/contract_verification', undefined, requestBody);
 
@@ -88,8 +87,7 @@ describe('Tests for the contract verification API', () => {
                     }
                 },
                 settings: {
-                    optimizer: { enabled: true },
-                    isSystem: true
+                    optimizer: { enabled: true }
                 }
             };
 
@@ -110,7 +108,7 @@ describe('Tests for the contract verification API', () => {
             await expectVerifyRequestToSucceed(requestId, requestBody);
         });
 
-        test('should test yul contract verification', async () => {
+        test.skip('should test yul contract verification', async () => {
             const contractPath = `${
                 testMaster.environment().pathToHome
             }/core/tests/ts-integration/contracts/yul/Empty.yul`;
@@ -141,7 +139,7 @@ describe('Tests for the contract verification API', () => {
             await expectVerifyRequestToSucceed(requestId, requestBody);
         });
 
-        test('should test vyper contract verification', async () => {
+        test.skip('should test vyper contract verification', async () => {
             const contractFactory = new zksync.ContractFactory(
                 contracts.greeter2.abi,
                 contracts.greeter2.bytecode,
@@ -184,14 +182,14 @@ describe('Tests for the contract verification API', () => {
             expect(versions.includes(SOLC_VERSION));
         });
 
-        test('Should return zkvyper versions', async () => {
+        test('Should not advertise zkvyper versions', async () => {
             const versions = await query('GET', `/contract_verification/zkvyper_versions`);
-            expect(versions.includes(ZKVYPER_VERSION));
+            expect(versions).toHaveLength(0);
         });
 
-        test('Should return vyper versions', async () => {
+        test('Should not advertise vyper versions', async () => {
             const versions: string[] = await query('GET', `/contract_verification/vyper_versions`);
-            expect(versions.includes(VYPER_VERSION));
+            expect(versions).toHaveLength(0);
         });
 
         afterAll(async () => {

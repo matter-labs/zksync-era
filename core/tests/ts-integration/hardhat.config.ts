@@ -4,7 +4,8 @@ import '@matterlabs/hardhat-zksync-vyper';
 
 export default {
     zksolc: {
-        version: '1.5.10',
+        // Highest release accepted by the pinned Hardhat plugin used by this legacy test suite.
+        version: '1.5.15',
         compilerSource: 'binary',
         settings: {
             enableEraVMExtensions: true
@@ -21,7 +22,7 @@ export default {
     },
     solidity: {
         version: '0.8.26',
-        eraVersion: '1.0.1',
+        eraVersion: '1.0.2',
         settings: {
             evmVersion: 'cancun'
         }
