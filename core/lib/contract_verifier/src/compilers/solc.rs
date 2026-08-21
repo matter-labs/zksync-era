@@ -136,6 +136,47 @@ impl Solc {
     }
 }
 
+#[async_trait]
+impl Compiler<SolcInput> for Solc {
+    async fn compile(
+        self: Box<Self>,
+        input: SolcInput,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        // Create an empty temp dir and restrict the compiler to it.
+        // All sources are passed inline via the standard JSON `content` field, so
+        // the compiler never needs to read from the filesystem.  Any import that is
+        // not covered by the sources map will therefore fail with "File not found"
+        // rather than silently reading an arbitrary host path.
+        let compile_dir = tempfile::tempdir().context("failed to create temp dir for solc")?;
+        // Resolve the binary to an absolute path so it stays locatable after `current_dir` is
+        // switched to the empty working directory below.
+        let solc_path = tokio::fs::canonicalize(&self.path)
+            .await
+            .context("failed to canonicalize solc path")?;
+
+        let content = serde_json::to_vec(&input.standard_json)
+            .context("cannot encode standard JSON input for solc")?;
+        let mut command = tokio::process::Command::new(&solc_path);
+        command
+            .current_dir(compile_dir.path())
+            .arg("--standard-json")
+            .arg("--allow-paths")
+            .arg(compile_dir.path());
+
+        let output = run_compiler(&mut command, Some(&content)).await?;
+        if output.status.success() {
+            let output =
+                serde_json::from_slice(&output.stdout).context("solc output is not valid JSON")?;
+            parse_standard_json_output(&output, input.contract_name, input.file_name, true)
+        } else {
+            Err(ContractVerifierError::CompilerError(
+                "solc",
+                sanitize_compiler_stderr(&String::from_utf8_lossy(&output.stderr)),
+            ))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use zksync_types::contract_verification::api::CompilerVersions;
@@ -401,46 +442,5 @@ mod tests {
         let input = Solc::build_input(req).unwrap();
 
         assert_eq!(input.standard_json.language, "Yul");
-    }
-}
-
-#[async_trait]
-impl Compiler<SolcInput> for Solc {
-    async fn compile(
-        self: Box<Self>,
-        input: SolcInput,
-    ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        // Create an empty temp dir and restrict the compiler to it.
-        // All sources are passed inline via the standard JSON `content` field, so
-        // the compiler never needs to read from the filesystem.  Any import that is
-        // not covered by the sources map will therefore fail with "File not found"
-        // rather than silently reading an arbitrary host path.
-        let compile_dir = tempfile::tempdir().context("failed to create temp dir for solc")?;
-        // Resolve the binary to an absolute path so it stays locatable after `current_dir` is
-        // switched to the empty working directory below.
-        let solc_path = tokio::fs::canonicalize(&self.path)
-            .await
-            .context("failed to canonicalize solc path")?;
-
-        let content = serde_json::to_vec(&input.standard_json)
-            .context("cannot encode standard JSON input for solc")?;
-        let mut command = tokio::process::Command::new(&solc_path);
-        command
-            .current_dir(compile_dir.path())
-            .arg("--standard-json")
-            .arg("--allow-paths")
-            .arg(compile_dir.path());
-
-        let output = run_compiler(&mut command, Some(&content)).await?;
-        if output.status.success() {
-            let output =
-                serde_json::from_slice(&output.stdout).context("solc output is not valid JSON")?;
-            parse_standard_json_output(&output, input.contract_name, input.file_name, true)
-        } else {
-            Err(ContractVerifierError::CompilerError(
-                "solc",
-                sanitize_compiler_stderr(&String::from_utf8_lossy(&output.stderr)),
-            ))
-        }
     }
 }

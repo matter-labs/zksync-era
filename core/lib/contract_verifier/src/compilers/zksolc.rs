@@ -22,7 +22,7 @@ use crate::{
 #[derive(Debug)]
 pub(crate) enum ZkSolcInput {
     StandardJson {
-        input: StandardJson,
+        input: Box<StandardJson>,
         contract_name: String,
         file_name: String,
     },
@@ -96,7 +96,7 @@ impl ZkSolc {
                 };
                 input.validate(CompilerFlavor::ZkSolc)?;
                 Ok(ZkSolcInput::StandardJson {
-                    input,
+                    input: Box::new(input),
                     contract_name,
                     file_name,
                 })
@@ -115,7 +115,7 @@ impl ZkSolc {
                     Self::is_post_1_5_0(zksolc_version),
                 ));
                 Ok(ZkSolcInput::StandardJson {
-                    input: compiler_input,
+                    input: Box::new(compiler_input),
                     contract_name,
                     file_name,
                 })

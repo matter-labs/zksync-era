@@ -54,6 +54,25 @@ ignore = [
   # nybbles); we call none of the affected shift APIs ourselves and build with alloc, so the
   # DoS path is unreachable. Revisit when the toolchain is bumped.
   "RUSTSEC-2026-0220",
+  # `h2` accepts and queues empty DATA frames without a bound. We updated the 0.4.x line to
+  # the patched 0.4.16, but 0.3.26 remains transitively pinned by hyper 0.14, reqwest 0.11,
+  # tonic 0.11, and aws-smithy. Removing it requires coordinated major dependency upgrades.
+  # The advisory is low severity; this exception now covers only the legacy 0.3.x line.
+  "RUSTSEC-2026-0258",
+  # `im`'s OrdSet insertion has an aliasing violation. Our only runtime consumer,
+  # zksync_consensus_network, uses im::HashMap rather than OrdSet, and upstream has archived
+  # the crate without publishing a fixed release. Revisit when the consensus dependency is
+  # upgraded or its persistent map implementation is replaced.
+  "RUSTSEC-2023-0126",
+  # `sized-chunks` is affected by panic-safety bugs when dropping an element panics. It is
+  # only pulled in by the same `im` dependency above; the consensus HashMap's key/value Drop
+  # implementations do not panic. Upstream has no fixed release.
+  "RUSTSEC-2026-0255",
+  # `lru::pop()` is not panic-safe if a stored key's Drop implementation panics. The affected
+  # versions are direct/transitive caches whose keys are plain integer/address/string-like
+  # values with non-panicking Drop implementations. A fix requires incompatible upgrades to
+  # lru >=0.18.2 and to the aws-sdk-s3 / alloy-provider dependants.
+  "RUSTSEC-2026-0253",
 ]
 
 [licenses]
