@@ -1244,7 +1244,7 @@ impl EthTxAggregator {
             (AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Commit), false) => self
                 .eth_client_blobs
                 .as_ref()
-                .map(|c| (c.sender_account()))
+                .map(|c| c.sender_account())
                 .unwrap_or_else(|| self.eth_client.sender_account()),
             (_, _) => self.eth_client.sender_account(),
         };

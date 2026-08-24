@@ -141,35 +141,21 @@ impl ProverComponent {
                 );
             }
             Self::CircuitProver => {
-                if args.circuit_prover_args.max_allocation.is_some() {
-                    additional_args.push(format!(
-                        "--max-allocation={}",
-                        args.circuit_prover_args.max_allocation.unwrap()
-                    ));
-                };
-                if args.circuit_prover_args.threads.is_some() {
-                    additional_args.push(format!(
-                        "--threads={}",
-                        args.circuit_prover_args.threads.unwrap()
-                    ));
-                };
-                if args.circuit_prover_args.light_wvg_count.is_some() {
-                    additional_args.push(format!(
-                        "--light-wvg-count={}",
-                        args.circuit_prover_args.light_wvg_count.unwrap()
-                    ));
-                };
-                if args.circuit_prover_args.heavy_wvg_count.is_some() {
-                    additional_args.push(format!(
-                        "--heavy-wvg-count={}",
-                        args.circuit_prover_args.heavy_wvg_count.unwrap()
-                    ));
-                };
-            }
-            Self::Compressor => {
-                if args.compressor_args.mode == CompressorMode::Fflonk {
-                    additional_args.push("--fflonk=true".to_string());
+                if let Some(max_allocation) = args.circuit_prover_args.max_allocation {
+                    additional_args.push(format!("--max-allocation={max_allocation}"));
                 }
+                if let Some(threads) = args.circuit_prover_args.threads {
+                    additional_args.push(format!("--threads={threads}"));
+                }
+                if let Some(light_wvg_count) = args.circuit_prover_args.light_wvg_count {
+                    additional_args.push(format!("--light-wvg-count={light_wvg_count}"));
+                }
+                if let Some(heavy_wvg_count) = args.circuit_prover_args.heavy_wvg_count {
+                    additional_args.push(format!("--heavy-wvg-count={heavy_wvg_count}"));
+                }
+            }
+            Self::Compressor if args.compressor_args.mode == CompressorMode::Fflonk => {
+                additional_args.push("--fflonk=true".to_string());
             }
             _ => {}
         };

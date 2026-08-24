@@ -307,14 +307,12 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
 
-        if keep_updated_task_handle.is_finished() {
-            panic!(
-                "KeepUpdated task finished: {:?}",
-                keep_updated_task_handle.await
-            );
-        } else {
-            panic!("Timeout waiting for catch up");
-        }
+        assert!(
+            !keep_updated_task_handle.is_finished(),
+            "KeepUpdated task finished: {:?}",
+            keep_updated_task_handle.await
+        );
+        panic!("Timeout waiting for catch up");
     }
 
     #[derive(Debug)]

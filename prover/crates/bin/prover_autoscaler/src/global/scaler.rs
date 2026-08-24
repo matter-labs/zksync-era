@@ -25,20 +25,15 @@ pub enum CapMode {
 }
 
 /// Operation mode for the scaler
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 enum OperationMode {
     /// Normal operation - sequential pool allocation by priority
+    #[default]
     Regular,
     /// Aggressive mode - allocate to ALL pools simultaneously (no cooldown started yet)
     Aggressive,
     /// Aggressive mode with cooldown - resources obtained, waiting for cooldown to expire
     AggressiveCooldown(DateTime<Utc>),
-}
-
-impl Default for OperationMode {
-    fn default() -> Self {
-        Self::Regular
-    }
 }
 
 #[derive(Debug, Eq, Hash, PartialEq)]

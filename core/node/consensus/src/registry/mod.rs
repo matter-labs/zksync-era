@@ -137,7 +137,7 @@ impl Registry {
             },
         };
 
-        let schedule = validator::Schedule::new(validator_infos.into_iter(), leader_selection)
+        let schedule = validator::Schedule::new(validator_infos, leader_selection)
             .context("Schedule::new()")?;
 
         // Get the validators commit block

@@ -166,7 +166,7 @@ impl<'a> HasherWithStats<'a> {
     }
 }
 
-impl<'a> AsRef<(dyn HashTree + 'a)> for HasherWithStats<'a> {
+impl<'a> AsRef<dyn HashTree + 'a> for HasherWithStats<'a> {
     fn as_ref(&self) -> &(dyn HashTree + 'a) {
         self.inner
     }

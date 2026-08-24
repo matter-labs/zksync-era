@@ -124,7 +124,7 @@ async fn execute_l2_tx(storage_type: StorageType, vm_mode: FastVmMode) {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             storage_type,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
 
@@ -208,7 +208,7 @@ async fn execute_l1_tx(vm_mode: FastVmMode) {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::AsyncRocksdbCache,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
 
@@ -235,7 +235,7 @@ async fn execute_l2_and_l1_txs(vm_mode: FastVmMode) {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::AsyncRocksdbCache,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
 
@@ -323,7 +323,7 @@ async fn rollback_tx(vm_mode: FastVmMode) {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::AsyncRocksdbCache,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
 
@@ -445,7 +445,7 @@ async fn complex_rollback_test() {
         let mut executor = tester
             .create_batch_executor_with_init_transactions(
                 StorageType::Postgres,
-                &[message_root_init_txn.clone()],
+                std::slice::from_ref(&message_root_init_txn),
             )
             .await;
         let scenario_str = format!("{scenario:?}");
@@ -536,7 +536,7 @@ async fn too_big_gas_limit(vm_mode: FastVmMode) {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::AsyncRocksdbCache,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
 
@@ -562,7 +562,7 @@ async fn check_deployment_allow_list() {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::AsyncRocksdbCache,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
 
@@ -637,7 +637,7 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::AsyncRocksdbCache,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
 
@@ -695,7 +695,7 @@ async fn execute_reverted_tx(vm_mode: FastVmMode) {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::AsyncRocksdbCache,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
 
@@ -733,7 +733,7 @@ async fn execute_realistic_scenario(vm_mode: FastVmMode) {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::AsyncRocksdbCache,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
 
@@ -878,7 +878,7 @@ async fn catchup_rocksdb_cache() {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::Postgres,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
     for _ in 0..10 {
@@ -896,7 +896,7 @@ async fn catchup_rocksdb_cache() {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::AsyncRocksdbCache,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
     let res = executor.execute_tx(tx.clone()).await.unwrap();
@@ -913,7 +913,7 @@ async fn catchup_rocksdb_cache() {
     let mut executor = tester
         .create_batch_executor_with_init_transactions(
             StorageType::Rocksdb,
-            &[message_root_init_txn.clone()],
+            std::slice::from_ref(&message_root_init_txn),
         )
         .await;
     let res = executor.execute_tx(tx).await.unwrap();

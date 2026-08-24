@@ -57,7 +57,7 @@ impl std::fmt::Display for BaseContractsHashError {
         write!(
             f,
             "From Config {:?}, Calculated : {:?}",
-            &self.from_config, &self.calculated
+            self.from_config, self.calculated
         )
     }
 }

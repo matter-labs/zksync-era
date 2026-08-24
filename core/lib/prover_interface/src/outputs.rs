@@ -10,7 +10,7 @@ use circuit_definitions::{
 use crypto_codegen::serialize_proof;
 use fflonk::FflonkProof;
 use serde::{Deserialize, Serialize};
-use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
+use zksync_object_store::{_reexports::BoxedError, Bucket, StoredObject};
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchId, L1BatchNumber};
 
 /// A SNARK-wrapped Airbender (ZKsync OS) proof as produced by the verifier: a bellman PLONK proof.

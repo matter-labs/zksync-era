@@ -300,7 +300,7 @@ where
 
             if let Some(path) = path.as_deref_mut() {
                 let hash = match side {
-                    Some(Side::Left) if index % 2 == 0 => None,
+                    Some(Side::Left) if index.is_multiple_of(2) => None,
                     Some(Side::Right) if index % 2 == 1 => None,
                     _ => hashes.get(index ^ 1).copied(),
                 };

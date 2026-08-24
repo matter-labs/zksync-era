@@ -44,7 +44,7 @@ async fn insert_l2_to_l1_logs(conn: &mut Connection<'_, Core>, l2_block_number: 
         tx_hash: H256([2; 32]),
         tx_index_in_l2_block: 1,
     };
-    let second_logs = vec![
+    let second_logs = [
         create_l2_to_l1_log(0, 0),
         create_l2_to_l1_log(0, 0),
         create_l2_to_l1_log(0, 0),
@@ -69,7 +69,7 @@ async fn insert_events(conn: &mut Connection<'_, Core>, l2_block_number: L2Block
         tx_hash: H256([2; 32]),
         tx_index_in_l2_block: 1,
     };
-    let second_events = vec![mock_vm_event(2), mock_vm_event(3), mock_vm_event(4)];
+    let second_events = [mock_vm_event(2), mock_vm_event(3), mock_vm_event(4)];
     let all_events = vec![
         (first_location, first_events.iter().collect()),
         (second_location, second_events.iter().collect()),

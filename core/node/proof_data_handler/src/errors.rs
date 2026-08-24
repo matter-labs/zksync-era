@@ -3,7 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use zksync_dal::DalError;
-use zksync_object_store::{ObjectStoreError, _reexports::BoxedError};
+use zksync_object_store::{_reexports::BoxedError, ObjectStoreError};
 use zksync_types::L1BatchNumber;
 
 #[derive(Debug, thiserror::Error)]

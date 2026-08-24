@@ -441,6 +441,8 @@ impl ConsensusDal<'_, '_> {
 
     /// Inserts a certificate for the L2 block `cert.header().number`.
     /// Fails if certificate doesn't match the stored block.
+    // `InsertCertificateError` is inherently large; boxing it would churn every caller.
+    #[allow(clippy::result_large_err)]
     pub async fn insert_block_certificate(
         &mut self,
         cert: &BlockCertificate,

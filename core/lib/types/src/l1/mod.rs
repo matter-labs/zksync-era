@@ -21,9 +21,10 @@ use crate::{
 
 pub mod error;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy, Default)]
 #[repr(u8)]
 pub enum OpProcessingType {
+    #[default]
     Common = 0,
     OnlyRollup = 1,
 }
@@ -37,12 +38,6 @@ impl TryFrom<u8> for OpProcessingType {
             x if x == OpProcessingType::OnlyRollup as u8 => Ok(OpProcessingType::OnlyRollup),
             _ => Err(()),
         }
-    }
-}
-
-impl Default for OpProcessingType {
-    fn default() -> Self {
-        Self::Common
     }
 }
 

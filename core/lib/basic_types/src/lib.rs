@@ -6,7 +6,7 @@
 #![warn(clippy::cast_lossless)]
 
 use std::{
-    convert::{Infallible, TryFrom, TryInto},
+    convert::{TryFrom, TryInto},
     fmt,
     num::ParseIntError,
     ops::{Add, Deref, DerefMut, Sub},
@@ -118,13 +118,11 @@ impl Into<U256> for AccountTreeId {
     }
 }
 
-impl TryFrom<U256> for AccountTreeId {
-    type Error = Infallible;
-
-    fn try_from(val: U256) -> Result<Self, Infallible> {
+impl From<U256> for AccountTreeId {
+    fn from(val: U256) -> Self {
         let mut be_data = vec![0; 32];
         val.to_big_endian(&mut be_data);
-        Ok(Self::from_fixed_bytes(be_data[12..].try_into().unwrap()))
+        Self::from_fixed_bytes(be_data[12..].try_into().unwrap())
     }
 }
 

@@ -129,10 +129,10 @@ pub(super) async fn mock_deploy_evm_contract(
 ) {
     let real_len = runtime.len();
     let mut raw = runtime;
-    if raw.len() % 32 != 0 {
+    if !raw.len().is_multiple_of(32) {
         raw.resize(raw.len().div_ceil(32) * 32, 0);
     }
-    if (raw.len() / 32) % 2 == 0 {
+    if (raw.len() / 32).is_multiple_of(2) {
         raw.resize(raw.len() + 32, 0);
     }
     let bytecode_hash = BytecodeHash::for_evm_bytecode(real_len, &raw).value();

@@ -667,12 +667,10 @@ impl<'a> SnapshotsApplierOrStatus<'a> {
             }
         };
         applier.recover_storage_logs(stop_receiver).await?;
-        for is_chunk_processed in &mut applier
+        applier
             .applied_snapshot_status
             .storage_logs_chunks_processed
-        {
-            *is_chunk_processed = true;
-        }
+            .fill(true);
 
         applier.recover_tokens().await?;
         applier.tokens_recovered = true;

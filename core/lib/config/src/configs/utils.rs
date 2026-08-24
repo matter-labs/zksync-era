@@ -29,10 +29,8 @@ impl PrometheusConfig {
         } else if let Some(base_url) = &self.pushgateway_url {
             let url = PrometheusExporterConfig::gateway_endpoint(base_url);
             Some(PrometheusExporterConfig::push(url, self.push_interval))
-        } else if let Some(port) = self.listener_port {
-            Some(PrometheusExporterConfig::pull(port))
         } else {
-            return None;
+            self.listener_port.map(PrometheusExporterConfig::pull)
         }
     }
 }

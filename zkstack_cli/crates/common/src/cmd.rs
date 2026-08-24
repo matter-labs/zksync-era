@@ -31,7 +31,7 @@ pub struct CmdError {
 
 impl Display for CmdError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut data = format!("{}", &self.source);
+        let mut data = format!("{}", self.source);
         if let Some(stderr) = &self.stderr {
             data = format!("{data}\n{stderr}");
         }

@@ -105,7 +105,7 @@ pub fn get_load_test_tx(nonce: u32, gas_limit: u32, params: LoadTestParams) -> T
         .function("execute")
         .expect("no `execute` function in load test contract");
     let calldata = execute_function
-        .encode_input(&vec![
+        .encode_input(&[
             Token::Uint(U256::from(params.reads)),
             Token::Uint(U256::from(params.initial_writes)),
             Token::Uint(U256::from(params.repeated_writes)),

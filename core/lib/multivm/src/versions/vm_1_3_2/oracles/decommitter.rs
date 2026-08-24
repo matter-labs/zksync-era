@@ -109,8 +109,8 @@ impl<S: WriteStorage, const B: bool, H: HistoryMode> DecommitterOracle<S, B, H> 
         let known_bytecodes_size = self
             .known_bytecodes
             .inner()
-            .iter()
-            .map(|(_, value)| value.len() * std::mem::size_of::<U256>())
+            .values()
+            .map(|value| value.len() * std::mem::size_of::<U256>())
             .sum::<usize>();
         let decommitted_code_hashes_size =
             self.decommitted_code_hashes.inner().len() * std::mem::size_of::<(U256, u32)>();

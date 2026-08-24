@@ -1,7 +1,7 @@
 use ::zkstack_cli_common::forge::ForgeScriptArgs;
 use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
-use clap::{command, Subcommand};
+use clap::Subcommand;
 pub(crate) use create::create_chain_inner;
 use set_da_validator_pair::SetDAValidatorPairArgs;
 use set_da_validator_pair_calldata::SetDAValidatorPairCalldataArgs;

@@ -266,7 +266,7 @@ mod test {
             error_string
                 .starts_with("Http error while fetching token price. Status: 404 Not Found"),
             "Error was: {}",
-            &error_string
+            error_string
         )
     }
 

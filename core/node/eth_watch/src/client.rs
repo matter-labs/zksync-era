@@ -248,6 +248,8 @@ where
         addresses.into_iter().flatten().collect()
     }
 
+    // `async_recursion` adds its own `#[must_use]` to the boxed future.
+    #[allow(clippy::double_must_use)]
     #[async_recursion::async_recursion]
     async fn get_events_inner(
         &self,
