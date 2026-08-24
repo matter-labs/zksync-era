@@ -51,7 +51,12 @@ const EXECUTION_ERROR_CODE: i32 = 3;
 ///
 /// Everything else leaves the key unknown and must not be reported as "no key": the caller falls
 /// back to the *previous* key and persists it for the new patch, pinning the new protocol version
-/// to the old prover generation.
+/// to the old prover generation. Note that an unclassifiable error is not merely a slower path —
+/// it propagates as a transient error, and eth_watch retries the same upgrade event forever, so a
+/// *permanently* missing route misread as inconclusive wedges upgrade processing and every
+/// processor behind it. Hence "no returndata" is matched on the EVM outcome, not on one encoding
+/// of it: providers express it as an absent `data` field, as `null`, or as an empty payload
+/// (`"0x"`), and some nest the payload one level deeper as `{"data": {"data": "0x…"}}`.
 ///
 /// Limitation: classification uses only the JSON-RPC error object. A provider that reports reverts
 /// under a generic code (`-32000`) *and* strips the payload is indistinguishable from one that
@@ -64,20 +69,35 @@ fn verifier_lacks_route(err: &ContractCallError) -> bool {
     let ClientError::Call(err) = err.as_ref() else {
         return false;
     };
+    // An empty revert is definitive only if the node said it executed the call.
+    let empty_revert_is_definitive = err.code() == EXECUTION_ERROR_CODE;
 
     let Some(data) = err.data() else {
-        // A revert with no returndata: definitive only if the node said it executed the call.
-        return err.code() == EXECUTION_ERROR_CODE;
+        return empty_revert_is_definitive;
     };
-    // Standard shape for a reverting `eth_call`: the revert payload, hex-encoded, in `data`.
-    let Ok(payload) = serde_json::from_str::<String>(data.get()) else {
+    let Ok(data) = serde_json::from_str::<serde_json::Value>(data.get()) else {
         return false;
     };
-    let Some(selector) = payload.strip_prefix("0x").and_then(|hex| hex.get(..8)) else {
-        return false;
+    let payload = match &data {
+        // Standard shape for a reverting `eth_call`: the revert payload, hex-encoded, in `data`.
+        serde_json::Value::String(payload) => payload.as_str(),
+        // Nested shape, e.g. `{"data": {"data": "0x…", "message": "…"}}`.
+        serde_json::Value::Object(fields) => match fields.get("data").and_then(|d| d.as_str()) {
+            Some(payload) => payload,
+            None => return false,
+        },
+        serde_json::Value::Null => return empty_revert_is_definitive,
+        _ => return false,
     };
-    u32::from_str_radix(selector, 16)
-        .is_ok_and(|selector| selector.to_be_bytes() == UNKNOWN_VERIFIER_TYPE_SELECTOR)
+
+    let hex = payload.strip_prefix("0x").unwrap_or(payload);
+    if hex.is_empty() {
+        // Same EVM outcome as an absent `data` field, just a different encoding.
+        return empty_revert_is_definitive;
+    }
+    hex.get(..8)
+        .and_then(|selector| u32::from_str_radix(selector, 16).ok())
+        .is_some_and(|selector| selector.to_be_bytes() == UNKNOWN_VERIFIER_TYPE_SELECTOR)
 }
 
 /// Protocol version scheduled on the CTM, as read from its `NewProtocolVersion` event.
@@ -1007,13 +1027,47 @@ mod tests {
     }
 
     /// The two EVM answers that do mean "no Airbender route": the `UnknownVerifierType` revert,
-    /// and an empty revert from a verifier without `verificationKeyHash(uint256)`.
+    /// and an empty revert from a verifier without `verificationKeyHash(uint256)`. Providers
+    /// encode the latter in several ways, all of which must classify the same — misreading one as
+    /// inconclusive stalls eth_watch permanently.
     #[test]
     fn a_definitive_revert_means_the_verifier_lacks_the_route() {
         assert!(verifier_lacks_route(&reverted_with("0xc352bb73")));
+        // Payload nested one level deeper.
         assert!(verifier_lacks_route(&call_error(ClientError::Call(
-            ErrorObject::owned(EXECUTION_ERROR_CODE, "execution reverted", None::<()>),
+            ErrorObject::owned(
+                EXECUTION_ERROR_CODE,
+                "execution reverted",
+                Some(serde_json::json!({ "data": "0xc352bb73" })),
+            ),
         ))));
+        for empty_revert in [
+            // No `data` field at all (geth).
+            call_error(ClientError::Call(ErrorObject::owned(
+                EXECUTION_ERROR_CODE,
+                "execution reverted",
+                None::<()>,
+            ))),
+            // `data` present but null.
+            call_error(ClientError::Call(ErrorObject::owned(
+                EXECUTION_ERROR_CODE,
+                "execution reverted",
+                Some(serde_json::Value::Null),
+            ))),
+            // Empty payload, with and without the hex prefix.
+            reverted_with("0x"),
+            reverted_with(""),
+            call_error(ClientError::Call(ErrorObject::owned(
+                EXECUTION_ERROR_CODE,
+                "execution reverted",
+                Some(serde_json::json!({ "data": "0x" })),
+            ))),
+        ] {
+            assert!(
+                verifier_lacks_route(&empty_revert),
+                "empty revert must mean a missing route: {empty_revert}"
+            );
+        }
     }
 
     /// Anything else leaves the key unknown and must propagate, so eth_watch retries rather than
@@ -1043,6 +1097,18 @@ mod tests {
                 -32000,
                 "execution reverted",
                 None::<()>,
+            ))),
+            // Likewise for an empty payload: the code says nothing about whether the call ran.
+            call_error(ClientError::Call(ErrorObject::owned(
+                -32000,
+                "execution reverted",
+                Some("0x"),
+            ))),
+            // A `data` object that carries no payload at all.
+            call_error(ClientError::Call(ErrorObject::owned(
+                EXECUTION_ERROR_CODE,
+                "execution reverted",
+                Some(serde_json::json!({ "message": "execution reverted" })),
             ))),
         ];
         for err in inconclusive {

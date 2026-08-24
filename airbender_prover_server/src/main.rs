@@ -136,8 +136,10 @@ struct Cli {
 
     /// Path to the committed SNARK VK JSON. Defaults to the vendored
     /// `vks/snark_vk.json`; the server never derives it on the fly. Regenerate
-    /// with `eravm-prover-host gen-vks` when the guest changes. Only consumed in
-    /// `fri-snark` / `snark-only` modes.
+    /// with `eravm-prover-host gen-vks` when the guest changes. Required in
+    /// every mode: besides wrapping in `fri-snark` / `snark-only`, its keccak
+    /// hash is the prover's identity towards the job server, so a `fri-only`
+    /// prover needs it too.
     #[arg(long, env = "SNARK_VK", default_value_os_t = default_snark_vk_path())]
     snark_vk: PathBuf,
 
