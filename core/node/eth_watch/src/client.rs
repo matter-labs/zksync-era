@@ -30,6 +30,75 @@ use zksync_web3_decl::{
 };
 
 const FFLONK_VERIFIER_TYPE: i32 = 0;
+/// Verifier type routed to the Airbender PLONK verifier by the dual verifier contract
+/// (see `EraDualVerifier.sol`: 0 = FFLONK, 1 = PLONK, 2 = Airbender PLONK).
+const AIRBENDER_PLONK_VERIFIER_TYPE: i32 = 2;
+
+/// Selector of `UnknownVerifierType()`, the error the dual verifier reverts with when asked for a
+/// verification key it does not route (see `contracts/l1-contracts/selectors`).
+const UNKNOWN_VERIFIER_TYPE_SELECTOR: [u8; 4] = [0xc3, 0x52, 0xbb, 0x73];
+
+/// EIP-1474 "Execution error": the call was executed and reverted. Distinct from the generic server
+/// codes, which say nothing about whether the node even ran the call.
+const EXECUTION_ERROR_CODE: i32 = 3;
+
+/// Whether a failed `verificationKeyHash` call proves the verifier has no Airbender route, rather
+/// than meaning we failed to ask it. Only a definitive EVM answer counts:
+///
+/// * a revert with `UnknownVerifierType` — a dual verifier that does not route this type;
+/// * a revert with no returndata under an execution-error code — an older verifier with no
+///   `verificationKeyHash(uint256)` at all.
+///
+/// Everything else leaves the key unknown and must not be reported as "no key": the caller falls
+/// back to the *previous* key and persists it for the new patch, pinning the new protocol version
+/// to the old prover generation. Note that an unclassifiable error is not merely a slower path —
+/// it propagates as a transient error, and eth_watch retries the same upgrade event forever, so a
+/// *permanently* missing route misread as inconclusive wedges upgrade processing and every
+/// processor behind it. Hence "no returndata" is matched on the EVM outcome, not on one encoding
+/// of it: providers express it as an absent `data` field, as `null`, or as an empty payload
+/// (`"0x"`), and some nest the payload one level deeper as `{"data": {"data": "0x…"}}`.
+///
+/// Limitation: classification uses only the JSON-RPC error object. A provider that reports reverts
+/// under a generic code (`-32000`) *and* strips the payload is indistinguishable from one that
+/// failed to answer, so it takes the safe branch and eth_watch retries instead of progressing.
+/// Matching on error messages would resolve it but is provider-specific and brittle.
+fn verifier_lacks_route(err: &ContractCallError) -> bool {
+    let ContractCallError::EthereumGateway(err) = err else {
+        return false;
+    };
+    let ClientError::Call(err) = err.as_ref() else {
+        return false;
+    };
+    // An empty revert is definitive only if the node said it executed the call.
+    let empty_revert_is_definitive = err.code() == EXECUTION_ERROR_CODE;
+
+    let Some(data) = err.data() else {
+        return empty_revert_is_definitive;
+    };
+    let Ok(data) = serde_json::from_str::<serde_json::Value>(data.get()) else {
+        return false;
+    };
+    let payload = match &data {
+        // Standard shape for a reverting `eth_call`: the revert payload, hex-encoded, in `data`.
+        serde_json::Value::String(payload) => payload.as_str(),
+        // Nested shape, e.g. `{"data": {"data": "0x…", "message": "…"}}`.
+        serde_json::Value::Object(fields) => match fields.get("data").and_then(|d| d.as_str()) {
+            Some(payload) => payload,
+            None => return false,
+        },
+        serde_json::Value::Null => return empty_revert_is_definitive,
+        _ => return false,
+    };
+
+    let hex = payload.strip_prefix("0x").unwrap_or(payload);
+    if hex.is_empty() {
+        // Same EVM outcome as an absent `data` field, just a different encoding.
+        return empty_revert_is_definitive;
+    }
+    hex.get(..8)
+        .and_then(|selector| u32::from_str_radix(selector, 16).ok())
+        .is_some_and(|selector| selector.to_be_bytes() == UNKNOWN_VERIFIER_TYPE_SELECTOR)
+}
 
 /// Protocol version scheduled on the CTM, as read from its `NewProtocolVersion` event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,6 +134,12 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     async fn scheduler_vk_hash(&self, verifier_address: Address)
         -> Result<H256, ContractCallError>;
     async fn fflonk_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError>;
+    /// Returns the Airbender SNARK-wrapper verification key hash by verifier address, or `None`
+    /// if the verifier does not (yet) route an Airbender verifier.
+    async fn airbender_scheduler_vk_hash(
         &self,
         verifier_address: Address,
     ) -> Result<Option<H256>, ContractCallError>;
@@ -539,6 +614,36 @@ where
         }
     }
 
+    async fn airbender_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError> {
+        // Same overloaded `verificationKeyHash(uint256)` as for FFLONK, routed to the Airbender
+        // PLONK verifier.
+        let function = self
+            .verifier_contract_abi
+            .functions_by_name("verificationKeyHash")
+            .map_err(ContractCallError::Function)?
+            .get(1);
+
+        let Some(function) = function else {
+            return Ok(None);
+        };
+        let result = CallFunctionArgs::new(
+            "verificationKeyHash",
+            U256::from(AIRBENDER_PLONK_VERIFIER_TYPE),
+        )
+        .for_contract(verifier_address, &self.verifier_contract_abi)
+        .call_with_function(&self.client, function.clone())
+        .await;
+
+        match result {
+            Ok(hash) => Ok(Some(hash)),
+            Err(err) if verifier_lacks_route(&err) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
     async fn scheduled_protocol_version(
         &self,
         old_version: ProtocolSemanticVersion,
@@ -898,6 +1003,121 @@ impl ZkSyncExtentionEthClient for EthHttpQueryClient<L2> {
                 .map(Some)
         } else {
             Ok(None)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_web3_decl::jsonrpsee::types::{
+        error::{INTERNAL_ERROR_CODE, SERVER_IS_BUSY_CODE},
+        ErrorObject,
+    };
+
+    use super::*;
+
+    fn call_error(inner: ClientError) -> ContractCallError {
+        ContractCallError::EthereumGateway(EnrichedClientError::new(inner, "verificationKeyHash"))
+    }
+
+    fn reverted_with(data: &str) -> ContractCallError {
+        call_error(ClientError::Call(ErrorObject::owned(
+            EXECUTION_ERROR_CODE,
+            "execution reverted",
+            Some(data),
+        )))
+    }
+
+    /// The two EVM answers that do mean "no Airbender route": the `UnknownVerifierType` revert,
+    /// and an empty revert from a verifier without `verificationKeyHash(uint256)`. Providers
+    /// encode the latter in several ways, all of which must classify the same — misreading one as
+    /// inconclusive stalls eth_watch permanently.
+    #[test]
+    fn a_definitive_revert_means_the_verifier_lacks_the_route() {
+        assert!(verifier_lacks_route(&reverted_with("0xc352bb73")));
+        // Payload nested one level deeper.
+        assert!(verifier_lacks_route(&call_error(ClientError::Call(
+            ErrorObject::owned(
+                EXECUTION_ERROR_CODE,
+                "execution reverted",
+                Some(serde_json::json!({ "data": "0xc352bb73" })),
+            ),
+        ))));
+        for empty_revert in [
+            // No `data` field at all (geth).
+            call_error(ClientError::Call(ErrorObject::owned(
+                EXECUTION_ERROR_CODE,
+                "execution reverted",
+                None::<()>,
+            ))),
+            // `data` present but null.
+            call_error(ClientError::Call(ErrorObject::owned(
+                EXECUTION_ERROR_CODE,
+                "execution reverted",
+                Some(serde_json::Value::Null),
+            ))),
+            // Empty payload, with and without the hex prefix.
+            reverted_with("0x"),
+            reverted_with(""),
+            call_error(ClientError::Call(ErrorObject::owned(
+                EXECUTION_ERROR_CODE,
+                "execution reverted",
+                Some(serde_json::json!({ "data": "0x" })),
+            ))),
+        ] {
+            assert!(
+                verifier_lacks_route(&empty_revert),
+                "empty revert must mean a missing route: {empty_revert}"
+            );
+        }
+    }
+
+    /// Anything else leaves the key unknown and must propagate, so eth_watch retries rather than
+    /// registering the previous prover generation's key for the new version.
+    #[test]
+    fn an_inconclusive_failure_is_not_a_missing_route() {
+        let inconclusive = [
+            call_error(ClientError::Transport("connection refused".into())),
+            call_error(ClientError::RequestTimeout),
+            // An overloaded node answers, but with a retriable error rather than a revert.
+            call_error(ClientError::Call(ErrorObject::owned(
+                SERVER_IS_BUSY_CODE,
+                "server is busy",
+                None::<()>,
+            ))),
+            call_error(ClientError::Call(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "internal error",
+                None::<()>,
+            ))),
+            // A revert carrying some *other* custom error.
+            reverted_with("0xdeadbeef"),
+            // `Error(string)`-encoded `require` message.
+            reverted_with("0x08c379a0"),
+            // Generic server code with the payload stripped: not classifiable.
+            call_error(ClientError::Call(ErrorObject::owned(
+                -32000,
+                "execution reverted",
+                None::<()>,
+            ))),
+            // Likewise for an empty payload: the code says nothing about whether the call ran.
+            call_error(ClientError::Call(ErrorObject::owned(
+                -32000,
+                "execution reverted",
+                Some("0x"),
+            ))),
+            // A `data` object that carries no payload at all.
+            call_error(ClientError::Call(ErrorObject::owned(
+                EXECUTION_ERROR_CODE,
+                "execution reverted",
+                Some(serde_json::json!({ "message": "execution reverted" })),
+            ))),
+        ];
+        for err in inconclusive {
+            assert!(
+                !verifier_lacks_route(&err),
+                "must not be mistaken for a missing route: {err}"
+            );
         }
     }
 }

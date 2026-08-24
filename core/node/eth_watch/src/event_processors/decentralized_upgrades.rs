@@ -220,6 +220,16 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
             } else {
                 None
             };
+            // Airbender SNARK-wrapper VK is likewise hard coded in the (dual) verifier contract;
+            // `None` if the verifier doesn't route an Airbender verifier yet.
+            let airbender_scheduler_vk_hash = if let Some(address) = verifier_address {
+                self.sl_client
+                    .airbender_scheduler_vk_hash(address)
+                    .await
+                    .map_err(EventProcessorError::contract_call)?
+            } else {
+                None
+            };
             upgrades.insert(
                 old_protocol_version,
                 (
@@ -227,28 +237,34 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     upgrade,
                     scheduler_vk_hash,
                     fflonk_scheduler_vk_hash,
+                    airbender_scheduler_vk_hash,
                 ),
             );
         }
 
         let new_upgrades: Vec<_> = upgrades
             .into_values()
-            .sorted_by_key(|(old_protocol_version, _, _, _)| *old_protocol_version)
+            .sorted_by_key(|(old_protocol_version, ..)| *old_protocol_version)
             .collect();
 
-        let Some((_, last_upgrade, _, _)) = new_upgrades.last() else {
+        let Some((_, last_upgrade, ..)) = new_upgrades.last() else {
             return Ok(events.len());
         };
         let versions: Vec<_> = new_upgrades
             .iter()
-            .map(|(_, u, _, _)| u.version.to_string())
+            .map(|(_, u, ..)| u.version.to_string())
             .collect();
         tracing::debug!("Received upgrades with versions: {versions:?}");
 
         let last_version = last_upgrade.version;
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
-        for (old_protocol_version, upgrade, scheduler_vk_hash, fflonk_scheduler_vk_hash) in
-            new_upgrades
+        for (
+            old_protocol_version,
+            upgrade,
+            scheduler_vk_hash,
+            fflonk_scheduler_vk_hash,
+            airbender_scheduler_vk_hash,
+        ) in new_upgrades
         {
             let latest_semantic_version = storage
                 .protocol_versions_dal()
@@ -284,6 +300,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     upgrade,
                     scheduler_vk_hash,
                     fflonk_scheduler_vk_hash,
+                    airbender_scheduler_vk_hash,
                 );
                 if new_version.version.minor == latest_semantic_version.minor {
                     // Only verification parameters may change if only patch is bumped.

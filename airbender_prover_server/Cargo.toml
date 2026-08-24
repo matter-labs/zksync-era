@@ -30,6 +30,11 @@ serde_json.workspace = true
 serde_with = { workspace = true, features = ["hex"] }
 tracing.workspace = true
 zksync_airbender_verifier.workspace = true
+# Direct dep on the SNARK wrapper for `calculate_verification_key_hash` — the
+# server reports the hash of its baked-in SNARK VK to job servers so they can
+# match it to protocol versions. Same git spec as the one `eravm-prover-host`
+# pulls, so it resolves to the same crate instance (and `SnarkWrapperVK` type).
+zkos-wrapper.workspace = true
 # `sentry` feature pulls the Sentry tracing layer into the shared `init_tracing`
 # so the server reports errors/panics.
 zksync_cli_utils = { workspace = true, features = ["sentry"] }
@@ -104,6 +109,9 @@ airbender-host = { git = "https://github.com/matter-labs/airbender-platform", ta
 
 eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.1.1", default-features = false }
 zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.1.1" }
+# Must match the spec `eravm-prover-host` uses so cargo unifies both onto one
+# crate instance.
+zkos-wrapper = { git = "https://github.com/matter-labs/zkos-wrapper/", branch = "dev", default-features = false, features = ["security_100"] }
 
 # Local crates in this workspace.
 zksync_cli_utils = { path = "crates/lib/cli_utils" }

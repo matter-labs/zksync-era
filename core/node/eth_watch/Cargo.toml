@@ -24,6 +24,7 @@ zksync_config.workspace = true
 zksync_web3_decl.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
+serde_json.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true

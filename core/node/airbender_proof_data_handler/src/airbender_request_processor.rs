@@ -23,7 +23,7 @@ use zksync_prover_interface::{
     outputs::L1BatchProofForL1,
 };
 use zksync_types::{
-    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId,
+    blob::num_blobs_required, commitment::L1BatchCommitmentMode, L1BatchNumber, L2ChainId, H256,
 };
 use zksync_vm_executor::storage::{L1BatchParamsProvider, RestoredL1BatchEnv};
 
@@ -57,6 +57,7 @@ impl AirbenderRequestProcessor {
 
     pub(crate) async fn get_proof_generation_data(
         &self,
+        snark_wrapper_vk_hash: H256,
     ) -> Result<Option<AirbenderVerifierInput>, AirbenderProcessorError> {
         tracing::debug!("Received request for proof generation data");
 
@@ -74,20 +75,22 @@ impl AirbenderRequestProcessor {
             let mut transaction = connection.start_transaction().await?;
 
             // Record the protocol version the batch is proved under at lock time, so `submit_proof`
-            // and the SNARK step reuse the exact same version (and blob key) instead of recomputing
-            // it. The version is the batch's own minor version with the latest known patch for that
-            // minor (chosen inside the lock query), so a batch is proven under the protocol it
-            // executed with — not the globally latest version.
+            // and the SNARK step reuse the same version (and blob key) instead of recomputing it.
+            // It is the batch's own minor with the highest patch registered for the prover's VK, so
+            // a batch is proven under the protocol it executed with, by a prover holding the right
+            // key. Keeping that version from going backwards across prover generations is the
+            // claim statement's job, decided against the database — see `lock_batch_for_proving`.
             let Some(locked_batch) = transaction
                 .airbender_proof_generation_dal()
                 .lock_batch_for_proving(
                     self.config.proof_generation_timeout,
                     min_batch_number,
                     self.config.max_proving_attempts,
+                    snark_wrapper_vk_hash,
                 )
                 .await?
             else {
-                return Ok(None); // no job available
+                return Ok(None);
             };
             let batch_number = locked_batch.l1_batch_number;
 
@@ -450,6 +453,7 @@ impl AirbenderRequestProcessor {
 
     pub(crate) async fn get_snark_inputs(
         &self,
+        snark_wrapper_vk_hash: H256,
     ) -> Result<Option<AirbenderSnarkInputsResponse>, AirbenderProcessorError> {
         tracing::debug!("Received request for SNARK inputs");
 
@@ -472,6 +476,7 @@ impl AirbenderRequestProcessor {
                     self.config.snark_generation_timeout,
                     min_batch_number,
                     self.config.max_proving_attempts,
+                    snark_wrapper_vk_hash,
                 )
                 .await?
             else {

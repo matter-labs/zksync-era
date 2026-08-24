@@ -112,6 +112,9 @@ struct TxData {
 }
 
 const FFLONK_VERIFIER_TYPE: i32 = 1;
+/// Verifier type routed to the Airbender PLONK verifier by the dual verifier contract
+/// (see `EraDualVerifier.sol`: 0 = FFLONK, 1 = PLONK, 2 = Airbender PLONK).
+const AIRBENDER_PLONK_VERIFIER_TYPE: i32 = 2;
 
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
@@ -760,6 +763,34 @@ impl EthTxAggregator {
         }
     }
 
+    async fn get_airbender_snark_wrapper_vk_hash(
+        &mut self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, EthSenderError> {
+        let get_vk_hash = &self.functions.verification_key_hash;
+        // Same overloaded `verificationKeyHash(uint256)` as for FFLONK, routed to the Airbender
+        // PLONK verifier. Older verifiers without an Airbender route revert, which surfaces as
+        // `None` here.
+        let function = self
+            .functions
+            .verifier_contract
+            .functions_by_name(&get_vk_hash.name)
+            .map_err(|x| EthSenderError::ContractCall(ContractCallError::Function(x)))?
+            .get(1);
+
+        if let Some(function) = function {
+            let vk_hash: Option<H256> =
+                CallFunctionArgs::new(&get_vk_hash.name, U256::from(AIRBENDER_PLONK_VERIFIER_TYPE))
+                    .for_contract(verifier_address, &self.functions.verifier_contract)
+                    .call_with_function((*self.eth_client).as_ref(), function.clone())
+                    .await
+                    .ok();
+            Ok(vk_hash)
+        } else {
+            Ok(None)
+        }
+    }
+
     #[tracing::instrument(skip_all, name = "EthTxAggregator::loop_iteration")]
     async fn loop_iteration(
         &mut self,
@@ -795,10 +826,18 @@ impl EthTxAggregator {
                 tracing::error!("Failed to get FFLONK VK hash from the Verifier {err:?}");
                 err
             })?;
+        let airbender_snark_wrapper_vk_hash = self
+            .get_airbender_snark_wrapper_vk_hash(verifier_address)
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get Airbender VK hash from the Verifier {err:?}");
+                err
+            })?;
 
         let l1_verifier_config = L1VerifierConfig {
             snark_wrapper_vk_hash,
             fflonk_snark_wrapper_vk_hash,
+            airbender_snark_wrapper_vk_hash,
         };
 
         let priority_tree_start_index =

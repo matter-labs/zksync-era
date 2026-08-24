@@ -18,7 +18,7 @@ use zksync_types::{
 };
 
 use crate::{
-    tests::client::{CtmGeneration, MockEthClient},
+    tests::client::{airbender_vk_hash_of, CtmGeneration, MockEthClient},
     EthWatch, ZkSyncExtentionEthClient,
 };
 
@@ -432,6 +432,15 @@ async fn test_verifier_from_ctm_event_is_used_for_vk_hashes() {
         db_version.l1_verifier_config.snark_wrapper_vk_hash,
         address_to_h256(&verifier)
     );
+    // The Airbender key must come from the same CTM-announced verifier: reading it from
+    // `upgrade.verifier_address` leaves it unset, and `apply_upgrade` then carries the previous
+    // generation's key into the new patch.
+    assert_eq!(
+        db_version
+            .l1_verifier_config
+            .airbender_snark_wrapper_vk_hash,
+        Some(airbender_vk_hash_of(verifier))
+    );
 }
 
 /// Legacy CTMs have no `NewProtocolVersionVerifier` event, so the verifier embedded in the upgrade
@@ -478,6 +487,12 @@ async fn test_verifier_from_upgrade_data_is_used_for_vk_hashes_on_legacy_ctm() {
     assert_eq!(
         db_version.l1_verifier_config.snark_wrapper_vk_hash,
         address_to_h256(&verifier)
+    );
+    assert_eq!(
+        db_version
+            .l1_verifier_config
+            .airbender_snark_wrapper_vk_hash,
+        Some(airbender_vk_hash_of(verifier))
     );
 }
 

@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO airbender_proof_generation_details (\n                l1_batch_number, status, created_at, updated_at, prover_taken_at,\n                attempts, protocol_version, protocol_version_patch\n            )\n            SELECT\n                l.number,\n                $1,\n                NOW(),\n                NOW(),\n                NOW(),\n                1,\n                l.protocol_version,\n                prover_patch.patch\n            FROM l1_batches l\n            JOIN proof_generation_details p ON p.l1_batch_number = l.number\n            JOIN LATERAL (\n                SELECT pp.patch\n                FROM protocol_patches pp\n                WHERE\n                    pp.minor = l.protocol_version\n                    AND pp.airbender_snark_wrapper_vk_hash = $3\n                ORDER BY pp.patch DESC\n                LIMIT 1\n            ) prover_patch ON TRUE\n            LEFT JOIN LATERAL (\n                SELECT\n                    apgd.protocol_version AS minor,\n                    apgd.protocol_version_patch AS patch\n                FROM airbender_proof_generation_details apgd\n                WHERE apgd.protocol_version IS NOT NULL\n                ORDER BY apgd.protocol_version DESC, apgd.protocol_version_patch DESC\n                LIMIT 1\n            ) version_floor ON TRUE\n            WHERE\n                l.number = COALESCE(\n                    (\n                        SELECT GREATEST(assigned.highest + 1, $2, 1::BIGINT)\n                        FROM (\n                            SELECT MAX(l1_batch_number) AS highest\n                            FROM airbender_proof_generation_details\n                        ) assigned\n                        WHERE assigned.highest IS NOT NULL\n                    ),\n                    (\n                        SELECT MIN(number)\n                        FROM l1_batches\n                        WHERE number >= GREATEST($2, 1::BIGINT)\n                    )\n                )\n                AND p.vm_run_data_blob_url IS NOT NULL\n                AND p.proof_gen_data_blob_url IS NOT NULL\n                AND (l.protocol_version, prover_patch.patch)\n                >= (COALESCE(version_floor.minor, 0), COALESCE(version_floor.patch, 0))\n            ON CONFLICT (l1_batch_number) DO NOTHING\n            RETURNING l1_batch_number,\n            created_at,\n            protocol_version AS \"protocol_version!\",\n            protocol_version_patch\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 2,
+        "name": "protocol_version!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "protocol_version_patch",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "d7a6d341d881419530375bed740e6fbe16125cce49da867e7b9c2c8f2d67d35b"
+}

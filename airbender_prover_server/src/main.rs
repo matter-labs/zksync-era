@@ -136,8 +136,10 @@ struct Cli {
 
     /// Path to the committed SNARK VK JSON. Defaults to the vendored
     /// `vks/snark_vk.json`; the server never derives it on the fly. Regenerate
-    /// with `eravm-prover-host gen-vks` when the guest changes. Only consumed in
-    /// `fri-snark` / `snark-only` modes.
+    /// with `eravm-prover-host gen-vks` when the guest changes. Required in
+    /// every mode: besides wrapping in `fri-snark` / `snark-only`, its keccak
+    /// hash is the prover's identity towards the job server, so a `fri-only`
+    /// prover needs it too.
     #[arg(long, env = "SNARK_VK", default_value_os_t = default_snark_vk_path())]
     snark_vk: PathBuf,
 
@@ -169,6 +171,20 @@ fn main() -> Result<()> {
 
     let dist_dir = cli.guest_dist_dir.clone().unwrap_or_else(default_dist_dir);
     let security = SecurityLevel::default();
+
+    // The prover identifies itself to job servers by the keccak hash of its SNARK-wrapper VK
+    // (the same hash the L1 verifier exposes). The wrapper VK commits to the wrapped guest
+    // program, so this one hash pins the whole prover release; the server maps it back to the
+    // protocol versions this prover can prove. Loaded in every mode — FRI-only provers report
+    // the same hash, since their FRI proofs are destined for this wrapper. Computed before the
+    // provers are built so a missing/corrupt VK file fails fast, ahead of GPU initialization.
+    let snark_wrapper_vk_hash = {
+        let snark_vk = load_snark_vk(&cli.snark_vk)?;
+        let hash = zkos_wrapper::calculate_verification_key_hash(snark_vk);
+        // `Debug` on `H256` prints the full 0x-prefixed hex (`Display` truncates).
+        format!("{hash:?}")
+    };
+    info!(snark_wrapper_vk_hash, "Computed SNARK-wrapper VK hash");
 
     let prover_builder = build_prover(&cli, &dist_dir, security)?;
 
@@ -224,6 +240,7 @@ fn main() -> Result<()> {
             JobServerClient::new(
                 server_index,
                 cli.prover_id.clone(),
+                snark_wrapper_vk_hash.clone(),
                 cli.submit_attempts,
                 server_url.clone(),
                 Duration::from_millis(cli.http_connect_timeout_ms),

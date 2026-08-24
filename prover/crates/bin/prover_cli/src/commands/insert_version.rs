@@ -52,6 +52,8 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
             L1VerifierConfig {
                 snark_wrapper_vk_hash,
                 fflonk_snark_wrapper_vk_hash: Some(fflonk_snark_wrapper_vk_hash),
+                // The Boojum prover subsystem doesn't deal with Airbender keys.
+                airbender_snark_wrapper_vk_hash: None,
             },
         )
         .await

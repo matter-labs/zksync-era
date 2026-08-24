@@ -395,6 +395,7 @@ impl ProtocolVersion {
         upgrade: ProtocolUpgrade,
         new_snark_wrapper_vk_hash: Option<H256>,
         new_fflonk_snark_wrapper_vk_hash: Option<H256>,
+        new_airbender_snark_wrapper_vk_hash: Option<H256>,
     ) -> ProtocolVersion {
         ProtocolVersion {
             version: upgrade.version,
@@ -404,6 +405,8 @@ impl ProtocolVersion {
                     .unwrap_or(self.l1_verifier_config.snark_wrapper_vk_hash),
                 fflonk_snark_wrapper_vk_hash: new_fflonk_snark_wrapper_vk_hash
                     .or(self.l1_verifier_config.fflonk_snark_wrapper_vk_hash),
+                airbender_snark_wrapper_vk_hash: new_airbender_snark_wrapper_vk_hash
+                    .or(self.l1_verifier_config.airbender_snark_wrapper_vk_hash),
             },
             base_system_contracts_hashes: BaseSystemContractsHashes {
                 bootloader: upgrade

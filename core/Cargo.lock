@@ -14320,6 +14320,7 @@ dependencies = [
  "bincode",
  "hex",
  "itertools 0.13.0",
+ "serde_json",
  "test-log",
  "thiserror 2.0.12",
  "tokio",

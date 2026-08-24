@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_airbender_proof_generation_details_version_floor;
