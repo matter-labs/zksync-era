@@ -1,3 +1,8 @@
+// `BlockAuxilaryOutputWitness`'s serde impls are generated under `generic_const_exprs`; naming
+// them here re-checks their const expressions, which needs the gate.
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
+
 use std::env;
 
 pub use circuit_definitions;
