@@ -47,6 +47,13 @@ ignore = [
   # ^0.39.2, and bumping it pulls in crates requiring Rust 1.88 which our nightly toolchain lacks).
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
+  # `ruint` <1.20.0 returns wrong overflow flags from `overflowing_shl`/`overflowing_shr`
+  # (and thus from `checked_*`/`strict_*`/`saturating_*`), plus a `to_base_be` infinite loop on
+  # no-alloc builds. The fix requires ruint >=1.20.0, which needs Rust 1.90 while we pin
+  # nightly-2025-03-19. `ruint` is only transitive here (alloy-primitives, celestia-types,
+  # nybbles); we call none of the affected shift APIs ourselves and build with alloc, so the
+  # DoS path is unreachable. Revisit when the toolchain is bumped.
+  "RUSTSEC-2026-0220",
 ]
 
 [licenses]
