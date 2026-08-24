@@ -26,7 +26,6 @@ const MAX_SOURCE_COUNT: usize = 512;
 const MAX_SOURCE_PATH_BYTES: usize = 256;
 const MAX_SOURCE_BYTES: usize = 512 * 1024;
 const MAX_TOTAL_SOURCE_BYTES: usize = 3 * 1024 * 1024;
-const MAX_OPTIMIZER_RUNS: u32 = 1_000_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompilerFlavor {
@@ -54,10 +53,12 @@ pub(crate) struct Settings {
     pub libraries: Option<HashMap<String, HashMap<String, String>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evm_version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "viaIR", skip_serializing_if = "Option::is_none")]
     pub via_ir: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub debug: Option<DebugSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub codegen: Option<String>,
 
@@ -101,6 +102,9 @@ fn is_none_or_false(value: &Option<bool>) -> bool {
 pub(crate) struct Optimizer {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
+    /// Solidity uses this as a code-size / runtime-cost weighting, not as an optimizer iteration
+    /// count. The `u32` wire type is therefore the useful bound; a smaller ceiling only prevents
+    /// reproducing otherwise ordinary builds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub runs: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -133,6 +137,22 @@ pub(crate) struct Metadata {
     pub(crate) append_cbor: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) use_literal_content: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct DebugSettings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    revert_strings: Option<RevertStrings>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum RevertStrings {
+    Default,
+    Strip,
+    Debug,
+    VerboseDebug,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -268,10 +288,11 @@ impl Settings {
         .into_iter()
         .filter_map(|(name, value)| value.is_some().then_some(name))
         .collect::<Vec<_>>();
-        if self.remappings.is_some() || !normalized_flags.is_empty() {
+        if self.remappings.is_some() || self.runs.is_some() || !normalized_flags.is_empty() {
             tracing::debug!(
                 ?normalized_flags,
                 has_remappings = self.remappings.is_some(),
+                has_legacy_optimizer_runs = self.runs.is_some(),
                 "erasing unsupported legacy compiler settings"
             );
         }
@@ -280,11 +301,6 @@ impl Settings {
         {
             return Err(ContractVerifierError::UnsupportedVerificationInput(
                 "system compilation modes require zksolc".to_owned(),
-            ));
-        }
-        if self.runs.is_some_and(|runs| runs > MAX_OPTIMIZER_RUNS) {
-            return Err(ContractVerifierError::UnsupportedVerificationInput(
-                "optimizer runs exceeds the allowed limit".to_owned(),
             ));
         }
         if let (Some(enabled), Some(optimizer_enabled)) = (
@@ -380,11 +396,6 @@ fn merge_legacy_bool(
 
 impl Optimizer {
     fn validate(&self, flavor: CompilerFlavor) -> Result<(), ContractVerifierError> {
-        if self.runs.is_some_and(|runs| runs > MAX_OPTIMIZER_RUNS) {
-            return Err(ContractVerifierError::UnsupportedVerificationInput(
-                "optimizer runs exceeds the allowed limit".to_owned(),
-            ));
-        }
         if let Some(mode) = &self.mode {
             if flavor != CompilerFlavor::ZkSolc || !matches!(mode.as_str(), "3" | "z") {
                 return Err(ContractVerifierError::UnsupportedVerificationInput(
@@ -558,6 +569,7 @@ mod tests {
         for settings in [
             serde_json::json!({ "LLVMOptions": ["--exec-on-ir-change=/bin/sh"] }),
             serde_json::json!({ "llvmOptions": ["--exec-on-ir-change=/bin/sh"] }),
+            serde_json::json!({ "viaIr": true }),
             serde_json::json!({ "optimizer": { "details": {} } }),
         ] {
             let input = serde_json::json!({
@@ -646,6 +658,73 @@ mod tests {
         let serialized = serde_json::to_value(solc_input).unwrap();
         assert_eq!(serialized["settings"]["metadata"]["bytecodeHash"], "none");
         assert!(serialized["settings"]["metadata"].get("hashType").is_none());
+    }
+
+    #[test]
+    fn accepts_canonical_via_ir_setting() {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": { "Counter.sol": { "content": "contract Counter {}" } },
+            "settings": { "viaIR": true },
+        });
+        let input =
+            parse_standard_json_input(input.as_object().unwrap().clone(), CompilerFlavor::ZkSolc)
+                .unwrap();
+
+        let serialized = serde_json::to_value(input).unwrap();
+        assert_eq!(serialized["settings"]["viaIR"], true);
+        assert!(serialized["settings"].get("viaIr").is_none());
+    }
+
+    #[test]
+    fn accepts_standard_debug_revert_string_modes() {
+        for revert_strings in ["default", "strip", "debug", "verboseDebug"] {
+            let input = serde_json::json!({
+                "language": "Solidity",
+                "sources": { "Counter.sol": { "content": "contract Counter {}" } },
+                "settings": { "debug": { "revertStrings": revert_strings } },
+            });
+            let input =
+                parse_standard_json_input(input.as_object().unwrap().clone(), CompilerFlavor::Solc)
+                    .unwrap();
+
+            let serialized = serde_json::to_value(input).unwrap();
+            assert_eq!(
+                serialized["settings"]["debug"]["revertStrings"],
+                revert_strings
+            );
+        }
+
+        for debug in [
+            serde_json::json!({ "revertStrings": "arbitrary" }),
+            serde_json::json!({ "unexpected": true }),
+        ] {
+            let input = serde_json::json!({
+                "language": "Solidity",
+                "sources": { "Counter.sol": { "content": "contract Counter {}" } },
+                "settings": { "debug": debug },
+            });
+            assert!(parse_standard_json_input(
+                input.as_object().unwrap().clone(),
+                CompilerFlavor::Solc,
+            )
+            .is_err());
+        }
+    }
+
+    #[test]
+    fn accepts_full_u32_optimizer_runs_range() {
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": { "Counter.sol": { "content": "contract Counter {}" } },
+            "settings": { "optimizer": { "enabled": true, "runs": u32::MAX } },
+        });
+
+        let input =
+            parse_standard_json_input(input.as_object().unwrap().clone(), CompilerFlavor::Solc)
+                .unwrap();
+        let serialized = serde_json::to_value(input).unwrap();
+        assert_eq!(serialized["settings"]["optimizer"]["runs"], u32::MAX);
     }
 
     #[test]

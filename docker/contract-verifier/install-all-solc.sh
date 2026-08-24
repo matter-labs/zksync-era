@@ -32,6 +32,8 @@ done
 # Recent ZKsync solc forks used by current zksolc releases. These checksums are pinned from the
 # immutable GitHub release assets so image rebuilds cannot silently pick up changed binaries.
 recent_list=(
+  "0.8.29-1.0.1:b57887d5a0adcb9419f65bf65092664f514522fba69f3c5a36d2bad105e02d53"
+  "0.8.30-1.0.1:4722097f68a6489a75c93ec3cd314314b8faaedb6a2574332ba2ab7f0c957f5c"
   "0.8.22-1.0.2:c72042d546d73dd470471a7a7ff9eeb3ff2113bd3a7eb0afcf8ab92b036b42c9"
   "0.8.23-1.0.2:68ac9751cb62fe3c4c3365acdd07b569201929a7e7a7cdd0f740719fdcf5b106"
   "0.8.24-1.0.2:473508dc7108adf75bdc84325d57b19edde3f2cdf28f564a3086bd00e4a36871"
