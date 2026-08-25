@@ -226,7 +226,7 @@ impl Nibbles {
         let mut child = self;
         child.nibble_count += 1;
         let last_byte_idx = self.nibble_count / 2;
-        if child.nibble_count % 2 == 0 {
+        if child.nibble_count.is_multiple_of(2) {
             // The new `nibble` is 4 lower bits
             child.bytes[last_byte_idx] += nibble;
         } else {

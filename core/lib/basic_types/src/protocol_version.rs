@@ -292,6 +292,11 @@ pub struct L1VerifierConfig {
     )]
     pub snark_wrapper_vk_hash: H256,
     pub fflonk_snark_wrapper_vk_hash: Option<H256>,
+    /// Hash of the Airbender SNARK-wrapper verification key. The wrapper VK also commits to the
+    /// wrapped RISC-V guest program, so this hash identifies a whole prover release: provers report
+    /// it when asking for jobs and the server maps it back to the versions they can prove.
+    #[serde(default)]
+    pub airbender_snark_wrapper_vk_hash: Option<H256>,
 }
 
 impl From<ProtocolVersionId> for VmVersion {
@@ -469,9 +474,10 @@ mod tests {
         let ser = L1VerifierConfig {
             snark_wrapper_vk_hash: H256::repeat_byte(0x11),
             fflonk_snark_wrapper_vk_hash: Some(H256::repeat_byte(0x11)),
+            airbender_snark_wrapper_vk_hash: Some(H256::repeat_byte(0x11)),
         };
         let ser_str = serde_json::to_string(&ser).unwrap();
-        let expected_str = r#"{"recursion_scheduler_level_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111","fflonk_snark_wrapper_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111"}"#;
+        let expected_str = r#"{"recursion_scheduler_level_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111","fflonk_snark_wrapper_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111","airbender_snark_wrapper_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111"}"#;
         assert_eq!(ser_str, expected_str);
     }
 }

@@ -107,7 +107,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             .get_l2_to_l1_logs_by_hashes(hashes)
             .await?;
 
-        for (receipt, block_timestamp) in receipts.iter_mut().zip(block_timestamps.into_iter()) {
+        for (receipt, block_timestamp) in receipts.iter_mut().zip(block_timestamps) {
             let receipt = &mut receipt.inner;
             let logs_for_tx = logs.remove(&receipt.transaction_hash);
 

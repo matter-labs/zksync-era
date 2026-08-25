@@ -252,7 +252,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
             .expect("Failed to encode the calldata");
 
         // Padding input to be divisible by 32
-        while input.len() % 32 != 0 {
+        while !input.len().is_multiple_of(32) {
             input.push(0);
         }
         input

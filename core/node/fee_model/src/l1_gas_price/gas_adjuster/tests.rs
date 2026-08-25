@@ -78,7 +78,7 @@ fn test_config() -> GasAdjusterConfig {
 }
 
 /// Helper function to read a value from adjuster
-fn read<T>(statistics: &GasStatistics<T>) -> RwLockReadGuard<GasStatisticsInner<T>> {
+fn read<T>(statistics: &GasStatistics<T>) -> RwLockReadGuard<'_, GasStatisticsInner<T>> {
     statistics.0.read().unwrap()
 }
 

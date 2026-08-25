@@ -52,10 +52,17 @@ jobs:
         working-directory: ./before
 
       - name: build before.binpb
-        run: >
-          perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
-          `find ./before/core/target/debug/build/*/output`
-          | xargs cat > ./before.binpb
+        run: |
+          # Cargo before 1.99 wrote build-script stdout to `build/<pkg>-<hash>/output`; newer
+          # Cargo writes `build/<pkg>/<hash>/run/stdout`. `before` and `after` can be built with
+          # toolchains on either side of that change, so accept both layouts.
+          find ./before/core/target/debug/build -type f \( -name output -o -path '*/run/stdout' \) -print0 \
+            | xargs -0 -r perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/' \
+            | xargs -r cat > ./before.binpb
+          if [ ! -s ./before.binpb ]; then
+            echo "::error::no PROTOBUF_DESCRIPTOR entries found under ./before/core/target/debug/build"
+            exit 1
+          fi
 
       # after
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -69,10 +76,17 @@ jobs:
         working-directory: ./after
 
       - name: build after.binpb
-        run: >
-          perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/'
-          `find ./after/core/target/debug/build/*/output`
-          | xargs cat > ./after.binpb
+        run: |
+          # Cargo before 1.99 wrote build-script stdout to `build/<pkg>-<hash>/output`; newer
+          # Cargo writes `build/<pkg>/<hash>/run/stdout`. `before` and `after` can be built with
+          # toolchains on either side of that change, so accept both layouts.
+          find ./after/core/target/debug/build -type f \( -name output -o -path '*/run/stdout' \) -print0 \
+            | xargs -0 -r perl -ne 'print "$1\n" if /PROTOBUF_DESCRIPTOR="(.*)"/' \
+            | xargs -r cat > ./after.binpb
+          if [ ! -s ./after.binpb ]; then
+            echo "::error::no PROTOBUF_DESCRIPTOR entries found under ./after/core/target/debug/build"
+            exit 1
+          fi
 
       # compare
       - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0

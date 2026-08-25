@@ -12,7 +12,7 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 use zksync_object_store::{
-    Bucket, ObjectStore, ObjectStoreFactory, StoredObject, _reexports::BoxedError,
+    _reexports::BoxedError, Bucket, ObjectStore, ObjectStoreFactory, StoredObject,
 };
 use zksync_types::L1BatchNumber;
 

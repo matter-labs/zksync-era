@@ -911,13 +911,13 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.83"
+version = "0.1.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "721cae7de5c34fbb2acd27e21e6d2cf7b886dce0c27388d46c4e6c47ea4318dd"
+checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.104",
+ "syn 3.0.4",
 ]
 
 [[package]]
@@ -6592,6 +6592,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6275cddf4610d1775e6d1fe9469b2e77d0f39fd98fb7450901b821e0c53649f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "syn-solidity"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8104,7 +8115,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "31.4.0-non-semver-compat"
+version = "31.5.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8194,7 +8205,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "31.4.0-non-semver-compat"
+version = "31.5.0-non-semver-compat"
 dependencies = [
  "hex",
  "once_cell",
@@ -8206,7 +8217,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "31.4.0-non-semver-compat"
+version = "31.5.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2",
@@ -8222,7 +8233,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "31.4.0-non-semver-compat"
+version = "31.5.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8269,7 +8280,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "31.4.0-non-semver-compat"
+version = "31.5.0-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8277,7 +8288,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "31.4.0-non-semver-compat"
+version = "31.5.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8302,7 +8313,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "31.4.0-non-semver-compat"
+version = "31.5.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8312,7 +8323,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "31.4.0-non-semver-compat"
+version = "31.5.0-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",

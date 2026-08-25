@@ -3,3 +3,9 @@ l2_chain_id: 270
 fee_account: '0x0000000000000000000000000000000000000001'
 l1_batch_commit_data_generator_mode: Rollup
 custom_genesis_state_path: null
+prover:
+  # Identifies the Airbender prover release: provers report this hash when polling for jobs and
+  # only receive batches of protocol versions it is registered for. Must match the verifier
+  # release pinned in `airbender_prover_server/build.rs` and the `AirbenderVerifierPlonk` on L1;
+  # the prover logs it at startup as "Computed SNARK-wrapper VK hash".
+  airbender_snark_wrapper_vk_hash: '0xd8176dea8eb7277c3c7ac5c40bfce0b59cd6edfcaa9fff3b06cda5e4aebfdf4c'

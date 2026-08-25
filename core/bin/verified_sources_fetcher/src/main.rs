@@ -33,7 +33,7 @@ async fn main() {
         }
 
         std::fs::create_dir_all(&dir).unwrap();
-        let mut file = std::fs::File::create(format!("{}/request.json", &dir)).unwrap();
+        let mut file = std::fs::File::create(format!("{}/request.json", dir)).unwrap();
         file.write_all(serde_json::to_string_pretty(&req.req).unwrap().as_bytes())
             .unwrap();
 
@@ -48,19 +48,19 @@ async fn main() {
                 };
 
                 let mut file =
-                    std::fs::File::create(format!("{}/{}.sol", &dir, contact_name)).unwrap();
+                    std::fs::File::create(format!("{}/{}.sol", dir, contact_name)).unwrap();
                 file.write_all(content.as_bytes()).unwrap();
             }
             SourceCodeData::YulSingleFile(content) => {
                 let mut file =
-                    std::fs::File::create(format!("{}/{}.yul", &dir, req.req.contract_name))
+                    std::fs::File::create(format!("{}/{}.yul", dir, req.req.contract_name))
                         .unwrap();
                 file.write_all(content.as_bytes()).unwrap();
             }
             SourceCodeData::StandardJsonInput(input) => {
                 let sources = input.get("sources").unwrap().clone();
                 for (key, val) in sources.as_object().unwrap() {
-                    let p = format!("{}/{}", &dir, key);
+                    let p = format!("{}/{}", dir, key);
                     let path = std::path::Path::new(p.as_str());
                     let prefix = path.parent().unwrap();
                     std::fs::create_dir_all(prefix).unwrap();
@@ -71,7 +71,7 @@ async fn main() {
             }
             SourceCodeData::VyperMultiFile(sources) => {
                 for (key, content) in sources {
-                    let p = format!("{}/{}.vy", &dir, key);
+                    let p = format!("{}/{}.vy", dir, key);
                     let path = std::path::Path::new(p.as_str());
                     let prefix = path.parent().unwrap();
                     std::fs::create_dir_all(prefix).unwrap();

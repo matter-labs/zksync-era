@@ -184,6 +184,8 @@ impl EthWatch {
     }
 
     #[tracing::instrument(name = "EthWatch::loop_iteration", skip_all)]
+    // `EventProcessorError` is inherently large; boxing it would churn every processor.
+    #[allow(clippy::result_large_err)]
     async fn loop_iteration(
         &mut self,
         storage: &mut Connection<'_, Core>,

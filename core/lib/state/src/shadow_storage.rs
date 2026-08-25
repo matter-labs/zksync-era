@@ -60,11 +60,8 @@ impl<Ref: ReadStorage, Check: ReadStorage> ShadowStorage<Ref, Check> {
     }
 
     fn error_or_panic(&self, args: fmt::Arguments<'_>) {
-        if self.panic_on_divergence {
-            panic!("{args}");
-        } else {
-            tracing::error!(l1_batch_number = self.l1_batch_number.0, "{args}");
-        }
+        assert!(!self.panic_on_divergence, "{args}");
+        tracing::error!(l1_batch_number = self.l1_batch_number.0, "{args}");
     }
 }
 

@@ -309,7 +309,7 @@ async fn store_l1_batches(
         conn.transactions_dal()
             .mark_txs_as_executed_in_l2_block(
                 new_l2_block.number,
-                &[tx_result.clone()],
+                std::slice::from_ref(&tx_result),
                 1.into(),
                 ProtocolVersionId::latest(),
                 false,

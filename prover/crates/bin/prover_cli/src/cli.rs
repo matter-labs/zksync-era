@@ -1,4 +1,4 @@
-use clap::{command, Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use zksync_types::url::SensitiveUrl;
 
 use crate::commands::{

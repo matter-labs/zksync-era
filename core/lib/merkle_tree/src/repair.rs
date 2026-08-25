@@ -299,7 +299,7 @@ mod tests {
         // The task should work fine with future tree versions.
         for version in [0, 1, 100] {
             let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&db, version);
-            assert!(bogus_stale_keys.is_empty());
+            assert_eq!(bogus_stale_keys, []);
         }
 
         let kvs: Vec<_> = (0_u64..100)
@@ -308,7 +308,7 @@ mod tests {
         MerkleTree::new(&mut db).unwrap().extend(kvs).unwrap();
 
         let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&db, 0);
-        assert!(bogus_stale_keys.is_empty());
+        assert_eq!(bogus_stale_keys, []);
     }
 
     #[test]
@@ -318,7 +318,7 @@ mod tests {
         setup_tree_with_stale_keys(&mut db, true);
 
         let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&db, 1);
-        assert!(!bogus_stale_keys.is_empty());
+        assert_ne!(bogus_stale_keys, []);
 
         let (mut task, _handle) = StaleKeysRepairTask::new(db);
         task.parallelism = 10; // Ensure that all tree versions are checked at once.
@@ -336,7 +336,7 @@ mod tests {
             .unwrap();
 
         let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&task.db, 1);
-        assert!(bogus_stale_keys.is_empty());
+        assert_eq!(bogus_stale_keys, []);
         MerkleTree::new(&mut task.db)
             .unwrap()
             .verify_consistency(1, false)
@@ -372,6 +372,6 @@ mod tests {
         task_thread.join().unwrap().unwrap();
 
         let bogus_stale_keys = StaleKeysRepairTask::bogus_stale_keys(&db, 1);
-        assert!(bogus_stale_keys.is_empty());
+        assert_eq!(bogus_stale_keys, []);
     }
 }

@@ -147,7 +147,7 @@ impl Drop for CurrentBenchmark {
         let (min, max) = (observations[0], *observations.last().unwrap());
         self.metrics.min_timing[&self.labels].set(min);
         self.metrics.max_timing[&self.labels].set(max);
-        let median = if len % 2 == 0 {
+        let median = if len.is_multiple_of(2) {
             (observations[len / 2 - 1] + observations[len / 2]) / 2
         } else {
             observations[len / 2]

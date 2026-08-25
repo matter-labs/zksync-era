@@ -29,7 +29,7 @@ pub fn pubdata_to_blob_linear_hashes(
     blobs_required: usize,
     mut pubdata_input: Vec<u8>,
 ) -> Vec<H256> {
-    if pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB != 0 {
+    if !pubdata_input.len().is_multiple_of(ZK_SYNC_BYTES_PER_BLOB) {
         pubdata_input.resize(
             pubdata_input.len()
                 + (ZK_SYNC_BYTES_PER_BLOB - pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB),

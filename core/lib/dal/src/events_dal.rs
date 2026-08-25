@@ -499,7 +499,7 @@ mod tests {
             tx_hash: H256([2; 32]),
             tx_index_in_l2_block: 1,
         };
-        let second_events = vec![
+        let second_events = [
             create_vm_event(2, 2),
             create_vm_event(3, 3),
             create_vm_event(4, 4),

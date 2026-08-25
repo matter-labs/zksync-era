@@ -223,7 +223,7 @@ fn generate_state_diffs(
 // A valid zkEVM bytecode has odd number of 32 byte words
 fn get_valid_bytecode_length(length: usize) -> usize {
     // Firstly ensure that the length is divisible by 32
-    let length_padded_to_32 = if length % 32 == 0 {
+    let length_padded_to_32 = if length.is_multiple_of(32) {
         length
     } else {
         length + 32 - (length % 32)

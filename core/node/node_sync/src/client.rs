@@ -142,6 +142,7 @@ impl MainNodeClient for Box<DynClient<L2>> {
             l2_chain_id: dto.l2_chain_id,
             snark_wrapper_vk_hash: dto.snark_wrapper_vk_hash,
             fflonk_snark_wrapper_vk_hash: dto.fflonk_snark_wrapper_vk_hash,
+            airbender_snark_wrapper_vk_hash: dto.airbender_snark_wrapper_vk_hash,
             fee_account: dto.fee_account,
             dummy_verifier: dto.dummy_verifier,
             l1_batch_commit_data_generator_mode: dto.l1_batch_commit_data_generator_mode,

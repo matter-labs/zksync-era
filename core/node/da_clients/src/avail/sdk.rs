@@ -492,7 +492,7 @@ impl GasRelayClient {
     }
 
     pub(crate) async fn post_data(&self, data: Vec<u8>) -> anyhow::Result<String> {
-        let submit_url = format!("{}/v1/submit_raw_data", &self.api_url);
+        let submit_url = format!("{}/v1/submit_raw_data", self.api_url);
         // send the data to the gas relay
         let submit_response = self
             .api_client

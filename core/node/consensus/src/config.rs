@@ -52,11 +52,12 @@ impl GenesisSpec {
     }
 
     pub(super) fn parse(x: &configs::consensus::GenesisSpec) -> anyhow::Result<Self> {
-        let schedule = if x.validators.is_empty() || x.leader.is_none() {
+        let leader = if x.validators.is_empty() {
             None
         } else {
-            let leader = x.leader.as_ref().unwrap(); // safe to unwrap because of the check above
-
+            x.leader.as_ref()
+        };
+        let schedule = if let Some(leader) = leader {
             let validators: Vec<_> = x
                 .validators
                 .iter()
@@ -75,6 +76,8 @@ impl GenesisSpec {
                 validator::Schedule::new(validators, validator::LeaderSelection::default())
                     .context("schedule")?,
             )
+        } else {
+            None
         };
 
         anyhow::ensure!(

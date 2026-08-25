@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            airbender_proof_generation_details (\n                l1_batch_number, status, created_at, updated_at, prover_taken_at,\n                attempts, protocol_version, protocol_version_patch\n            )\n            VALUES\n            ($1, $2, NOW(), NOW(), NOW(), 1, $3, $4)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b12edf59ef63190e2e3cf7f61cc8323dd975196197e46ecacc7081478b930377"
+}

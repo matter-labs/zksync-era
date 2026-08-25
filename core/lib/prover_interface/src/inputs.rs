@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use zksync_object_store::{Bucket, StoredObject, _reexports::BoxedError};
+use zksync_object_store::{_reexports::BoxedError, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs, witness_block_state::WitnessStorageState, L1BatchId,
     L1BatchNumber, ProtocolVersionId, H256, U256,

@@ -17,16 +17,11 @@ use crate::utils::{Fallback, ZERO_TO_ONE};
 ///  - `V2`, the second model that was used in ZKsync Era. There the pubdata price might be independent from the L1 gas price. Also,
 ///    The fair L2 gas price is expected to both the proving/computation price for the operator and the costs that come from
 ///    processing the batch on L1.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum FeeModelVersion {
+    #[default]
     V1,
     V2,
-}
-
-impl Default for FeeModelVersion {
-    fn default() -> Self {
-        Self::V1
-    }
 }
 
 /// Part of the state keeper configuration shared between the main and external nodes.

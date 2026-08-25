@@ -64,7 +64,7 @@ impl<V> SmallMap<V> {
     }
 
     pub fn last(&self) -> Option<(u8, &V)> {
-        let greatest_set_bit = (u16::BITS - self.bitmap.leading_zeros()).checked_sub(1)?;
+        let greatest_set_bit = self.bitmap.bit_width().checked_sub(1)?;
         let greatest_set_bit = u8::try_from(greatest_set_bit).unwrap();
         // ^ `unwrap()` is safe by construction: `greatest_set_bit <= 15`.
         Some((greatest_set_bit, self.values.last()?))

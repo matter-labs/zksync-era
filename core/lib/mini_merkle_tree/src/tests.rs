@@ -151,7 +151,7 @@ fn verify_merkle_proof(
 
     let mut hash = KeccakHasher.hash_bytes(item);
     for path_item in merkle_path {
-        let (lhs, rhs) = if index % 2 == 0 {
+        let (lhs, rhs) = if index.is_multiple_of(2) {
             (&hash, path_item)
         } else {
             (path_item, &hash)

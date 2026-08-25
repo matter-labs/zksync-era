@@ -58,7 +58,7 @@ fn compose_header_for_l1_commit_rollup(input: PubdataInput) -> Vec<u8> {
 
     // Now, we need to calculate the linear hashes of the blobs.
     // Firstly, let's pad the pubdata to the size of the blob.
-    if full_pubdata.len() % ZK_SYNC_BYTES_PER_BLOB != 0 {
+    if !full_pubdata.len().is_multiple_of(ZK_SYNC_BYTES_PER_BLOB) {
         full_pubdata.resize(
             full_pubdata.len() + ZK_SYNC_BYTES_PER_BLOB
                 - full_pubdata.len() % ZK_SYNC_BYTES_PER_BLOB,

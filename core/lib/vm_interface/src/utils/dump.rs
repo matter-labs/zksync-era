@@ -171,7 +171,7 @@ impl<S, Vm> AsMut<Vm> for DumpingVm<S, Vm> {
 impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
     type TracerDispatcher = Vm::TracerDispatcher;
 
-    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.record_transaction(tx.clone());
         self.inner.push_transaction(tx)
     }
@@ -201,7 +201,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
         tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.record_transaction(tx.clone());
         self.inner
             .inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)

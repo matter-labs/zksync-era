@@ -1,6 +1,9 @@
 #![deny(unused_crate_dependencies)]
 #![warn(unused_extern_crates)]
 #![warn(unused_imports)]
+// The historical VM versions are frozen; dead stores in them are left as-is rather than
+// touching code that must keep reproducing past execution exactly.
+#![allow(unused_assignments)]
 
 pub use circuit_sequencer_api as circuit_sequencer_api_latest;
 pub use zk_evm_1_5_2 as zk_evm_latest;

@@ -106,6 +106,8 @@ pub(crate) async fn run() -> anyhow::Result<()> {
     let node_l1_verifier_config = L1VerifierConfig {
         snark_wrapper_vk_hash: node_verification_key_hash,
         fflonk_snark_wrapper_vk_hash: fflonk_verification_key_hash,
+        // The Boojum prover CLI doesn't deal with Airbender keys.
+        airbender_snark_wrapper_vk_hash: None,
     };
 
     let prover_connection_pool = ConnectionPool::<Prover>::builder(

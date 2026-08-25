@@ -25,6 +25,8 @@ pub struct PersistedGenesisProverConfig {
     #[serde(alias = "recursion_scheduler_level_vk_hash")]
     snark_wrapper_vk_hash: H256,
     fflonk_snark_wrapper_vk_hash: Option<H256>,
+    #[serde(default)]
+    airbender_snark_wrapper_vk_hash: Option<H256>,
     dummy_verifier: bool,
 }
 
@@ -83,6 +85,7 @@ impl TryFrom<GenesisConfig> for PersistedGenesisConfig {
                 dummy_verifier: config.dummy_verifier,
                 snark_wrapper_vk_hash: config.snark_wrapper_vk_hash,
                 fflonk_snark_wrapper_vk_hash: config.fflonk_snark_wrapper_vk_hash,
+                airbender_snark_wrapper_vk_hash: config.airbender_snark_wrapper_vk_hash,
             },
         })
     }
@@ -121,6 +124,7 @@ impl TryFrom<PersistedGenesisConfig> for GenesisConfig {
             dummy_verifier: config.prover.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.l1_batch_commit_data_generator_mode,
             fflonk_snark_wrapper_vk_hash: config.prover.fflonk_snark_wrapper_vk_hash,
+            airbender_snark_wrapper_vk_hash: config.prover.airbender_snark_wrapper_vk_hash,
             custom_genesis_state_path: config.custom_genesis_state_path,
         })
     }
@@ -142,6 +146,7 @@ pub struct GenesisConfig {
     pub l2_chain_id: L2ChainId,
     pub snark_wrapper_vk_hash: H256,
     pub fflonk_snark_wrapper_vk_hash: Option<H256>,
+    pub airbender_snark_wrapper_vk_hash: Option<H256>,
     pub fee_account: Address,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
@@ -155,6 +160,7 @@ impl GenesisConfig {
             rollup_last_leaf_index: Some(26),
             snark_wrapper_vk_hash: H256::repeat_byte(0x02),
             fflonk_snark_wrapper_vk_hash: Default::default(),
+            airbender_snark_wrapper_vk_hash: Default::default(),
             fee_account: Default::default(),
             genesis_commitment: Some(H256::repeat_byte(0x17)),
             bootloader_hash: Default::default(),
@@ -269,6 +275,7 @@ mod tests {
             dummy_verifier: true,
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             fflonk_snark_wrapper_vk_hash: Some(H256::repeat_byte(0xef)),
+            airbender_snark_wrapper_vk_hash: Some(H256::repeat_byte(0xab)),
             custom_genesis_state_path: Some("/db/genesis".to_owned()),
         }
     }
@@ -290,6 +297,7 @@ mod tests {
               dummy_verifier: true
               snark_wrapper_vk_hash: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
               fflonk_snark_wrapper_vk_hash: 0xefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef
+              airbender_snark_wrapper_vk_hash: 0xabababababababababababababababababababababababababababababababab
             genesis_protocol_semantic_version: 0.25.0
             l1_batch_commit_data_generator_mode: Rollup
             custom_genesis_state_path: "/db/genesis"

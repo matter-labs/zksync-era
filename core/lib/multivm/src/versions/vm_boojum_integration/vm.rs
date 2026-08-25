@@ -88,7 +88,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::VmBoojumIntegration>;
 
-    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.push_transaction_with_compression(tx, true);
         PushTransactionResult {
             compressed_bytecodes: self

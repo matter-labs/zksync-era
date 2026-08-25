@@ -49,13 +49,13 @@ pub fn validate_bytecode(code: &[u8]) -> Result<(), InvalidBytecodeError> {
         ));
     }
 
-    if bytecode_len % 32 != 0 {
+    if !bytecode_len.is_multiple_of(32) {
         return Err(InvalidBytecodeError::BytecodeLengthIsNotDivisibleBy32);
     }
 
     let bytecode_len_words = bytecode_len / 32;
 
-    if bytecode_len_words % 2 == 0 {
+    if bytecode_len_words.is_multiple_of(2) {
         return Err(InvalidBytecodeError::BytecodeLengthInWordsIsEven);
     }
 

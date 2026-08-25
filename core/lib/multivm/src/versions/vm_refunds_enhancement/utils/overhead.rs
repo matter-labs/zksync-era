@@ -271,11 +271,7 @@ mod tests {
         encoded_len: usize,
         coefficients: OverheadCoefficients,
     ) -> u32 {
-        let mut left_bound = if MAX_TX_ERGS_LIMIT < total_gas_limit {
-            total_gas_limit - MAX_TX_ERGS_LIMIT
-        } else {
-            0u32
-        };
+        let mut left_bound = total_gas_limit.saturating_sub(MAX_TX_ERGS_LIMIT);
         // Safe cast: the `gas_limit` for a transaction can not be larger than `2^32`
         let mut right_bound = total_gas_limit;
 

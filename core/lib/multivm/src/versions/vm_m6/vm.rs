@@ -72,7 +72,7 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
 impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher;
 
-    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         let compressed_bytecodes =
             crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
                 &mut self.vm,

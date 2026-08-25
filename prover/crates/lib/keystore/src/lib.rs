@@ -1,4 +1,4 @@
-#![feature(allocator_api, generic_const_exprs)]
+#![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
 use serde::{Deserialize, Serialize};

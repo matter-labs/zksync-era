@@ -275,7 +275,7 @@ fn proving_keys_existence_and_absence() {
     let (op, merkle_path) = updater.prove(&mut hasher, FIRST_KEY, &Nibbles::EMPTY);
     assert_matches!(op, TreeLogEntry::Read { .. });
     let merkle_path = finalize_merkle_path(merkle_path, &hasher);
-    assert!(merkle_path.is_empty()); // all adjacent hashes correspond to empty subtrees
+    assert_eq!(merkle_path, []); // all adjacent hashes correspond to empty subtrees
 
     let (op, merkle_path) = updater.prove(&mut hasher, SECOND_KEY, &Nibbles::EMPTY);
     assert_matches!(op, TreeLogEntry::ReadMissingKey);
@@ -420,7 +420,7 @@ fn replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs: boo
         .collect();
     let (_, patch) = storage.extend(kvs);
 
-    assert!(patch.stale_keys_by_version[&0].is_empty());
+    assert_eq!(patch.stale_keys_by_version[&0], []);
     database.apply_patch(patch).unwrap();
 
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
