@@ -1,5 +1,29 @@
 # Changelog
 
+## [26.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.3.0...prover-v26.0.0) (2026-08-25)
+
+
+### Features
+
+* bump zksync-protocol to v0.153.15 and rustc to nightly-2026-08-09 ([#4936](https://github.com/matter-labs/zksync-era/issues/4936)) ([ff5f519](https://github.com/matter-labs/zksync-era/commit/ff5f519b11cff863edcfa0f75af10fea113806b0))
+* Draft v31 ([#4608](https://github.com/matter-labs/zksync-era/issues/4608)) ([a2d815b](https://github.com/matter-labs/zksync-era/commit/a2d815b7971f3a191e805817ad3d43508f33c831))
+* **multivm:** Cycles Tracer ([#4889](https://github.com/matter-labs/zksync-era/issues/4889)) ([6d498bd](https://github.com/matter-labs/zksync-era/commit/6d498bd4bba1fcf7362e64088a9df60fc73b9900))
+* **protocol:** Protocol Upgrade 29.5 ([#4923](https://github.com/matter-labs/zksync-era/issues/4923)) ([f3c2f8e](https://github.com/matter-labs/zksync-era/commit/f3c2f8efdb1e3cd4ccf016678d816a8d33655042))
+* **prover:** key-based protocol version resolution for the airbender prover ([#4920](https://github.com/matter-labs/zksync-era/issues/4920)) ([1b68096](https://github.com/matter-labs/zksync-era/commit/1b6809680ec902b4515b1e1174c9a43e5cd9d059))
+* **prover:** Submit airbender proofs ([#4836](https://github.com/matter-labs/zksync-era/issues/4836)) ([c477e64](https://github.com/matter-labs/zksync-era/commit/c477e642e18043dbc2d5167e04f7256d43349d31))
+
+
+### Bug Fixes
+
+* add explicit timeouts to all reqwest HTTP clients + add lots of prover logs ([#4772](https://github.com/matter-labs/zksync-era/issues/4772)) ([ad7a55d](https://github.com/matter-labs/zksync-era/commit/ad7a55d8a4f4609a42ef1598a22aa6c1e4a72132))
+* automated protocol upgrade ([#4886](https://github.com/matter-labs/zksync-era/issues/4886)) ([b1c9a7f](https://github.com/matter-labs/zksync-era/commit/b1c9a7fd4cc3cf2c4acd4d2106ce01f0f1b8c3e0))
+* automated protocol upgrade for upgrade-circuit-divergency-before-v31 ([#4813](https://github.com/matter-labs/zksync-era/issues/4813)) ([799626f](https://github.com/matter-labs/zksync-era/commit/799626f85920f484624f2aab21852dba5f82d13e))
+
+
+### Miscellaneous Chores
+
+* **prover:** release 26.0.0 ([815a8e3](https://github.com/matter-labs/zksync-era/commit/815a8e3766ad070ed95e561cf8b8fd831bbf0a74))
+
 ## [25.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.2.0...prover-v25.3.0) (2026-04-10)
 
 
