@@ -1689,7 +1689,7 @@ dependencies = [
 
 [[package]]
 name = "eravm-prover-server"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "airbender-host",
  "anyhow",
@@ -1709,7 +1709,7 @@ dependencies = [
  "tracing",
  "zkos-wrapper",
  "zksync_airbender_verifier",
- "zksync_cli_utils 0.1.1",
+ "zksync_cli_utils 0.1.2",
  "zksync_prover_metrics",
 ]
 
@@ -6283,7 +6283,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_cli_utils"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "sentry",
@@ -6476,7 +6476,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_metrics"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "tokio",
