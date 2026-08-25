@@ -54,6 +54,16 @@ jobs:
           ci_run cargo run --manifest-path ./core/Cargo.toml \
             --package vm-benchmark --release --bin instruction_counts | tee base-opcodes
 
+      # `ci_run` is `docker compose exec zk`, which runs as root against a bind mount of
+      # the workspace, so the contracts build above rewrites the tracked artifacts under
+      # `contracts/l1-contracts/zkstack-out/` as root. The git commands below run as the
+      # unprivileged runner user and cannot replace them, which fails the submodule
+      # checkout. Same workaround as in ci-airbender-prover-e2e.yml.
+      - name: Reclaim workspace from the containerized contracts build
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}" || true
+
       - name: checkout PR
         run: |
           git checkout --force FETCH_HEAD
