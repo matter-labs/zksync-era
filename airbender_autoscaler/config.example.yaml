@@ -1,0 +1,58 @@
+# Airbender autoscaler configuration.
+#
+# Topology is a MANUAL choice: declare only `fri-snark` for combined mode
+# (recommended at <= ~3 GPUs), or `fri-only` + `snark-only` for split mode
+# (worth it at sustained 4+ busy GPUs). Switching topology = editing this
+# file; mixed fleets during the transition are safe once the prover-server
+# SNARK-lease fix is deployed.
+
+# Kubeconfig contexts in fill-priority order; scale-up fills the first
+# non-starved cluster, scale-down empties the last. Omit to use the
+# current context.
+clusters: [gke-prover-a]
+namespace: prover
+reconcile_interval: 20s
+
+# Start in dry-run: every decision is computed and logged, nothing is scaled.
+dry_run: true
+
+groups:
+    v31:
+        # Chains sharing guest binary + VKs; workers poll them round-robin.
+        compatibility_id: 'guest+vk hash, must match the queue reports'
+        chains:
+            - https://chain-1.example.com
+            - https://chain-2.example.com
+        # Hard budget across all deployments and clusters (single GPU card class).
+        max_gpus: 8
+        # p95 machine-request -> Running pod; also the Pending starvation threshold.
+        startup_p95: 8m
+        queue_staleness_limit: 5m
+        # Oldest-ready-job age that bypasses scale-up confirmation.
+        latency_slo: 4h
+
+        deployments:
+            # ---- combined topology (default) ----
+            fri-snark:
+                # Deployment name defaults to airbender-fri-snark-v31.
+                duration_p95: 20m # FRI (~10-15m) + GPU SNARK wrap, conservative
+                drain_window: 30m
+                min: 1 # one shared warm GPU across all chains of the group
+                max: 4
+                scale_up_confirmations: 2
+                scale_down_stabilization: 25m
+
+            # ---- split topology (comment out fri-snark, uncomment these) ----
+            # fri-only:
+            #   duration_p95: 15m
+            #   drain_window: 30m
+            #   min: 1
+            #   max: 6
+            #   scale_down_stabilization: 25m
+            # snark-only:
+            #   duration_p95: 4m # measure the GPU wrap once and update
+            #   drain_window: 10m
+            #   min: 0
+            #   scale_up_confirmations: 1 # pre-warm term already smooths this
+            #   max: 2
+            #   scale_down_stabilization: 12m

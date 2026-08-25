@@ -1,0 +1,25 @@
+# Standalone workspace: intentionally NOT part of the zksync-era cargo
+# workspaces and free of zksync_* dependencies, mirroring `airbender_prover_server`.
+[workspace]
+
+[package]
+name = "airbender-autoscaler"
+description = "From-scratch autoscaler for Airbender prover fleets: polls chain queue reports, plans replica counts with a drain-horizon policy, and scales Kubernetes deployments"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+humantime-serde = "1"
+k8s-openapi = { version = "0.24", features = ["v1_31"] }
+kube = { version = "0.99", default-features = false, features = ["client", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
