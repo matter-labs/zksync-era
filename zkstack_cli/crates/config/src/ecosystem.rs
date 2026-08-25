@@ -189,7 +189,7 @@ impl EcosystemConfig {
                 // with chain and we will find the ecosystem config somewhere in parent directories
                 let chain_config = ChainConfigInternal::read(shell, CONFIG_NAME)
                     .map_err(|err| EcosystemConfigFromFileError::InvalidConfig { source: err })?;
-                logger::info(format!("You are in a directory with chain config, default chain for execution has changed to {}", &chain_config.name));
+                logger::info(format!("You are in a directory with chain config, default chain for execution has changed to {}", chain_config.name));
 
                 let current_dir = shell.current_dir();
                 let Some(parent) = current_dir.parent() else {

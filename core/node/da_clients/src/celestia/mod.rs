@@ -3,10 +3,13 @@ mod sdk;
 
 pub use self::client::CelestiaClient;
 
+// Generated prost/tonic code returns large error enums by value.
+#[allow(clippy::result_large_err)]
 pub mod celestia_proto {
     include!("generated/celestia.blob.v1.rs");
 }
 
+#[allow(clippy::result_large_err)]
 pub mod cosmos {
     pub mod auth {
         include!("generated/cosmos.auth.v1beta1.rs");

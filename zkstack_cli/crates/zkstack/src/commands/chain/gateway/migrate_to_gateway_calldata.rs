@@ -319,7 +319,7 @@ pub(crate) async fn get_migrate_to_gateway_calls(
             crate::admin_functions::AdminScriptMode::OnlySave,
         )
         .await?;
-        result.extend(da_validator_encoding_result.calls.into_iter());
+        result.extend(da_validator_encoding_result.calls);
     }
 
     let is_validator_enabled = if get_minor_protocol_version(context.protocol_version)?

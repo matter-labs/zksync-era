@@ -35,15 +35,21 @@ pub struct JobServerClient {
     server_index: usize,
     server_url: String,
     prover_id: String,
+    /// 0x-prefixed hex hash of this prover's SNARK-wrapper VK, sent with every
+    /// job poll. The server maps it to the protocol versions this prover can
+    /// prove and only hands out matching batches.
+    snark_wrapper_vk_hash: String,
     submit_attempts: usize,
     poll_timeout: Duration,
     submit_timeout: Duration,
 }
 
 impl JobServerClient {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         server_index: usize,
         prover_id: String,
+        snark_wrapper_vk_hash: String,
         submit_attempts: usize,
         server_url: String,
         connection_timeout: Duration,
@@ -59,6 +65,7 @@ impl JobServerClient {
             server_index,
             server_url,
             prover_id,
+            snark_wrapper_vk_hash,
             submit_attempts,
             poll_timeout,
             submit_timeout,
@@ -216,15 +223,19 @@ impl JobServerClient {
         })
     }
 
-    /// POSTs to `path` and decodes the JSON body. Returns `None` on 204 No
-    /// Content. Unexpected statuses are logged and yield `None` (treated as
-    /// "no job available" so the caller backs off).
+    /// POSTs to `path` (carrying this prover's SNARK-wrapper VK hash, which the
+    /// server matches against protocol versions) and decodes the JSON body.
+    /// Returns `None` on 204 No Content. Unexpected statuses are logged and
+    /// yield `None` (treated as "no job available" so the caller backs off).
     fn poll_json<R: DeserializeOwned>(&self, path: &str, label: &str) -> Result<Option<R>> {
         let url = format!("{}{path}", self.server_url);
         let response = self
             .client
             .post(&url)
             .timeout(self.poll_timeout)
+            .json(&serde_json::json!({
+                "snark_wrapper_vk_hash": self.snark_wrapper_vk_hash,
+            }))
             .send()
             .with_context(|| format!("while polling {url}"))?;
         match response.status() {

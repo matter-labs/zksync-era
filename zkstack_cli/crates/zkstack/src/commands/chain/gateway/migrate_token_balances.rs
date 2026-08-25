@@ -559,7 +559,7 @@ async fn fetch_migration_events(
         .values()
         .map(|(_, _, tx_hash, asset_id)| (*asset_id, *tx_hash))
         .collect();
-    entries.sort_by(|(a, _), (b, _)| a.cmp(b));
+    entries.sort_by_key(|(a, _)| *a);
 
     let (asset_ids, tx_hashes): (Vec<[u8; 32]>, Vec<H256>) = entries.into_iter().unzip();
 

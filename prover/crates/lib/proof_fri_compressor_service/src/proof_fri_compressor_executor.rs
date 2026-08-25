@@ -35,12 +35,10 @@ impl ProofFriCompressorExecutor {
     ) -> [[u8; 32]; 4] {
         let mut array: [[u8; 32]; 4] = [[0; 32]; 4];
 
-        for i in 0..32 {
-            array[0][i] = aux_output_witness.l1_messages_linear_hash[i];
-            array[1][i] = aux_output_witness.rollup_state_diff_for_compression[i];
-            array[2][i] = aux_output_witness.bootloader_heap_initial_content[i];
-            array[3][i] = aux_output_witness.events_queue_state[i];
-        }
+        array[0] = aux_output_witness.l1_messages_linear_hash;
+        array[1] = aux_output_witness.rollup_state_diff_for_compression;
+        array[2] = aux_output_witness.bootloader_heap_initial_content;
+        array[3] = aux_output_witness.events_queue_state;
         array
     }
 }

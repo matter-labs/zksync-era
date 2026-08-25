@@ -781,18 +781,47 @@ impl Aggregator {
             .unwrap()
             .unwrap();
 
-        // `l1_verifier_config.recursion_scheduler_level_vk_hash` is a VK hash that L1 uses.
-        // We may have multiple versions with different verification keys, so we check only for proofs that use
-        // keys that correspond to one on L1.
-        let allowed_patch_versions = storage
-            .protocol_versions_dal()
-            .get_patch_versions_for_vk(minor_version, l1_verifier_config.snark_wrapper_vk_hash)
-            .await
-            .unwrap();
+        // We may have multiple versions with different verification keys, so we check only for
+        // proofs that use keys that correspond to one on L1 — the Boojum plonk VK hash for Boojum
+        // proofs, the Airbender SNARK-wrapper VK hash for Airbender proofs.
+        let (l1_vk_hash, allowed_patch_versions) = match prover {
+            ProverType::Boojum => {
+                let vk_hash = l1_verifier_config.snark_wrapper_vk_hash;
+                (
+                    vk_hash,
+                    storage
+                        .protocol_versions_dal()
+                        .get_patch_versions_for_vk(minor_version, vk_hash)
+                        .await
+                        .unwrap(),
+                )
+            }
+            ProverType::Airbender => {
+                let Some(airbender_vk_hash) = l1_verifier_config.airbender_snark_wrapper_vk_hash
+                else {
+                    tracing::warn!(
+                        "The L1 verifier does not expose an Airbender SNARK-wrapper VK; \
+                         cannot submit Airbender proofs"
+                    );
+                    return None;
+                };
+                (
+                    airbender_vk_hash,
+                    storage
+                        .protocol_versions_dal()
+                        .get_patch_versions_for_airbender_vk(minor_version, airbender_vk_hash)
+                        .await
+                        .unwrap(),
+                )
+            }
+        };
         if allowed_patch_versions.is_empty() {
+            // The hash is what an operator diffs against `protocol_patches` to see which prover
+            // generation L1 now expects, so keep it in the message: submission is stalled until a
+            // patch registers this key.
             tracing::warn!(
-                "No patch version corresponds to the verification key on L1: {:?}",
-                l1_verifier_config.snark_wrapper_vk_hash
+                "No patch version of minor version {minor_version:?} corresponds to the \
+                 verification key on L1 {l1_vk_hash:?} (prover: {prover:?})",
             );
             return None;
         };

@@ -377,7 +377,7 @@ impl AccountLifespan {
         let contract = &self.wallet.test_contract.abi;
         let function = contract.function("execute").unwrap();
         function
-            .encode_input(&vec![
+            .encode_input(&[
                 ethabi::Token::Uint(U256::from(self.contract_execution_params.reads)),
                 ethabi::Token::Uint(U256::from(self.contract_execution_params.initial_writes)),
                 ethabi::Token::Uint(U256::from(self.contract_execution_params.repeated_writes)),

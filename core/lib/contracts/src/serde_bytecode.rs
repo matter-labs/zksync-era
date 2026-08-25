@@ -4,7 +4,7 @@ use serde::{de, de::SeqAccess, ser, ser::SerializeSeq, Deserializer, Serializer}
 use zksync_basic_types::U256;
 
 pub(super) fn serialize<S: Serializer>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
-    if bytes.len() % 32 != 0 {
+    if !bytes.len().is_multiple_of(32) {
         return Err(ser::Error::custom("bytecode length is not divisible by 32"));
     }
     let mut seq = serializer.serialize_seq(Some(bytes.len() / 32))?;

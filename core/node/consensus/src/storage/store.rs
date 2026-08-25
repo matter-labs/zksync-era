@@ -125,7 +125,7 @@ impl Store {
     }
 
     /// Get a fresh connection from the pool.
-    async fn conn(&self, ctx: &ctx::Ctx) -> ctx::Result<Connection> {
+    async fn conn(&self, ctx: &ctx::Ctx) -> ctx::Result<Connection<'_>> {
         self.pool.connection(ctx).await.wrap("connection")
     }
 

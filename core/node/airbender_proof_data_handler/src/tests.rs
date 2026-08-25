@@ -10,7 +10,8 @@ use serde_json::json;
 use tower::ServiceExt;
 use zksync_airbender_prover_interface::{
     api::{
-        AirbenderSnarkInputsResponse, SubmitAirbenderProofRequest, SubmitAirbenderSnarkProofRequest,
+        AirbenderJobRequest, AirbenderSnarkInputsResponse, SubmitAirbenderProofRequest,
+        SubmitAirbenderSnarkProofRequest,
     },
     outputs::L1BatchAirbenderProofForL1,
 };
@@ -31,6 +32,19 @@ use crate::create_proof_processing_router;
 /// protocol version from the batch number (mirroring Boojum proofs).
 fn snark_wrapper_proof() -> SnarkWrapperProof {
     serde_json::from_slice(include_bytes!("test_data/snark_wrapper_proof.json")).unwrap()
+}
+
+/// The Airbender SNARK-wrapper VK hash the test prover identifies itself with; registered for
+/// the default protocol version by `save_default_protocol_version`.
+const TEST_VK: H256 = H256::repeat_byte(0xab);
+
+fn job_request_body() -> Body {
+    Body::from(
+        serde_json::to_vec(&AirbenderJobRequest {
+            snark_wrapper_vk_hash: TEST_VK,
+        })
+        .unwrap(),
+    )
 }
 
 fn test_config() -> AirbenderProofDataHandlerConfig {
@@ -62,7 +76,7 @@ async fn request_airbender_proof_inputs() {
                 .method(Method::POST)
                 .uri("/airbender/proof_inputs")
                 .header(http::header::CONTENT_TYPE, "application/json")
-                .body(Body::empty())
+                .body(job_request_body())
                 .unwrap(),
         )
         .await
@@ -415,7 +429,7 @@ async fn snark_inputs_returns_no_content_when_empty() {
                 .method(Method::POST)
                 .uri("/airbender/snark_inputs")
                 .header(http::header::CONTENT_TYPE, "application/json")
-                .body(Body::empty())
+                .body(job_request_body())
                 .unwrap(),
         )
         .await
@@ -477,7 +491,7 @@ async fn snark_inputs_returns_fri_proof_and_locks_for_snark() {
                 .method(Method::POST)
                 .uri("/airbender/snark_inputs")
                 .header(http::header::CONTENT_TYPE, "application/json")
-                .body(Body::empty())
+                .body(job_request_body())
                 .unwrap(),
         )
         .await
@@ -536,7 +550,7 @@ async fn snark_inputs_rolls_back_lock_when_fri_proof_missing_in_gcs() {
                 .method(Method::POST)
                 .uri("/airbender/snark_inputs")
                 .header(http::header::CONTENT_TYPE, "application/json")
-                .body(Body::empty())
+                .body(job_request_body())
                 .unwrap(),
         )
         .await
@@ -680,7 +694,7 @@ async fn mock_airbender_picked_for_snark(
         .expect("Failed to save FRI proof artifacts");
 
     let locked = dal
-        .lock_batch_for_snark(Duration::from_secs(600), L1BatchNumber(0), 10)
+        .lock_batch_for_snark(Duration::from_secs(600), L1BatchNumber(0), 10, TEST_VK)
         .await
         .expect("Failed to lock batch for SNARK")
         .expect("Expected the seeded batch to be lockable for SNARK");
@@ -702,10 +716,13 @@ fn create_l1_batch_header(number: u32) -> L1BatchHeader {
 }
 
 async fn save_default_protocol_version(pool: &ConnectionPool<Core>) {
+    let mut version = ProtocolVersion::default();
+    // Register the test prover's VK for the version so key-gated job handout works in tests.
+    version.l1_verifier_config.airbender_snark_wrapper_vk_hash = Some(TEST_VK);
     let mut connection = pool.connection().await.unwrap();
     connection
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .save_protocol_version_with_tx(&version)
         .await
         .unwrap();
 }

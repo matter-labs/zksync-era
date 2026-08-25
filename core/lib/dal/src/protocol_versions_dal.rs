@@ -81,10 +81,11 @@ impl ProtocolVersionsDal<'_, '_> {
                 patch,
                 snark_wrapper_vk_hash,
                 fflonk_snark_wrapper_vk_hash,
+                airbender_snark_wrapper_vk_hash,
                 created_at
             )
             VALUES
-            ($1, $2, $3, $4, NOW())
+            ($1, $2, $3, $4, $5, NOW())
             ON CONFLICT DO NOTHING
             "#,
             version.minor as i32,
@@ -92,6 +93,10 @@ impl ProtocolVersionsDal<'_, '_> {
             l1_verifier_config.snark_wrapper_vk_hash.as_bytes(),
             l1_verifier_config
                 .fflonk_snark_wrapper_vk_hash
+                .as_ref()
+                .map(|x| x.as_bytes()),
+            l1_verifier_config
+                .airbender_snark_wrapper_vk_hash
                 .as_ref()
                 .map(|x| x.as_bytes()),
         )
@@ -250,7 +255,8 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.evm_emulator_code_hash,
                 protocol_patches.patch,
                 protocol_patches.snark_wrapper_vk_hash,
-                protocol_patches.fflonk_snark_wrapper_vk_hash
+                protocol_patches.fflonk_snark_wrapper_vk_hash,
+                protocol_patches.airbender_snark_wrapper_vk_hash
             FROM
                 protocol_versions
             JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id
@@ -284,7 +290,8 @@ impl ProtocolVersionsDal<'_, '_> {
             r#"
             SELECT
                 snark_wrapper_vk_hash,
-                fflonk_snark_wrapper_vk_hash
+                fflonk_snark_wrapper_vk_hash,
+                airbender_snark_wrapper_vk_hash
             FROM
                 protocol_patches
             WHERE
@@ -301,6 +308,10 @@ impl ProtocolVersionsDal<'_, '_> {
             snark_wrapper_vk_hash: H256::from_slice(&row.snark_wrapper_vk_hash),
             fflonk_snark_wrapper_vk_hash: row
                 .fflonk_snark_wrapper_vk_hash
+                .as_ref()
+                .map(|x| H256::from_slice(x)),
+            airbender_snark_wrapper_vk_hash: row
+                .airbender_snark_wrapper_vk_hash
                 .as_ref()
                 .map(|x| H256::from_slice(x)),
         })
@@ -327,6 +338,37 @@ impl ProtocolVersionsDal<'_, '_> {
             snark_wrapper_vk_hash.as_bytes()
         )
         .instrument("get_patch_versions_for_vk")
+        .fetch_all(self.storage)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| VersionPatch(row.patch as u32))
+            .collect())
+    }
+
+    /// Like [`Self::get_patch_versions_for_vk`], but matches patches by the Airbender
+    /// SNARK-wrapper VK hash instead of the Boojum plonk one.
+    pub async fn get_patch_versions_for_airbender_vk(
+        &mut self,
+        minor_version: ProtocolVersionId,
+        airbender_snark_wrapper_vk_hash: H256,
+    ) -> DalResult<Vec<VersionPatch>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                patch
+            FROM
+                protocol_patches
+            WHERE
+                minor = $1
+                AND airbender_snark_wrapper_vk_hash = $2
+            ORDER BY
+                patch DESC
+            "#,
+            minor_version as i32,
+            airbender_snark_wrapper_vk_hash.as_bytes()
+        )
+        .instrument("get_patch_versions_for_airbender_vk")
         .fetch_all(self.storage)
         .await?;
         Ok(rows

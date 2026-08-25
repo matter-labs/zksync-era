@@ -159,6 +159,7 @@ jobs:
           cd airbender_prover_server
           LD_LIBRARY_PATH="$PWD/cuda-libs" RUST_BACKTRACE=1 \
           PROVER_GUEST_DIST_DIR="$PWD/guest/dist/app" FRI_VK="$PWD/vks/fri_vk.bin" \
+          SNARK_VK="$PWD/vks/snark_vk.json" \
           PROVER_SERVER_URL="http://127.0.0.1:1" \
           ./target/release/eravm-prover-server --mode fri-only &>../airbender_prover_logs/gpu_health.log &
           HPID=$!
@@ -276,6 +277,7 @@ jobs:
           RUST_BACKTRACE=1 \
           PROVER_GUEST_DIST_DIR="$PWD/guest/dist/app" \
           FRI_VK="$PWD/vks/fri_vk.bin" \
+          SNARK_VK="$PWD/vks/snark_vk.json" \
           PROVER_SERVER_URL="http://127.0.0.1:$AIRBENDER_PORT" \
           ./target/release/eravm-prover-server --mode fri-only &>../airbender_prover_logs/prover_server_fri.log &
 

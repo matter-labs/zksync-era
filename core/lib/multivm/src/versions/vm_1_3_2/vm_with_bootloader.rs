@@ -221,8 +221,9 @@ const BOOTLOADER_CODE_PAGE: u32 = code_page_candidate_from_base(MemoryPage(INITI
 /// With `VerifyExecute` mode, transaction will be executed normally.
 /// With `EstimateFee`, the bootloader will be used that has the same behavior
 /// as the full `VerifyExecute` block, but errors in the account validation will be ignored.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TxExecutionMode {
+    #[default]
     VerifyExecute,
     EstimateFee {
         missed_storage_invocation_limit: usize,
@@ -262,12 +263,6 @@ impl TxExecutionMode {
 pub enum BootloaderJobType {
     TransactionExecution,
     BlockPostprocessing,
-}
-
-impl Default for TxExecutionMode {
-    fn default() -> Self {
-        Self::VerifyExecute
-    }
 }
 
 pub fn init_vm<S: WriteStorage, H: HistoryMode>(
@@ -529,7 +524,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode, S: WriteStorage
         .map(|bytecode| {
             let encoding_length_bytes = bytecode::encode_call(bytecode).len();
             assert!(
-                encoding_length_bytes % 32 == 0,
+                encoding_length_bytes.is_multiple_of(32),
                 "ABI encoding of bytecode is not 32-byte aligned"
             );
 

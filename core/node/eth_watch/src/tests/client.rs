@@ -603,6 +603,22 @@ impl EthClient for MockEthClient {
     ) -> Result<Option<H256>, ContractCallError> {
         Ok(Some(H256::zero()))
     }
+
+    async fn airbender_scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<Option<H256>, ContractCallError> {
+        // Derived from the address so tests can check which verifier was queried.
+        Ok(Some(airbender_vk_hash_of(verifier_address)))
+    }
+}
+
+/// The Airbender VK hash [`MockEthClient`] reports for `verifier_address`. Distinct from what
+/// `scheduler_vk_hash` derives, so a test cannot pass by reading the Boojum key.
+pub fn airbender_vk_hash_of(verifier_address: Address) -> H256 {
+    let mut hash = address_to_h256(&verifier_address);
+    hash.0[0] = 0xab;
+    hash
 }
 
 #[async_trait::async_trait]

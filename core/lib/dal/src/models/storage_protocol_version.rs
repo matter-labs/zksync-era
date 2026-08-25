@@ -15,6 +15,7 @@ pub struct StorageProtocolVersion {
     pub timestamp: i64,
     pub snark_wrapper_vk_hash: Vec<u8>,
     pub fflonk_snark_wrapper_vk_hash: Option<Vec<u8>>,
+    pub airbender_snark_wrapper_vk_hash: Option<Vec<u8>>,
     pub bootloader_code_hash: Vec<u8>,
     pub default_account_code_hash: Vec<u8>,
     pub evm_emulator_code_hash: Option<Vec<u8>>,
@@ -34,6 +35,10 @@ pub(crate) fn protocol_version_from_storage(
             snark_wrapper_vk_hash: H256::from_slice(&storage_version.snark_wrapper_vk_hash),
             fflonk_snark_wrapper_vk_hash: storage_version
                 .fflonk_snark_wrapper_vk_hash
+                .as_ref()
+                .map(|x| H256::from_slice(x)),
+            airbender_snark_wrapper_vk_hash: storage_version
+                .airbender_snark_wrapper_vk_hash
                 .as_ref()
                 .map(|x| H256::from_slice(x)),
         },

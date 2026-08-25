@@ -1,5 +1,5 @@
 use anyhow::Context;
-use clap::{command, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use xshell::Shell;
 use zkstack_cli_common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
 use zkstack_cli_config::{

@@ -189,13 +189,13 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>, insert_protec
     let wait_result = processed_batch
         .wait_for(|&number| number >= sealed_batch)
         .await;
-    if wait_result.is_err() {
+    if let Err(err) = wait_result {
         // If vm runner finished with error then panic with it.
         if vm_runner_handle.is_finished() {
             vm_runner_handle.await.unwrap().unwrap();
         }
         // Otherwise panic with wait error.
-        wait_result.unwrap();
+        panic!("{err}");
     } else {
         stop_sender.send_replace(true);
         vm_runner_handle.await.unwrap().unwrap();

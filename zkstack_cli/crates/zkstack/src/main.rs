@@ -1,4 +1,4 @@
-use clap::{command, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use commands::{
     args::{AutocompleteArgs, ContainersArgs, UpdateArgs},
     contract_verifier::ContractVerifierCommands,

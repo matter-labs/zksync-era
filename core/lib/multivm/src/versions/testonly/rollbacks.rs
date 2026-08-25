@@ -25,7 +25,7 @@ pub(crate) fn test_vm_rollbacks<VM: TestedVm>() {
     let tx_1 = account.get_deploy_tx(counter, None, TxType::L2).tx;
     let tx_2 = account.get_deploy_tx(counter, None, TxType::L2).tx;
 
-    let result_without_rollbacks = vm.execute_and_verify_txs(&vec![
+    let result_without_rollbacks = vm.execute_and_verify_txs(&[
         TransactionTestInfo::new_processed(tx_0.clone(), false),
         TransactionTestInfo::new_processed(tx_1.clone(), false),
         TransactionTestInfo::new_processed(tx_2.clone(), false),
@@ -34,7 +34,7 @@ pub(crate) fn test_vm_rollbacks<VM: TestedVm>() {
     // reset vm
     vm.reset_with_empty_storage();
 
-    let result_with_rollbacks = vm.execute_and_verify_txs(&vec![
+    let result_with_rollbacks = vm.execute_and_verify_txs(&[
         TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongSignatureLength.into()),
         TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongMagicValue.into()),
         TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongSignature.into()),
@@ -136,7 +136,7 @@ pub(crate) fn test_vm_loadnext_rollbacks<VM: TestedVm>() {
         None,
     );
 
-    let result_without_rollbacks = vm.execute_and_verify_txs(&vec![
+    let result_without_rollbacks = vm.execute_and_verify_txs(&[
         TransactionTestInfo::new_processed(loadnext_deploy_tx.clone(), false),
         TransactionTestInfo::new_processed(loadnext_tx_1.clone(), false),
         TransactionTestInfo::new_processed(loadnext_tx_2.clone(), false),
@@ -145,7 +145,7 @@ pub(crate) fn test_vm_loadnext_rollbacks<VM: TestedVm>() {
     // reset vm
     vm.reset_with_empty_storage();
 
-    let result_with_rollbacks = vm.execute_and_verify_txs(&vec![
+    let result_with_rollbacks = vm.execute_and_verify_txs(&[
         TransactionTestInfo::new_processed(loadnext_deploy_tx.clone(), false),
         TransactionTestInfo::new_processed(loadnext_tx_1.clone(), true),
         TransactionTestInfo::new_rejected(

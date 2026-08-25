@@ -172,7 +172,7 @@ pub(crate) fn dump_memory_page_by_offset_and_length<H: HistoryMode>(
     let first_word = offset / 32;
     let end_byte = offset + length;
     let mut last_word = end_byte / 32;
-    if end_byte % 32 != 0 {
+    if !end_byte.is_multiple_of(32) {
         last_word += 1;
     }
 

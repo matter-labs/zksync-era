@@ -1,4 +1,4 @@
-#![feature(allocator_api, generic_const_exprs)]
+#![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
 //! Tool to generate different types of keys used by the proving system.
@@ -288,9 +288,8 @@ fn main() -> anyhow::Result<()> {
                     ));
                 }
 
-                Ok(proof_compression_gpu::create_compact_raw_crs(
-                    keystore.write_compact_raw_crs()?,
-                ))
+                proof_compression_gpu::create_compact_raw_crs(keystore.write_compact_raw_crs()?);
+                Ok(())
             }
         }
     }
