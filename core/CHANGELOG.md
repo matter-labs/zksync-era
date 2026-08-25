@@ -1,5 +1,13 @@
 # Changelog
 
+## [31.6.0](https://github.com/matter-labs/zksync-era/compare/core-v31.5.0...core-v31.6.0) (2026-08-25)
+
+
+### Features
+
+* bump zksync-protocol to v0.153.15 and rustc to nightly-2026-08-09 ([#4936](https://github.com/matter-labs/zksync-era/issues/4936)) ([ff5f519](https://github.com/matter-labs/zksync-era/commit/ff5f519b11cff863edcfa0f75af10fea113806b0))
+* **prover:** key-based protocol version resolution for the airbender prover ([#4920](https://github.com/matter-labs/zksync-era/issues/4920)) ([1b68096](https://github.com/matter-labs/zksync-era/commit/1b6809680ec902b4515b1e1174c9a43e5cd9d059))
+
 ## [31.5.0](https://github.com/matter-labs/zksync-era/compare/core-v31.4.0...core-v31.5.0) (2026-08-07)
 
 
