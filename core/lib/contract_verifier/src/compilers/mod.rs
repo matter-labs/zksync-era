@@ -288,10 +288,21 @@ impl Settings {
         .into_iter()
         .filter_map(|(name, value)| value.is_some().then_some(name))
         .collect::<Vec<_>>();
-        if self.remappings.is_some() || self.runs.is_some() || !normalized_flags.is_empty() {
+        // Remappings are never forwarded to a compiler. An empty list is inert and stays accepted.
+        let has_remappings = match &self.remappings {
+            Some(Value::Array(entries)) => !entries.is_empty(),
+            Some(Value::Null) | None => false,
+            Some(_) => true,
+        };
+        if has_remappings {
+            return Err(ContractVerifierError::UnsupportedVerificationInput(
+                "`settings.remappings` is not supported; imports must match `sources` keys exactly"
+                    .to_owned(),
+            ));
+        }
+        if self.runs.is_some() || !normalized_flags.is_empty() {
             tracing::debug!(
                 ?normalized_flags,
-                has_remappings = self.remappings.is_some(),
                 has_legacy_optimizer_runs = self.runs.is_some(),
                 "erasing unsupported legacy compiler settings"
             );
@@ -599,7 +610,6 @@ mod tests {
             "language": "Solidity",
             "sources": { "Counter.sol": { "content": "contract Counter {}" } },
             "settings": {
-                "remappings": ["@x/=../../outside/"],
                 "isSystem": true,
                 "forceEvmla": true,
                 "optimizer": {
@@ -613,12 +623,10 @@ mod tests {
             parse_standard_json_input(input.as_object().unwrap().clone(), CompilerFlavor::ZkSolc)
                 .unwrap();
         let serialized = serde_json::to_string(&input).unwrap();
-        for forbidden in ["remappings", "disable_system_request_memoization"] {
-            assert!(
-                !serialized.contains(forbidden),
-                "{forbidden} reached compiler input: {serialized}"
-            );
-        }
+        assert!(
+            !serialized.contains("disable_system_request_memoization"),
+            "erased optimizer flag reached compiler input: {serialized}"
+        );
         let serialized: serde_json::Value = serde_json::from_str(&serialized).unwrap();
         assert_eq!(
             serialized["settings"]["enableEraVMExtensions"],
@@ -628,6 +636,35 @@ mod tests {
             serialized["settings"]["forceEVMLA"],
             serde_json::json!(true)
         );
+    }
+
+    #[test]
+    fn rejects_populated_remappings() {
+        let with_remappings = serde_json::json!({
+            "language": "Solidity",
+            "sources": { "src/A.sol": { "content": "contract A {}" } },
+            "settings": { "remappings": ["solady/=lib/solady/"] },
+        });
+        let err = parse_standard_json_input(
+            with_remappings.as_object().unwrap().clone(),
+            CompilerFlavor::ZkSolc,
+        )
+        .unwrap_err();
+        let crate::error::ContractVerifierError::UnsupportedVerificationInput(message) = &err
+        else {
+            panic!("unexpected error: {err:?}");
+        };
+        assert!(message.contains("remappings"), "{message}");
+        assert!(message.contains("sources"), "{message}");
+
+        // An empty list changes nothing, so it must not be rejected.
+        let empty = serde_json::json!({
+            "language": "Solidity",
+            "sources": { "src/A.sol": { "content": "contract A {}" } },
+            "settings": { "remappings": [] },
+        });
+        parse_standard_json_input(empty.as_object().unwrap().clone(), CompilerFlavor::ZkSolc)
+            .expect("an empty remappings list is inert");
     }
 
     #[test]

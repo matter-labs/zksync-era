@@ -337,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn build_input_erases_remappings() {
+    fn build_input_rejects_remappings() {
         let input = serde_json::json!({
             "language": "Solidity",
             "sources": {
@@ -365,11 +365,11 @@ mod tests {
             evm_specific: Default::default(),
         };
 
-        let input = Solc::build_input(req).unwrap();
-        let serialized = serde_json::to_value(input.standard_json).unwrap();
+        let err = Solc::build_input(req).unwrap_err();
         assert!(
-            serialized.pointer("/settings/remappings").is_none(),
-            "remappings must never reach the compiler: {serialized}"
+            matches!(err, ContractVerifierError::UnsupportedVerificationInput(ref m)
+                if m.contains("remappings")),
+            "remappings must be rejected with an actionable message, got: {err:?}"
         );
     }
 
