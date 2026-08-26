@@ -28,9 +28,11 @@ use crate::{metrics::TWO_FACTOR_APPROVAL_METRICS, periodic_job::PeriodicJob};
 /// (`core/node/eth_sender/src/aggregator.rs`) - the same pure function `Aggregator` calls - to
 /// avoid maintaining a second, drift-prone copy of that encoding. Unlike `Aggregator`, this
 /// deliberately does *not* wait for the batch's `executionDelay` (read live from
-/// `ValidatorTimelock`, and possibly close to an hour) to elapse: it recomputes the hash as soon
-/// as the batch is proven (the earliest point that data exists), independent of when `eth_sender`
-/// actually attempts to execute it.
+/// `ValidatorTimelock`, and possibly close to an hour) to elapse, nor for it to be proven: a
+/// batch's commitment/metadata - and so the hash it needs approved - is fully determined as soon
+/// as it's committed (proof doesn't add data `calculateHash` needs, it's only a prerequisite for
+/// the real `executeBatchesSharedBridge` call to succeed). So this recomputes the hash right away
+/// at commit time, independent of when `eth_sender` actually attempts to execute the batch.
 ///
 /// On chains where `validator_timelock_addr` is a plain `ValidatorTimelock` (no 2FA), the
 /// `calculateHash` call below simply fails and this reporter leaves the metric at its default
@@ -108,32 +110,29 @@ impl TwoFactorApprovalReporter {
             .connection_tagged("house_keeper")
             .await?;
 
-        // Delay-independent: only requires the batch to be proven (the earliest point its data
-        // is fully determined), unlike what `eth_sender` itself waits for before attempting the
-        // real execute transaction.
-        let batch = conn
-            .blocks_dal()
-            .get_ready_for_execute_l1_batches(1, None, self.sender_config.prover)
+        // Delay- and proof-independent: keyed only on commit confirmation, unlike what
+        // `eth_sender` itself waits for before attempting the real execute transaction.
+        let Some((l1_batch_number, commit_confirmed_at)) = conn
+            .eth_sender_dal()
+            .get_oldest_committed_unexecuted_batch()
             .await
-            .context("get_ready_for_execute_l1_batches")?
-            .into_iter()
-            .next();
-        let Some(batch) = batch else {
+            .context("get_oldest_committed_unexecuted_batch")?
+        else {
             // Nothing is waiting to be executed right now.
             TWO_FACTOR_APPROVAL_METRICS
                 .committed_batch_2fa_approval_pending_seconds
                 .set(0);
             return Ok(());
         };
-        let l1_batch_number = batch.header.number;
 
-        let Some(commit_confirmed_at) = conn
-            .eth_sender_dal()
-            .get_commit_confirmed_at(l1_batch_number)
+        let Some(batch) = conn
+            .blocks_dal()
+            .get_l1_batch_metadata_with_prover(l1_batch_number, self.sender_config.prover)
             .await
-            .context("get_commit_confirmed_at")?
+            .context("get_l1_batch_metadata_with_prover")?
         else {
-            // Proven-but-not-yet-committed-confirmed shouldn't normally happen; skip this tick.
+            // Committed-but-not-yet-metadata-calculated shouldn't normally happen (commit itself
+            // requires metadata to build its calldata); skip this tick.
             return Ok(());
         };
 
