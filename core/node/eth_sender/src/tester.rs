@@ -294,7 +294,6 @@ impl EthSenderTester {
             MockObjectStore::arc(),
             use_blob_operator,
             commitment_mode,
-            connection_pool.clone(),
             SettlementLayer::L1(chain_id),
         )
         .await

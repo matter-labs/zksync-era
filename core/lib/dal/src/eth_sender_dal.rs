@@ -1,6 +1,7 @@
 use std::{convert::TryFrom, num::NonZeroU64, str::FromStr};
 
 use anyhow::Context as _;
+use chrono::NaiveDateTime;
 use zksync_db_connection::{
     connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
     match_query_as,
@@ -356,6 +357,47 @@ impl EthSenderDal<'_, '_> {
             }
             None => Ok((1, latest_block_number)),
         }
+    }
+
+    /// Returns the number and L1 commit-confirmation timestamp of the oldest batch that has a
+    /// confirmed commit but hasn't been *successfully confirmed* executed yet.
+    ///
+    /// Deliberately not keyed off `eth_execute_tx_id IS NULL`: that column is set as soon as an
+    /// execute attempt is *built* (even if it later reverts, e.g. with `NotEnoughSignatures`),
+    /// so a naive check would stop finding a batch exactly in the failure case this is meant to
+    /// catch. Not gated on proof either - a batch's commitment/metadata (and so the hash it needs
+    /// approved) is fully determined at commit time, proof isn't required to compute it.
+    pub async fn get_oldest_committed_unexecuted_batch(
+        &mut self,
+    ) -> DalResult<Option<(L1BatchNumber, NaiveDateTime)>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                l1_batches.number AS "number!",
+                commit_history.confirmed_at AS "confirmed_at!"
+            FROM
+                l1_batches
+            INNER JOIN eth_txs_history AS commit_history
+                ON commit_history.eth_tx_id = l1_batches.eth_commit_tx_id
+            LEFT JOIN eth_txs AS execute_tx ON execute_tx.id = l1_batches.eth_execute_tx_id
+            WHERE
+                l1_batches.number > 0
+                AND commit_history.confirmed_at IS NOT NULL
+                AND (
+                    execute_tx.id IS NULL
+                    OR execute_tx.confirmed_eth_tx_history_id IS NULL
+                )
+            ORDER BY
+                l1_batches.number ASC
+            LIMIT
+                1
+            "#,
+        )
+        .instrument("get_oldest_committed_unexecuted_batch")
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| (L1BatchNumber(row.number as u32), row.confirmed_at));
+        Ok(row)
     }
 
     pub async fn get_eth_tx(&mut self, eth_tx_id: u32) -> sqlx::Result<Option<EthTx>> {
