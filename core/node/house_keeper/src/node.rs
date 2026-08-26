@@ -1,5 +1,6 @@
 use zksync_config::configs::{house_keeper::HouseKeeperConfig, AirbenderProofDataHandlerConfig};
 use zksync_dal::node::{PoolResource, ReplicaPool};
+use zksync_eth_client::node::SenderConfigResource;
 use zksync_node_framework::{
     service::StopReceiver,
     task::{Task, TaskId},
@@ -27,6 +28,7 @@ pub struct Input {
     replica_pool: PoolResource<ReplicaPool>,
     l1_contracts: L1ChainContractsResource,
     eth_client: Box<DynClient<L1>>,
+    sender_config: SenderConfigResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -88,12 +90,19 @@ impl WiringLayer for HouseKeeperLayer {
             .0
             .ecosystem_contracts
             .validator_timelock_addr;
+        let diamond_proxy_addr = input
+            .l1_contracts
+            .0
+            .chain_contracts_config
+            .diamond_proxy_addr;
         let two_factor_approval_reporter = TwoFactorApprovalReporter::new(
             self.house_keeper_config
                 .two_factor_approval_reporting_interval,
             replica_pool,
             input.eth_client,
             validator_timelock_addr,
+            diamond_proxy_addr,
+            input.sender_config.0,
         );
 
         Ok(Output {

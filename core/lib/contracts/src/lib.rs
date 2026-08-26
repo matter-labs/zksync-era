@@ -272,18 +272,6 @@ pub fn era_multisig_validator_contract() -> Contract {
                 { "internalType": "uint256", "name": "_processBatchTo", "type": "uint256" },
                 { "internalType": "bytes", "name": "_batchData", "type": "bytes" }
             ],
-            "name": "executeBatchesSharedBridge",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                { "internalType": "address", "name": "_chainAddress", "type": "address" },
-                { "internalType": "uint256", "name": "_processBatchFrom", "type": "uint256" },
-                { "internalType": "uint256", "name": "_processBatchTo", "type": "uint256" },
-                { "internalType": "bytes", "name": "_batchData", "type": "bytes" }
-            ],
             "name": "calculateHash",
             "outputs": [
                 { "internalType": "bytes32", "name": "", "type": "bytes32" }

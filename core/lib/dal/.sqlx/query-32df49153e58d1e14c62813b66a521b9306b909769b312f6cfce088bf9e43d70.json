@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                commit_history.confirmed_at AS \"confirmed_at!\"\n            FROM\n                l1_batches\n            INNER JOIN eth_txs_history AS commit_history\n                ON commit_history.eth_tx_id = l1_batches.eth_commit_tx_id\n            WHERE\n                l1_batches.number = $1\n                AND commit_history.confirmed_at IS NOT NULL\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "confirmed_at!",
+        "type_info": "Timestamp"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "32df49153e58d1e14c62813b66a521b9306b909769b312f6cfce088bf9e43d70"
+}

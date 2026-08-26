@@ -25,15 +25,6 @@ pub struct EthSenderDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
-/// Raw calldata of a not-yet-confirmed `executeBatchesSharedBridge` transaction, together with
-/// the L1 confirmation timestamp of the corresponding commit transaction.
-#[derive(Debug)]
-pub struct PendingExecuteTx {
-    pub l1_batch_number: L1BatchNumber,
-    pub execute_tx_raw: Vec<u8>,
-    pub commit_confirmed_at: NaiveDateTime,
-}
-
 impl EthSenderDal<'_, '_> {
     pub async fn get_non_final_txs(
         &mut self,
@@ -368,43 +359,32 @@ impl EthSenderDal<'_, '_> {
         }
     }
 
-    /// Returns the raw calldata of the oldest not-yet-confirmed `executeBatchesSharedBridge`
-    /// transaction, together with the L1 confirmation timestamp of the corresponding commit
-    /// transaction.
-    ///
-    /// Used to monitor whether committed batches are stuck waiting for 2FA approvals on chains
-    /// using `EraMultisigValidator` as their `validator_timelock_addr`.
-    pub async fn get_oldest_pending_execute_tx(&mut self) -> DalResult<Option<PendingExecuteTx>> {
+    /// Returns the L1 confirmation timestamp of the commit transaction for the given batch, if
+    /// it has been confirmed.
+    pub async fn get_commit_confirmed_at(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> DalResult<Option<NaiveDateTime>> {
         let row = sqlx::query!(
             r#"
             SELECT
-                l1_batches.number AS "number!",
-                eth_txs.raw_tx AS "raw_tx!",
                 commit_history.confirmed_at AS "confirmed_at!"
             FROM
-                eth_txs
-            INNER JOIN l1_batches ON l1_batches.eth_execute_tx_id = eth_txs.id
+                l1_batches
             INNER JOIN eth_txs_history AS commit_history
                 ON commit_history.eth_tx_id = l1_batches.eth_commit_tx_id
             WHERE
-                eth_txs.tx_type = $1
-                AND eth_txs.confirmed_eth_tx_history_id IS NULL
+                l1_batches.number = $1
                 AND commit_history.confirmed_at IS NOT NULL
-            ORDER BY
-                l1_batches.number ASC
             LIMIT
                 1
             "#,
-            AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute).to_string()
+            i64::from(l1_batch_number.0)
         )
-        .instrument("get_oldest_pending_execute_tx")
+        .instrument("get_commit_confirmed_at")
         .fetch_optional(self.storage)
         .await?
-        .map(|row| PendingExecuteTx {
-            l1_batch_number: L1BatchNumber(row.number as u32),
-            execute_tx_raw: row.raw_tx,
-            commit_confirmed_at: row.confirmed_at,
-        });
+        .map(|row| row.confirmed_at);
         Ok(row)
     }
 
