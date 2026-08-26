@@ -14517,10 +14517,14 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_config",
+ "zksync_contracts",
  "zksync_dal",
+ "zksync_eth_client",
  "zksync_node_framework",
  "zksync_shared_metrics",
+ "zksync_shared_resources",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]

@@ -260,6 +260,61 @@ pub fn validator_timelock_contract() -> Contract {
     serde_json::from_str(abi).unwrap()
 }
 
+/// Minimal ABI for `EraMultisigValidator`, the optional 2FA wrapper deployed in front of
+/// `ValidatorTimelock` on some Era chains. `validator_timelock_addr` points at this contract
+/// instead of a plain `ValidatorTimelock` when 2FA is enabled for the chain.
+pub fn era_multisig_validator_contract() -> Contract {
+    let abi = r#"[
+        {
+            "inputs": [
+                { "internalType": "address", "name": "_chainAddress", "type": "address" },
+                { "internalType": "uint256", "name": "_processBatchFrom", "type": "uint256" },
+                { "internalType": "uint256", "name": "_processBatchTo", "type": "uint256" },
+                { "internalType": "bytes", "name": "_batchData", "type": "bytes" }
+            ],
+            "name": "executeBatchesSharedBridge",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                { "internalType": "address", "name": "_chainAddress", "type": "address" },
+                { "internalType": "uint256", "name": "_processBatchFrom", "type": "uint256" },
+                { "internalType": "uint256", "name": "_processBatchTo", "type": "uint256" },
+                { "internalType": "bytes", "name": "_batchData", "type": "bytes" }
+            ],
+            "name": "calculateHash",
+            "outputs": [
+                { "internalType": "bytes32", "name": "", "type": "bytes32" }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                { "internalType": "bytes32", "name": "_hash", "type": "bytes32" }
+            ],
+            "name": "getApprovals",
+            "outputs": [
+                { "internalType": "uint256", "name": "", "type": "uint256" }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "threshold",
+            "outputs": [
+                { "internalType": "uint256", "name": "", "type": "uint256" }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ]"#;
+    serde_json::from_str(abi).unwrap()
+}
+
 pub fn verifier_contract() -> Contract {
     let path = format!("{}/{}", FORGE_PATH_PREFIX, DUAL_VERIFIER_CONTRACT_FILE.1);
     let zksync_home = home_path();

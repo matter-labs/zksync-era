@@ -6,8 +6,13 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+use zksync_shared_resources::contracts::L1ChainContractsResource;
+use zksync_web3_decl::client::{DynClient, L1};
 
-use crate::{blocks_state_reporter::BlockMetricsReporter, periodic_job::PeriodicJob};
+use crate::{
+    blocks_state_reporter::BlockMetricsReporter, periodic_job::PeriodicJob,
+    two_factor_approval_reporter::TwoFactorApprovalReporter,
+};
 
 /// Wiring layer for `HouseKeeper` - a component responsible for managing prover jobs
 /// and auxiliary server activities.
@@ -20,12 +25,16 @@ pub struct HouseKeeperLayer {
 #[derive(Debug, FromContext)]
 pub struct Input {
     replica_pool: PoolResource<ReplicaPool>,
+    l1_contracts: L1ChainContractsResource,
+    eth_client: Box<DynClient<L1>>,
 }
 
 #[derive(Debug, IntoContext)]
 pub struct Output {
     #[context(task)]
     pub l1_batch_metrics_reporter: BlockMetricsReporter,
+    #[context(task)]
+    pub two_factor_approval_reporter: TwoFactorApprovalReporter,
 }
 
 impl HouseKeeperLayer {
@@ -69,13 +78,26 @@ impl WiringLayer for HouseKeeperLayer {
 
         let l1_batch_metrics_reporter = BlockMetricsReporter::new(
             self.house_keeper_config.l1_batch_metrics_reporting_interval,
-            replica_pool,
+            replica_pool.clone(),
             first_airbender_batch,
             airbender_max_proving_attempts,
         );
 
+        let validator_timelock_addr = input
+            .l1_contracts
+            .0
+            .ecosystem_contracts
+            .validator_timelock_addr;
+        let two_factor_approval_reporter = TwoFactorApprovalReporter::new(
+            self.house_keeper_config.two_factor_approval_reporting_interval,
+            replica_pool,
+            input.eth_client,
+            validator_timelock_addr,
+        );
+
         Ok(Output {
             l1_batch_metrics_reporter,
+            two_factor_approval_reporter,
         })
     }
 }
@@ -84,6 +106,17 @@ impl WiringLayer for HouseKeeperLayer {
 impl Task for BlockMetricsReporter {
     fn id(&self) -> TaskId {
         "l1_batch_metrics_reporter".into()
+    }
+
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        (*self).run(stop_receiver.0).await
+    }
+}
+
+#[async_trait::async_trait]
+impl Task for TwoFactorApprovalReporter {
+    fn id(&self) -> TaskId {
+        "two_factor_approval_reporter".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
