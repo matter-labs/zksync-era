@@ -6,7 +6,7 @@ use zksync_config::configs::eth_sender::{
     PrecommitParams, ProofSendingMode, ProverType, SenderConfig,
 };
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{blocks_dal::TxForPrecommit, Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{blocks_dal::TxForPrecommit, Connection, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError, StoredObject};
@@ -43,7 +43,6 @@ pub struct Aggregator {
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
-    pool: ConnectionPool<Core>,
     /// If we are operating in 4844 mode we need to wait for commit transaction
     /// to get included before sending the respective prove and execute transactions.
     /// In non-4844 mode of operation we operate with the single address and this
@@ -54,6 +53,135 @@ pub struct Aggregator {
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: Option<MiniMerkleTree<L1Tx>>,
     settlement_layer: SettlementLayer,
+}
+
+/// Builds the `ExecuteBatches` payload for the given (already selected/filtered) batches:
+/// gathers priority-ops merkle proofs, interop dependency roots, and (for gateway settlement)
+/// L2-to-L1 logs/messages/message roots.
+///
+/// `priority_merkle_tree` acts as a cross-call cache, mirroring `Aggregator`'s own field: pass a
+/// persistent `&mut Option` to amortize tree construction across repeated calls (as `Aggregator`
+/// does), or `&mut None` for a one-off build.
+///
+/// Exposed as a free function (rather than an `Aggregator` method) so it can be reused outside
+/// `eth_sender` - e.g. by `house_keeper`'s 2FA-approval monitoring, which needs to recompute the
+/// same execute calldata `eth_sender` will eventually submit, without going through the rest of
+/// `Aggregator`'s (stateful, criteria-driven) batch-selection machinery.
+pub async fn build_execute_batches_payload(
+    storage: &mut Connection<'_, Core>,
+    l1_batches: Vec<L1BatchWithMetadata>,
+    priority_tree_start_index: Option<usize>,
+    priority_merkle_tree: &mut Option<MiniMerkleTree<L1Tx>>,
+    is_gateway: bool,
+) -> Result<ExecuteBatches, EthSenderError> {
+    let mut dependency_roots: Vec<Vec<InteropRoot>> = vec![];
+    for batch in &l1_batches {
+        let interop_roots = storage
+            .interop_root_dal()
+            .get_interop_roots_batch(batch.header.number)
+            .await?;
+        dependency_roots.push(interop_roots);
+    }
+
+    let Some(priority_tree_start_index) = priority_tree_start_index else {
+        // The index is not yet applicable to the current system, so we
+        // return empty priority operations' proofs.
+        let length = l1_batches.len();
+        return Ok(ExecuteBatches {
+            l1_batches,
+            priority_ops_proofs: vec![Default::default(); length],
+            dependency_roots,
+            logs: vec![],
+            messages: vec![],
+            message_roots: vec![],
+        });
+    };
+
+    if priority_merkle_tree.is_none() {
+        // Initialize the priority ops merkle tree at the point it was left after the last
+        // executed batch. If it was the very first batch we use the provided start index and
+        // fill the tree from scratch.
+        let last_executed_priority_op_id = storage
+            .blocks_dal()
+            .get_last_executed_priority_op_id()
+            .await?
+            .unwrap_or(priority_tree_start_index);
+        let priority_op_hashes = storage
+            .transactions_dal()
+            .get_l1_transactions_hashes(priority_tree_start_index, last_executed_priority_op_id)
+            .await?;
+        *priority_merkle_tree = Some(MiniMerkleTree::<L1Tx>::from_hashes(
+            KeccakHasher,
+            priority_op_hashes.into_iter(),
+            None,
+        ));
+    }
+    let priority_merkle_tree = priority_merkle_tree.as_mut().unwrap();
+
+    let mut priority_ops_proofs = vec![];
+    let mut all_logs = vec![];
+    let mut all_messages = vec![];
+    let mut all_message_roots = vec![];
+    for batch in &l1_batches {
+        let priority_ops_in_batch = storage
+            .blocks_dal()
+            .get_batch_first_and_last_priority_op_id(batch.header.number)
+            .await?
+            .filter(|(first_id, _last_id)| *first_id >= priority_tree_start_index);
+
+        let count = batch.header.l1_tx_count as usize;
+
+        // If there are priority operations in this batch. We have to prepare a merkle path for them.
+        // For being always deterministic we build the tree that includes ONLY transcations up to the current batch.
+        if let Some((first_priority_op_id_in_batch, last_priority_op_id_in_batch)) =
+            priority_ops_in_batch
+        {
+            let new_l1_tx_hashes = storage
+                .transactions_dal()
+                .get_l1_transactions_hashes(
+                    priority_tree_start_index + priority_merkle_tree.length(),
+                    last_priority_op_id_in_batch,
+                )
+                .await?;
+            for hash in new_l1_tx_hashes {
+                priority_merkle_tree.push_hash(hash);
+            }
+
+            // We cache paths for priority transactions that happened in the previous batches.
+            // For this we absorb all the elements up to `first_priority_op_id_in_batch`.`
+            priority_merkle_tree.trim_start(
+                first_priority_op_id_in_batch // global index
+                    - priority_tree_start_index // first index when tree is activated
+                    - priority_merkle_tree.start_index(), // first index in the tree
+            );
+            let (_, left, right) = priority_merkle_tree.merkle_root_and_paths_for_range(..count);
+            let hashes = priority_merkle_tree.hashes_prefix(count);
+            priority_ops_proofs.push(PriorityOpsMerkleProof {
+                left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
+                right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
+                hashes,
+            });
+        } else {
+            priority_ops_proofs.push(Default::default());
+        }
+        if is_gateway {
+            let message_root = batch
+                .metadata
+                .aggregation_root
+                .ok_or(EthSenderError::MissingAggregationRoot(batch.header.number))?;
+            all_logs.push(batch.header.l2_to_l1_logs.clone());
+            all_messages.push(batch.header.l2_to_l1_messages.clone());
+            all_message_roots.push(message_root);
+        }
+    }
+    Ok(ExecuteBatches {
+        l1_batches,
+        priority_ops_proofs,
+        dependency_roots,
+        logs: all_logs,
+        messages: all_messages,
+        message_roots: all_message_roots,
+    })
 }
 
 /// Denotes whether there are any restrictions on sending either
@@ -136,7 +264,6 @@ impl Aggregator {
         blob_store: Arc<dyn ObjectStore>,
         custom_commit_sender_addr: bool,
         commitment_mode: L1BatchCommitmentMode,
-        pool: ConnectionPool<Core>,
         settlement_layer: SettlementLayer,
     ) -> anyhow::Result<Self> {
         let operate_4844_mode: bool = custom_commit_sender_addr && !settlement_layer.is_gateway();
@@ -221,7 +348,6 @@ impl Aggregator {
             operate_4844_mode,
             commitment_mode,
             priority_merkle_tree: None,
-            pool,
             settlement_layer,
         })
     }
@@ -283,37 +409,6 @@ impl Aggregator {
         } else {
             Ok(None)
         }
-    }
-
-    async fn get_or_init_tree(
-        &mut self,
-        priority_tree_start_index: usize,
-        priority_tree_last_executed_index: usize,
-    ) -> &mut MiniMerkleTree<L1Tx> {
-        if self.priority_merkle_tree.is_none() {
-            // We unwrap here since it is only invoked during initialization
-            let mut connection = self.pool.connection_tagged("eth_sender").await.unwrap();
-
-            // We unwrap here since it is only invoked only once during initialization
-            let priority_op_hashes = connection
-                .transactions_dal()
-                .get_l1_transactions_hashes(
-                    priority_tree_start_index,
-                    priority_tree_last_executed_index,
-                )
-                .await
-                .unwrap();
-            let priority_merkle_tree = MiniMerkleTree::<L1Tx>::from_hashes(
-                KeccakHasher,
-                priority_op_hashes.into_iter(),
-                None,
-            );
-
-            self.priority_merkle_tree = Some(priority_merkle_tree);
-        };
-
-        // It is known that the `self.priority_merkle_tree` is initialized, so it is safe to unwrap here
-        self.priority_merkle_tree.as_mut().unwrap()
     }
 
     async fn get_precommit_operation(
@@ -455,111 +550,17 @@ impl Aggregator {
             return Ok(None);
         };
 
-        let mut dependency_roots: Vec<Vec<InteropRoot>> = vec![];
-        for batch in &l1_batches {
-            let interop_roots = storage
-                .interop_root_dal()
-                .get_interop_roots_batch(batch.header.number)
-                .await
-                .unwrap();
-
-            dependency_roots.push(interop_roots);
-        }
-
-        let Some(priority_tree_start_index) = priority_tree_start_index else {
-            // The index is not yet applicable to the current system, so we
-            // return empty priority operations' proofs.
-            let length = l1_batches.len();
-            return Ok(Some(ExecuteBatches {
-                l1_batches,
-                priority_ops_proofs: vec![Default::default(); length],
-                dependency_roots,
-                logs: vec![],
-                messages: vec![],
-                message_roots: vec![],
-            }));
-        };
-
-        // Initialize the priority ops merkle tree at the point it was left after the last executed batch.
-        // If it was the very first batch we use the provided start index and fill the tree from scratch.
-        let let_last_executed_priorty_op_id = storage
-            .blocks_dal()
-            .get_last_executed_priority_op_id()
-            .await
-            .unwrap()
-            .unwrap_or(priority_tree_start_index);
-
-        let priority_merkle_tree = self
-            .get_or_init_tree(priority_tree_start_index, let_last_executed_priorty_op_id)
-            .await;
-
-        let mut priority_ops_proofs = vec![];
-        let mut all_logs = vec![];
-        let mut all_messages = vec![];
-        let mut all_message_roots = vec![];
-        for batch in &l1_batches {
-            let priority_ops_in_batch = storage
-                .blocks_dal()
-                .get_batch_first_and_last_priority_op_id(batch.header.number)
-                .await
-                .unwrap()
-                .filter(|(first_id, _last_id)| *first_id >= priority_tree_start_index);
-
-            let count = batch.header.l1_tx_count as usize;
-
-            // If there are priority operations in this batch. We have to prepare a merkle path for them.
-            // For being always deterministic we build the tree that includes ONLY transcations up to the current batch.
-            if let Some((first_priority_op_id_in_batch, last_priority_op_id_in_batch)) =
-                priority_ops_in_batch
-            {
-                let new_l1_tx_hashes = storage
-                    .transactions_dal()
-                    .get_l1_transactions_hashes(
-                        priority_tree_start_index + priority_merkle_tree.length(),
-                        last_priority_op_id_in_batch,
-                    )
-                    .await
-                    .unwrap();
-                for hash in new_l1_tx_hashes {
-                    priority_merkle_tree.push_hash(hash);
-                }
-
-                // We cache paths for priority transactions that happened in the previous batches.
-                // For this we absorb all the elements up to `first_priority_op_id_in_batch`.`
-                priority_merkle_tree.trim_start(
-                    first_priority_op_id_in_batch // global index
-                        - priority_tree_start_index // first index when tree is activated
-                        - priority_merkle_tree.start_index(), // first index in the tree
-                );
-                let (_, left, right) =
-                    priority_merkle_tree.merkle_root_and_paths_for_range(..count);
-                let hashes = priority_merkle_tree.hashes_prefix(count);
-                priority_ops_proofs.push(PriorityOpsMerkleProof {
-                    left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
-                    right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
-                    hashes,
-                });
-            } else {
-                priority_ops_proofs.push(Default::default());
-            }
-            if is_gateway {
-                let message_root = batch
-                    .metadata
-                    .aggregation_root
-                    .ok_or(EthSenderError::MissingAggregationRoot(batch.header.number))?;
-                all_logs.push(batch.header.l2_to_l1_logs.clone());
-                all_messages.push(batch.header.l2_to_l1_messages.clone());
-                all_message_roots.push(message_root);
-            }
-        }
-        Ok(Some(ExecuteBatches {
+        let execute_batches = build_execute_batches_payload(
+            storage,
             l1_batches,
-            priority_ops_proofs,
-            dependency_roots,
-            logs: all_logs,
-            messages: all_messages,
-            message_roots: all_message_roots,
-        }))
+            priority_tree_start_index,
+            &mut self.priority_merkle_tree,
+            is_gateway,
+        )
+        .await
+        .expect("failed to build execute batches payload");
+
+        Ok(Some(execute_batches))
     }
 
     async fn get_commit_operation(
@@ -1096,6 +1097,7 @@ async fn load_airbender_snark_proof(
 
 #[cfg(test)]
 mod tests {
+    use zksync_dal::ConnectionPool;
     use zksync_types::L2BlockNumber;
 
     use super::*;

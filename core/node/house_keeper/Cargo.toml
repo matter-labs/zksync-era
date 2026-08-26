@@ -20,8 +20,7 @@ zksync_types.workspace = true
 zksync_config.workspace = true
 zksync_contracts.workspace = true
 zksync_eth_client = { workspace = true, features = ["node_framework"] }
-zksync_l1_contract_interface.workspace = true
-zksync_mini_merkle_tree.workspace = true
+zksync_eth_sender.workspace = true
 zksync_web3_decl = { workspace = true, features = ["node_framework"] }
 
 async-trait.workspace = true

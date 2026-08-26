@@ -4,17 +4,12 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::{era_multisig_validator_contract, hyperchain_contract};
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::CallFunctionArgs;
-use zksync_l1_contract_interface::i_executor::methods::ExecuteBatches;
-use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_eth_sender::build_execute_batches_payload;
 use zksync_types::{
-    commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
-    hasher::keccak::KeccakHasher,
-    l1::L1Tx,
-    protocol_version::PACKED_SEMVER_MINOR_MASK,
-    settlement::SettlementLayer,
-    Address, ProtocolVersionId, H256, U256,
+    protocol_version::PACKED_SEMVER_MINOR_MASK, settlement::SettlementLayer, Address,
+    ProtocolVersionId, H256, U256,
 };
 use zksync_web3_decl::client::{DynClient, L1};
 
@@ -29,14 +24,13 @@ use crate::{metrics::TWO_FACTOR_APPROVAL_METRICS, periodic_job::PeriodicJob};
 /// reverting with `NotEnoughSignatures`.
 ///
 /// The exact hash a batch needs approved can only be computed from the same data `eth_sender`
-/// itself would submit, so this reporter mirrors `Aggregator::get_execute_operations` /
-/// `EthTxAggregator::encode_aggregated_op` (`core/node/eth_sender/src/{aggregator,
-/// eth_tx_aggregator}.rs`) closely - but deliberately does *not* wait for `eth_sender` to attempt
-/// the real execute transaction, since that only happens once the batch's `executionDelay` (read
-/// live from the `ValidatorTimelock`, and possibly close to an hour) has elapsed. Instead it
-/// recomputes the same hash as soon as the batch is proven, using the shared, pure
-/// `ExecuteBatches::encode_for_eth_tx` encoder rather than reimplementing the encoding itself.
-/// If `eth_sender`'s encoding ever changes, this needs to be updated to match.
+/// itself would submit, so this reuses `eth_sender`'s own `build_execute_batches_payload`
+/// (`core/node/eth_sender/src/aggregator.rs`) - the same pure function `Aggregator` calls - to
+/// avoid maintaining a second, drift-prone copy of that encoding. Unlike `Aggregator`, this
+/// deliberately does *not* wait for the batch's `executionDelay` (read live from
+/// `ValidatorTimelock`, and possibly close to an hour) to elapse: it recomputes the hash as soon
+/// as the batch is proven (the earliest point that data exists), independent of when `eth_sender`
+/// actually attempts to execute it.
 ///
 /// On chains where `validator_timelock_addr` is a plain `ValidatorTimelock` (no 2FA), the
 /// `calculateHash` call below simply fails and this reporter leaves the metric at its default
@@ -104,97 +98,6 @@ impl TwoFactorApprovalReporter {
         Ok(Some(index.as_usize()))
     }
 
-    /// Builds the `ExecuteBatches` payload for a single batch. Mirrors the relevant part of
-    /// `Aggregator::get_execute_operations`, minus the `execution_delay` readiness gate.
-    async fn build_execute_batches(
-        conn: &mut Connection<'_, Core>,
-        batch: L1BatchWithMetadata,
-        priority_tree_start_index: usize,
-        is_gateway: bool,
-    ) -> anyhow::Result<ExecuteBatches> {
-        let last_executed_priority_op_id = conn
-            .blocks_dal()
-            .get_last_executed_priority_op_id()
-            .await
-            .context("get_last_executed_priority_op_id")?
-            .unwrap_or(priority_tree_start_index);
-
-        let priority_op_hashes = conn
-            .transactions_dal()
-            .get_l1_transactions_hashes(priority_tree_start_index, last_executed_priority_op_id)
-            .await
-            .context("get_l1_transactions_hashes")?;
-        let mut priority_merkle_tree =
-            MiniMerkleTree::<L1Tx>::from_hashes(KeccakHasher, priority_op_hashes.into_iter(), None);
-
-        let priority_ops_in_batch = conn
-            .blocks_dal()
-            .get_batch_first_and_last_priority_op_id(batch.header.number)
-            .await
-            .context("get_batch_first_and_last_priority_op_id")?
-            .filter(|(first_id, _last_id)| *first_id >= priority_tree_start_index);
-
-        let priority_ops_proof = if let Some((first_priority_op_id, last_priority_op_id)) =
-            priority_ops_in_batch
-        {
-            let count = batch.header.l1_tx_count as usize;
-            let new_hashes = conn
-                .transactions_dal()
-                .get_l1_transactions_hashes(
-                    priority_tree_start_index + priority_merkle_tree.length(),
-                    last_priority_op_id,
-                )
-                .await
-                .context("get_l1_transactions_hashes (new)")?;
-            for hash in new_hashes {
-                priority_merkle_tree.push_hash(hash);
-            }
-            priority_merkle_tree.trim_start(
-                first_priority_op_id
-                    - priority_tree_start_index
-                    - priority_merkle_tree.start_index(),
-            );
-            let (_, left, right) = priority_merkle_tree.merkle_root_and_paths_for_range(..count);
-            let hashes = priority_merkle_tree.hashes_prefix(count);
-            PriorityOpsMerkleProof {
-                left_path: left.into_iter().map(Option::unwrap_or_default).collect(),
-                right_path: right.into_iter().map(Option::unwrap_or_default).collect(),
-                hashes,
-            }
-        } else {
-            PriorityOpsMerkleProof::default()
-        };
-
-        let dependency_roots = conn
-            .interop_root_dal()
-            .get_interop_roots_batch(batch.header.number)
-            .await
-            .context("get_interop_roots_batch")?;
-
-        let (logs, messages, message_roots) = if is_gateway {
-            let message_root = batch
-                .metadata
-                .aggregation_root
-                .context("missing aggregation_root for a gateway batch")?;
-            (
-                vec![batch.header.l2_to_l1_logs.clone()],
-                vec![batch.header.l2_to_l1_messages.clone()],
-                vec![message_root],
-            )
-        } else {
-            (vec![], vec![], vec![])
-        };
-
-        Ok(ExecuteBatches {
-            l1_batches: vec![batch],
-            priority_ops_proofs: vec![priority_ops_proof],
-            dependency_roots: vec![dependency_roots],
-            logs,
-            messages,
-            message_roots,
-        })
-    }
-
     async fn report_metrics(&self) -> anyhow::Result<()> {
         let Some(validator_timelock_addr) = self.validator_timelock_addr else {
             return Ok(());
@@ -205,8 +108,9 @@ impl TwoFactorApprovalReporter {
             .connection_tagged("house_keeper")
             .await?;
 
-        // Delay-independent: only requires the batch to be proven, unlike what `eth_sender`
-        // itself waits for before attempting the real execute transaction.
+        // Delay-independent: only requires the batch to be proven (the earliest point its data
+        // is fully determined), unlike what `eth_sender` itself waits for before attempting the
+        // real execute transaction.
         let batch = conn
             .blocks_dal()
             .get_ready_for_execute_l1_batches(1, None, self.sender_config.prover)
@@ -256,10 +160,16 @@ impl TwoFactorApprovalReporter {
             return Ok(());
         };
 
-        let execute_batches =
-            Self::build_execute_batches(&mut conn, batch, priority_tree_start_index, is_gateway)
-                .await
-                .context("build_execute_batches")?;
+        // `&mut None`: a one-off build, not amortized across polls like `Aggregator` does.
+        let execute_batches = build_execute_batches_payload(
+            &mut conn,
+            vec![batch],
+            Some(priority_tree_start_index),
+            &mut None,
+            is_gateway,
+        )
+        .await
+        .context("build_execute_batches_payload")?;
         drop(conn);
 
         let settlement_fee_payer = self
