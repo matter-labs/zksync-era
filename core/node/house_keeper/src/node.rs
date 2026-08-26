@@ -89,7 +89,8 @@ impl WiringLayer for HouseKeeperLayer {
             .ecosystem_contracts
             .validator_timelock_addr;
         let two_factor_approval_reporter = TwoFactorApprovalReporter::new(
-            self.house_keeper_config.two_factor_approval_reporting_interval,
+            self.house_keeper_config
+                .two_factor_approval_reporting_interval,
             replica_pool,
             input.eth_client,
             validator_timelock_addr,
