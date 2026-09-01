@@ -267,10 +267,13 @@ pub async fn send_priority_txs(
                 chain_config.get_general_config().await?.da_client_type()
             };
 
-            match da_client_type.as_deref() {
-                Some("Avail") | Some("Eigen") => L2DACommitmentScheme::PubdataKeccak256,
-                Some("NoDA") | None => L2DACommitmentScheme::EmptyNoDA,
-                Some(unsupported) => {
+            match (chain_config.vm_option, da_client_type.as_deref()) {
+                // Pairs with the blobs DA validator picked in `get_l1_da_validator`; the
+                // committer rejects any batch whose scheme differs from the registered one.
+                (VMOption::ZKSyncOsVM, None | Some("NoDA")) => L2DACommitmentScheme::BlobsZksyncOS,
+                (_, Some("Avail") | Some("Eigen")) => L2DACommitmentScheme::PubdataKeccak256,
+                (VMOption::EraVM, None | Some("NoDA")) => L2DACommitmentScheme::EmptyNoDA,
+                (_, Some(unsupported)) => {
                     anyhow::bail!("DA client config is not supported: {unsupported:?}");
                 }
             }
@@ -350,11 +353,21 @@ pub(crate) async fn get_l1_da_validator(
                 chain_config.get_general_config().await?.da_client_type()
             };
 
-            match da_client_type.as_deref() {
-                Some("Avail") => contracts_config.l1.avail_l1_da_validator_addr,
-                Some("NoDA") | None => contracts_config.l1.no_da_validium_l1_validator_addr,
-                Some("Eigen") => contracts_config.l1.no_da_validium_l1_validator_addr, // TODO: change for eigenda l1 validator for M1
-                Some(unsupported) => {
+            match (chain_config.vm_option, da_client_type.as_deref()) {
+                // A ZKsync OS validium is a *logs-only* chain: it still publishes the
+                // mandatory L2->L1 log region — which carries the interop commitment tree
+                // leaves — through blobs, exactly like a rollup, and only drops the state
+                // diffs. Registering it against the no-DA validator would put those leaves
+                // out of L1's reach and silently break interop for the chain.
+                (VMOption::ZKSyncOsVM, None | Some("NoDA")) => {
+                    contracts_config.l1.blobs_zksync_os_l1_da_validator_addr
+                }
+                (_, Some("Avail")) => contracts_config.l1.avail_l1_da_validator_addr,
+                (VMOption::EraVM, None | Some("NoDA")) => {
+                    contracts_config.l1.no_da_validium_l1_validator_addr
+                }
+                (_, Some("Eigen")) => contracts_config.l1.no_da_validium_l1_validator_addr, // TODO: change for eigenda l1 validator for M1
+                (_, Some(unsupported)) => {
                     anyhow::bail!("DA client config is not supported: {unsupported:?}");
                 }
             }

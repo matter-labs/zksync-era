@@ -20,6 +20,7 @@ use zkstack_cli_config::{
     ChainConfig, ContractsConfig, DAValidatorType, EcosystemConfig, ZkStackConfig,
     ZkStackConfigTrait,
 };
+use zkstack_cli_types::VMOption;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
@@ -395,13 +396,21 @@ async fn get_da_validator_type(config: &ChainConfig) -> anyhow::Result<DAValidat
         .unwrap_or_default();
 
     match (
+        config.vm_option,
         config.l1_batch_commit_data_generator_mode,
         da_client_type.as_deref(),
     ) {
-        (L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
-        (L1BatchCommitmentMode::Validium, None | Some("NoDA")) => Ok(DAValidatorType::NoDA),
-        (L1BatchCommitmentMode::Validium, Some("Avail")) => Ok(DAValidatorType::Avail),
-        (L1BatchCommitmentMode::Validium, Some("Eigen")) => Ok(DAValidatorType::NoDA), // TODO: change to EigenDA for M1
+        (_, L1BatchCommitmentMode::Rollup, _) => Ok(DAValidatorType::Rollup),
+        // A ZKsync OS validium publishes its logs-only pubdata through blobs, so it
+        // registers with the rollup validator type — see `get_l1_da_validator`.
+        (VMOption::ZKSyncOsVM, L1BatchCommitmentMode::Validium, None | Some("NoDA")) => {
+            Ok(DAValidatorType::Rollup)
+        }
+        (VMOption::EraVM, L1BatchCommitmentMode::Validium, None | Some("NoDA")) => {
+            Ok(DAValidatorType::NoDA)
+        }
+        (_, L1BatchCommitmentMode::Validium, Some("Avail")) => Ok(DAValidatorType::Avail),
+        (_, L1BatchCommitmentMode::Validium, Some("Eigen")) => Ok(DAValidatorType::NoDA), // TODO: change to EigenDA for M1
         _ => anyhow::bail!("DAValidatorType is not supported"),
     }
 }

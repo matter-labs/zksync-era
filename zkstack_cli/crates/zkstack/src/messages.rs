@@ -192,7 +192,9 @@ pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
 pub(super) const MSG_CHAIN_ID_HELP: &str = "Chain ID";
 pub(super) const MSG_WALLET_CREATION_HELP: &str = "Wallet options";
 pub(super) const MSG_WALLET_PATH_HELP: &str = "Wallet path";
-pub(super) const MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP: &str = "Commit data generation mode";
+pub(super) const MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP: &str =
+    "Commit data generation mode. On ZKsync OS a validium is logs-only: it still publishes the \
+     mandatory L2->L1 log region through blobs, and only drops the state diffs";
 pub(super) const MSG_BASE_TOKEN_ADDRESS_HELP: &str = "Base token address";
 pub(super) const MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP: &str = "Base token nominator";
 pub(super) const MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP: &str = "Base token denominator";
