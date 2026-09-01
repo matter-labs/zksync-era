@@ -1,6 +1,7 @@
 [workspace]
 members = [
   # Binaries
+  "bin/batch_splitter",
   "bin/block_reverter",
   "bin/contract-verifier",
   "bin/custom_genesis_export",
