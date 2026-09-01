@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 90
     # CUDA 13, matching the GPU runner's driver major version.
     container:
-      image: nvidia/cuda:13.0.0-devel-ubuntu22.04
+      image: nvidia/cuda:13.3.1-devel-ubuntu22.04
     env:
       # Both cards in the run-job pool: Ada (sm_89) and Blackwell (sm_120).
       CUDA_ARCH: "89;120"
@@ -27,7 +27,7 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential ca-certificates clang curl git libssl-dev lld pkg-config wget
 
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup runner
         uses: matter-labs/zksync-os-server/.github/actions/runner-setup@24d38529dbeb2f0bdd016005b1e5e0bc491b692f
@@ -112,7 +112,7 @@ jobs:
             sleep 3
           done
 
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -144,7 +144,7 @@ jobs:
         run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
 
       - name: Download Airbender prover server binary
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: airbender-prover-server
           path: airbender_prover_server
