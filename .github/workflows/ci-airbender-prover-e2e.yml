@@ -27,7 +27,7 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential ca-certificates clang curl git libssl-dev lld pkg-config wget
 
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup runner
         uses: matter-labs/zksync-os-server/.github/actions/runner-setup@24d38529dbeb2f0bdd016005b1e5e0bc491b692f
@@ -63,7 +63,7 @@ jobs:
           ls -lh airbender_prover_server/cuda-libs
 
       - name: Upload Airbender prover server binary
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: airbender-prover-server
           if-no-files-found: error
@@ -112,7 +112,7 @@ jobs:
             sleep 3
           done
 
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           submodules: "recursive"
           fetch-depth: 0
@@ -144,7 +144,7 @@ jobs:
         run: sudo wget https://github.com/mikefarah/yq/releases/download/v$YQ_VERSION/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod a+x /usr/local/bin/yq
 
       - name: Download Airbender prover server binary
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: airbender-prover-server
           path: airbender_prover_server
@@ -349,7 +349,7 @@ jobs:
           ci_run ./bin/prepare_airbender_fixture
 
       - name: Upload Airbender fixture inputs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: airbender_fixture
@@ -357,7 +357,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: airbender_prover_logs
