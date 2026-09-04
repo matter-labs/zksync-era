@@ -109,6 +109,11 @@ pub(crate) fn mock_multicall_response(
         .function("executionDelay")
         .unwrap()
         .short_signature();
+    let chain_execution_delay_selector = functions
+        .validator_timelock_contract
+        .function("getExecutionDelay")
+        .unwrap()
+        .short_signature();
 
     let calls = tokens.into_iter().map(Multicall3Call::from_token);
     let response = calls.map(|call| {
@@ -167,6 +172,14 @@ pub(crate) fn mock_multicall_response(
             selector if selector == execution_delay_selector => {
                 // The target is config_timelock_contract_address which is a random address in tests
                 // Return a mock execution delay (e.g., 3600 seconds = 1 hour)
+                let execution_delay: u32 = 3600;
+                let mut result = vec![0u8; 32];
+                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
+                result
+            }
+            selector if selector == chain_execution_delay_selector => {
+                // The enforced per-chain delay: the same as the ecosystem-wide one, as no
+                // chain-specific delay is set in tests.
                 let execution_delay: u32 = 3600;
                 let mut result = vec![0u8; 32];
                 result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
@@ -877,6 +890,70 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
     )
     .await;
 
+    // The chain raised its own delay above the ecosystem-wide one, so the chain-specific delay is
+    // the one that gets enforced.
+    let mock_response = mock_parsing_multicall_response(with_evm_emulator, Some(3600), Some(7200));
+
+    let parsed = tester
+        .aggregator
+        .parse_multicall_data(mock_response, with_evm_emulator)
+        .unwrap();
+    assert_eq!(
+        parsed.base_system_contracts_hashes.bootloader,
+        H256::repeat_byte(1)
+    );
+    assert_eq!(
+        parsed.base_system_contracts_hashes.default_aa,
+        H256::repeat_byte(2)
+    );
+    let expected_evm_emulator_hash = with_evm_emulator.then(|| H256::repeat_byte(3));
+    assert_eq!(
+        parsed.base_system_contracts_hashes.evm_emulator,
+        expected_evm_emulator_hash
+    );
+    assert_eq!(parsed.verifier_address, Address::repeat_byte(5));
+    assert_eq!(
+        parsed.chain_protocol_version_id,
+        ProtocolVersionId::latest()
+    );
+    assert_eq!(
+        parsed.stm_validator_timelock_address,
+        Address::repeat_byte(7)
+    );
+    assert_eq!(parsed.stm_protocol_version_id, ProtocolVersionId::latest());
+    assert_eq!(parsed.execution_delay, Duration::from_secs(7200));
+}
+
+/// A pre-v29 timelock has no `getExecutionDelay` getter, so the corresponding call fails and the
+/// ecosystem-wide delay must still be observed.
+#[test_casing(2, [false, true])]
+#[test_log::test(tokio::test)]
+async fn parsing_multicall_data_without_chain_execution_delay(with_evm_emulator: bool) {
+    let tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        true,
+        L1BatchCommitmentMode::Rollup,
+        SettlementLayer::L1(10.into()),
+    )
+    .await;
+
+    let mock_response = mock_parsing_multicall_response(with_evm_emulator, Some(3600), None);
+    let parsed = tester
+        .aggregator
+        .parse_multicall_data(mock_response, with_evm_emulator)
+        .unwrap();
+    assert_eq!(parsed.execution_delay, Duration::from_secs(3600));
+}
+
+/// Builds a mock multicall response with the provided execution delays. A `None` delay emulates a
+/// failed getter call.
+fn mock_parsing_multicall_response(
+    with_evm_emulator: bool,
+    ecosystem_delay_seconds: Option<u32>,
+    chain_delay_seconds: Option<u32>,
+) -> Token {
     let mut mock_response = vec![
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
@@ -911,16 +988,11 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
                 .concat(),
             ),
         ]),
-        // Execution delay response (3600 seconds = 0xe10, padded to 32 bytes)
-        Token::Tuple(vec![
-            Token::Bool(true),
-            Token::Bytes({
-                let execution_delay: u32 = 3600;
-                let mut result = vec![0u8; 32];
-                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
-                result
-            }),
-        ]),
+        // Ecosystem-wide execution delay response
+        execution_delay_response(ecosystem_delay_seconds),
+        // Chain-specific execution delay response; `None` emulates a pre-v29 timelock without
+        // the `getExecutionDelay` getter, for which the call is allowed to fail.
+        execution_delay_response(chain_delay_seconds),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 32])]),
     ];
     if with_evm_emulator {
@@ -929,36 +1001,18 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
             Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 32])]),
         );
     }
-    let mock_response = Token::Array(mock_response);
+    Token::Array(mock_response)
+}
 
-    let parsed = tester
-        .aggregator
-        .parse_multicall_data(mock_response, with_evm_emulator)
-        .unwrap();
-    assert_eq!(
-        parsed.base_system_contracts_hashes.bootloader,
-        H256::repeat_byte(1)
-    );
-    assert_eq!(
-        parsed.base_system_contracts_hashes.default_aa,
-        H256::repeat_byte(2)
-    );
-    let expected_evm_emulator_hash = with_evm_emulator.then(|| H256::repeat_byte(3));
-    assert_eq!(
-        parsed.base_system_contracts_hashes.evm_emulator,
-        expected_evm_emulator_hash
-    );
-    assert_eq!(parsed.verifier_address, Address::repeat_byte(5));
-    assert_eq!(
-        parsed.chain_protocol_version_id,
-        ProtocolVersionId::latest()
-    );
-    assert_eq!(
-        parsed.stm_validator_timelock_address,
-        Address::repeat_byte(7)
-    );
-    assert_eq!(parsed.stm_protocol_version_id, ProtocolVersionId::latest());
-    assert_eq!(parsed.execution_delay, Duration::from_secs(3600));
+fn execution_delay_response(delay_seconds: Option<u32>) -> Token {
+    match delay_seconds {
+        Some(delay_seconds) => {
+            let mut result = vec![0u8; 32];
+            result[28..32].copy_from_slice(&delay_seconds.to_be_bytes());
+            Token::Tuple(vec![Token::Bool(true), Token::Bytes(result)])
+        }
+        None => Token::Tuple(vec![Token::Bool(false), Token::Bytes(vec![])]),
+    }
 }
 
 #[test_log::test(tokio::test)]

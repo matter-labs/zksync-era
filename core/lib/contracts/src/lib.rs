@@ -241,7 +241,10 @@ pub fn proof_manager_contract() -> Contract {
 }
 
 pub fn validator_timelock_contract() -> Contract {
-    // Create a simple contract definition for ValidatorTimelock with the executionDelay function
+    // Create a simple contract definition for ValidatorTimelock with the execution delay getters.
+    // `executionDelay` is the ecosystem-wide floor, while `getExecutionDelay` returns the delay
+    // that is actually enforced for a given chain: `max(executionDelay, chainExecutionDelay[chain])`.
+    // The latter is only present starting from v29 timelocks.
     let abi = r#"[
         {
             "inputs": [],
@@ -251,6 +254,25 @@ pub fn validator_timelock_contract() -> Contract {
                     "internalType": "uint256",
                     "name": "",
                     "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_chainAddress",
+                    "type": "address"
+                }
+            ],
+            "name": "getExecutionDelay",
+            "outputs": [
+                {
+                    "internalType": "uint32",
+                    "name": "",
+                    "type": "uint32"
                 }
             ],
             "stateMutability": "view",

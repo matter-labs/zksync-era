@@ -74,7 +74,8 @@ pub struct MulticallData {
     pub stm_validator_timelock_address: Address,
     pub stm_protocol_version_id: ProtocolVersionId,
     pub da_validator_pair: DAValidatorPair,
-    /// Execution delay in seconds from the ValidatorTimelock contract
+    /// The execution delay enforced by the ValidatorTimelock contract for this chain, i.e. the
+    /// maximum of the ecosystem-wide delay and the chain-specific one
     pub execution_delay: Duration,
 }
 
@@ -368,7 +369,7 @@ impl EthTxAggregator {
             calldata: get_da_validator_pair_input,
         };
 
-        // Get execution delay from ValidatorTimelock contract
+        // Get the ecosystem-wide execution delay from the ValidatorTimelock contract
         let get_execution_delay_input = self
             .functions
             .validator_timelock_contract
@@ -380,6 +381,26 @@ impl EthTxAggregator {
             target: self.config_timelock_contract_address,
             allow_failure: true,
             calldata: get_execution_delay_input,
+        };
+
+        // Get the delay that is actually enforced for this chain in
+        // `ValidatorTimelock.executeBatchesSharedBridge`, i.e.
+        // `max(executionDelay, chainExecutionDelay[chain])`. A chain admin can raise its own delay
+        // above the ecosystem-wide one, in which case scheduling execute transactions based on
+        // `executionDelay` alone would make them revert with `TimeNotReached`.
+        let get_chain_execution_delay_input = self
+            .functions
+            .validator_timelock_contract
+            .function("getExecutionDelay")
+            .unwrap()
+            .encode_input(&[Token::Address(self.state_transition_chain_contract)])
+            .unwrap();
+        let get_chain_execution_delay_call = Multicall3Call {
+            target: self.config_timelock_contract_address,
+            // Note, that this call is allowed to fail, as the corresponding function is not present
+            // in the pre-v29 timelocks. In that case we fall back to the ecosystem-wide delay.
+            allow_failure: true,
+            calldata: get_chain_execution_delay_input,
         };
 
         let get_post_v29_upgradeable_validator_timelock_input = self
@@ -407,6 +428,7 @@ impl EthTxAggregator {
             get_stm_pre_v29_validator_timelock_call.into_token(),
             get_da_validator_pair_call.into_token(),
             get_execution_delay_call.into_token(),
+            get_chain_execution_delay_call.into_token(),
             get_post_v29_upgradeable_validator_timelock_call.into_token(),
         ];
 
@@ -443,8 +465,9 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
-            let number_of_calls = if evm_emulator_hash_requested { 11 } else { 10 };
-            // 10 or 11 calls are aggregated in multicall (added execution delay call and post-v29 validator timelock call)
+            let number_of_calls = if evm_emulator_hash_requested { 12 } else { 11 };
+            // 11 or 12 calls are aggregated in multicall (added ecosystem-wide and chain-specific
+            // execution delay calls and post-v29 validator timelock call)
             if call_results.len() != number_of_calls {
                 return parse_error(&call_results);
             }
@@ -522,10 +545,20 @@ impl EthTxAggregator {
                 chain_protocol_version_id,
             )?;
 
-            let execution_delay = Self::parse_execution_delay(
+            let ecosystem_execution_delay = Self::parse_execution_delay(
                 call_results_iterator.next().unwrap(),
-                "execution delay",
+                "ecosystem-wide execution delay",
             )?;
+            let chain_execution_delay = Self::parse_execution_delay(
+                call_results_iterator.next().unwrap(),
+                "chain-specific execution delay",
+            )?;
+            // `getExecutionDelay` already returns the maximum of the two delays, but it is missing
+            // on pre-v29 timelocks; taking the maximum here keeps the ecosystem-wide value as a
+            // floor regardless of which of the two getters is available.
+            let execution_delay = chain_execution_delay
+                .unwrap_or_default()
+                .max(ecosystem_execution_delay.unwrap_or_default());
 
             let stm_validator_timelock_address =
                 if chain_protocol_version_id.is_pre_interop_fast_blocks() {
@@ -658,19 +691,24 @@ impl EthTxAggregator {
         Ok(pair)
     }
 
-    fn parse_execution_delay(data: Token, name: &'static str) -> Result<Duration, EthSenderError> {
+    /// Returns `None` if the getter call itself has failed, which is the case when it is not
+    /// present on the deployed timelock.
+    fn parse_execution_delay(
+        data: Token,
+        name: &'static str,
+    ) -> Result<Option<Duration>, EthSenderError> {
         let multicall_data = Multicall3Result::from_token(data)?;
 
         if !multicall_data.success {
             tracing::warn!(
-                "multicall3 {name} data is not of the len of 32: {:?}, returning zero delay",
+                "multicall3 {name} call has failed: {:?}, ignoring the returned delay",
                 multicall_data.return_data
             );
-            return Ok(Duration::ZERO);
+            return Ok(None);
         }
 
         let delay_seconds = U256::from_big_endian(&multicall_data.return_data);
-        Ok(Duration::from_secs(delay_seconds.as_u64()))
+        Ok(Some(Duration::from_secs(delay_seconds.as_u64())))
     }
 
     fn timelock_contract_address(
