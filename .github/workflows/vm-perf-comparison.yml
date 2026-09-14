@@ -21,9 +21,12 @@ jobs:
           ref: ${{ github.base_ref }}
 
       - name: fetch PR branch
+        env:
+          PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          git remote add pr_repo ${{ github.event.pull_request.head.repo.clone_url }}
-          git fetch pr_repo ${{ github.event.pull_request.head.ref }}
+          git remote add pr_repo "$PR_CLONE_URL"
+          git fetch pr_repo "refs/heads/$PR_HEAD_REF"
 
       - name: fetch merge-base SHA
         id: merge_base
