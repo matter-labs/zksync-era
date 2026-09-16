@@ -151,7 +151,7 @@ jobs:
 
   prepare-proof-manager-contracts:
     name: Prepare proof manager contracts
-    runs-on: matterlabs-ci-runner-high-performance
+    runs-on: matterlabs-ci-runner-standard-8
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
