@@ -1,7 +1,9 @@
 use std::rc::Rc;
 
 use ethabi::Token;
-use zksync_contracts::{l1_messenger_contract, l2_rollup_da_validator_bytecode, BaseSystemContracts};
+use zksync_contracts::{
+    l1_messenger_contract, l2_rollup_da_validator_bytecode, BaseSystemContracts,
+};
 use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
     address_to_h256,
