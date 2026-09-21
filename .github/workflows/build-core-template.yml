@@ -105,10 +105,15 @@ jobs:
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           mkdir ./foundry-zksync
-          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz
-          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          curl -fLO https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.1.5/foundry_zksync_v0.1.5_linux_amd64.tar.gz
+          tar zxf foundry_zksync_v0.1.5_linux_amd64.tar.gz -C ./foundry-zksync
           chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
           echo "$PWD/foundry-zksync" >> $GITHUB_PATH
+
+      - name: Install pinned contract compilers
+        if: env.BUILD_CONTRACTS == 'true'
+        working-directory: ./contracts
+        run: bash scripts/install-zksolc.sh
 
       - name: Pre-download compilers
         if: env.BUILD_CONTRACTS == 'true'

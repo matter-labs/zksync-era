@@ -68,6 +68,13 @@ runs:
         mkdir -p ./hardhat-nodejs
         ci_localnet_up
 
+    - name: Install pinned contract compilers inside Docker
+      shell: bash
+      run: |
+        # The Foundry compiler mirror does not publish zksolc 1.5.17. Use the
+        # installer from the pinned contracts revision in the build environment.
+        ci_run bash -c 'cd contracts && bash scripts/install-zksolc.sh'
+
     - name: Start sccache servers
       if: inputs.sccache == 'true'
       shell: bash
