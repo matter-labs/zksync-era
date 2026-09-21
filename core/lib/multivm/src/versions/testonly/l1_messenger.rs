@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use ethabi::Token;
-use zksync_contracts::{l1_messenger_contract, l2_rollup_da_validator_bytecode};
+use zksync_contracts::{l1_messenger_contract, l2_rollup_da_validator_bytecode, BaseSystemContracts};
 use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
     address_to_h256,
@@ -82,6 +82,8 @@ pub(crate) fn test_rollup_da_output_hash_match<VM: TestedVm>() {
     let protocol_version = ProtocolVersionId::latest();
     let l2_da_validator_address = Address::repeat_byte(0x12);
     let vm_builder = VmTesterBuilder::new()
+        // Exercise production hook frame placement, not just the playground bootloader.
+        .with_base_system_smart_contracts(BaseSystemContracts::load_from_disk())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(1);
     let mut vm = if protocol_version.is_pre_medium_interop() {

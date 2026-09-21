@@ -45,9 +45,9 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
         self.frames_stack.forward().current_frame().len()
     }
 
-    /// Returns log queries across active frames where `log_query.timestamp >= from_timestamp`.
+    /// Returns the log queries in the current frame where `log_query.timestamp >= from_timestamp`.
     pub fn log_queries_after_timestamp(&self, from_timestamp: Timestamp) -> &[Box<LogQuery>] {
-        let events = self.frames_stack.forward().all_frames();
+        let events = self.frames_stack.forward().current_frame();
 
         // Select all of the last elements where `e.timestamp >= from_timestamp`.
         // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
@@ -169,55 +169,5 @@ impl<H: HistoryMode> EventSink for InMemoryEventSink<H> {
             );
         }
         self.frames_stack.merge_frame(timestamp);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use zksync_types::{Address, U256};
-
-    use super::*;
-    use crate::vm_latest::HistoryDisabled;
-
-    fn event(timestamp: u32) -> LogQuery {
-        LogQuery {
-            timestamp: Timestamp(timestamp),
-            tx_number_in_block: 0,
-            aux_byte: EVENT_AUX_BYTE,
-            shard_id: 0,
-            address: Address::repeat_byte(1),
-            key: U256::from(timestamp),
-            read_value: U256::zero(),
-            written_value: U256::one(),
-            rw_flag: true,
-            rollback: false,
-            is_service: true,
-        }
-    }
-
-    #[test]
-    fn hook_frame_reads_parent_events_and_preserves_rollback() {
-        let mut sink = InMemoryEventSink::<HistoryDisabled>::default();
-        sink.add_partial_query(0, event(1));
-        sink.start_frame(Timestamp(2));
-
-        // A new near-call hook frame is empty, but its parent batch is not.
-        let (events, _) = sink.get_events_and_l2_l1_logs_after_timestamp(Timestamp(0));
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].key, U256::one());
-
-        sink.add_partial_query(0, event(3));
-        sink.start_frame(Timestamp(4));
-        let (events, _) = sink.get_events_and_l2_l1_logs_after_timestamp(Timestamp(0));
-        assert_eq!(events.len(), 2);
-        let (filtered, _) = sink.get_events_and_l2_l1_logs_after_timestamp(Timestamp(2));
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0].key, U256::from(3));
-
-        sink.finish_frame(false, Timestamp(5));
-        sink.finish_frame(true, Timestamp(6));
-        let (events, _) = sink.get_events_and_l2_l1_logs_after_timestamp(Timestamp(0));
-        assert_eq!(events.len(), 1, "reverted child events must stay excluded");
-        assert_eq!(events[0].key, U256::one());
     }
 }

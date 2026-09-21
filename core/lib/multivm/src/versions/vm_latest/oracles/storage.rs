@@ -318,12 +318,12 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         get_pubdata_price_bytes(prev_value, new_value, is_initial_write)
     }
 
-    /// Returns storage log queries across active frames where `log.log_query.timestamp >= from_timestamp`.
+    /// Returns storage log queries from current frame where `log.log_query.timestamp >= from_timestamp`.
     pub(crate) fn storage_log_queries_after_timestamp(
         &self,
         from_timestamp: Timestamp,
     ) -> &[Box<StorageLogQuery>] {
-        let logs = self.storage_frames_stack.forward().all_frames();
+        let logs = self.storage_frames_stack.forward().current_frame();
 
         // Select all of the last elements where `l.log_query.timestamp >= from_timestamp`.
         // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
@@ -675,49 +675,6 @@ mod tests {
             is_service: false,
             rollback: false,
         }
-    }
-
-    #[test]
-    fn hook_frame_reads_parent_storage_logs() {
-        let storage = StorageView::new(InMemoryStorage::default()).to_rc_ptr();
-        let mut oracle = StorageOracle::<_, HistoryEnabled>::new(storage);
-        let key = StorageKey::new(AccountTreeId::new(Address::default()), H256::zero());
-        oracle.execute_partial_query(
-            0,
-            make_storage_query(key, U256::one(), Timestamp(1), TestQueryType::StorageWrite),
-        );
-        oracle.start_frame(Timestamp(2));
-        let logs = oracle.storage_log_queries_after_timestamp(Timestamp(0));
-        assert_eq!(logs.len(), 1);
-        assert_eq!(logs[0].log_query.written_value, U256::one());
-        assert!(oracle
-            .storage_log_queries_after_timestamp(Timestamp(2))
-            .is_empty());
-
-        oracle.execute_partial_query(
-            0,
-            make_storage_query(
-                key,
-                U256::from(2),
-                Timestamp(3),
-                TestQueryType::StorageWrite,
-            ),
-        );
-        oracle.start_frame(Timestamp(4));
-        assert_eq!(
-            oracle
-                .storage_log_queries_after_timestamp(Timestamp(0))
-                .len(),
-            2
-        );
-        oracle.finish_frame(Timestamp(5), false);
-        oracle.finish_frame(Timestamp(6), true);
-        // Rollback records remain visible so pubdata sorting cancels the child write.
-        let logs = oracle.storage_log_queries_after_timestamp(Timestamp(0));
-        assert_eq!(logs.len(), 3);
-        assert!(logs[2].log_query.rollback);
-        assert_eq!(logs[2].log_query.written_value, U256::from(2));
-        assert_eq!(logs[2].log_query.read_value, U256::one());
     }
 
     #[test]
