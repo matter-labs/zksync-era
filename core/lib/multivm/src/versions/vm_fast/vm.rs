@@ -226,7 +226,9 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
 
     pub(crate) fn has_previous_far_calls(&mut self) -> bool {
         let callframe_count = self.inner.number_of_callframes();
-        (1..callframe_count).any(|i| !self.inner.callframe(i).is_near_call())
+        // VM2 indexes frames newest first. Exclude the oldest (root) frame,
+        // not the current frame: compiler-generated hook helpers are near calls.
+        (0..callframe_count - 1).any(|i| !self.inner.callframe(i).is_near_call())
     }
 
     /// Should only be used when the bootloader is executing (e.g., when handling hooks).

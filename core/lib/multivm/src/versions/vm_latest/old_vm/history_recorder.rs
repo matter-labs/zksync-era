@@ -399,6 +399,12 @@ impl<T> FramedStack<T> {
         &self.data[*self.frame_start_indices.last().unwrap()..self.data.len()]
     }
 
+    /// Forward history across all active frames, including their unmerged parents.
+    /// Bootloader hooks can execute in near-call helpers rather than the root frame.
+    pub fn all_frames(&self) -> &[T] {
+        &self.data
+    }
+
     fn len(&self) -> usize {
         self.frame_start_indices.len()
     }
