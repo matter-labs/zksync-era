@@ -311,7 +311,8 @@ impl EcosystemConfig {
     pub fn list_of_chains(&self) -> Vec<String> {
         self.get_shell()
             .read_dir(&self.chains)
-            .unwrap()
+            // No chains directory means no chains have been created yet, same as an empty one.
+            .unwrap_or_default()
             .iter()
             .filter_map(|file| {
                 if file.is_dir() {
@@ -426,4 +427,41 @@ pub fn get_default_era_chain_id() -> L2ChainId {
 
 pub fn get_link_to_prover(link_to_code: &Path) -> PathBuf {
     link_to_code.join("prover")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::OnceCell;
+
+    use super::*;
+
+    #[test]
+    fn list_of_chains_is_empty_when_chains_dir_is_missing() {
+        // Regression test: `zkstack chain create` (and anything else that calls
+        // `list_of_chains`) used to panic with `.unwrap()` on `read_dir` when the `chains`
+        // directory doesn't exist yet, e.g. right after `rm -rf chains`. A missing directory
+        // should be treated the same as an empty one.
+        let chains = std::env::temp_dir().join(format!(
+            "zkstack-list-of-chains-test-{}-{}",
+            std::process::id(),
+            "missing"
+        ));
+        assert!(!chains.exists());
+
+        let config = EcosystemConfig::new(
+            "test".to_string(),
+            L1Network::default(),
+            PathBuf::from("."),
+            None,
+            chains,
+            PathBuf::from("."),
+            "era".to_string(),
+            L2ChainId::default(),
+            ProverMode::NoProofs,
+            WalletCreation::default(),
+            OnceCell::from(Shell::new().unwrap()),
+        );
+
+        assert_eq!(config.list_of_chains(), Vec::<String>::new());
+    }
 }
