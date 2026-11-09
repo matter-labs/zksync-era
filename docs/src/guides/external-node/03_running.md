@@ -15,8 +15,8 @@ This configuration is approximate and should be considered as **minimal** requir
 - 32-core CPU
 - 64GB RAM
 - SSD storage (NVME recommended):
-  - ZKsync Sepolia Testnet - 10GB Node + 50GB PostgreSQL (at the time of writing, will grow over time, so should be
-    constantly monitored)
+  - ZKsync Era Testnet (chain 312) - 10GB Node + 50GB PostgreSQL (at the time of writing, will grow over time, so should
+    be constantly monitored)
   - ZKsync Mainnet - 3TB Node + 8TB PostgreSQL (at the time of writing, will grow over time, so should be constantly
     monitored)
 - 100 Mbps connection (1 Gbps+ recommended)
