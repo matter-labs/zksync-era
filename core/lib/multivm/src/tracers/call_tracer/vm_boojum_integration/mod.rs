@@ -116,10 +116,14 @@ impl CallTracer {
                 state.vm_local_state.registers[CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER as usize];
             assert!(packed_abi.is_pointer);
             let far_call_abi = FarCallABI::from_u256(packed_abi.value);
+            // Clamped to the retained-data budget, so that oversized calldata is never allocated.
+            let length = self
+                .data_budget
+                .take(far_call_abi.memory_quasi_fat_pointer.length as usize);
             memory.read_unaligned_bytes(
                 far_call_abi.memory_quasi_fat_pointer.memory_page as usize,
                 far_call_abi.memory_quasi_fat_pointer.start as usize,
-                far_call_abi.memory_quasi_fat_pointer.length as usize,
+                length,
             )
         };
 
@@ -145,10 +149,13 @@ impl CallTracer {
         let output = if fat_data_pointer.is_pointer {
             let fat_data_pointer = FatPointer::from_u256(fat_data_pointer.value);
             if !fat_data_pointer.is_trivial() {
+                // The callee decides this length, not the caller's output buffer. Clamped to the
+                // retained-data budget.
+                let length = self.data_budget.take(fat_data_pointer.length as usize);
                 Some(memory.read_unaligned_bytes(
                     fat_data_pointer.memory_page as usize,
                     fat_data_pointer.start as usize,
-                    fat_data_pointer.length as usize,
+                    length,
                 ))
             } else {
                 None

@@ -43,6 +43,7 @@ impl EthConfig {
                 aggregated_block_prove_deadline: Duration::from_secs(10),
                 aggregated_block_execute_deadline: Duration::from_secs(10),
                 timestamp_criteria_max_allowed_lag: 30,
+                l1_batch_min_age_before_execute: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
@@ -119,14 +120,40 @@ impl WellKnown for GasLimitMode {
     const DE: Self::Deserializer = Serde![str];
 }
 
-/// The prover whose proofs are submitted to L1. `Boojum` is the legacy
-/// FRI + plonk/fflonk compression pipeline; `Airbender` is the Airbender
-/// FRI + SNARK-wrapping pipeline served by the airbender proof data handler.
+/// Proofs required for L1 submission.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum ProverType {
-    #[default]
     Boojum,
     Airbender,
+    #[default]
+    Both,
+}
+
+impl ProverType {
+    pub fn disabled_proof_systems(self) -> u8 {
+        match self {
+            Self::Both => 0,
+            Self::Airbender => 1,
+            Self::Boojum => 2,
+        }
+    }
+
+    pub fn from_disabled_proof_systems(mask: u8) -> anyhow::Result<Self> {
+        match mask {
+            0 => Ok(Self::Both),
+            1 => Ok(Self::Airbender),
+            2 => Ok(Self::Boojum),
+            _ => anyhow::bail!("invalid disabled proof systems mask: {mask}"),
+        }
+    }
+
+    pub fn requires_boojum(self) -> bool {
+        matches!(self, Self::Boojum | Self::Both)
+    }
+
+    pub fn requires_airbender(self) -> bool {
+        matches!(self, Self::Airbender | Self::Both)
+    }
 }
 
 impl WellKnown for ProverType {
@@ -164,6 +191,8 @@ pub struct SenderConfig {
     pub aggregated_block_execute_deadline: Duration,
     #[config(default_t = 30)]
     pub timestamp_criteria_max_allowed_lag: usize,
+    /// Lower bound for the execution delay read from the validator timelock.
+    pub l1_batch_min_age_before_execute: Option<Duration>,
 
     /// Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     #[config(default_t = 100_000_000_000)]
@@ -185,9 +214,7 @@ pub struct SenderConfig {
     pub is_verifier_pre_fflonk: bool,
     #[config(default)]
     pub gas_limit_mode: GasLimitMode,
-    /// Prover whose proofs are submitted to L1. When set to `Airbender`, the
-    /// aggregator gates commits on the Airbender FRI proof being present and
-    /// submits the Airbender SNARK proof in the prove transaction.
+    /// `Both` waits for Boojum and Airbender proofs before submitting them together.
     #[config(default)]
     pub prover: ProverType,
     /// Max acceptable base fee the sender is allowed to use to send L1 txs.
@@ -319,6 +346,7 @@ mod tests {
                 aggregated_block_execute_deadline: Duration::from_secs(4_000),
                 max_aggregated_tx_gas: 4_000_000,
                 timestamp_criteria_max_allowed_lag: 30,
+                l1_batch_min_age_before_execute: Some(Duration::from_secs(1000)),
                 max_aggregated_blocks_to_commit: 3,
                 max_aggregated_blocks_to_execute: 4,
                 wait_confirmations: Some(1),
@@ -369,6 +397,26 @@ mod tests {
     }
 
     #[test]
+    fn proof_selection() {
+        for (value, expected) in [
+            (None, ProverType::Both),
+            (Some("Boojum"), ProverType::Boojum),
+            (Some("Airbender"), ProverType::Airbender),
+            (Some("Both"), ProverType::Both),
+        ] {
+            let mut yaml = serde_yaml::from_str::<serde_yaml::Mapping>(
+                "proof_sending_mode: OnlyRealProofs\npubdata_sending_mode: Calldata",
+            )
+            .unwrap();
+            if let Some(value) = value {
+                yaml.insert("prover".into(), value.into());
+            }
+            let config: SenderConfig = test(Yaml::new("test.yml", yaml).unwrap()).unwrap();
+            assert_eq!(config.prover, expected);
+        }
+    }
+
+    #[test]
     fn parsing_from_env() {
         let env = r#"
             ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
@@ -401,10 +449,12 @@ mod tests {
             ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
             ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
             ETH_SENDER_SENDER_TIME_IN_MEMPOOL_IN_L1_BLOCKS_CAP="2000"
+            ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
             ETH_SENDER_SENDER_IS_VERIFIER_PRE_FFLONK=false
             ETH_SENDER_SENDER_GAS_LIMIT_MODE=Calculated
+            ETH_SENDER_SENDER_PROVER=Boojum
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_BASE_FEE_IN_WEI=100000000000
             ETH_SENDER_SENDER_PRECOMMIT_PARAMS_L2_BLOCKS_TO_AGGREGATE="1"
             ETH_SENDER_SENDER_PRECOMMIT_PARAMS_DEADLINE="1 sec"
@@ -431,6 +481,7 @@ mod tests {
             wait_confirmations: 1
             tx_poll_period: 3
             aggregate_tx_poll_period: 3
+            l1_batch_min_age_before_execute_seconds: 1000
             max_txs_in_flight: 3
             proof_sending_mode: SKIP_EVERY_PROOF
             max_aggregated_tx_gas: 4000000
@@ -493,6 +544,7 @@ mod tests {
             wait_confirmations: 1
             tx_poll_period: 3 seconds
             aggregate_tx_poll_period: 3s
+            l1_batch_min_age_before_execute: 1000s
             max_txs_in_flight: 3
             proof_sending_mode: SKIP_EVERY_PROOF
             max_aggregated_tx_gas: 4000000

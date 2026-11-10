@@ -9,7 +9,7 @@
 #
 FROM ubuntu:22.04 AS builder
 
-ARG RUST_TOOLCHAIN=nightly-2026-02-10
+ARG RUST_TOOLCHAIN=nightly-2026-08-09
 
 ENV DEBIAN_FRONTEND=noninteractive \
     RUSTUP_HOME=/usr/local/rustup \
@@ -50,17 +50,15 @@ RUN mkdir -p /setup \
 COPY . .
 
 # The guest program (`guest/dist/app/{app.bin,app.text}`) and verification keys
-# (`vks/`) are NOT in the build context — they are gitignored and downloaded by
-# the server crate's `build.rs` from the pinned `zksync_airbender_verifier`
-# GitHub release during the `cargo build` below, so no guard/vendoring step is
-# needed here. A failed download fails `cargo build` loudly.
+# (`vks/`) are gitignored: the workflow downloads them into the context first
+# (`.github/actions/airbender-artifacts`) and `COPY . .` carries them in.
 
 # Build the CPU SNARK server. `--no-default-features` keeps `gpu_fri` (CUDA)
 # off; we add no `gpu_snark` either, so the wrapper stays on CPU.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/workspace/target \
-    cargo build --release --locked --no-default-features \
+    CARGO_HOME=/workspace/cargo cargo build --release --locked --no-default-features \
         -p eravm-prover-server \
     && mkdir -p /out \
     && cp /workspace/target/release/eravm-prover-server /out/

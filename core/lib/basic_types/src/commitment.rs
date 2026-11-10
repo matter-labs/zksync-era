@@ -112,6 +112,21 @@ impl L2DACommitmentScheme {
     pub fn is_none(&self) -> bool {
         *self == L2DACommitmentScheme::None
     }
+
+    /// Returns the pubdata type implied by this commitment scheme, if the scheme determines it
+    /// unambiguously.
+    ///
+    /// Blob-based schemes are only ever used by rollups, so they imply [`PubdataType::Rollup`].
+    /// The validium schemes are shared by several DA clients (`EmptyNoDA` is used by NoDA,
+    /// ObjectStore and any client running with dummy inclusion data; `PubdataKeccak256` is used by
+    /// Avail, Celestia and Eigen), so for them `None` is returned and the caller should fall back
+    /// to the DA client configuration.
+    pub fn implied_pubdata_type(&self) -> Option<PubdataType> {
+        match self {
+            Self::BlobsAndPubdataKeccak256 | Self::BlobsZksyncOS => Some(PubdataType::Rollup),
+            Self::None | Self::EmptyNoDA | Self::PubdataKeccak256 => None,
+        }
+    }
 }
 
 impl TryFrom<u8> for L2DACommitmentScheme {
@@ -278,6 +293,34 @@ impl PubdataParams {
         PubdataParams {
             pubdata_validator: L2PubdataValidator::Address(Address::zero()),
             pubdata_type: Default::default(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blob_schemes_imply_rollup_pubdata_type() {
+        assert_eq!(
+            L2DACommitmentScheme::BlobsAndPubdataKeccak256.implied_pubdata_type(),
+            Some(PubdataType::Rollup)
+        );
+        assert_eq!(
+            L2DACommitmentScheme::BlobsZksyncOS.implied_pubdata_type(),
+            Some(PubdataType::Rollup)
+        );
+    }
+
+    #[test]
+    fn validium_schemes_do_not_imply_pubdata_type() {
+        for scheme in [
+            L2DACommitmentScheme::None,
+            L2DACommitmentScheme::EmptyNoDA,
+            L2DACommitmentScheme::PubdataKeccak256,
+        ] {
+            assert_eq!(scheme.implied_pubdata_type(), None, "{scheme:?}");
         }
     }
 }

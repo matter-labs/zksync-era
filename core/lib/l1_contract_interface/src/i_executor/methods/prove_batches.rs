@@ -12,7 +12,7 @@ use zksync_prover_interface::outputs::{L1BatchProofForL1, TypedL1BatchProofForL1
 use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::{encode, Token},
-    U256,
+    ProtocolVersionId, U256,
 };
 
 use crate::{
@@ -25,6 +25,7 @@ use crate::{
 pub struct ProveBatches {
     pub prev_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
+    /// A single proof, or Boojum followed by Airbender for the same batch.
     pub proofs: Vec<L1BatchProofForL1>,
     pub should_verify: bool,
 }
@@ -44,30 +45,12 @@ impl ProveBatches {
         let batches_arg = Token::Array(batches_arg);
 
         if self.should_verify {
-            // currently we only support submitting a single proof
-            assert_eq!(self.proofs.len(), 1);
             assert_eq!(self.l1_batches.len(), 1);
-
-            let (verifier_type, proof) = match self.proofs.first().unwrap().inner() {
-                TypedL1BatchProofForL1::Fflonk(proof) => {
-                    let scheduler_proof = proof.scheduler_proof.clone();
-
-                    let (_, serialized_proof) = serialize_fflonk_proof(&scheduler_proof);
-                    (U256::from(0), serialized_proof)
-                }
-                TypedL1BatchProofForL1::Plonk(proof) => {
-                    let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
-                    (U256::from(1), serialized_proof)
-                }
-                TypedL1BatchProofForL1::Airbender(proof) => {
-                    const ZKSYNC_OS_PLONK_VERIFICATION_TYPE: u64 = 2;
-                    let serialized_proof =
-                        proof.proof.chunks(32).map(U256::from_big_endian).collect();
-                    (
-                        U256::from(ZKSYNC_OS_PLONK_VERIFICATION_TYPE),
-                        serialized_proof,
-                    )
-                }
+            let (verifier_type, proof) = if protocol_version >= ProtocolVersionId::Version34 {
+                (U256::from(4), multi_proof_payload(&self.proofs))
+            } else {
+                assert_eq!(self.proofs.len(), 1);
+                serialize_l1_proof(&self.proofs[0])
             };
 
             let should_use_fflonk = !is_verifier_pre_fflonk || !protocol_version.is_pre_fflonk();
@@ -137,6 +120,64 @@ impl ProveBatches {
     }
 }
 
+const BOOJUM_PROOF_WORDS: usize = 24;
+const AIRBENDER_PROOF_WORDS: usize = 44;
+
+fn multi_proof_payload(proofs: &[L1BatchProofForL1]) -> Vec<U256> {
+    assert!(!proofs.is_empty() && proofs.len() <= 2);
+    let mut boojum = None;
+    let mut airbender = None;
+    for proof in proofs {
+        assert!(
+            !matches!(proof.inner(), TypedL1BatchProofForL1::Plonk(_)),
+            "Boojum proof must be FFLONK"
+        );
+        let (verifier_type, words) = serialize_l1_proof(proof);
+        if verifier_type == U256::from(2) {
+            assert!(airbender.is_none(), "duplicate Airbender proof");
+            assert_eq!(words.len(), AIRBENDER_PROOF_WORDS);
+            airbender = Some(words);
+        } else {
+            assert!(boojum.is_none(), "duplicate Boojum proof");
+            assert_eq!(verifier_type, U256::zero(), "Boojum proof must be FFLONK");
+            assert_eq!(words.len(), BOOJUM_PROOF_WORDS);
+            boojum = Some(words);
+        }
+    }
+    boojum
+        .unwrap_or_else(|| vec![U256::zero(); BOOJUM_PROOF_WORDS])
+        .into_iter()
+        .chain(airbender.unwrap_or_else(|| vec![U256::zero(); AIRBENDER_PROOF_WORDS]))
+        .collect()
+}
+
+fn serialize_l1_proof(proof: &L1BatchProofForL1) -> (U256, Vec<U256>) {
+    match proof.inner() {
+        TypedL1BatchProofForL1::Fflonk(proof) => {
+            let (_, words) = serialize_fflonk_proof(&proof.scheduler_proof);
+            (U256::from(0), words)
+        }
+        TypedL1BatchProofForL1::Plonk(proof) => {
+            let (_, words) = serialize_proof(&proof.scheduler_proof);
+            (U256::from(1), words)
+        }
+        TypedL1BatchProofForL1::Airbender(proof) => {
+            let (words, remainder) = proof.proof.as_chunks::<32>();
+            assert!(
+                remainder.is_empty(),
+                "Airbender proof must contain whole words"
+            );
+            (
+                U256::from(2),
+                words
+                    .iter()
+                    .map(|word| U256::from_big_endian(word))
+                    .collect(),
+            )
+        }
+    }
+}
+
 fn serialize_fe_for_ethereum(field_element: &Fr) -> U256 {
     let mut be_bytes = [0u8; 32];
     field_element
@@ -199,4 +240,26 @@ fn serialize_fflonk_proof(
     serialized_proof.push(serialize_fe_for_ethereum(&product));
 
     (serialized_inputs, serialized_proof)
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_prover_interface::outputs::PlonkL1BatchProofForL1;
+    use zksync_types::protocol_version::ProtocolSemanticVersion;
+
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "Boojum proof must be FFLONK")]
+    fn multi_proof_rejects_boojum_plonk() {
+        let proof = L1BatchProofForL1::new_plonk(PlonkL1BatchProofForL1 {
+            aggregation_result_coords: [[0; 32]; 4],
+            scheduler_proof: fflonk::bellman::plonk::better_better_cs::proof::Proof::empty(),
+            protocol_version: ProtocolSemanticVersion {
+                minor: ProtocolVersionId::Version34,
+                patch: 0.into(),
+            },
+        });
+        multi_proof_payload(&[proof]);
+    }
 }

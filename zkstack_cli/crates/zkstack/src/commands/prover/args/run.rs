@@ -154,8 +154,11 @@ impl ProverComponent {
                     additional_args.push(format!("--heavy-wvg-count={heavy_wvg_count}"));
                 }
             }
-            Self::Compressor if args.compressor_args.mode == CompressorMode::Fflonk => {
-                additional_args.push("--fflonk=true".to_string());
+            Self::Compressor => {
+                additional_args.push(format!(
+                    "--fflonk={}",
+                    args.compressor_args.mode == CompressorMode::Fflonk
+                ));
             }
             _ => {}
         };
@@ -275,7 +278,7 @@ impl CircuitProverArgs {
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct CompressorArgs {
-    #[clap(long, default_value = "plonk")]
+    #[clap(long, default_value = "fflonk")]
     pub mode: CompressorMode,
 }
 
@@ -292,8 +295,8 @@ pub struct CompressorArgs {
     Serialize,
 )]
 pub enum CompressorMode {
-    Fflonk,
     #[default]
+    Fflonk,
     Plonk,
 }
 

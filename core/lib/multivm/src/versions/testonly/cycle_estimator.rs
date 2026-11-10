@@ -10,15 +10,19 @@
 //! cycles) rather than exact cycle counts, which unrelated system-contract
 //! changes would otherwise invalidate.
 
+use ethabi::Token;
 use zksync_test_contracts::TestContract;
-use zksync_types::{Address, Execute, U256};
+use zksync_types::{
+    bytecode::BytecodeHash, get_known_code_key, u256_to_h256, web3::keccak256, Address, Execute,
+    U256,
+};
 
-use super::{ContractToDeploy, TestedVmWithCycleTracer, VmTester, VmTesterBuilder};
+use super::{
+    get_empty_storage, ContractToDeploy, TestedVmWithCycleTracer, VmTester, VmTesterBuilder,
+};
 use crate::{
     interface::TxExecutionMode,
-    tracers::cycle_estimator::{
-        estimate_from_features, BatchContext, CycleEstimate, FeatureId, FeatureVector,
-    },
+    tracers::cycle_estimator::{estimate_from_features, CycleEstimate, FeatureId, FeatureVector},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
@@ -44,16 +48,13 @@ fn accumulate(batch: &mut FeatureVector, tx: &FeatureVector) {
 /// witness does not exist yet, so the number of distinct storage applications is
 /// the estimate of the leaves the tree will witness.
 fn estimate_batch(features: FeatureVector, tx_count: u64) -> CycleEstimate {
-    let storage_applications = features.get(FeatureId::StorageApplication);
-    let ctx = BatchContext {
-        transaction_count: tx_count,
-        merkle_leaf_count: storage_applications,
-        storage_key_count: storage_applications,
-        used_bytecode_bytes: 0,
-        used_bytecode_count: 0,
-    };
+    let merkle_leaf_count = features.get(FeatureId::StorageApplication);
     estimate_from_features(
-        features, /* pubdata */ 0, /* state_diffs */ 0, &ctx,
+        features,
+        /* pubdata */ 0,
+        /* state_diffs */ 0,
+        tx_count,
+        merkle_leaf_count,
     )
 }
 
@@ -128,21 +129,29 @@ fn run_batch<VM: TestedVmWithCycleTracer>(
     (batch, tx_count)
 }
 
-/// Drives a real multi-transaction batch with the [`CycleFeatureTracer`] attached
-/// and checks that (a) it fills the shared [`FeatureVector`] with the
-/// opcode/complexity features the cost model expects, and (b) the reused,
-/// VM-agnostic estimator turns them into a positive, reliable cycle estimate with
-/// a full per-phase breakdown.
+/// Drives a real multi-transaction batch with the [`CycleFeatureTracer`] attached and
+/// checks that it fills the [`FeatureVector`] with the features the cost table prices,
+/// and that the estimator turns them into a positive, reliable estimate.
 pub(crate) fn test_basic_behavior<VM: TestedVmWithCycleTracer>() {
     let mut vm = build_tester::<VM>();
     let (features, tx_count) = run_batch(&mut vm, 2);
 
     // A batch of contract calls + a transfer executes plenty of ordinary opcodes,
     // makes far calls into the callees, and applies storage writes.
-    assert!(
-        features.get(FeatureId::RichAddressingOp) > 0,
-        "expected rich-addressing opcodes to be counted"
-    );
+    for (id, name) in [
+        (FeatureId::ArithCheapOp, "cheap"),
+        (FeatureId::ArithShiftOp, "shift"),
+        (FeatureId::ArithMulOp, "mul"),
+        (FeatureId::ArithDivOp, "div"),
+        (FeatureId::ArithPtrOp, "pointer"),
+    ] {
+        // Each arithmetic class is filled separately: an axis the tracer never fills
+        // reads as work the batch never did.
+        assert!(
+            features.get(id) > 0,
+            "expected {name} arithmetic opcodes to be counted"
+        );
+    }
     assert!(
         features.get(FeatureId::FarCall) > 0,
         "expected at least one far call"
@@ -163,18 +172,15 @@ pub(crate) fn test_basic_behavior<VM: TestedVmWithCycleTracer>() {
     );
     assert!(
         estimate.is_reliable(),
-        "a counter/transfer batch uses no unpriced precompiles: {:?}",
-        estimate.unpriced
+        "a counter/transfer batch prices with no unpriced axis and a filled trace: {estimate:?}"
     );
-    for phase in ["setup", "vm_execution", "merkle_verification", "commitment"] {
-        assert!(estimate.phases.contains_key(phase), "missing phase {phase}");
-    }
+    assert!(
+        estimate.marginal < estimate.total,
+        "the per-batch base belongs to `total` only: {estimate:?}"
+    );
 
-    // The conservative (safety-margined) value never shrinks below `total`, and
-    // the batch fits under an unbounded limit but never under a zero one.
-    assert!(estimate.conservative(1.10) >= estimate.total);
-    assert!(estimate.fits(u64::MAX, 1.10));
-    assert!(!estimate.fits(0, 1.0));
+    // The conservative (safety-margined) value never shrinks below `total`.
+    assert!(estimate.conservative() >= estimate.total);
 }
 
 /// The estimate is monotone in the work actually executed: a bigger batch (more
@@ -191,8 +197,7 @@ pub(crate) fn test_estimate_scales_with_batch_size<VM: TestedVmWithCycleTracer>(
     // The larger batch really did more work.
     assert!(large_txs > small_txs);
     assert!(
-        large_features.get(FeatureId::RichAddressingOp)
-            > small_features.get(FeatureId::RichAddressingOp),
+        large_features.get(FeatureId::ArithCheapOp) > small_features.get(FeatureId::ArithCheapOp),
         "a larger batch must execute more opcodes"
     );
     assert!(
@@ -210,5 +215,75 @@ pub(crate) fn test_estimate_scales_with_batch_size<VM: TestedVmWithCycleTracer>(
         "more work must cost more cycles: {} !> {}",
         large.total,
         small.total
+    );
+}
+
+/// A DECOMMIT of a hash already decommitted in this VM run redoes work that no counter
+/// reports and whose ergs are refunded, so it is priced per call — 2.01e6 cycles against
+/// 7,123 per 64 bytes for a fresh one. Nothing else in the estimate distinguishes the two,
+/// so both producers derive the repeat from the absence of a fresh decommit, and this
+/// checks that they do: the same `codeOracle` call twice, fresh then repeat.
+pub(crate) fn test_repeat_decommit_is_counted<VM: TestedVmWithCycleTracer>() {
+    let precompiles_contract_address = Address::repeat_byte(1);
+    let decommitted_bytecode = TestContract::counter().bytecode;
+    let decommitted_bytecode_hash = BytecodeHash::for_bytecode(decommitted_bytecode).value();
+
+    let mut storage = get_empty_storage();
+    storage.set_value(
+        get_known_code_key(&decommitted_bytecode_hash),
+        u256_to_h256(U256::one()),
+    );
+    let mut vm = VmTesterBuilder::new()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_rich_accounts(1)
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            TestContract::precompiles_test().bytecode.to_vec(),
+            precompiles_contract_address,
+        )])
+        .with_storage(storage)
+        .build::<VM>();
+    vm.vm.insert_bytecodes(&[decommitted_bytecode]);
+
+    let call_code_oracle = TestContract::precompiles_test().function("callCodeOracle");
+    let calldata = call_code_oracle
+        .encode_input(&[
+            Token::FixedBytes(decommitted_bytecode_hash.0.to_vec()),
+            Token::FixedBytes(keccak256(decommitted_bytecode).to_vec()),
+        ])
+        .unwrap();
+
+    let mut decommits = Vec::with_capacity(2);
+    for _ in 0..2 {
+        let account = &mut vm.rich_accounts[0];
+        let tx = account.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(precompiles_contract_address),
+                calldata: calldata.clone(),
+                value: U256::zero(),
+                factory_deps: vec![],
+            },
+            None,
+        );
+        vm.vm.push_transaction(tx);
+        let (res, features) = vm.vm.inspect_with_cycle_tracer();
+        assert!(
+            !res.result.is_failed(),
+            "code oracle call failed: {:#?}",
+            res.result
+        );
+        assert!(
+            features.get(FeatureId::Decommit) > 0,
+            "the code oracle executes a DECOMMIT"
+        );
+        decommits.push(features.get(FeatureId::DecommitRepeat));
+    }
+
+    assert_eq!(
+        decommits[0], 0,
+        "the first decommit of a bytecode is fresh, not a repeat"
+    );
+    assert!(
+        decommits[1] > 0,
+        "decommitting the same bytecode again must be counted as a repeat"
     );
 }

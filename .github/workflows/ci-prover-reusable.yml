@@ -21,8 +21,10 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
+          gcp-workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          sccache-reader-service-account: ${{ secrets.GCP_SCCACHE_READER_SERVICE_ACCOUNT }}
+          sccache-writer-service-account: ${{ secrets.GCP_SCCACHE_WRITER_SERVICE_ACCOUNT }}
           runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
-          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: Database setup
         run: |
@@ -34,6 +36,10 @@ jobs:
 
       - name: Lints
         run: ci_run zkstack dev lint -t rs --check
+
+      - name: Show sccache stats
+        if: always()
+        run: ci_sccache_stats
 
   unit-tests:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
@@ -52,8 +58,10 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
+          gcp-workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          sccache-reader-service-account: ${{ secrets.GCP_SCCACHE_READER_SERVICE_ACCOUNT }}
+          sccache-writer-service-account: ${{ secrets.GCP_SCCACHE_WRITER_SERVICE_ACCOUNT }}
           runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
-          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: Init
         run: |
@@ -63,3 +71,7 @@ jobs:
         run: |
           # Not all tests are enabled, since prover and setup_key_generator_and_server requires bellman-cuda to be present
           ci_run zkstack dev test prover
+
+      - name: Show sccache stats
+        if: always()
+        run: ci_sccache_stats

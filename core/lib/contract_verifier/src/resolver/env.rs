@@ -30,9 +30,12 @@ impl Default for EnvCompilerResolver {
 
 impl EnvCompilerResolver {
     async fn read_dir(&self, dir: &str) -> anyhow::Result<HashSet<String>> {
-        let mut dir_entries = fs::read_dir(self.home_dir.join(dir))
-            .await
-            .context("failed reading dir")?;
+        let path = self.home_dir.join(dir);
+        let mut dir_entries = match fs::read_dir(&path).await {
+            Ok(entries) => entries,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(HashSet::new()),
+            Err(err) => return Err(err).context("failed reading dir"),
+        };
         let mut versions = HashSet::new();
         while let Some(entry) = dir_entries.next_entry().await? {
             let Ok(file_type) = entry.file_type().await else {
@@ -40,7 +43,9 @@ impl EnvCompilerResolver {
             };
             if file_type.is_dir() {
                 if let Ok(name) = entry.file_name().into_string() {
-                    versions.insert(name);
+                    if CompilerType::is_safe_version(&name) {
+                        versions.insert(name);
+                    }
                 }
             }
         }

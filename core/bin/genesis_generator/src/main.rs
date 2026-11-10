@@ -1,7 +1,4 @@
-//! Each protocol upgrade required to update genesis config values.
-//! This tool generates the new correct genesis file that could be used for the new chain
-//! Please note, this tool update only yaml file, if you still use env based configuration,
-//! update env values correspondingly
+//! Regenerates the Era genesis JSON and TOML from current contracts.
 
 use std::{path::PathBuf, str::FromStr};
 
@@ -60,12 +57,21 @@ async fn main() -> anyhow::Result<()> {
     let db_url = database_secrets.master_url()?;
     let new_genesis =
         generate_new_config(db_url, original_genesis.clone(), genesis_config.l1_chain_id).await?;
+    let toml_path = PathBuf::from(DEFAULT_GENESIS_FILE_PATH).with_extension("toml");
+    let toml = genesis_toml(&new_genesis)?;
     if opt.check {
         assert_eq!(original_genesis, new_genesis);
+        let existing_toml: toml::Value = std::fs::read_to_string(&toml_path)?.parse()?;
+        assert_eq!(existing_toml, toml);
         println!("Genesis config is up to date");
         return Ok(());
     }
-    tokio::task::spawn_blocking(|| new_genesis.write(DEFAULT_GENESIS_FILE_PATH.as_ref())).await??;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        new_genesis.write(DEFAULT_GENESIS_FILE_PATH.as_ref())?;
+        std::fs::write(toml_path, toml::to_string_pretty(&toml)?)?;
+        Ok(())
+    })
+    .await??;
     println!("Genesis successfully generated");
     Ok(())
 }
@@ -104,8 +110,23 @@ async fn generate_new_config(
     let batch_params = insert_genesis_batch(&mut transaction, &params).await?;
 
     updated_genesis.genesis_batch_commitment = batch_params.commitment;
+    updated_genesis.genesis_airbender_batch_commitment = batch_params
+        .airbender_commitment
+        .context("missing Airbender genesis commitment")?;
     updated_genesis.genesis_root = batch_params.root_hash;
     updated_genesis.genesis_rollup_leaf_index = batch_params.rollup_last_leaf_index;
 
     Ok(updated_genesis)
+}
+
+fn genesis_toml(config: &ContractsGenesis) -> anyhow::Result<toml::Value> {
+    let mut value = toml::Value::try_from(config)?;
+    value["protocol_semantic_version"] = toml::Value::Integer(
+        config
+            .protocol_semantic_version
+            .pack()
+            .as_u64()
+            .try_into()?,
+    );
+    Ok(value)
 }

@@ -49,12 +49,14 @@ pub(crate) enum MultiVmSubversion {
     EcPrecompiles,
     Interop,
     MediumInterop,
+    /// Protocol v34+: `MediumInterop`'s layout plus the force-fail `txMeta` bit.
+    ForceFail,
 }
 
 #[cfg(test)]
 impl MultiVmSubversion {
     pub(crate) fn latest() -> Self {
-        Self::MediumInterop
+        Self::ForceFail
     }
 }
 
@@ -73,6 +75,7 @@ impl TryFrom<VmVersion> for MultiVmSubversion {
             VmVersion::VmEcPrecompiles => Ok(Self::EcPrecompiles),
             VmVersion::VmInterop => Ok(Self::Interop),
             VmVersion::VmMediumInterop => Ok(Self::MediumInterop),
+            VmVersion::VmMediumInteropForceFail => Ok(Self::ForceFail),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }

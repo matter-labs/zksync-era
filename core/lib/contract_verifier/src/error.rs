@@ -31,8 +31,12 @@ pub enum ContractVerifierError {
     },
     #[error("Failed to deserialize standard JSON input")]
     FailedToDeserializeInput,
+    #[error("Unsupported verification input: {0}")]
+    UnsupportedVerificationInput(String),
     #[error("Source path is not allowed: {0}")]
     InvalidSourcePath(String),
+    #[error("Compiler output exceeds the allowed size")]
+    CompilerOutputTooLarge,
 }
 
 impl From<DalError> for ContractVerifierError {

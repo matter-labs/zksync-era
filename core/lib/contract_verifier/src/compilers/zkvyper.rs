@@ -1,4 +1,4 @@
-use std::{ffi::OsString, path, path::Path, process::Stdio};
+use std::{ffi::OsString, path, path::Path};
 
 use anyhow::Context as _;
 use tokio::{fs, io::AsyncWriteExt};
@@ -8,6 +8,7 @@ use zksync_types::contract_verification::api::CompilationArtifacts;
 use super::{sanitize_compiler_stderr, VyperInput};
 use crate::{
     error::ContractVerifierError,
+    process::run_compiler,
     resolver::{Compiler, CompilerPaths},
 };
 
@@ -98,17 +99,21 @@ impl Compiler<VyperInput> for ZkVyper {
         self: Box<Self>,
         input: VyperInput,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
-        let mut command = tokio::process::Command::new(&self.paths.zk);
+        let zkvyper_path = fs::canonicalize(&self.paths.zk)
+            .await
+            .context("failed to canonicalize zkvyper path")?;
+        let vyper_path = fs::canonicalize(&self.paths.base)
+            .await
+            .context("failed to canonicalize vyper path")?;
+        let mut command = tokio::process::Command::new(zkvyper_path);
         if let Some(o) = input.optimizer_mode.as_ref() {
             command.arg("-O").arg(o);
         }
         command
             .arg("--vyper")
-            .arg(&self.paths.base)
+            .arg(vyper_path)
             .arg("-f")
-            .arg("combined_json")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+            .arg("combined_json");
 
         let temp_dir = tokio::task::spawn_blocking(tempfile::tempdir)
             .await
@@ -118,10 +123,9 @@ impl Compiler<VyperInput> for ZkVyper {
             .write_files(temp_dir.path())
             .await
             .context("failed writing Vyper files to temp dir")?;
-        command.args(file_paths);
+        command.current_dir(temp_dir.path()).args(file_paths);
 
-        let child = command.spawn().context("cannot spawn zkvyper")?;
-        let output = child.wait_with_output().await.context("zkvyper failed")?;
+        let output = run_compiler(&mut command, None).await?;
         if output.status.success() {
             let output = serde_json::from_slice(&output.stdout)
                 .context("zkvyper output is not valid JSON")?;

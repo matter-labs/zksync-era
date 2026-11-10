@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+set -o pipefail
+
+# Kills the given GPU component and waits until the GPU memory is released.
+# Runs on the host: provers started via `ci_run` share the host PID namespace.
+# Patterns stay out of argv so `pgrep -f` doesn't match this script.
+
+case "$1" in
+    airbender) pattern='eravm-prover-server' ;;
+    circuit-prover) pattern='zksync_circuit_prover|zkstack prover run --component=circuit-prover' ;;
+    compressor) pattern='zksync_proof_fri_compressor|zkstack prover run --component=compressor' ;;
+    *) echo "Unknown component '$1'; expected airbender, circuit-prover or compressor."; exit 1 ;;
+esac
+
+if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+
+kill_matching() {
+    local pids
+    pids=$(pgrep -f "$pattern" || true)
+    # shellcheck disable=SC2086
+    [ -n "$pids" ] && ${SUDO} kill -9 $pids 2>/dev/null
+    return 0
+}
+
+kill_matching
+
+for _ in $(seq 1 30); do
+    used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+    echo "GPU memory used: ${used:-unknown} MiB"
+    [ -n "$used" ] && [ "$used" -lt 2000 ] && exit 0
+    kill_matching
+    sleep 2
+done
+
+echo "GPU memory was not released."
+exit 1

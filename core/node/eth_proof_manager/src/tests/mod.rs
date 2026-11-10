@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroU32, sync::Arc, time::Duration};
 
 use zksync_config::{
     configs::{
@@ -19,6 +19,7 @@ use zksync_types::{
 };
 
 mod fallbacking;
+mod validation_result;
 
 pub(super) struct TestContext {
     pub connection_pool: ConnectionPool<Core>,
@@ -62,6 +63,7 @@ impl TestContext {
             l2_chain_id: 270,
             http_rpc_url: "http://127.0.0.1:3050".to_string(),
             public_object_store_url: "".to_string(),
+            batch_step: NonZeroU32::MIN,
             object_store: ObjectStoreConfig {
                 mode: ObjectStoreMode::FileBacked {
                     file_backed_base_path: "/tmp/zksync/object_store".to_string().into(),
@@ -166,6 +168,34 @@ async fn test_picking_batch_with_prover_cluster_mode() {
     let ctx = TestContext::new().await.init().await;
 
     let processor = ctx.processor(ProvingMode::ProverCluster).await;
+
+    let batch = processor
+        .lock_batch_for_proving(ctx.config.proof_generation_timeout)
+        .await
+        .unwrap();
+    assert_eq!(batch, Some(L1BatchNumber(1)));
+}
+
+#[tokio::test]
+async fn test_unsampled_batch_is_routed_to_prover_cluster() {
+    let ctx = TestContext::new().await.init().await;
+    let processor = ctx.processor(ProvingMode::ProvingNetwork).await;
+    let batch_step = NonZeroU32::new(2).unwrap();
+    let mut connection = ctx.connection_pool.connection().await.unwrap();
+
+    let batch = connection
+        .eth_proof_manager_dal()
+        .lock_batch_for_proving_network_and_prepare(batch_step)
+        .await
+        .unwrap();
+    assert_eq!(batch, None);
+
+    let routed = connection
+        .eth_proof_manager_dal()
+        .route_unsampled_batches_to_prover_cluster(batch_step)
+        .await
+        .unwrap();
+    assert_eq!(routed, 1);
 
     let batch = processor
         .lock_batch_for_proving(ctx.config.proof_generation_timeout)

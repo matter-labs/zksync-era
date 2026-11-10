@@ -189,6 +189,9 @@ impl ExternalNodeBuilder {
                     .local
                     .state_keeper
                     .protective_reads_persistence_enabled,
+            )
+            .with_call_traces_max_chunk_size(
+                self.config.local.state_keeper.call_traces_max_chunk_size.0 as usize,
             );
 
         let io_layer = ExternalIOLayer::new(
@@ -216,6 +219,9 @@ impl ExternalNodeBuilder {
         let state_keeper_layer = StateKeeperLayer::new(
             self.config.local.db.state_keeper_db_path.clone(),
             rocksdb_options,
+            // An external node replays the main node's blocks verbatim; rejecting a transaction the
+            // main node included would stall it rather than protect anything.
+            None,
         );
         self.node
             .add_layer(io_layer)

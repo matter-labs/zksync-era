@@ -102,6 +102,11 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         ));
     }
     decommittment_processor.populate(initial_bytecodes, Timestamp(0));
+    decommittment_processor.populate_entry_point(
+        h256_to_u256(system_env.base_system_smart_contracts.bootloader.hash),
+        BOOTLOADER_CODE_PAGE,
+        Timestamp(0),
+    );
 
     memory.populate(
         vec![(

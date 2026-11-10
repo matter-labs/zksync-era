@@ -81,7 +81,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
             FeeModelConfig::V2(config) => FeeParams::V2(FeeParamsV2::new(
                 config,
                 self.provider.estimate_effective_gas_price(),
-                self.provider.estimate_effective_pubdata_price().await,
+                self.provider.estimate_effective_pubdata_price(),
                 self.base_token_ratio_provider.get_conversion_ratio(),
             )),
         }

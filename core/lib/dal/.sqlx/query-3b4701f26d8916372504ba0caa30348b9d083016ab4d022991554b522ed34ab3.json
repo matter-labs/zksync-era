@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                minor,\n                patch,\n                upgrade_cut_data\n            FROM\n                protocol_patches\n            WHERE\n                (minor, patch) > ($1, $2)\n            ORDER BY\n                minor,\n                patch\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "minor",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "patch",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "upgrade_cut_data",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "3b4701f26d8916372504ba0caa30348b9d083016ab4d022991554b522ed34ab3"
+}

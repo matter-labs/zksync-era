@@ -28,7 +28,7 @@ use crate::{
     protocol_versions_dal::ProtocolVersionsDal,
     transactions_dal::{L2TxSubmissionResult, TransactionsDal},
     transactions_web3_dal::TransactionsWeb3Dal,
-    Connection, Core,
+    Connection, Core, CoreDal,
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
@@ -115,6 +115,7 @@ pub(crate) fn mock_l1_execute() -> L1Tx {
         refund_recipient: Address::random(),
         // DEPRECATED.
         eth_block: 0,
+        force_fail: false,
     };
 
     let execute = Execute {
@@ -374,6 +375,7 @@ async fn remove_stuck_txs() {
             U256::from(1),
             ProtocolVersionId::latest(),
             false,
+            crate::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
         )
         .await
         .unwrap();
@@ -408,4 +410,145 @@ async fn remove_stuck_txs() {
         .unwrap();
 
     assert_eq!(receipts.len(), 1);
+}
+
+fn l1_execution_result(tx: L1Tx) -> TransactionExecutionResult {
+    TransactionExecutionResult {
+        hash: tx.hash(),
+        transaction: tx.into(),
+        execution_info: VmExecutionMetrics::default(),
+        execution_status: TxExecutionStatus::Failure,
+        refunded_gas: 0,
+        call_traces: vec![],
+        revert_reason: None,
+    }
+}
+
+#[tokio::test]
+async fn force_fail_round_trip() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut conn = pool.connection().await.unwrap();
+    conn.protocol_versions_dal()
+        .save_protocol_version_with_tx(&ProtocolVersion::default())
+        .await
+        .unwrap();
+    for number in 0..3 {
+        conn.blocks_dal()
+            .insert_l2_block(&create_l2_block_header(number))
+            .await
+            .unwrap();
+    }
+
+    // Operator table.
+    conn.force_fail_dal()
+        .insert_force_failed_priority_op(PriorityOpId(2), Some("why"), "tests")
+        .await
+        .unwrap();
+    conn.force_fail_dal()
+        .insert_force_failed_priority_op(PriorityOpId(2), None, "tests")
+        .await
+        .unwrap();
+    // The first insert wins: `ON CONFLICT DO NOTHING` keeps its reason.
+    assert_eq!(
+        conn.force_fail_dal()
+            .get_force_failed_priority_ops()
+            .await
+            .unwrap(),
+        [(PriorityOpId(2), Some("why".to_owned()))]
+    );
+
+    // Main node: rows exist from eth_watch, execution updates them.
+    let normal = mock_l1_execute();
+    let mut forced = mock_l1_execute();
+    forced.common_data.serial_id = PriorityOpId(2);
+    forced.common_data.canonical_tx_hash = H256::from_low_u64_be(2);
+    for tx in [&normal, &forced] {
+        conn.transactions_dal()
+            .insert_transaction_l1(tx, L1BlockNumber(1))
+            .await
+            .unwrap();
+    }
+    forced.common_data.force_fail = true;
+    conn.transactions_dal()
+        .mark_txs_as_executed_in_l2_block(
+            L2BlockNumber(1),
+            &[
+                l1_execution_result(normal.clone()),
+                l1_execution_result(forced.clone()),
+            ],
+            1.into(),
+            ProtocolVersionId::latest(),
+            false,
+            crate::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
+        )
+        .await
+        .unwrap();
+
+    // External node: rows are inserted at execution.
+    let mut forced_en = mock_l1_execute();
+    forced_en.common_data.serial_id = PriorityOpId(3);
+    forced_en.common_data.canonical_tx_hash = H256::from_low_u64_be(3);
+    forced_en.common_data.force_fail = true;
+    conn.transactions_dal()
+        .mark_txs_as_executed_in_l2_block(
+            L2BlockNumber(2),
+            &[l1_execution_result(forced_en.clone())],
+            1.into(),
+            ProtocolVersionId::latest(),
+            true,
+            crate::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
+        )
+        .await
+        .unwrap();
+
+    // Re-execution reads the flag back for both write paths.
+    let flags: Vec<_> = conn
+        .transactions_dal()
+        .get_l2_blocks_to_reexecute()
+        .await
+        .unwrap()
+        .into_iter()
+        .flat_map(|block| block.txs)
+        .map(|tx| match tx.common_data {
+            zksync_types::ExecuteTransactionCommon::L1(data) => (data.serial_id, data.force_fail),
+            other => panic!("unexpected tx: {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        flags,
+        [
+            (PriorityOpId(1), false),
+            (PriorityOpId(2), true),
+            (PriorityOpId(3), true)
+        ]
+    );
+
+    // The API exposes it.
+    for (tx, expected) in [(&normal, false), (&forced, true), (&forced_en, true)] {
+        let details = conn
+            .transactions_web3_dal()
+            .get_transaction_details(tx.hash())
+            .await
+            .unwrap()
+            .expect("no details");
+        assert_eq!(details.force_failed, expected, "{:?}", tx.hash());
+    }
+
+    // A block revert clears the record: the rows go back to the mempool unmarked.
+    conn.transactions_dal()
+        .reset_transactions_state(L2BlockNumber(0))
+        .await
+        .unwrap();
+    let mempool = conn
+        .transactions_dal()
+        .sync_mempool(&[], &[], DEFAULT_GAS_PER_PUBDATA, 0, true, 10)
+        .await
+        .unwrap();
+    assert_eq!(mempool.len(), 3);
+    for (tx, _) in mempool {
+        let zksync_types::ExecuteTransactionCommon::L1(data) = tx.common_data else {
+            panic!("unexpected tx: {tx:?}");
+        };
+        assert!(!data.force_fail, "{:?}", data.serial_id);
+    }
 }

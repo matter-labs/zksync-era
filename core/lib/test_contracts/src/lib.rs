@@ -219,6 +219,7 @@ impl Account {
             .into(),
             factory_deps,
             eth_block: 0,
+            force_fail: false,
         };
         Transaction::from_abi(tx, false).unwrap()
     }

@@ -46,6 +46,7 @@ zksync_proof_data_handler.workspace = true
 zksync_state_keeper.workspace = true
 zksync_shared_resources.workspace = true
 zksync_airbender_proof_data_handler.workspace = true
+zksync_airbender_read_proofs_producer.workspace = true
 zksync_vm_runner.workspace = true
 zksync_eth_proof_manager.workspace = true
 zksync_settlement_layer_data.workspace = true

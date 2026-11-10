@@ -260,6 +260,7 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
 
     fn try_from(batch: StorageL1Batch) -> Result<Self, Self::Error> {
         Ok(Self {
+            airbender: None,
             root_hash: H256::from_slice(
                 &batch.hash.ok_or(L1BatchMetadataError::Incomplete("hash"))?,
             ),

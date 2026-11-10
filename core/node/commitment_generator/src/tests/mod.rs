@@ -206,6 +206,76 @@ async fn commitment_generator_normal_operation() {
 }
 
 #[tokio::test]
+async fn commitment_writes_recover_after_failure() {
+    for (table, check, airbender_saved) in [
+        ("airbender_batch_commitments", "l1_batch_number <> 1", false),
+        ("l1_batches", "number <> 1 OR commitment IS NULL", true),
+        ("commitments", "l1_batch_number <> 1", true),
+    ] {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
+            .await
+            .unwrap();
+        let number = L1BatchNumber(1);
+        seal_l1_batch(&mut storage, number).await;
+        save_l1_batch_tree_data(&mut storage, number).await;
+        sqlx::query(&format!(
+            "ALTER TABLE {table} ADD CONSTRAINT fail_commitment_write CHECK ({check})"
+        ))
+        .execute(storage.conn())
+        .await
+        .unwrap();
+
+        let generator = create_commitment_generator(pool.clone());
+        let error = generator.step(number..=number).await.unwrap_err();
+        assert!(
+            format!("{error:#}").contains("fail_commitment_write"),
+            "{error:#}"
+        );
+        assert_eq!(
+            generator.next_batch_range().await.unwrap(),
+            Some(number..=number)
+        );
+        let partial_airbender = storage
+            .blocks_dal()
+            .get_airbender_batch_commitment(number)
+            .await
+            .unwrap();
+        assert_eq!(partial_airbender.is_some(), airbender_saved, "{table}");
+        sqlx::query(&format!(
+            "ALTER TABLE {table} DROP CONSTRAINT fail_commitment_write"
+        ))
+        .execute(storage.conn())
+        .await
+        .unwrap();
+
+        let restarted = create_commitment_generator(pool.clone());
+        let range = restarted.next_batch_range().await.unwrap().unwrap();
+        restarted.step(range).await.unwrap();
+        assert_eq!(restarted.next_batch_range().await.unwrap(), None);
+        let batch = storage
+            .blocks_dal()
+            .get_l1_batch_metadata(number)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(batch.metadata.airbender.is_some());
+        if airbender_saved {
+            assert_eq!(batch.metadata.airbender, partial_airbender);
+        }
+        assert_eq!(
+            batch.metadata.events_queue_commitment,
+            Some(MockCommitmentComputer::EVENTS_QUEUE_COMMITMENT)
+        );
+        assert_eq!(
+            batch.metadata.bootloader_initial_content_commitment,
+            Some(MockCommitmentComputer::BOOTLOADER_COMMITMENT)
+        );
+    }
+}
+
+#[tokio::test]
 async fn commitment_generator_bulk_processing() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();

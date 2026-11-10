@@ -8,6 +8,25 @@ pub mod proof_request_proven;
 pub use proof_request_acknowledged::ProofRequestAcknowledgedHandler;
 pub use proof_request_proven::ProofRequestProvenHandler;
 
+/// Fatal errors skip the log; transient errors retry from its block.
+#[derive(Debug, thiserror::Error)]
+pub enum EventError {
+    #[error("fatal: {0:#}")]
+    Fatal(anyhow::Error),
+    #[error("transient: {0:#}")]
+    Transient(anyhow::Error),
+}
+
+impl EventError {
+    pub fn fatal(err: impl Into<anyhow::Error>) -> Self {
+        Self::Fatal(err.into())
+    }
+
+    pub fn transient(err: impl Into<anyhow::Error>) -> Self {
+        Self::Transient(err.into())
+    }
+}
+
 #[async_trait]
 pub trait EventHandler: Send + Sync {
     // using reference to self here, otherwise we cannot call signature() on dyn traits
@@ -15,5 +34,5 @@ pub trait EventHandler: Send + Sync {
 
     fn event_type(&self) -> EventType;
 
-    async fn handle(&self, log: Log) -> anyhow::Result<()>;
+    async fn handle(&self, log: &Log) -> Result<(), EventError>;
 }

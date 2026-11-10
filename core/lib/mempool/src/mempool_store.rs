@@ -38,6 +38,12 @@ pub struct MempoolStore {
     high_priority_l2_tx_protocol_version: Option<ProtocolVersionId>,
     /// Next priority operation
     next_priority_id: PriorityOpId,
+    /// Whether L1 (priority) transactions are withheld from execution. While set, `next_transaction`
+    /// never returns one and `has_next` ignores them, no matter how many are buffered.
+    ///
+    /// This starts from `mempool.l1_to_l2_txs_paused` and is also latched at run time when the state
+    /// keeper finds a priority transaction unexecutable; see `MempoolStore::pause_l1_transactions`.
+    l1_transactions_paused: bool,
     stashed_accounts: Vec<Address>,
     /// Number of L2 transactions in the mempool.
     size: u64,
@@ -60,10 +66,30 @@ impl MempoolStore {
             high_priority_l2_tx_initiator,
             high_priority_l2_tx_protocol_version,
             next_priority_id,
+            l1_transactions_paused: false,
             stashed_accounts: vec![],
             size: 0,
             capacity,
         }
+    }
+
+    /// Withholds every L1 (priority) transaction from execution, from now on.
+    ///
+    /// This is a latch: there is no way to resume within the run of a node. Resuming means restarting
+    /// with `mempool.l1_to_l2_txs_paused` unset, which is deliberate — whatever made the state keeper
+    /// pause has to be dealt with by an operator, and a priority transaction that was withheld once
+    /// would otherwise be retried on the very next block.
+    ///
+    /// Buffered priority transactions are kept rather than dropped. Nothing is lost by pausing: an
+    /// L1 transaction only leaves the mempool for good once it is executed in a sealed batch, so a
+    /// paused node resumes where it stopped after a restart.
+    pub fn pause_l1_transactions(&mut self) {
+        self.l1_transactions_paused = true;
+    }
+
+    /// Whether L1 (priority) transactions are currently withheld from execution.
+    pub fn l1_transactions_paused(&self) -> bool {
+        self.l1_transactions_paused
     }
 
     /// Inserts batch of new transactions to mempool
@@ -185,7 +211,10 @@ impl MempoolStore {
                 false
             };
 
-        self.l1_transactions.contains_key(&self.next_priority_id)
+        let has_l1_tx = !self.l1_transactions_paused
+            && self.l1_transactions.contains_key(&self.next_priority_id);
+
+        has_l1_tx
             || self
                 .l2_priority_queue
                 .iter()
@@ -203,13 +232,17 @@ impl MempoolStore {
             return Some(transaction_data);
         }
 
-        if let Some(transaction) = self.l1_transactions.remove(&self.next_priority_id) {
-            self.next_priority_id += 1;
-            // L1 transactions can't use block.timestamp in AA and hence do not need to have a constraint
-            return Some((
-                transaction.into(),
-                TransactionTimeRangeConstraint::default(),
-            ));
+        // While paused, priority transactions stay buffered and are never handed out, so the state
+        // keeper builds batches out of L2 transactions alone.
+        if !self.l1_transactions_paused {
+            if let Some(transaction) = self.l1_transactions.remove(&self.next_priority_id) {
+                self.next_priority_id += 1;
+                // L1 transactions can't use block.timestamp in AA and hence do not need to have a constraint
+                return Some((
+                    transaction.into(),
+                    TransactionTimeRangeConstraint::default(),
+                ));
+            }
         }
 
         self.next_l2_transaction(filter, false)
@@ -286,38 +319,44 @@ impl MempoolStore {
     /// When a state_keeper starts the block over after a rejected transaction,
     /// we have to rollback the nonces/ids in the mempool and
     /// reinsert the transactions from the block back into mempool.
-    pub fn rollback(&mut self, tx: &Transaction) -> TransactionTimeRangeConstraint {
+    ///
+    /// Returns `None` if the transaction's account is no longer in the mempool (e.g., purged by gc);
+    /// such a transaction must not be reinserted.
+    pub fn rollback(&mut self, tx: &Transaction) -> Option<TransactionTimeRangeConstraint> {
         // rolling back the nonces and priority ids
         match &tx.common_data {
             ExecuteTransactionCommon::L1(data) => {
                 // reset next priority id
                 self.next_priority_id = self.next_priority_id.min(data.serial_id);
-                TransactionTimeRangeConstraint::default()
+                Some(TransactionTimeRangeConstraint::default())
             }
             ExecuteTransactionCommon::L2(_) => {
-                if let Some((score, constraint)) = self
-                    .l2_transactions_per_account
-                    .get_mut(&tx.initiator_account())
-                    .expect("account is not available in mempool")
-                    .reset(tx)
-                {
-                    self.l2_priority_queue.remove(&score);
-                    return constraint;
-                }
+                let account = tx.initiator_account();
+                let (txs_per_account, priority_queue) =
+                    if Some(account) == self.high_priority_l2_tx_initiator {
+                        (
+                            &mut self.high_priority_l2_transactions_per_account,
+                            &mut self.high_priority_l2_priority_queue,
+                        )
+                    } else {
+                        (
+                            &mut self.l2_transactions_per_account,
+                            &mut self.l2_priority_queue,
+                        )
+                    };
 
-                if Some(tx.initiator_account()) == self.high_priority_l2_tx_initiator {
-                    if let Some((score, constraint)) = self
-                        .high_priority_l2_transactions_per_account
-                        .get_mut(&tx.initiator_account())
-                        .expect("account is not available in mempool")
-                        .reset(tx)
-                    {
-                        self.high_priority_l2_priority_queue.remove(&score);
-                        return constraint;
-                    }
+                let Some(account_txs) = txs_per_account.get_mut(&account) else {
+                    tracing::warn!(
+                        "not reinserting rolled back tx {:?}: account {account:?} is not in mempool",
+                        tx.hash()
+                    );
+                    return None;
+                };
+                if let Some((score, constraint)) = account_txs.reset(tx) {
+                    priority_queue.remove(&score);
+                    return Some(constraint);
                 }
-
-                TransactionTimeRangeConstraint::default()
+                Some(TransactionTimeRangeConstraint::default())
             }
             ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                 panic!("Protocol upgrade tx is not supposed to be in mempool");

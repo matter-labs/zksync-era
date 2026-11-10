@@ -3,10 +3,14 @@ name: CI
 on:
   pull_request:
   merge_group:
+  # Fills the sccache bucket for the prover jobs; `check-flaky-tests.yml` runs the core jobs on `dev`.
+  push:
+    branches:
+      - dev
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
   changed_files:
@@ -16,7 +20,7 @@ jobs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
       airbender_prover_server: ${{ steps.changed-files.outputs.airbender_prover_server_any_changed }}
-      airbender_e2e: ${{ steps.changed-files.outputs.airbender_e2e_any_changed }}
+      prover_e2e: ${{ steps.changed-files.outputs.prover_e2e_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
@@ -58,17 +62,18 @@ jobs:
               - '.github/workflows/actions/**'
               - '!**/*.md'
               - '!**/*.MD'
-            # Airbender GPU e2e lane: the prover server and the core code it exercises.
-            airbender_e2e:
+            # GPU e2e lane: the Airbender prover server and the core code it exercises.
+            prover_e2e:
               - 'airbender_prover_server/**'
               - 'docker/airbender-prover-server/**'
               - 'core/node/airbender_proof_data_handler/**'
+              - 'core/node/airbender_read_proofs_producer/**'
               - 'core/lib/airbender_prover_interface/**'
               - 'core/lib/airbender_verifier/**'
               - 'core/lib/dal/src/airbender_proof_generation_dal.rs'
               - 'core/lib/dal/src/models/storage_airbender_proof.rs'
               - 'core/lib/dal/migrations/*airbender*'
-              - '.github/workflows/ci-airbender-prover-e2e.yml'
+              - '.github/workflows/ci-prover-e2e.yml'
               - '.github/workflows/build-airbender-prover-server-template.yml'
               # Only setup-env, not all actions — this lane occupies a scarce GPU runner for hours.
               - '.github/actions/setup-env/**'
@@ -116,97 +121,123 @@ jobs:
     name: CI for Core lint Components
     needs: changed_files
     if: contains(github.head_ref, 'release-please--branches')
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
     uses: ./.github/workflows/ci-core-lint-reusable.yml
+    secrets: inherit
 
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    if: ${{ github.event_name != 'push' && (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
     uses: ./.github/workflows/ci-core-reusable.yml
+    secrets: inherit
 
   ci-for-prover:
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
     name: CI for Prover Components
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/ci-prover-reusable.yml
+    secrets: inherit
 
   e2e-for-prover:
-    name: E2E Test for Prover Components
+    name: E2E Test for Boojum and Airbender Provers
     needs: changed_files
-    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    permissions:
+      contents: read
+      id-token: write
+    # Same-repo PRs only: the e2e job executes a PR-built binary on a persistent self-hosted GPU
+    # runner, so fork-controlled code must never reach it.
+    if: ${{ github.event_name != 'push' && (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.prover_e2e == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     uses: ./.github/workflows/ci-prover-e2e.yml
+    secrets: inherit
 
   ci-for-airbender-prover-server:
     name: CI for Airbender Prover Server
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.airbender_prover_server == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
-    uses: ./.github/workflows/ci-airbender-prover-server-reusable.yml
-
-  e2e-for-airbender-prover:
-    name: E2E Test for Airbender Prover
-    needs: changed_files
     permissions:
       contents: read
-    # Same-repo PRs only: the e2e job executes a PR-built binary on a persistent self-hosted GPU
-    # runner, so fork-controlled code must never reach it.
-    if: ${{ (needs.changed_files.outputs.airbender_e2e == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    uses: ./.github/workflows/ci-airbender-prover-e2e.yml
+      id-token: write
+    uses: ./.github/workflows/ci-airbender-prover-server-reusable.yml
+    secrets: inherit
 
   ci-for-docs:
     needs: changed_files
-    if: needs.changed_files.outputs.docs == 'true'
+    if: github.event_name != 'push' && needs.changed_files.outputs.docs == 'true'
     name: CI for Docs
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/ci-docs-reusable.yml
+    secrets: inherit
 
   build-core-images:
     name: Build core images
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    if: ${{ github.event_name != 'push' && (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    secrets: inherit
 
   build-contract-verifier:
     name: Build contract verifier
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    if: ${{ github.event_name != 'push' && (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/build-contract-verifier-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    secrets: inherit
 
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    if: ${{ github.event_name != 'push' && (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
       is_pr_from_fork: ${{ github.event.pull_request.head.repo.fork == true }}
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    secrets: inherit
 
   build-airbender-prover-server-images:
     name: Build Airbender prover server images
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.airbender_prover_server == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    if: ${{ github.event_name != 'push' && (needs.changed_files.outputs.airbender_prover_server == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.head_ref, 'release-please--branches') }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/build-airbender-prover-server-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    secrets: inherit
 
   ci-success:
     name: Github Status Check
@@ -224,7 +255,6 @@ jobs:
         build-prover-images,
         build-airbender-prover-server-images,
         e2e-for-prover,
-        e2e-for-airbender-prover,
       ]
     steps:
       - name: Status

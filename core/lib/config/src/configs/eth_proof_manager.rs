@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{num::NonZeroU32, time::Duration};
 
 use smart_config::{DescribeConfig, DeserializeConfig};
 
@@ -17,6 +17,10 @@ pub struct EthProofManagerConfig {
     /// Object store config
     #[config(nest, default)]
     pub object_store: ObjectStoreConfig,
+    /// Only batches whose number is a multiple of this value are sent to the proving network;
+    /// the rest are proven by the prover cluster.
+    #[config(default_t = NonZeroU32::MIN)]
+    pub batch_step: NonZeroU32,
     /// Interval for polling for new events
     #[config(default_t = Duration::from_secs(10))]
     pub event_poll_interval: Duration,

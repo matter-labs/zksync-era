@@ -42,6 +42,7 @@ export interface Contracts {
     counterBytecode: any;
     chainTypeManager: any;
     serverNotifierAbi: any;
+    validatorTimelockAbi: any;
     bytecodesSupplierAbi: any;
     bridgehubAbi: any;
     chainAssetHandlerAbi: any;
@@ -77,6 +78,9 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             ),
             serverNotifierAbi: new ethers.Interface(
                 require(`${CONTRACTS_FOLDER}/l1-contracts/out/ServerNotifier.sol/ServerNotifier.json`).abi
+            ),
+            validatorTimelockAbi: new ethers.Interface(
+                require(`${CONTRACTS_FOLDER}/l1-contracts/out/ValidatorTimelock.sol/ValidatorTimelock.json`).abi
             ),
             bytecodesSupplierAbi: new ethers.Interface(
                 require(`${CONTRACTS_FOLDER}/l1-contracts/out/BytecodesSupplier.sol/BytecodesSupplier.json`).abi
@@ -118,6 +122,11 @@ export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
             ),
             serverNotifierAbi: new ethers.Interface(
                 require(`${L1_CONTRACTS_FOLDER}/governance/ServerNotifier.sol/ServerNotifier.json`).abi
+            ),
+            validatorTimelockAbi: new ethers.Interface(
+                require(
+                    `${L1_CONTRACTS_FOLDER}/state-transition/validators/ValidatorTimelock.sol/ValidatorTimelock.json`
+                ).abi
             ),
             bytecodesSupplierAbi: new ethers.Interface(
                 require(`${L1_CONTRACTS_FOLDER}/upgrades/BytecodesSupplier.sol/BytecodesSupplier.json`).abi

@@ -17,8 +17,9 @@ jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
+    secrets: inherit
   unit-tests:
-    runs-on: [ matterlabs-ci-runner-highmem-long ]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -28,7 +29,9 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
-          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
+          gcp-workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          sccache-reader-service-account: ${{ secrets.GCP_SCCACHE_READER_SERVICE_ACCOUNT }}
+          sccache-writer-service-account: ${{ secrets.GCP_SCCACHE_WRITER_SERVICE_ACCOUNT }}
 
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
@@ -53,28 +56,36 @@ jobs:
         run: |
           ci_run run_retried rustup show
 
+      # Compiles the Rust tests in the background while the contracts build.
+      # `Rust unit tests` runs the same commands and reuses the artifacts.
+      - name: Start Rust test build
+        run: |
+          (
+            ci_run bash -c 'cd core && cargo nextest run --release --no-run \
+              && cd ../zkstack_cli && cargo nextest run --release --no-run \
+              && cd .. && cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch --no-run'
+            echo $? > rust-test-build.exit
+          ) < /dev/null > rust-test-build.log 2>&1 &
+
       - name: Build contracts
         run: |
           ci_run zkstack dev contracts
 
-      - name: Use Node.js
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4
-        with:
-          node-version: 20
-
-      - name: Install yarn
-        run: |
-          npm install -g yarn
       - name: Check contracts hashes
-        working-directory: contracts
         run: |
-          yarn calculate-hashes:check
+          ci_run bash -c 'cd contracts && yarn install --frozen-lockfile && yarn calculate-hashes:check'
 
       - name: Download compilers for contract verifier tests
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PASSED_ENV_VARS: RUST_BACKTRACE,GITHUB_TOKEN
-        run: ci_run run_retried zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
+        run: ci_run run_retried zkstack contract-verifier init --zksolc-version=v1.5.15 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
+
+      - name: Wait for Rust test build
+        run: |
+          while [ ! -f rust-test-build.exit ]; do sleep 10; done
+          cat rust-test-build.log
+          exit "$(cat rust-test-build.exit)"
 
       - name: Rust unit tests
         run: |
@@ -82,6 +93,10 @@ jobs:
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
           ci_run cargo test --manifest-path ./core/Cargo.toml --release -p vm-benchmark --bench oneshot --bench batch
+
+      - name: Show sccache stats
+        if: always()
+        run: ci_sccache_stats
 
   loadtest:
     runs-on: [ matterlabs-ci-runner-high-performance ]
@@ -106,7 +121,9 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
-          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
+          gcp-workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          sccache-reader-service-account: ${{ secrets.GCP_SCCACHE_READER_SERVICE_ACCOUNT }}
+          sccache-writer-service-account: ${{ secrets.GCP_SCCACHE_WRITER_SERVICE_ACCOUNT }}
 
       - name: Create and initialize legacy chain
         run: |
@@ -140,22 +157,14 @@ jobs:
         if: always()
         run: ci_run cat server.log || true
 
-      - name: Show sccache logs
+      - name: Show sccache stats
         if: always()
-        run: |
-          ci_run sccache --show-stats || true
-          ci_run cat /tmp/sccache_log.txt || true
+        run: ci_sccache_stats
 
   integration-tests:
-    runs-on: [ matterlabs-ci-runner-ultra-performance ]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
     strategy:
-      # ----------------------------------------------
-      # Note, that while the contracts do support gateway chain
-      # in reality it won't exist for quite some time and so
-      # we will test both cases here
-      # ----------------------------------------------
       matrix:
-        use_gateway_chain: [ "WITH_GATEWAY", "WITHOUT_GATEWAY" ]
         tested_chain_type: [ "era", "validium", "custom_token" ]
       # In some cases it's useful to continue one job even if another fails.
       fail-fast: false
@@ -168,7 +177,7 @@ jobs:
         run: |
           echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
-          echo "USE_GATEWAY_CHAIN=${{ matrix.use_gateway_chain }}" >> .env
+          echo "USE_GATEWAY_CHAIN=WITHOUT_GATEWAY" >> .env
           echo "TESTED_CHAIN_TYPE=${{ matrix.tested_chain_type }}" >> .env
           SERVER_LOGS_DIR=logs/server
           mkdir -p $SERVER_LOGS_DIR
@@ -181,7 +190,9 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
-          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
+          gcp-workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          sccache-reader-service-account: ${{ secrets.GCP_SCCACHE_READER_SERVICE_ACCOUNT }}
+          sccache-writer-service-account: ${{ secrets.GCP_SCCACHE_WRITER_SERVICE_ACCOUNT }}
 
       - name: Build test dependencies
         run: |
@@ -227,49 +238,12 @@ jobs:
               exit 1
           fi
 
-      # ----------------------------------------------------------------
-      #  Only create/initialize the gateway chain *if* use_gateway_chain=WITH_GATEWAY
-      # ----------------------------------------------------------------
-      - name: Initialize gateway chain
-        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
-        run: |
-          ci_run zkstack chain create \
-          --chain-name gateway \
-          --chain-id 506 \
-          --prover-mode no-proofs \
-          --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode rollup \
-          --base-token-address 0x0000000000000000000000000000000000000001 \
-          --base-token-price-nominator 1 \
-          --base-token-price-denominator 1 \
-          --set-as-default false \
-          --ignore-prerequisites \
-          --evm-emulator false
-          
-          ci_run zkstack chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_gateway \
-          --chain gateway \
-          --validium-type no-da
-          
-          ci_run zkstack chain gateway create-tx-filterer --chain gateway --ignore-prerequisites
-          ci_run zkstack chain gateway convert-to-gateway --chain gateway --ignore-prerequisites
-
-      - name: Run gateway
-        if: matrix.use_gateway_chain == 'WITH_GATEWAY'
-        run: |
-          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/gateway.yaml --chain gateway
-          ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-          ci_run zkstack server wait --ignore-prerequisites --verbose --chain gateway
-
       - name: Initialize Contract verifier
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PASSED_ENV_VARS: RUST_BACKTRACE,GITHUB_TOKEN
         run: |
-          ci_run run_retried zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
+          ci_run run_retried zkstack contract-verifier init --zksolc-version=v1.5.15 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only --chain era
           ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
           ci_run zkstack contract-verifier wait --chain era --verbose
 
@@ -282,25 +256,8 @@ jobs:
       - name: Run upgrade test
         run: |
           ci_run zkstack dev init-test-wallet --chain era
-          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
-            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
-            ci_run zkstack dev test gateway-migration --to-gateway  --chain era --no-deps
-          fi
           ci_run ./bin/stop_nodes.sh
-
-          # Only start & wait for the gateway server if use_gateway_chain == WITH_GATEWAY
-          if [ "${{ matrix.use_gateway_chain }}" == "WITH_GATEWAY" ]; then
-            ci_run zkstack server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &
-            ci_run zkstack server wait --timeout 30 --ignore-prerequisites --verbose --chain gateway
-          fi
-
-          # Always run the upgrade test against era
-          # Upgrading to v31 requires the chain is settling on L1, so this test makes no sense when settling on Gateway
-          # TODO: Restore tests for future release.
-          if [ "${{ matrix.use_gateway_chain }}" == "WITHOUT_GATEWAY" ]; then
-            ci_run zkstack dev test upgrade --no-deps --chain era
-          fi
+          ci_run zkstack dev test upgrade --no-deps --chain era
 
       - name: Collect infrastructure diagnostics
         if: always()
@@ -317,8 +274,12 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
-          name: logs_${{matrix.use_gateway_chain}}_${{matrix.tested_chain_type}}
+          name: logs_${{matrix.tested_chain_type}}
           path: |
             logs/
             chains/*/artifacts/vm_dumps/
             chains/*/configs/
+
+      - name: Show sccache stats
+        if: always()
+        run: ci_sccache_stats

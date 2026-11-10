@@ -46,6 +46,11 @@ export interface TestEnvironment {
      */
     l1BatchCommitDataGeneratorMode: DataAvailabityMode;
     /*
+     * Whether the state keeper applies operator force-fail marks to L1->L2 transactions
+     * (`state_keeper.force_fail.enabled`). On in the localhost chain template; the config default is off.
+     */
+    forceFailEnabled: boolean;
+    /*
      * Path to code home directory
      */
     pathToHome: string;

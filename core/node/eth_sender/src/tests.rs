@@ -56,6 +56,11 @@ fn get_dummy_operation(number: u32) -> AggregatedOperation {
     }))
 }
 
+/// The address [`mock_multicall_response`] serves for `validatorTimelockPostV29`, i.e. the
+/// timelock that enforces the delay for a post-v29 chain. The chain-specific delay is only
+/// configured there, not on the timelock from the config.
+pub(crate) const ENFORCING_VALIDATOR_TIMELOCK_ADDRESS: Address = Address::repeat_byte(7);
+
 const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
     L1BatchCommitmentMode::Rollup,
     L1BatchCommitmentMode::Validium,
@@ -109,10 +114,22 @@ pub(crate) fn mock_multicall_response(
         .function("executionDelay")
         .unwrap()
         .short_signature();
+    let chain_execution_delay_selector = functions
+        .validator_timelock_contract
+        .function("getExecutionDelay")
+        .unwrap()
+        .short_signature();
 
     let calls = tokens.into_iter().map(Multicall3Call::from_token);
     let response = calls.map(|call| {
         let call = call.unwrap();
+        if call.calldata[..4] == chain_execution_delay_selector[..]
+            && call.target != ENFORCING_VALIDATOR_TIMELOCK_ADDRESS
+        {
+            // Emulate a pre-v29 timelock, which has no `getExecutionDelay` getter.
+            return Token::Tuple(vec![Token::Bool(false), Token::Bytes(vec![])]);
+        }
+
         let output = match &call.calldata[..4] {
             selector if selector == bootloader_signature => {
                 assert!(call.target == STATE_TRANSITION_CONTRACT_ADDRESS);
@@ -165,12 +182,22 @@ pub(crate) fn mock_multicall_response(
                 }
             }
             selector if selector == execution_delay_selector => {
-                // The target is config_timelock_contract_address which is a random address in tests
-                // Return a mock execution delay (e.g., 3600 seconds = 1 hour)
-                let execution_delay: u32 = 3600;
-                let mut result = vec![0u8; 32];
-                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
-                result
+                // The ecosystem-wide floor, the same on every timelock: 3600 seconds = 1 hour.
+                encode_execution_delay(3600)
+            }
+            selector if selector == chain_execution_delay_selector => {
+                let chain_address = functions
+                    .validator_timelock_contract
+                    .function("getExecutionDelay")
+                    .unwrap()
+                    .decode_input(&call.calldata[4..])
+                    .expect("invalid getExecutionDelay input");
+                assert_eq!(
+                    chain_address,
+                    [Token::Address(STATE_TRANSITION_CONTRACT_ADDRESS)]
+                );
+                // This chain raised its own delay to 2 hours on the enforcing timelock.
+                encode_execution_delay(7200)
             }
             selector if selector == valdaitor_timelock_post_v29_short_selector => {
                 assert!(call.target == STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS);
@@ -193,6 +220,7 @@ pub(crate) fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetada
 
 pub(crate) fn default_l1_batch_metadata() -> L1BatchMetadata {
     L1BatchMetadata {
+        airbender: zksync_node_test_utils::create_l1_batch_metadata(0).airbender,
         root_hash: H256::default(),
         rollup_last_leaf_index: 0,
         initial_writes_compressed: Some(vec![]),
@@ -704,11 +732,7 @@ async fn correct_order_for_confirmations(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(
-            45,
-            None,
-            zksync_config::configs::eth_sender::ProverType::Boojum,
-        )
+        .get_ready_for_execute_l1_batches(45, None)
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 1);
@@ -719,11 +743,7 @@ async fn correct_order_for_confirmations(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(
-            45,
-            None,
-            zksync_config::configs::eth_sender::ProverType::Boojum,
-        )
+        .get_ready_for_execute_l1_batches(45, None)
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 0);
@@ -773,11 +793,7 @@ async fn skipped_l1_batch_at_the_start(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(
-            45,
-            Some(unix_timestamp_ms()),
-            zksync_config::configs::eth_sender::ProverType::Boojum,
-        )
+        .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 2);
@@ -787,11 +803,7 @@ async fn skipped_l1_batch_at_the_start(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(
-            45,
-            Some(unix_timestamp_ms()),
-            zksync_config::configs::eth_sender::ProverType::Boojum,
-        )
+        .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 2);
@@ -837,11 +849,7 @@ async fn skipped_l1_batch_in_the_middle(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(
-            45,
-            None,
-            zksync_config::configs::eth_sender::ProverType::Boojum,
-        )
+        .get_ready_for_execute_l1_batches(45, None)
         .await
         .unwrap();
     // We should return all L1 batches including the third one
@@ -853,11 +861,7 @@ async fn skipped_l1_batch_in_the_middle(
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(
-            45,
-            None,
-            zksync_config::configs::eth_sender::ProverType::Boojum,
-        )
+        .get_ready_for_execute_l1_batches(45, None)
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 3);
@@ -877,6 +881,99 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
     )
     .await;
 
+    let mock_response = mock_parsing_multicall_response(with_evm_emulator);
+
+    let parsed = tester
+        .aggregator
+        .parse_multicall_data(mock_response, with_evm_emulator)
+        .unwrap();
+    assert_eq!(
+        parsed.base_system_contracts_hashes.bootloader,
+        H256::repeat_byte(1)
+    );
+    assert_eq!(
+        parsed.base_system_contracts_hashes.default_aa,
+        H256::repeat_byte(2)
+    );
+    let expected_evm_emulator_hash = with_evm_emulator.then(|| H256::repeat_byte(3));
+    assert_eq!(
+        parsed.base_system_contracts_hashes.evm_emulator,
+        expected_evm_emulator_hash
+    );
+    assert_eq!(parsed.verifier_address, Address::repeat_byte(5));
+    assert_eq!(
+        parsed.chain_protocol_version_id,
+        ProtocolVersionId::latest()
+    );
+    assert_eq!(
+        parsed.stm_validator_timelock_address,
+        Address::repeat_byte(7)
+    );
+    assert_eq!(parsed.stm_protocol_version_id, ProtocolVersionId::latest());
+}
+
+/// The execution delay has to be read from the timelock the execute transactions are sent to,
+/// because the chain-specific delay is only configured there. Reading it from the timelock in the
+/// config would yield just the ecosystem-wide floor and make the transactions revert with
+/// `TimeNotReached`.
+#[test_log::test(tokio::test)]
+async fn getting_execution_delay_of_the_enforcing_timelock() {
+    let mut tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        true,
+        L1BatchCommitmentMode::Rollup,
+        SettlementLayer::L1(10.into()),
+    )
+    .await;
+
+    let multicall_data = tester.aggregator.get_multicall_data().await.unwrap();
+    let timelock_address = tester.aggregator.timelock_contract_address(
+        multicall_data.chain_protocol_version_id,
+        multicall_data.stm_protocol_version_id,
+        multicall_data.stm_validator_timelock_address,
+    );
+    assert_eq!(timelock_address, ENFORCING_VALIDATOR_TIMELOCK_ADDRESS);
+
+    let execution_delay = tester
+        .aggregator
+        .get_execution_delay(timelock_address)
+        .await
+        .unwrap();
+    assert_eq!(execution_delay, Duration::from_secs(7200));
+}
+
+/// A pre-v29 timelock has no `getExecutionDelay` getter, so that call fails and the ecosystem-wide
+/// delay must still be observed.
+#[test_log::test(tokio::test)]
+async fn getting_execution_delay_of_a_pre_v29_timelock() {
+    let tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        true,
+        L1BatchCommitmentMode::Rollup,
+        SettlementLayer::L1(10.into()),
+    )
+    .await;
+
+    let execution_delay = tester
+        .aggregator
+        .get_execution_delay(Address::repeat_byte(0xaa))
+        .await
+        .unwrap();
+    assert_eq!(execution_delay, Duration::from_secs(3600));
+}
+
+fn encode_execution_delay(delay_seconds: u32) -> Vec<u8> {
+    let mut result = vec![0u8; 32];
+    result[28..32].copy_from_slice(&delay_seconds.to_be_bytes());
+    result
+}
+
+/// Builds a mock response for the multicall issued by [`EthTxAggregator::get_multicall_data`].
+fn mock_parsing_multicall_response(with_evm_emulator: bool) -> Token {
     let mut mock_response = vec![
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
@@ -911,16 +1008,6 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
                 .concat(),
             ),
         ]),
-        // Execution delay response (3600 seconds = 0xe10, padded to 32 bytes)
-        Token::Tuple(vec![
-            Token::Bool(true),
-            Token::Bytes({
-                let execution_delay: u32 = 3600;
-                let mut result = vec![0u8; 32];
-                result[28..32].copy_from_slice(&execution_delay.to_be_bytes());
-                result
-            }),
-        ]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![7u8; 32])]),
     ];
     if with_evm_emulator {
@@ -929,36 +1016,7 @@ async fn parsing_multicall_data(with_evm_emulator: bool) {
             Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 32])]),
         );
     }
-    let mock_response = Token::Array(mock_response);
-
-    let parsed = tester
-        .aggregator
-        .parse_multicall_data(mock_response, with_evm_emulator)
-        .unwrap();
-    assert_eq!(
-        parsed.base_system_contracts_hashes.bootloader,
-        H256::repeat_byte(1)
-    );
-    assert_eq!(
-        parsed.base_system_contracts_hashes.default_aa,
-        H256::repeat_byte(2)
-    );
-    let expected_evm_emulator_hash = with_evm_emulator.then(|| H256::repeat_byte(3));
-    assert_eq!(
-        parsed.base_system_contracts_hashes.evm_emulator,
-        expected_evm_emulator_hash
-    );
-    assert_eq!(parsed.verifier_address, Address::repeat_byte(5));
-    assert_eq!(
-        parsed.chain_protocol_version_id,
-        ProtocolVersionId::latest()
-    );
-    assert_eq!(
-        parsed.stm_validator_timelock_address,
-        Address::repeat_byte(7)
-    );
-    assert_eq!(parsed.stm_protocol_version_id, ProtocolVersionId::latest());
-    assert_eq!(parsed.execution_delay, Duration::from_secs(3600));
+    Token::Array(mock_response)
 }
 
 #[test_log::test(tokio::test)]

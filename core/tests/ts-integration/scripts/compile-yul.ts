@@ -7,7 +7,8 @@ import { getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
 import { getCompilersDir } from 'hardhat/internal/util/global-dir';
 import path from 'path';
 
-const COMPILER_VERSION = '1.5.10';
+// Reuse the compiler downloaded by the main Hardhat build.
+const COMPILER_VERSION = '1.5.15';
 const IS_COMPILER_PRE_RELEASE = false;
 
 async function compilerLocation(): Promise<string> {

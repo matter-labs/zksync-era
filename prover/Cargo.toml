@@ -4,7 +4,7 @@ members = ["crates/bin/*", "crates/lib/*"]
 resolver = "2"
 
 [workspace.package]
-version = "25.3.0" # x-release-please-version
+version = "25.4.0" # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -68,23 +68,24 @@ url = "2.5.2"
 vise = "0.3.2"
 smart-config = "=0.2.0-pre"
 
-# zksync-crypto dependencies
-fflonk = "=0.32.11"
-franklin-crypto = "=0.32.11"
+# zksync-crypto dependencies, vendored into `zksync-protocol` as `crypto/`.
+# One rev for every pin below -- see the note in `core/Cargo.toml`.
+fflonk = { git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
+franklin-crypto = { git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
 
-# zksync-protocol dependencies
-# Pinned to a git tag: zksync-protocol is no longer published to crates.io (it has a
-# git-only `airbender-crypto` dependency). Must match the tag used in `core/Cargo.toml`.
-circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.15" }
-circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.15" }
-zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol", tag = "v0.153.15" }
+# zksync-protocol dependencies. Must use the same URL + rev as `core/Cargo.toml`,
+# or core and the prover get two incompatible copies of `circuit_definitions`.
+circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
+circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
+zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
 
-# zksync-crypto-gpu dependencies
-proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.5" }
-fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.5" }
-wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.5" }
-shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.5" }
-boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu", tag = "v0.156.5" }
+# zksync-crypto-gpu dependencies, vendored into `zksync-protocol` as
+# `crypto-gpu/`, where they reach `protocol/` and `crypto/` by path.
+proof-compression-gpu = { package = "proof-compression", git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
+fflonk-gpu = { package = "fflonk-cuda", git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
+wrapper_prover = { package = "zksync-wrapper-prover", git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
+shivini = { git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
+boojum-cuda = { git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm" }
@@ -104,17 +105,17 @@ zksync_eth_client = { path = "../core/lib/eth_client" }
 zksync_contracts = { path = "../core/lib/contracts" }
 
 # Prover workspace dependencies
-zksync_prover_dal = { version = "=25.3.0", path = "crates/lib/prover_dal" }
-zksync_prover_fri_types = { version = "=25.3.0", path = "crates/lib/prover_fri_types" }
-zksync_prover_fri_utils = { version = "=25.3.0", path = "crates/lib/prover_fri_utils" }
-zksync_prover_task = { version = "=25.3.0", path = "crates/lib/prover_task" }
-zksync_prover_keystore = { version = "=25.3.0", path = "crates/lib/keystore" }
-zksync_vk_setup_data_generator_server_fri = { version = "=25.3.0", path = "crates/bin/vk_setup_data_generator_server_fri" }
-zksync_prover_job_processor = { version = "=25.3.0", path = "crates/lib/prover_job_processor" }
-zksync_circuit_prover_service = { version = "=25.3.0", path = "crates/lib/circuit_prover_service" }
-zksync_prover_job_monitor = { version = "=25.3.0", path = "crates/bin/prover_job_monitor" }
-zksync_proof_fri_compressor_service = { version = "=25.3.0", path = "crates/lib/proof_fri_compressor_service" }
-zksync_witness_generator_service = { version = "=25.3.0", path = "crates/lib/witness_generator_service" }
+zksync_prover_dal = { version = "=25.4.0", path = "crates/lib/prover_dal" }
+zksync_prover_fri_types = { version = "=25.4.0", path = "crates/lib/prover_fri_types" }
+zksync_prover_fri_utils = { version = "=25.4.0", path = "crates/lib/prover_fri_utils" }
+zksync_prover_task = { version = "=25.4.0", path = "crates/lib/prover_task" }
+zksync_prover_keystore = { version = "=25.4.0", path = "crates/lib/keystore" }
+zksync_vk_setup_data_generator_server_fri = { version = "=25.4.0", path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_prover_job_processor = { version = "=25.4.0", path = "crates/lib/prover_job_processor" }
+zksync_circuit_prover_service = { version = "=25.4.0", path = "crates/lib/circuit_prover_service" }
+zksync_prover_job_monitor = { version = "=25.4.0", path = "crates/bin/prover_job_monitor" }
+zksync_proof_fri_compressor_service = { version = "=25.4.0", path = "crates/lib/proof_fri_compressor_service" }
+zksync_witness_generator_service = { version = "=25.4.0", path = "crates/lib/witness_generator_service" }
 
 [patch.crates-io]
 sqlx-postgres = { git = "https://github.com/matter-labs/sqlx-postgres.git", rev = "f4bf3674ecc2e96f4b8fb48b4a0bc08b85e0f6f3" }
@@ -126,4 +127,4 @@ debug = true
 
 
 
-# release-please anchor: force prover 26.0.0
+# release-please anchor: force prover 28.0.0

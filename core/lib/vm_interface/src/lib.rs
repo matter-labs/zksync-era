@@ -34,7 +34,7 @@ pub use crate::{
             OneshotTransactionExecutionResult, PushTransactionResult, Refunds,
             TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
             VmExecutionLogs, VmExecutionMetrics, VmExecutionResultAndLogs, VmExecutionStatistics,
-            VmMemoryMetrics, SAFETY_CRITICAL_FEATURES,
+            VmMemoryMetrics, VM_TRACE_FEATURES,
         },
         tracer,
     },

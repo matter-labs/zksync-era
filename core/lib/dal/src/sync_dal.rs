@@ -225,6 +225,7 @@ mod tests {
                 1.into(),
                 ProtocolVersionId::latest(),
                 false,
+                crate::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
             )
             .await
             .unwrap();

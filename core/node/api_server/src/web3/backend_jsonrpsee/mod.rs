@@ -43,7 +43,8 @@ impl MethodTracer {
             | Web3Error::InvalidTimeout(_)
             | Web3Error::InvalidTransactionRequest(_)
             | Web3Error::InvalidFeeHistoryParams(_)
-            | Web3Error::LogsLimitExceeded(_, _, _) => ErrorCode::InvalidParams.code(),
+            | Web3Error::LogsLimitExceeded(_, _, _)
+            | Web3Error::LogsBlockRangeLimitExceeded(_, _, _, _) => ErrorCode::InvalidParams.code(),
             Web3Error::SubmitTransactionError(_, _)
             | Web3Error::SerializationError(_)
             | Web3Error::ProxyError(_) => 3,

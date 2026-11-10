@@ -93,6 +93,10 @@ impl GenesisConfigPatch {
             )?;
             self.0
                 .insert("genesis_batch_commitment", config.genesis_commitment()?)?;
+            self.0.insert_yaml(
+                "genesis_airbender_batch_commitment",
+                config.genesis_airbender_commitment()?,
+            )?;
             self.0
                 .insert("bootloader_hash", config.bootloader_hash()?)?;
             self.0
@@ -148,6 +152,10 @@ impl ContractsGenesisConfig {
         self.0.get("genesis_batch_commitment")
     }
 
+    pub fn genesis_airbender_commitment(&self) -> anyhow::Result<Option<String>> {
+        self.0.get_opt("genesis_airbender_batch_commitment")
+    }
+
     pub fn protocol_semantic_version(&self) -> anyhow::Result<ProtocolSemanticVersion> {
         self.0
             .get::<u16>("protocol_semantic_version.minor")
@@ -157,5 +165,58 @@ impl ContractsGenesisConfig {
                     self.0.get::<u32>("protocol_semantic_version.patch")?.into(),
                 ))
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn propagates_airbender_genesis_commitment() {
+        let shell = Shell::new().unwrap();
+        let dir = shell.create_temp_dir().unwrap();
+        let source = dir.path().join("contracts.json");
+        let target = dir.path().join("genesis.yaml");
+        for commitment in [Some("airbender"), None] {
+            let config = serde_json::json!({
+                "protocol_semantic_version": {"major": 0, "minor": 34, "patch": 0},
+                "genesis_root": "root",
+                "genesis_rollup_leaf_index": 102,
+                "genesis_batch_commitment": "boojum",
+                "genesis_airbender_batch_commitment": commitment,
+                "bootloader_hash": "bootloader",
+                "default_aa_hash": "default_aa",
+                "prover": {"recursion_scheduler_level_vk_hash": "vk"}
+            });
+            shell
+                .write_file(&source, serde_json::to_vec(&config).unwrap())
+                .unwrap();
+            shell
+                .write_file(&target, "genesis_airbender_batch_commitment: stale\n")
+                .unwrap();
+            let contracts = ContractsGenesisConfig::read(&shell, &source).await.unwrap();
+            let mut genesis = GenesisConfig::read(&shell, &target)
+                .await
+                .unwrap()
+                .patched();
+            genesis
+                .update_from_contracts_genesis(&contracts, VMOption::EraVM)
+                .unwrap();
+            genesis.save().await.unwrap();
+            let genesis = GenesisConfig::read(&shell, &target).await.unwrap();
+            assert_eq!(
+                genesis.0.get::<String>("genesis_batch_commitment").unwrap(),
+                "boojum"
+            );
+            assert_eq!(
+                genesis
+                    .0
+                    .get_opt::<String>("genesis_airbender_batch_commitment")
+                    .unwrap()
+                    .as_deref(),
+                commitment
+            );
+        }
     }
 }

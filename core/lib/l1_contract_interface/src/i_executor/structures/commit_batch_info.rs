@@ -55,6 +55,16 @@ impl<'a> CommitBatchInfo<'a> {
         ])
     }
 
+    pub fn schema_for_protocol_version(protocol_version: ProtocolVersionId) -> ParamType {
+        let ParamType::Tuple(mut fields) = Self::post_gateway_schema() else {
+            unreachable!()
+        };
+        if protocol_version >= ProtocolVersionId::Version34 {
+            fields.insert(8, ParamType::FixedBytes(32));
+        }
+        ParamType::Tuple(fields)
+    }
+
     fn base_tokens(&self) -> Vec<Token> {
         if self
             .l1_batch_with_metadata
@@ -206,6 +216,16 @@ impl Tokenizable for CommitBatchInfo<'_> {
 
         if protocol_version.is_pre_boojum() {
             return Token::Tuple(tokens);
+        }
+        if protocol_version >= ProtocolVersionId::Version34 {
+            let metadata = &self.l1_batch_with_metadata.metadata;
+            let heap_hash = metadata
+                .airbender
+                .as_ref()
+                .expect("missing Airbender commitment")
+                .bootloader_initial_content_commitment;
+            assert_ne!(heap_hash, H256::zero(), "Airbender heap hash is required");
+            tokens.insert(8, Token::FixedBytes(heap_hash.as_bytes().to_vec()));
         }
 
         if protocol_version.is_pre_1_4_2() {

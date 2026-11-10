@@ -68,6 +68,7 @@ pub(super) mod l2_blocks;
 pub(super) mod mock_evm;
 pub(super) mod nonce_holder;
 pub(super) mod precompiles;
+pub(super) mod prestate_read_proofs;
 pub(super) mod refunds;
 pub(super) mod require_eip712;
 pub(super) mod rollbacks;

@@ -87,7 +87,7 @@ async fn run_inner(
 ) -> anyhow::Result<()> {
     let start_time = Instant::now();
     let opt = Cli::parse();
-    let is_fflonk = opt.fflonk.unwrap_or(false);
+    let is_fflonk = opt.fflonk.unwrap_or(true);
     let schema = full_config_schema();
     let config_file_paths = ConfigFilePaths {
         general: opt.config_path,

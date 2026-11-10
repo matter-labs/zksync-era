@@ -12,24 +12,24 @@
     ]
   ],
   "column_finalization_hints": [],
-  "nop_gates_to_add": 174,
+  "nop_gates_to_add": 171,
   "final_trace_len": 4096,
   "public_inputs": [
     [
       0,
-      3921
+      3924
     ],
     [
       1,
-      3921
+      3924
     ],
     [
       2,
-      3921
+      3924
     ],
     [
       3,
-      3921
+      3924
     ]
   ]
 }

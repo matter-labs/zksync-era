@@ -1050,9 +1050,11 @@ impl HttpTest for GenesisConfigTest {
         client: &DynClient<L2>,
         _pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
-        // It's enough to check that we fill all fields and deserialization is correct.
-        // Mocking values is not suitable since they will always change
-        client.genesis_config().await.unwrap();
+        let config = client.genesis_config().await.unwrap();
+        assert_eq!(
+            config.genesis_airbender_commitment,
+            Some(config.genesis_commitment)
+        );
         Ok(())
     }
 }

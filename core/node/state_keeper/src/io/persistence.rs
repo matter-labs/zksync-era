@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal, DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE};
 use zksync_shared_metrics::{BlockStage, APP_METRICS};
 use zksync_types::{
     block::L2BlockHeader, u256_to_h256, writes::TreeWrite, Address, L2BlockNumber,
@@ -33,6 +33,7 @@ pub struct StateKeeperPersistence {
     pre_insert_txs: bool,
     insert_protective_reads: bool,
     save_predicted_cycles: bool,
+    call_traces_max_chunk_size: usize,
     commands_sender: mpsc::Sender<Completable<L2BlockSealCommand>>,
     l2_block_completion: BTreeMap<L2BlockNumber, oneshot::Receiver<()>>,
     latest_l2_block_submitted: Option<L2BlockNumber>,
@@ -98,6 +99,7 @@ impl StateKeeperPersistence {
             pre_insert_txs: false,
             insert_protective_reads: true,
             save_predicted_cycles: false,
+            call_traces_max_chunk_size: DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
             commands_sender,
             l2_block_completion: BTreeMap::new(),
             latest_l2_block_submitted: None,
@@ -108,6 +110,12 @@ impl StateKeeperPersistence {
 
     pub fn with_tx_insertion(mut self) -> Self {
         self.pre_insert_txs = true;
+        self
+    }
+
+    /// Sets the maximum combined size of serialized call traces bound in a single insert statement.
+    pub fn with_call_traces_max_chunk_size(mut self, call_traces_max_chunk_size: usize) -> Self {
+        self.call_traces_max_chunk_size = call_traces_max_chunk_size;
         self
     }
 
@@ -222,8 +230,11 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         &mut self,
         updates_manager: &UpdatesManager,
     ) -> anyhow::Result<()> {
-        let command = updates_manager
-            .seal_l2_block_command(self.l2_legacy_shared_bridge_addr, self.pre_insert_txs);
+        let command = updates_manager.seal_l2_block_command(
+            self.l2_legacy_shared_bridge_addr,
+            self.pre_insert_txs,
+            self.call_traces_max_chunk_size,
+        );
         self.submit_l2_block(command).await;
         Ok(())
     }
@@ -265,6 +276,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
                 self.l2_legacy_shared_bridge_addr,
                 self.insert_protective_reads,
                 self.save_predicted_cycles,
+                self.call_traces_max_chunk_size,
             )
             .await
             .with_context(|| format!("cannot persist L1 batch #{batch_number}"))?;
@@ -728,13 +740,21 @@ mod tests {
 
         // The first command should be successfully submitted immediately.
         let mut updates_manager = create_updates_manager();
-        let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
+        let seal_command = updates_manager.seal_l2_block_command(
+            Some(Address::default()),
+            false,
+            DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
+        );
         persistence.submit_l2_block(seal_command).await;
 
         // The second command should lead to blocking
         updates_manager.set_next_l2_block_params(L2BlockParams::new(2000));
         updates_manager.push_l2_block();
-        let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
+        let seal_command = updates_manager.seal_l2_block_command(
+            Some(Address::default()),
+            false,
+            DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
+        );
         {
             let submit_future = persistence.submit_l2_block(seal_command);
             futures::pin_mut!(submit_future);
@@ -760,7 +780,11 @@ mod tests {
 
         updates_manager.set_next_l2_block_params(L2BlockParams::new(3000));
         updates_manager.push_l2_block();
-        let seal_command = updates_manager.seal_l2_block_command(Some(Address::default()), false);
+        let seal_command = updates_manager.seal_l2_block_command(
+            Some(Address::default()),
+            false,
+            DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
+        );
         persistence.submit_l2_block(seal_command).await;
         let command = sealer.commands_receiver.recv().await.unwrap();
         command.completion_sender.send(()).unwrap();
@@ -778,8 +802,11 @@ mod tests {
         // 5 L2 block sealing commands can be submitted without blocking.
         let mut updates_manager = create_updates_manager();
         for i in 1..=5 {
-            let seal_command =
-                updates_manager.seal_l2_block_command(Some(Address::default()), false);
+            let seal_command = updates_manager.seal_l2_block_command(
+                Some(Address::default()),
+                false,
+                DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
+            );
             updates_manager.set_next_l2_block_params(L2BlockParams::new(i * 1000));
             updates_manager.push_l2_block();
             persistence.submit_l2_block(seal_command).await;

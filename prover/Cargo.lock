@@ -1210,7 +1210,7 @@ dependencies = [
  "aws-smithy-async",
  "aws-smithy-runtime-api",
  "aws-smithy-types",
- "h2 0.4.9",
+ "h2 0.4.19",
  "http 0.2.12",
  "http 1.3.1",
  "http-body 0.4.6",
@@ -1725,9 +1725,8 @@ dependencies = [
 
 [[package]]
 name = "boojum"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bafbbce9b2a02d737db07fe8214aabdae37148dfea601bc299eb8a20a5cd69f"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode",
@@ -1757,8 +1756,8 @@ dependencies = [
 
 [[package]]
 name = "boojum-cuda"
-version = "0.156.5"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.5#c2921b642596da6710787baf7597111a26bdbefe"
+version = "0.156.7"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "boojum",
  "cmake",
@@ -1959,8 +1958,8 @@ dependencies = [
 
 [[package]]
 name = "circuit_definitions"
-version = "0.153.15"
-source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.15#750395978562e80ddda8aca49ceb8c6014326aa1"
+version = "0.153.17"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "circuit_encodings",
  "crossbeam",
@@ -1972,24 +1971,24 @@ dependencies = [
 
 [[package]]
 name = "circuit_encodings"
-version = "0.153.15"
-source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.15#750395978562e80ddda8aca49ceb8c6014326aa1"
+version = "0.153.17"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "derivative",
  "serde",
- "zk_evm 0.153.15",
+ "zk_evm 0.153.17",
  "zkevm_circuits",
 ]
 
 [[package]]
 name = "circuit_sequencer_api"
-version = "0.153.15"
-source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.15#750395978562e80ddda8aca49ceb8c6014326aa1"
+version = "0.153.17"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "derivative",
  "rayon",
  "serde",
- "zk_evm 0.153.15",
+ "zk_evm 0.153.17",
  "zksync_bellman",
 ]
 
@@ -2090,7 +2089,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2933,8 +2932,8 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "era_cudart"
-version = "0.156.5"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.5#c2921b642596da6710787baf7597111a26bdbefe"
+version = "0.156.7"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "bitflags 2.9.0",
  "era_cudart_sys",
@@ -2943,8 +2942,8 @@ dependencies = [
 
 [[package]]
 name = "era_cudart_sys"
-version = "0.156.5"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.5#c2921b642596da6710787baf7597111a26bdbefe"
+version = "0.156.7"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "regex-lite",
 ]
@@ -2956,7 +2955,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "976dd42dc7e85965fe702eb8164f21f450704bdde31faefd6471dba214cb594e"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3085,9 +3084,8 @@ dependencies = [
 
 [[package]]
 name = "fflonk"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea20d3d186481164303710b91f1e2e0a56f470cd69df0d09dab517a50aa69c4c"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "bincode",
  "byteorder",
@@ -3103,8 +3101,8 @@ dependencies = [
 
 [[package]]
 name = "fflonk-cuda"
-version = "0.156.5"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.5#c2921b642596da6710787baf7597111a26bdbefe"
+version = "0.156.7"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "bincode",
  "byteorder",
@@ -3224,9 +3222,8 @@ dependencies = [
 
 [[package]]
 name = "franklin-crypto"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "992782548fe345562952b7dfb5844ef25242bc6b0c9bb9999717d9a7b0e29ac8"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "arr_macro",
  "bit-vec 0.6.3",
@@ -3656,9 +3653,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.9"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75249d144030531f8dee69fe9cea04d3edf809a017ae445e2abdff6629e86633"
+checksum = "ef8e5e5a340588f4452631496976cf8636d4a7ecf600239fdc27615d2530bc16"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -3962,7 +3959,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "h2 0.4.9",
+ "h2 0.4.19",
  "http 1.3.1",
  "http-body 1.0.1",
  "httparse",
@@ -5292,7 +5289,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate 3.3.0",
  "proc-macro2 1.0.95",
  "quote 1.0.40",
  "syn 2.0.100",
@@ -5957,8 +5954,8 @@ dependencies = [
 
 [[package]]
 name = "proof-compression"
-version = "0.156.5"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.5#c2921b642596da6710787baf7597111a26bdbefe"
+version = "0.156.7"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6154,7 +6151,7 @@ dependencies = [
 
 [[package]]
 name = "prover_cli"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -6186,7 +6183,7 @@ dependencies = [
 
 [[package]]
 name = "prover_version"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "zksync_prover_fri_types",
 ]
@@ -6503,7 +6500,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
- "h2 0.4.9",
+ "h2 0.4.19",
  "http 1.3.1",
  "http-body 1.0.1",
  "http-body-util",
@@ -6559,9 +6556,8 @@ dependencies = [
 
 [[package]]
 name = "rescue_poseidon"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21703668ac0e4676a1807cce5df3529bd65787115ca3b577d220fe65e9857b99"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "addchain",
  "arrayvec 0.7.6",
@@ -6781,7 +6777,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6794,7 +6790,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.9.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6904,7 +6900,7 @@ dependencies = [
  "security-framework 3.2.0",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7586,8 +7582,8 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shivini"
-version = "0.156.5"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.5#c2921b642596da6710787baf7597111a26bdbefe"
+version = "0.156.7"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "bincode",
  "boojum",
@@ -7701,9 +7697,8 @@ dependencies = [
 
 [[package]]
 name = "snark_wrapper"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b00796cd72bb69969c7cbf1385bf1e941789d454f22b4f247ba02fca2c58894a"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "derivative",
  "rand 0.8.5",
@@ -8205,7 +8200,7 @@ dependencies = [
  "getrandom 0.3.2",
  "once_cell",
  "rustix 1.0.5",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -8521,7 +8516,7 @@ dependencies = [
  "axum 0.8.8",
  "base64 0.22.1",
  "bytes",
- "h2 0.4.9",
+ "h2 0.4.19",
  "http 1.3.1",
  "http-body 1.0.1",
  "http-body-util",
@@ -9220,7 +9215,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -9812,8 +9807,8 @@ dependencies = [
 
 [[package]]
 name = "zk_evm"
-version = "0.153.15"
-source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.15#750395978562e80ddda8aca49ceb8c6014326aa1"
+version = "0.153.17"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -9821,7 +9816,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.153.15",
+ "zk_evm_abstractions 0.153.17",
 ]
 
 [[package]]
@@ -9865,21 +9860,21 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.153.15"
-source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.15#750395978562e80ddda8aca49ceb8c6014326aa1"
+version = "0.153.17"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "anyhow",
  "cfg-if",
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.153.15",
+ "zkevm_opcode_defs 0.153.17",
 ]
 
 [[package]]
 name = "zkevm-assembly"
-version = "0.153.15"
-source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.15#750395978562e80ddda8aca49ceb8c6014326aa1"
+version = "0.153.17"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -9892,13 +9887,13 @@ dependencies = [
  "smallvec",
  "structopt",
  "thiserror 1.0.69",
- "zkevm_opcode_defs 0.153.15",
+ "zkevm_opcode_defs 0.153.17",
 ]
 
 [[package]]
 name = "zkevm_circuits"
-version = "0.153.15"
-source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.15#750395978562e80ddda8aca49ceb8c6014326aa1"
+version = "0.153.17"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "arrayvec 0.7.6",
  "boojum",
@@ -9911,7 +9906,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "zkevm_opcode_defs 0.153.15",
+ "zkevm_opcode_defs 0.153.17",
  "zksync_cs_derive",
 ]
 
@@ -9976,8 +9971,8 @@ dependencies = [
 
 [[package]]
 name = "zkevm_opcode_defs"
-version = "0.153.15"
-source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.15#750395978562e80ddda8aca49ceb8c6014326aa1"
+version = "0.153.17"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "bitflags 2.9.0",
  "blake2 0.10.6",
@@ -9993,8 +9988,8 @@ dependencies = [
 
 [[package]]
 name = "zkevm_test_harness"
-version = "0.153.15"
-source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.15#750395978562e80ddda8aca49ceb8c6014326aa1"
+version = "0.153.17"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "bincode",
  "circuit_definitions",
@@ -10021,18 +10016,18 @@ dependencies = [
 
 [[package]]
 name = "zksync-era-airbender-cycles-estimator"
-version = "29.9.0"
-source = "git+https://github.com/matter-labs/eravm-airbender-verifier.git?rev=44df94719be3a1eb688e2a73a53a228cb7d65efa#44df94719be3a1eb688e2a73a53a228cb7d65efa"
+version = "31.5.0"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
- "anyhow",
  "serde",
  "serde_json",
+ "strum",
 ]
 
 [[package]]
 name = "zksync-gpu-ffi"
-version = "0.156.5"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.5#c2921b642596da6710787baf7597111a26bdbefe"
+version = "0.156.7"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "cmake",
  "crossbeam",
@@ -10045,8 +10040,8 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-prover"
-version = "0.156.5"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?tag=v0.156.5#c2921b642596da6710787baf7597111a26bdbefe"
+version = "0.156.7"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "bit-vec 0.6.3",
  "cfg-if",
@@ -10060,7 +10055,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -10082,9 +10077,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_bellman"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6860da538bdb63c8bea079dc7e3c65d81aa3d4a042935debfa48a5700c5dfd7c"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "arrayvec 0.7.6",
  "bit-vec 0.6.3",
@@ -10107,7 +10101,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -10129,7 +10123,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_circuit_prover_service"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10168,7 +10162,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_config"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "secrecy",
@@ -10178,6 +10172,7 @@ dependencies = [
  "smart-config",
  "tracing",
  "vise",
+ "zksync-era-airbender-cycles-estimator",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_crypto_primitives",
@@ -10253,7 +10248,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "hex",
  "once_cell",
@@ -10265,7 +10260,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2 0.10.6",
@@ -10281,9 +10276,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_cs_derive"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76d266f507e8d3acd97edc5d5715d5e5b7d2e01c16e5534843539a0f59df64a0"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.95",
@@ -10293,7 +10287,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_dal"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10331,7 +10325,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_db_connection"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -10347,7 +10341,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_client"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10369,7 +10363,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_eth_signer"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "async-trait",
  "rlp",
@@ -10380,9 +10374,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_ff"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91306085647c29fcec9d7fdc4c0f1ef2dc0e723d88be1dba55daac85566be01"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "byteorder",
  "hex",
@@ -10394,9 +10387,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_ff_derive"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e652f8308eaa3365e4df9fbf38650b7fcaa3d4cd5859b3a583d5f8d9cf38f21b"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "num-bigint 0.4.6",
  "num-integer",
@@ -10409,7 +10401,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_gpu_checker"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -10431,8 +10423,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_kzg"
-version = "0.153.15"
-source = "git+https://github.com/matter-labs/zksync-protocol?tag=v0.153.15#750395978562e80ddda8aca49ceb8c6014326aa1"
+version = "0.153.17"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "boojum",
  "derivative",
@@ -10447,7 +10439,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_l1_contract_interface"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -10464,7 +10456,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -10473,7 +10465,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_multivm"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api",
@@ -10489,7 +10481,7 @@ dependencies = [
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
  "zk_evm 0.151.8",
- "zk_evm 0.153.15",
+ "zk_evm 0.153.17",
  "zksync-era-airbender-cycles-estimator",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
@@ -10501,7 +10493,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_object_store"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10527,7 +10519,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_operator_signer"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -10544,9 +10536,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_pairing"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5056da1e9e35fd7116833b841281fffaab96347b32c52cd0e032c97c7c9b60c1"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -10558,7 +10549,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_fri_compressor"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "clap 4.5.37",
@@ -10581,7 +10572,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_proof_fri_compressor_service"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10640,7 +10631,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_autoscaler"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10674,7 +10665,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_dal"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "sqlx",
  "strum",
@@ -10685,7 +10676,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_gateway"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10710,7 +10701,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_types"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "circuit_definitions",
  "serde",
@@ -10720,7 +10711,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_fri_utils"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "vise",
  "zksync_prover_fri_types",
@@ -10729,7 +10720,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_interface"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "chrono",
  "ciborium",
@@ -10746,7 +10737,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_monitor"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10768,7 +10759,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_job_processor"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10781,7 +10772,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_keystore"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -10810,7 +10801,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_prover_task"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10820,7 +10811,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_queued_job_processor"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10832,9 +10823,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_solidity_vk_codegen"
-version = "0.32.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4de3921569aa07f4ff6e3e5eb07e5f47f8874a3127688ad7aabd148df684dea0"
+version = "0.32.13"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "ethereum-types",
  "franklin-crypto",
@@ -10849,7 +10839,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -10857,7 +10847,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_task_management"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "futures 0.3.31",
@@ -10869,7 +10859,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10898,7 +10888,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -10908,7 +10898,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vk_setup_data_generator_server_fri"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "circuit_definitions",
@@ -10928,7 +10918,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_vlog"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10954,27 +10944,27 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2"
-version = "0.6.4"
-source = "git+https://github.com/matter-labs/vm2?tag=v0.6.4#daa9f324c5d106a7375abc991e180cbc15c123d6"
+version = "0.7.0"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.153.15",
- "zkevm_opcode_defs 0.153.15",
+ "zk_evm_abstractions 0.153.17",
+ "zkevm_opcode_defs 0.153.17",
  "zksync_vm2_interface",
 ]
 
 [[package]]
 name = "zksync_vm2_interface"
-version = "0.6.4"
-source = "git+https://github.com/matter-labs/vm2?tag=v0.6.4#daa9f324c5d106a7375abc991e180cbc15c123d6"
+version = "0.7.0"
+source = "git+https://github.com/matter-labs/zksync-protocol?rev=2a2ecb3bfcccc46758826d3b0d11933b95e511be#2a2ecb3bfcccc46758826d3b0d11933b95e511be"
 dependencies = [
  "primitive-types",
 ]
 
 [[package]]
 name = "zksync_vm_interface"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -10991,7 +10981,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11018,7 +11008,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_witness_generator"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11056,7 +11046,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_witness_generator_service"
-version = "25.3.0"
+version = "25.4.0"
 dependencies = [
  "anyhow",
  "async-trait",

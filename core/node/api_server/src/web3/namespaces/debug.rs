@@ -537,7 +537,11 @@ impl DebugNamespace {
             let mut connection = self.state.acquire_connection().await?;
             connection
                 .transactions_dal()
-                .insert_call_traces(&to_insert, protocol_version)
+                .insert_call_traces(
+                    &to_insert,
+                    protocol_version,
+                    self.state.api_config.call_traces_max_chunk_size,
+                )
                 .await
                 .map_err(DalError::generalize)?;
         }

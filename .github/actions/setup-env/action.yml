@@ -4,13 +4,20 @@ inputs:
   runner-compose-file:
     description: 'Path to the runner compose file'
     default: 'docker-compose.yml'
-  sccache_mode:
+  gcp-workload-identity-provider:
     description: >
-      sccache access mode for the shared GCS cache. Defaults to READ_ONLY so
-      that untrusted (pull_request / fork) builds can read the warm cache but
-      cannot write to it. Only trusted callers (merge_group / push) should pass
-      READ_WRITE.
-    default: 'READ_ONLY'
+      Workload Identity Provider used to mint the sccache bucket credentials.
+      Empty disables sccache.
+    required: false
+    default: ''
+  sccache-reader-service-account:
+    description: 'Service account with read access to the sccache bucket.'
+    required: false
+    default: ''
+  sccache-writer-service-account:
+    description: 'Service account with write access to the sccache bucket. Used on `dev` only.'
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -29,38 +36,132 @@ runs:
         echo CI=1 >> .env
         echo DOCKER_PWD=$(pwd) >> .env
         echo RUNNER_COMPOSE_FILE=${{ inputs.runner-compose-file }} >> $GITHUB_ENV
+        # google-github-actions/auth (when the job ran it) left a credential file in the
+        # workspace, which the zk container sees under /usr/src/zksync.
+        if [ -n "$GOOGLE_GHA_CREDS_PATH" ]; then
+          creds_in_container=/usr/src/zksync/$(basename "$GOOGLE_GHA_CREDS_PATH")
+          echo GOOGLE_APPLICATION_CREDENTIALS=$creds_in_container >> .env
+          echo CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=$creds_in_container >> .env
+          echo GOOGLE_GHA_CREDS_IN_CONTAINER=$creds_in_container >> $GITHUB_ENV
+        fi
 
-    - name: Setup sccache for building rust code outside Docker
-      if: inputs.sccache == 'true'
+    # Write access is enforced by IAM: the writer identity accepts only tokens issued for `dev`.
+    - name: Authenticate to Google Cloud for the sccache bucket
+      id: sccache_auth
+      if: inputs.gcp-workload-identity-provider != '' && runner.os == 'Linux' && runner.arch == 'X64'
+      continue-on-error: true
+      uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+      with:
+        workload_identity_provider: ${{ inputs.gcp-workload-identity-provider }}
+        service_account: ${{ github.ref == 'refs/heads/dev' && inputs.sccache-writer-service-account || inputs.sccache-reader-service-account }}
+        export_environment_variables: false
+
+    - name: Setup sccache
+      id: sccache
+      if: steps.sccache_auth.outcome == 'success'
       shell: bash
+      env:
+        SCCACHE_VERSION: v0.18.0
+        SCCACHE_SHA256: 45f1447fbe231e3037bde351ef70677dd212216c8d62ae7ca409fecc4d6acc89
+        CREDS_PATH: ${{ steps.sccache_auth.outputs.credentials_file_path }}
+        RW_MODE: ${{ github.ref == 'refs/heads/dev' && 'READ_WRITE' || 'READ_ONLY' }}
       run: |
-        echo SCCACHE_CACHE_SIZE=50G >> $GITHUB_ENV
-        echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> $GITHUB_ENV
-        echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> $GITHUB_ENV
-        echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> $GITHUB_ENV
-        echo SCCACHE_GCS_RW_MODE=${{ inputs.sccache_mode }} >> $GITHUB_ENV
-        echo RUSTC_WRAPPER=sccache >> $GITHUB_ENV
+        set -euo pipefail
+        # The zk container mounts the workspace at /usr/src/zksync.
+        if [ "$(dirname "$CREDS_PATH")" != "$(pwd)" ]; then
+          echo "::error::sccache credentials are not in the workspace: $CREDS_PATH"
+          exit 1
+        fi
+        name=sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl
+        mkdir -p .sccache
+        curl -sSfL --retry 3 -o .sccache/$name.tar.gz \
+          https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/$name.tar.gz
+        echo "$SCCACHE_SHA256  .sccache/$name.tar.gz" | sha256sum --check --quiet
+        tar -xzf .sccache/$name.tar.gz -C .sccache --strip-components=1 $name/sccache
+        rm .sccache/$name.tar.gz
+        # The default 10s startup timeout is sometimes too short for the GCS storage check.
+        echo 'server_startup_timeout_ms = 60000' > .sccache/config
 
-        # sccache outside docker will run it's own server
-        echo SCCACHE_SERVER_PORT=4225 >> $GITHUB_ENV
+        common_env() {
+          echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
+          echo SCCACHE_GCS_KEY_PREFIX=zksync-era
+          echo SCCACHE_GCS_RW_MODE=$RW_MODE
+          echo SCCACHE_IDLE_TIMEOUT=0
+          echo SCCACHE_IGNORE_SERVER_IO_ERROR=1
+          # sccache cannot cache incremental compilations.
+          echo CARGO_INCREMENTAL=0
+        }
+        host_env() {
+          common_env
+          echo SCCACHE_GCS_KEY_PATH=$CREDS_PATH
+          echo SCCACHE_CONF=$(pwd)/.sccache/config
+          echo SCCACHE_ERROR_LOG=$RUNNER_TEMP/sccache.log
+          # The zk container shares the host network namespace and runs its own server on the default port.
+          echo SCCACHE_SERVER_PORT=4225
+        }
 
-    - name: Setup sccache for building rust code inside Docker
-      if: inputs.sccache == 'true'
-      shell: bash
-      run: |
-        echo SCCACHE_CACHE_SIZE=50G >> .env
-        echo SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage >> .env
-        echo SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com >> .env
-        echo SCCACHE_ERROR_LOG=/tmp/sccache_log.txt >> .env
-        echo SCCACHE_GCS_RW_MODE=${{ inputs.sccache_mode }} >> .env
-        echo RUSTC_WRAPPER=sccache >> .env
+        # Server startup fails when the bucket cannot be read.
+        if ! env $(host_env) .sccache/sccache --start-server; then
+          echo "::warning::sccache bucket is unavailable, building without sccache"
+          exit 0
+        fi
+        {
+          host_env
+          echo RUSTC_WRAPPER=$(pwd)/.sccache/sccache
+        } >> $GITHUB_ENV
+        {
+          common_env
+          echo SCCACHE_GCS_KEY_PATH=/usr/src/zksync/$(basename "$CREDS_PATH")
+          echo SCCACHE_CONF=/usr/src/zksync/.sccache/config
+          echo SCCACHE_ERROR_LOG=/tmp/sccache.log
+          echo RUSTC_WRAPPER=/usr/src/zksync/.sccache/sccache
+        } >> .env
+        echo enabled=true >> $GITHUB_OUTPUT
 
     # The zk-environment image bakes in RUSTC_WRAPPER=sccache; empty means "no wrapper" to cargo.
     - name: Disable sccache inside Docker
-      if: inputs.sccache != 'true'
+      if: steps.sccache.outputs.enabled != 'true'
       shell: bash
       run: |
         echo RUSTC_WRAPPER= >> .env
+
+    # `ci_localnet_up` binds the ports its compose file publishes, and on the
+    # persistent self-hosted runners a container from an earlier run can still
+    # be holding them. These compose files declare `restart: always`, so one
+    # created under a different compose project name -- an older workspace path,
+    # or another checkout on the same host -- comes back on its own after a
+    # reboot and keeps 127.0.0.1:8545 for itself. compose then dies with
+    # "Bind for 127.0.0.1:8545 failed: port is already allocated". A per-project
+    # `down` cannot see those containers, so reclaim by published port instead.
+    #
+    # Only running containers can hold a port, hence `docker ps` and not `-a`.
+    - name: Reclaim the localnet ports from stale containers
+      shell: bash
+      run: |
+        ports=$(sed -nE 's/^[[:space:]]*-[[:space:]]*([0-9.]+:)?([0-9]+):[0-9]+.*/\2/p' \
+          "${{ inputs.runner-compose-file }}" | sort -u)
+        if [ -z "$ports" ]; then
+          echo "No published ports in ${{ inputs.runner-compose-file }}; nothing to reclaim."
+          exit 0
+        fi
+        filters=""
+        for p in $ports; do filters="$filters --filter publish=$p"; done
+        stale=$(docker ps -q $filters)
+        if [ -n "$stale" ]; then
+          echo "Removing containers still holding the localnet ports:"
+          docker ps $filters --format '  {{.Names}}  {{.Image}}  {{.Status}}  {{.Ports}}'
+          docker rm -f $stale
+        else
+          echo "Localnet ports are free."
+        fi
+        # A non-docker listener would fail the same way but is not ours to kill;
+        # surface it rather than leaving a bare bind error in the next step.
+        for p in $ports; do
+          if command -v ss >/dev/null 2>&1 && ss -ltn "sport = :$p" 2>/dev/null | grep -q ":$p"; then
+            echo "::warning::port $p is still bound after cleanup, by a process outside docker"
+            ss -ltnp "sport = :$p" 2>/dev/null || true
+          fi
+        done
 
     - name: Start localnet
       shell: bash
@@ -68,12 +169,10 @@ runs:
         mkdir -p ./hardhat-nodejs
         ci_localnet_up
 
-    - name: Start sccache servers
-      if: inputs.sccache == 'true'
+    - name: Start sccache server inside Docker
+      if: steps.sccache.outputs.enabled == 'true'
       shell: bash
-      run: |
-        ci_run sccache --start-server
-        sccache --start-server
+      run: ci_run /usr/src/zksync/.sccache/sccache --start-server
 
     - name: Init git safe directories
       shell: bash
@@ -88,10 +187,9 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: zkstack
-        # Trust-prefix the key so untrusted (READ_ONLY) builds and trusted
-        # (READ_WRITE) builds occupy non-overlapping cache namespaces and can
-        # never restore an entry produced across the trust boundary.
-        key: zkstack-${{ inputs.sccache_mode == 'READ_WRITE' && 'trusted' || 'untrusted' }}-${{ runner.os }}-${{ hashFiles('zkstack_cli/**', 'contracts/l1-contracts/zkstack-out/**/*.json') }}
+        # Cache scoping is one-way: a pull request restores entries saved on its base branch,
+        # while runs on `dev` never see entries saved by a pull request.
+        key: zkstack-${{ runner.os }}-${{ hashFiles('zkstack_cli/**', 'contracts/l1-contracts/zkstack-out/**/*.json') }}
 
     - name: Copy cached zkstack binary to inside docker (on cache hit)
       if: steps.zkstack_cache.outputs.cache-hit == 'true'

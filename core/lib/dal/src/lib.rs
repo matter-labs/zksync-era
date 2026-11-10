@@ -11,6 +11,7 @@ pub use zksync_db_connection::{
     error::{DalError, DalResult},
 };
 
+pub use crate::transactions_dal::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE;
 use crate::{
     airbender_proof_generation_dal::AirbenderProofGenerationDal, base_token_dal::BaseTokenDal,
     blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
@@ -20,8 +21,9 @@ use crate::{
     eth_sender_dal::EthSenderDal, eth_watcher_dal::EthWatcherDal,
     etherscan_verification_dal::EtherscanVerificationDal, events_dal::EventsDal,
     events_web3_dal::EventsWeb3Dal, external_node_config_dal::ExternalNodeConfigDal,
-    factory_deps_dal::FactoryDepsDal, interop_roots_dal::InteropRootDal,
-    proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
+    factory_deps_dal::FactoryDepsDal, force_fail_dal::ForceFailDal,
+    interop_roots_dal::InteropRootDal, proof_generation_dal::ProofGenerationDal,
+    protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     server_notifications::ServerNotificationsDal, snapshot_recovery_dal::SnapshotRecoveryDal,
     snapshots_creator_dal::SnapshotsCreatorDal, snapshots_dal::SnapshotsDal,
@@ -48,6 +50,7 @@ pub mod etherscan_verification_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
+pub mod force_fail_dal;
 pub mod helpers;
 pub mod interop_roots_dal;
 pub mod metrics;
@@ -124,6 +127,8 @@ where
     fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a>;
 
     fn interop_root_dal(&mut self) -> InteropRootDal<'_, 'a>;
+
+    fn force_fail_dal(&mut self) -> ForceFailDal<'_, 'a>;
 
     fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a>;
 
@@ -241,6 +246,10 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn interop_root_dal(&mut self) -> InteropRootDal<'_, 'a> {
         InteropRootDal { storage: self }
+    }
+
+    fn force_fail_dal(&mut self) -> ForceFailDal<'_, 'a> {
+        ForceFailDal { storage: self }
     }
 
     fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a> {

@@ -1,0 +1,58 @@
+name: "Fetch Airbender guest artifacts"
+description: >
+  Downloads the guest program and verification keys of the pinned verifier release
+  into the prover server workspace, where its `build.rs` picks them up instead of
+  fetching them itself. They live on a release of the protocol monorepo.
+
+inputs:
+  working-directory:
+    description: "Prover server workspace"
+    required: false
+    default: "airbender_prover_server"
+
+runs:
+  using: composite
+  steps:
+    - name: Download guest program and VKs
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        API: https://api.github.com/repos/matter-labs/zksync-protocol
+      run: |
+        set -euo pipefail
+
+        # From the lockfile, so the artifacts are the ones built from the verifier
+        # commit this workspace compiles against. A pin by rev has no `?tag=`, so fall
+        # back to the package version, as `build.rs` does.
+        entry=$(grep -A2 '^name = "zksync_airbender_verifier"$' Cargo.lock)
+        tag=$(sed -n 's/^source = .*[?&]tag=\([^#"]*\)#.*/\1/p' <<<"$entry")
+        version=$(sed -n 's/^version = "\(.*\)"$/\1/p' <<<"$entry")
+        tag=${tag:-v$version}
+        if [ "$tag" = v ]; then
+          echo '::error::no zksync_airbender_verifier pin in Cargo.lock'
+          exit 1
+        fi
+        echo "Fetching artifacts of $tag"
+
+        release=$(curl -sSf -H "Accept: application/vnd.github+json" \
+                  "${API}/releases/tags/${tag}")
+
+        # Staged together so the release's checksums file verifies them in one pass,
+        # then split into the two directories `build.rs` reads.
+        staging=$(mktemp -d)
+        for asset in app.bin app.text fri_vk.bin snark_vk.json checksums.txt; do
+          id=$(jq -r --arg n "$asset" '.assets[] | select(.name == $n) | .id' <<<"$release")
+          if [ -z "$id" ]; then
+            echo "::error::release ${tag} has no asset ${asset}"
+            exit 1
+          fi
+          curl -sSfL -H "Accept: application/octet-stream" \
+            -o "${staging}/${asset}" "${API}/releases/assets/${id}"
+        done
+        (cd "$staging" && sha256sum -c checksums.txt)
+
+        mkdir -p guest/dist/app vks
+        mv "${staging}/app.bin" "${staging}/app.text" guest/dist/app/
+        mv "${staging}/fri_vk.bin" "${staging}/snark_vk.json" vks/
+        rm -rf "$staging"
+        ls -lh guest/dist/app vks

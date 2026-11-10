@@ -31,6 +31,7 @@ jobs:
     permissions:
       packages: write
       contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -61,8 +62,15 @@ jobs:
             echo IMAGE_TAG_SUFFIX="$(git rev-parse --short HEAD)-$(date +%s)" >> $GITHUB_ENV
           fi
 
+      - name: Authenticate to Google Cloud
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/'))
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_AR_PUBLISHER_SERVICE_ACCOUNT }}
+
       - name: login to Docker registries
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/'))
         shell: bash
         run: |
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
@@ -70,11 +78,15 @@ jobs:
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/'))
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # These arrive through the build context.
+      - name: Fetch Airbender guest artifacts
+        uses: ./.github/actions/airbender-artifacts
 
       - name: Build and push
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0

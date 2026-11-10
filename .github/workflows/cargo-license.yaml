@@ -6,6 +6,12 @@ jobs:
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
     - uses: EmbarkStudios/cargo-deny-action@76cd80eb775d7bbbd2d80292136d74d39e1b4918 # v2.0.11
+      env:
+        # The action runs in a musl container whose rustup cannot install the
+        # nightly `rust-toolchain` pins ("override toolchain
+        # nightly-...-x86_64-unknown-linux-musl is not installed").
+        # cargo-deny only needs `cargo metadata`, so any toolchain will do.
+        RUSTUP_TOOLCHAIN: stable
       with:
         manifest-path: "./core/Cargo.toml"
         command: check

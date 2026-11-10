@@ -15,15 +15,24 @@ use zksync_types::{
 
 static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
+static PLAYGROUND_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(BaseSystemContracts::playground);
 
 pub(crate) const FAST_VM_MODES: [FastVmMode; 3] =
     [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
 
 pub(crate) fn default_system_env(execution_mode: TxExecutionMode) -> SystemEnv {
+    // The proved bootloader rejects the `EthCall` marker `assemble_tx_meta` writes into `txMeta`,
+    // which is why the sandbox runs `eth_call`s on the playground one.
+    let base_system_smart_contracts = match execution_mode {
+        TxExecutionMode::EthCall => PLAYGROUND_CONTRACTS.clone(),
+        TxExecutionMode::EstimateFee | TxExecutionMode::VerifyExecute => {
+            BASE_SYSTEM_CONTRACTS.clone()
+        }
+    };
     SystemEnv {
         zk_porter_available: ZKPORTER_IS_AVAILABLE,
         version: ProtocolVersionId::latest(),
-        base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
+        base_system_smart_contracts,
         bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         execution_mode,
         default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,

@@ -64,6 +64,7 @@ impl BlockMetricsReporter {
                         let stage = BlockStage::L1 { l1_stage, tx_type };
                         batch_metrics.push((block.into(), stage))
                     }
+                    AggregatedActionType::ProtocolUpgrade => {}
                 }
             }
         };
@@ -162,6 +163,17 @@ impl BlockMetricsReporter {
         FRI_PROVER_METRICS
             .airbender_batches_ready_for_snark
             .set(ready_for_snark_count as u64);
+
+        let awaiting_read_proofs_count = conn
+            .proof_generation_dal()
+            .get_airbender_read_proofs_pending_count(
+                self.first_airbender_batch,
+                self.airbender_max_proving_attempts,
+            )
+            .await?;
+        FRI_PROVER_METRICS
+            .airbender_batches_awaiting_read_proofs
+            .set(awaiting_read_proofs_count as u64);
 
         Ok(())
     }

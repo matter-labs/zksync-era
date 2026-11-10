@@ -500,6 +500,7 @@ impl EthNamespace {
     pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
         self.state.resolve_filter_block_hash(&mut filter).await?;
         let (from_block, to_block) = self.state.resolve_filter_block_range(&filter).await?;
+        self.state.check_logs_block_range(from_block, to_block)?;
 
         filter.to_block = Some(BlockNumber::Number(to_block.0.into()));
         let changes = self
@@ -668,21 +669,22 @@ impl EthNamespace {
         else {
             return Ok(None);
         };
-        let Some(block) = storage
+        let tx_count = storage
             .blocks_web3_dal()
-            .get_api_block(block_number)
+            .get_block_tx_count(block_number)
             .await
-            .map_err(DalError::generalize)?
-        else {
+            .map_err(DalError::generalize)?;
+        if tx_count.is_none() {
+            // The block doesn't exist.
             return Ok(None);
-        };
+        }
         self.set_block_diff(block_number); // only report block diff for existing L2 blocks
 
         let receipts = storage
             .transactions_web3_dal()
-            .get_transaction_receipts(&block.transactions)
+            .get_l2_block_transaction_receipts(block_number)
             .await
-            .with_context(|| format!("get_transaction_receipts({block_number})"))?;
+            .with_context(|| format!("get_l2_block_transaction_receipts({block_number})"))?;
         let receipts = fill_transaction_receipts(&mut storage, receipts).await?;
         Ok(Some(receipts))
     }

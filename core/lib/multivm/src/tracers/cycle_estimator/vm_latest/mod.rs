@@ -22,18 +22,18 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CycleFea
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        // Opcode → feature-family bucketing mirrors `circuits_tracer` (and the fast-VM
-        // tracer), so the legacy VM emits the same feature categories the model expects.
+        // Arithmetic is grouped by measured per-op cost, not by opcode taxonomy: a new
+        // arithmetic opcode goes in the class it measures into, not in the cheap one.
         let id = match data.opcode.variant.opcode {
             Opcode::Nop(_)
             | Opcode::Add(_)
             | Opcode::Sub(_)
-            | Opcode::Mul(_)
-            | Opcode::Div(_)
             | Opcode::Jump(_)
-            | Opcode::Binop(_)
-            | Opcode::Shift(_)
-            | Opcode::Ptr(_) => FeatureId::RichAddressingOp,
+            | Opcode::Binop(_) => FeatureId::ArithCheapOp,
+            Opcode::Shift(_) => FeatureId::ArithShiftOp,
+            Opcode::Mul(_) => FeatureId::ArithMulOp,
+            Opcode::Div(_) => FeatureId::ArithDivOp,
+            Opcode::Ptr(_) => FeatureId::ArithPtrOp,
             Opcode::Context(_) | Opcode::Ret(_) => FeatureId::AverageOp,
             Opcode::NearCall(_) => {
                 // Near calls are an `AverageOp` for cycle purposes but also a
@@ -47,7 +47,10 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CycleFea
             Opcode::Log(LogOpcode::TransientStorageWrite) => FeatureId::TransientStorageWrite,
             Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => FeatureId::Event,
             Opcode::Log(LogOpcode::PrecompileCall) => FeatureId::PrecompileCall,
-            Opcode::Log(LogOpcode::Decommit) => FeatureId::Decommit,
+            Opcode::Log(LogOpcode::Decommit) => {
+                self.decommit_opcode_pending = true;
+                FeatureId::Decommit
+            }
             Opcode::FarCall(_) => FeatureId::FarCall,
             Opcode::UMA(
                 UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite | UMAOpcode::StaticMemoryWrite,
@@ -125,9 +128,11 @@ impl CycleFeatureTracer {
             .decommittment_processor
             .decommitted_code_hashes
             .history();
+        let mut fresh_decommit = false;
         for (_, history_event) in &history[last_checked..] {
             // Cycles are charged once per bytecode, when it is actually decommitted.
             if history_event.value.is_some() {
+                fresh_decommit = true;
                 let bytecode_len = state
                     .decommittment_processor
                     .known_bytecodes
@@ -141,6 +146,13 @@ impl CycleFeatureTracer {
             }
         }
         self.last_decommitment_history_entry_checked = Some(history.len());
+
+        // A DECOMMIT that decommitted nothing repeated a hash from earlier in the run —
+        // O(len) work no counter reports. Far calls decommit too, so the flag is taken
+        // every cycle rather than only after a DECOMMIT.
+        if std::mem::take(&mut self.decommit_opcode_pending) && !fresh_decommit {
+            self.bump(FeatureId::DecommitRepeat, 1);
+        }
     }
 
     fn trace_storage_writes<S: WriteStorage, H: HistoryMode>(

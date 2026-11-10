@@ -71,6 +71,13 @@ impl Keystore {
         Ok(result)
     }
 
+    pub fn verify_fflonk_scheduler_vk_hash(&self, expected_hash: H256) -> anyhow::Result<()> {
+        let calculated_hash =
+            calculate_fflonk_snark_vk_hash(self.load_fflonk_snark_verification_key()?)?;
+        anyhow::ensure!(expected_hash == calculated_hash, "Invalid FFLONK wrapper VK hash. Calculated locally: {calculated_hash:?}, provided: {expected_hash:?}");
+        Ok(())
+    }
+
     pub fn verify_scheduler_vk_hash(&self, expected_hash: H256) -> anyhow::Result<()> {
         let commitments = self
             .generate_commitments()
@@ -79,5 +86,22 @@ impl Keystore {
             H256::from_str(&commitments.snark_wrapper).context("invalid SNARK wrapper VK")?;
         anyhow::ensure!(expected_hash == calculated_hash, "Invalid SNARK wrapper VK hash. Calculated locally: {calculated_hash:?}, provided: {expected_hash:?}");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verifies_fflonk_key_hash() {
+        let keystore = Keystore::locate();
+        let expected =
+            H256::from_str("d89b62ac599b15d9dc47860c8ebca5964c99e7b177e9b8ea38a0c13714dc32bb")
+                .unwrap();
+        keystore.verify_fflonk_scheduler_vk_hash(expected).unwrap();
+        assert!(keystore
+            .verify_fflonk_scheduler_vk_hash(H256::zero())
+            .is_err());
     }
 }

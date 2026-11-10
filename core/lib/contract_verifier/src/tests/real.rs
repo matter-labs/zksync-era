@@ -4,7 +4,7 @@
 //!
 //! You can install the compilers to run these tests with the following command:
 //! ```
-//! zkstack contract-verifier init --zksolc-version=v1.5.10 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only
+//! zkstack contract-verifier init --zksolc-version=v1.5.17 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.2 --only
 //! ```
 
 use std::{env, fs, sync::Arc, time::Duration};
@@ -16,19 +16,9 @@ use zksync_types::{
 
 use super::*;
 
-#[derive(Debug, Clone, Copy)]
-enum Toolchain {
-    Solidity,
-    Vyper,
-}
-
-impl Toolchain {
-    const ALL: [Self; 2] = [Self::Solidity, Self::Vyper];
-}
-
 // The tests may expect specific compiler versions (e.g. contracts won't compile with Vyper 0.4.0),
 // so we hardcode versions.
-const ZKSOLC_VERSION: &str = "v1.5.10";
+const ZKSOLC_VERSION: &str = "v1.5.17";
 const ERA_VM_SOLC_VERSION: &str = "0.8.26-1.0.2";
 const SOLC_VERSION: &str = "0.8.26";
 const VYPER_VERSION: &str = "v0.3.10";
@@ -96,7 +86,8 @@ impl TestCompilerVersions {
     fn new(versions: SupportedCompilerVersions) -> anyhow::Result<Self> {
         // Stored compilers for our fork are prefixed with `zkVM-`.
         let eravm_solc = format!("zkVM-{ERA_VM_SOLC_VERSION}");
-        // Stored compilers for vyper do not have `v` prefix.
+        // Vyper versions are used only by ignored, manually invoked capability tests. Do not make
+        // the default Solidity suite depend on their binaries being installed.
         let vyper = VYPER_VERSION.strip_prefix("v").unwrap().to_owned();
         anyhow::ensure!(
             versions.solc.contains(SOLC_VERSION),
@@ -110,15 +101,6 @@ impl TestCompilerVersions {
             versions.zksolc.contains(ZKSOLC_VERSION),
             "Expected zksolc version {ZKSOLC_VERSION} to be installed, but it is not"
         );
-        anyhow::ensure!(
-            versions.vyper.contains(&vyper),
-            "Expected vyper version {VYPER_VERSION} to be installed, but it is not"
-        );
-        anyhow::ensure!(
-            versions.zkvyper.contains(ZKVYPER_VERSION),
-            "Expected zkvyper version {ZKVYPER_VERSION} to be installed, but it is not"
-        );
-
         Ok(Self {
             solc: SOLC_VERSION.to_owned(),
             eravm_solc,
@@ -376,7 +358,7 @@ async fn compile_standard_json_request(
                 .resolve_zksolc(&zksolc_version)
                 .await
                 .unwrap();
-            let input = ZkSolc::build_input(req, &zksolc_version.zk).unwrap();
+            let input = ZkSolc::build_input(req, &zksolc_version.zk)?;
             compiler.compile(input).await
         }
         BytecodeMarker::Evm => {
@@ -384,7 +366,7 @@ async fn compile_standard_json_request(
                 .resolve_solc(&supported_compilers.solc)
                 .await
                 .unwrap();
-            let input = Solc::build_input(req).unwrap();
+            let input = Solc::build_input(req)?;
             compiler.compile(input).await
         }
     }
@@ -519,7 +501,7 @@ async fn standard_json_resolution_is_hermetic(bytecode_kind: BytecodeMarker) {
 }
 
 #[tokio::test]
-async fn allows_root_level_standard_json_suppressions_with_zksolc() {
+async fn rejects_root_level_standard_json_suppressions_with_zksolc() {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
     let output = compile_standard_json_request(
@@ -529,20 +511,9 @@ async fn allows_root_level_standard_json_suppressions_with_zksolc() {
         root_level_suppression_standard_json_input(),
         "src/Counter.sol:Counter",
     )
-    .await
-    .unwrap();
+    .await;
 
-    assert!(!output.bytecode.is_empty());
-    assert!(
-        output
-            .abi
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|item| { item["type"] == "function" && item["name"] == "sweep" }),
-        "{:?}",
-        output.abi
-    );
+    assert_matches!(output, Err(ContractVerifierError::FailedToDeserializeInput));
 }
 
 #[test_casing(3, [(Some(100), None), (None, Some("shanghai")), (Some(200), Some("paris"))])]
@@ -574,10 +545,9 @@ async fn using_standalone_solc_with_custom_settings(
 
 #[tokio::test]
 async fn using_standalone_solc_with_incorrect_evm_version_fails() {
-    let (compiler_resolver, supported_compilers) = real_resolver!();
+    let (_compiler_resolver, supported_compilers) = real_resolver!();
 
     let version = &supported_compilers.solc;
-    let compiler = compiler_resolver.resolve_solc(version).await.unwrap();
     let mut req = VerificationIncomingRequest {
         compiler_versions: CompilerVersions::Solc {
             compiler_solc_version: version.clone(),
@@ -587,10 +557,11 @@ async fn using_standalone_solc_with_incorrect_evm_version_fails() {
     };
     req.evm_specific.evm_version = Some("not-a-real-version".to_owned());
 
-    let input = Solc::build_input(req).unwrap();
-    let output = compiler.compile(input).await;
-
-    assert_matches!(output, Err(ContractVerifierError::CompilationError(_)));
+    let output = Solc::build_input(req);
+    assert_matches!(
+        output,
+        Err(ContractVerifierError::UnsupportedVerificationInput(_))
+    );
 }
 
 #[test_casing(2, [false, true])]
@@ -669,6 +640,7 @@ fn test_yul_request(compiler_versions: CompilerVersions) -> VerificationIncoming
 }
 
 #[tokio::test]
+#[ignore = "Yul is not exposed publicly; run manually to check the retained compiler capability"]
 async fn compiling_yul_with_zksolc() {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
@@ -763,6 +735,7 @@ async fn eravm_no_metadata_final_word_is_treated_as_mismatch() {
 }
 
 #[tokio::test]
+#[ignore = "Yul is not exposed publicly; run manually to check the retained compiler capability"]
 async fn compiling_standalone_yul() {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
@@ -812,6 +785,7 @@ fn test_vyper_request(
 
 #[test_casing(2, [false, true])]
 #[tokio::test]
+#[ignore = "zkVyper is not exposed publicly; run manually to check the retained compiler capability"]
 async fn using_real_zkvyper(specify_contract_file: bool) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
@@ -845,6 +819,7 @@ async fn using_real_zkvyper(specify_contract_file: bool) {
 
 #[test_casing(2, [false, true])]
 #[tokio::test]
+#[ignore = "Vyper is not exposed publicly; run manually to check the retained compiler capability"]
 async fn using_standalone_vyper(specify_contract_file: bool) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
@@ -873,6 +848,7 @@ async fn using_standalone_vyper(specify_contract_file: bool) {
 }
 
 #[tokio::test]
+#[ignore = "Vyper is not exposed publicly; run manually to check the retained compiler capability"]
 async fn using_standalone_vyper_without_optimization() {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
@@ -897,6 +873,7 @@ async fn using_standalone_vyper_without_optimization() {
 }
 
 #[tokio::test]
+#[ignore = "Vyper is not exposed publicly; run manually to check the retained compiler capability"]
 async fn using_standalone_vyper_with_code_size_optimization() {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
@@ -918,6 +895,7 @@ async fn using_standalone_vyper_with_code_size_optimization() {
 }
 
 #[tokio::test]
+#[ignore = "Vyper is not exposed publicly; run manually to check the retained compiler capability"]
 async fn using_standalone_vyper_with_bogus_optimization() {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
@@ -943,28 +921,18 @@ async fn using_standalone_vyper_with_bogus_optimization() {
     assert!(has_opt_level_error, "{errors:?}");
 }
 
-#[test_casing(4, Product((BYTECODE_KINDS, Toolchain::ALL)))]
+#[test_casing(2, BYTECODE_KINDS)]
 #[tokio::test]
-async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchain: Toolchain) {
+async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker) {
     let (compiler_resolver, supported_compilers) = real_resolver!();
 
-    let req = match toolchain {
-        Toolchain::Solidity => VerificationIncomingRequest {
-            compiler_versions: supported_compilers.clone().solc_for_api(bytecode_kind),
-            ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
-        },
-        Toolchain::Vyper => VerificationIncomingRequest {
-            compiler_versions: supported_compilers.clone().vyper_for_api(bytecode_kind),
-            source_code_data: SourceCodeData::VyperMultiFile(HashMap::from([(
-                "Counter.vy".to_owned(),
-                COUNTER_VYPER_CONTRACT.to_owned(),
-            )])),
-            ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
-        },
+    let req = VerificationIncomingRequest {
+        compiler_versions: supported_compilers.clone().solc_for_api(bytecode_kind),
+        ..test_request(Address::repeat_byte(1), COUNTER_CONTRACT)
     };
     let address = Address::repeat_byte(1);
-    let output = match (bytecode_kind, toolchain) {
-        (BytecodeMarker::EraVm, Toolchain::Solidity) => {
+    let output = match bytecode_kind {
+        BytecodeMarker::EraVm => {
             let zksolc_version = supported_compilers.zksolc();
             let compiler = compiler_resolver
                 .resolve_zksolc(&zksolc_version)
@@ -973,44 +941,24 @@ async fn using_real_compiler_in_verifier(bytecode_kind: BytecodeMarker, toolchai
             let input = ZkSolc::build_input(req.clone(), &zksolc_version.zk).unwrap();
             compiler.compile(input).await.unwrap()
         }
-        (BytecodeMarker::Evm, Toolchain::Solidity) => {
+        BytecodeMarker::Evm => {
             let solc_version = &supported_compilers.solc;
             let compiler = compiler_resolver.resolve_solc(solc_version).await.unwrap();
             let input = Solc::build_input(req.clone()).unwrap();
             compiler.compile(input).await.unwrap()
         }
-        (_, Toolchain::Vyper) => {
-            let compiler = match bytecode_kind {
-                BytecodeMarker::EraVm => compiler_resolver
-                    .resolve_zkvyper(&supported_compilers.zkvyper())
-                    .await
-                    .unwrap(),
-                BytecodeMarker::Evm => compiler_resolver
-                    .resolve_vyper(&supported_compilers.vyper)
-                    .await
-                    .unwrap(),
-            };
-            let input = VyperInput::new(req.clone()).unwrap();
-            compiler.compile(input).await.unwrap()
-        }
     };
     let identifier = ContractIdentifier::from_bytecode(bytecode_kind, output.deployed_bytecode());
 
-    match (bytecode_kind, toolchain) {
-        (BytecodeMarker::Evm, Toolchain::Vyper) => {
-            assert!(
-                identifier.detected_metadata.is_none(),
-                "No metadata for EVM Vyper"
-            );
-        }
-        (BytecodeMarker::Evm, Toolchain::Solidity) => {
+    match bytecode_kind {
+        BytecodeMarker::Evm => {
             assert_matches!(
                 identifier.detected_metadata,
                 Some(DetectedMetadata::Cbor { .. }),
                 "Cbor metadata for EVM Solidity by default"
             );
         }
-        (BytecodeMarker::EraVm, _) => {
+        BytecodeMarker::EraVm => {
             assert_matches!(
                 identifier.detected_metadata,
                 Some(DetectedMetadata::Keccak256),
@@ -1090,7 +1038,7 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
                 "isSystem": false,
                 "forceEvmla": false,
                 "metadata": {
-                    "hashType": hash_type
+                    "bytecodeHash": hash_type
                 },
                 "optimizer": {
                     "enabled": true
@@ -1124,10 +1072,13 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
         .unwrap();
     let mut input_for_storage = ZkSolc::build_input(req.clone(), &zksolc_version.zk).unwrap();
     // Change the source file name.
-    if let ZkSolcInput::StandardJson {
-        input, file_name, ..
-    } = &mut input_for_storage
     {
+        let ZkSolcInput::StandardJson {
+            input, file_name, ..
+        } = &mut input_for_storage
+        else {
+            panic!("expected standard JSON input");
+        };
         let source = input
             .sources
             .remove(&format!("{contract_name}.sol"))
@@ -1136,13 +1087,13 @@ async fn using_zksolc_partial_match(use_cbor: bool) {
         input.sources.insert(new_file_name.clone(), source);
         *file_name = new_file_name;
         if use_cbor {
-            input.settings.other.as_object_mut().unwrap().insert(
-                "metadata".to_string(),
-                serde_json::json!({ "hashType": "ipfs"}),
-            );
+            input.settings.metadata = Some(crate::compilers::Metadata {
+                bytecode_hash: None,
+                hash_type: Some("ipfs".to_owned()),
+                append_cbor: None,
+                use_literal_content: None,
+            });
         }
-    } else {
-        panic!("unexpected input: {input_for_storage:?}");
     }
 
     let output_for_storage = compiler.compile(input_for_storage).await.unwrap();

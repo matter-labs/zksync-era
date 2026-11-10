@@ -32,6 +32,15 @@ fn l1_transaction(rng: &mut impl Rng) -> Transaction {
     Account::random_using(rng).get_l1_tx(execute(rng), rng.gen())
 }
 
+fn force_failed_l1_transaction(rng: &mut impl Rng) -> Transaction {
+    let mut tx = l1_transaction(rng);
+    let ExecuteTransactionCommon::L1(data) = &mut tx.common_data else {
+        unreachable!()
+    };
+    data.force_fail = true;
+    tx
+}
+
 fn l2_transaction(rng: &mut impl Rng) -> Transaction {
     Account::random_using(rng).get_l2_tx_for_execute(execute(rng), None)
 }
@@ -48,9 +57,12 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
         virtual_blocks: rng.gen(),
         operator_address: rng.gen(),
         transactions: (0..10)
-            .map(|_| match rng.gen() {
-                true => l1_transaction(rng),
-                false => l2_transaction(rng),
+            .map(|_| match rng.gen_range(0..3) {
+                0 => l1_transaction(rng),
+                1 if protocol_version >= ProtocolVersionId::Version34 => {
+                    force_failed_l1_transaction(rng)
+                }
+                _ => l2_transaction(rng),
             })
             .collect(),
         last_in_batch: rng.gen(),
@@ -112,6 +124,7 @@ fn test_encoding() {
     //test_encode_all_formats::<FmtConv<GlobalConfig>>(rng);
     test_encode_all_formats::<FmtConv<BlockMetadata>>(rng);
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l1_transaction(rng));
+    encode_decode::<proto::TransactionV25, ComparableTransaction>(force_failed_l1_transaction(rng));
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l2_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l2_transaction(rng));

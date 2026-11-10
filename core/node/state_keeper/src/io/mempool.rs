@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_config::configs::chain::{ForceFailConfig, StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::web3_decl::node::SettlementModeResource;
@@ -25,8 +25,8 @@ use zksync_types::{
     server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     utils::display_timestamp,
-    Address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
-    Transaction, H256, U256,
+    Address, ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, PriorityOpId,
+    ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_vm_executor::storage::{get_base_system_contracts_by_version_id, L1BatchParamsProvider};
 
@@ -74,6 +74,11 @@ pub struct MempoolIO {
     pubdata_limit: u64,
     last_batch_protocol_version: Option<ProtocolVersionId>,
     settlement_mode: SettlementModeResource,
+    force_fail_config: ForceFailConfig,
+    /// Operator force-fail marks with their reasons, reloaded from `force_failed_priority_ops`
+    /// every `force_fail_config.refresh_interval`. Empty while the feature is disabled.
+    force_fail_marks: HashMap<PriorityOpId, Option<String>>,
+    force_fail_refreshed_at: Option<Instant>,
 }
 
 #[async_trait]
@@ -270,13 +275,29 @@ impl StateKeeperIO for MempoolIO {
         max_wait: Duration,
         l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>> {
+        self.refresh_force_fail_marks().await?;
+
         let started_at = Instant::now();
         while started_at.elapsed() <= max_wait {
             let get_latency = KEEPER_METRICS.get_tx_from_mempool.start();
             let maybe_tx = self.mempool.next_transaction(&self.filter);
             get_latency.observe();
 
-            if let Some((tx, constraint)) = maybe_tx {
+            if let Some((mut tx, constraint)) = maybe_tx {
+                if let ExecuteTransactionCommon::L1(data) = &mut tx.common_data {
+                    let reason = self.force_fail_reason(data.serial_id, data.canonical_tx_hash);
+                    if let Some(reason) = reason {
+                        tracing::warn!(
+                            "Force-failing priority op {} (tx {:?}) on operator request, reason: {reason}",
+                            data.serial_id,
+                            data.canonical_tx_hash
+                        );
+                    }
+                    // Assigned, not OR-ed: a row read back after a block revert may still carry
+                    // `true`, and the operator table is the only source of intent.
+                    data.force_fail = reason.is_some();
+                }
+
                 // Reject transactions with too big gas limit. They are also rejected on the API level, but
                 // we need to secure ourselves in case some tx will somehow get into mempool.
                 if tx.gas_limit() > self.max_allowed_tx_gas_limit {
@@ -317,9 +338,10 @@ impl StateKeeperIO for MempoolIO {
 
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         // Reset nonces in the mempool.
-        let constraint = self.mempool.rollback(&tx);
-        // Insert the transaction back.
-        self.mempool.insert(vec![(tx, constraint)], HashMap::new());
+        if let Some(constraint) = self.mempool.rollback(&tx) {
+            // Insert the transaction back.
+            self.mempool.insert(vec![(tx, constraint)], HashMap::new());
+        }
         Ok(())
     }
 
@@ -330,8 +352,9 @@ impl StateKeeperIO for MempoolIO {
             .filter(|tx| tx.tx_format() != TransactionType::ProtocolUpgradeTransaction)
             .rev()
         {
-            let constraint = self.mempool.rollback(&tx);
-            to_add.push((tx, constraint));
+            if let Some(constraint) = self.mempool.rollback(&tx) {
+                to_add.push((tx, constraint));
+            }
         }
 
         to_add.reverse();
@@ -367,10 +390,15 @@ impl StateKeeperIO for MempoolIO {
         rejected: &Transaction,
         reason: UnexecutableReason,
     ) -> anyhow::Result<()> {
-        anyhow::ensure!(
-            !rejected.is_l1(),
-            "L1 transactions should not be rejected: {reason}"
-        );
+        // A priority transaction cannot be rejected: it is already committed on L1, and marking it
+        // rejected here would drop it from the chain's history. Until this existed, reaching this
+        // point with one stopped the node. Pausing L1->L2 processing is what replaces that: the
+        // priority queue stalls at this transaction and the node keeps sequencing L2 traffic,
+        // instead of dying and taking the whole chain with it.
+        if rejected.is_l1() {
+            self.pause_l1_to_l2_txs(rejected, &reason);
+            return Ok(());
+        }
 
         // Reset the nonces in the mempool, but don't insert the transaction back.
         self.mempool.rollback(rejected);
@@ -534,11 +562,63 @@ impl MempoolIO {
             pubdata_limit: config.seal_criteria.max_pubdata_per_batch.0,
             last_batch_protocol_version: None,
             settlement_mode,
+            force_fail_config: config.force_fail.clone(),
+            force_fail_marks: HashMap::new(),
+            force_fail_refreshed_at: None,
         })
     }
 
+    /// The operator's reason for force-failing `serial_id`, if it is marked and the batch's
+    /// protocol version supports the bit. `None` means the op executes normally.
+    fn force_fail_reason(&self, serial_id: PriorityOpId, tx_hash: H256) -> Option<&str> {
+        let reason = self.force_fail_marks.get(&serial_id)?;
+        // Only the force-fail bootloader reads the bit; emitting it earlier would trip the VM's
+        // assert and crash the state keeper on every restart until the row is removed.
+        let supported = self
+            .last_batch_protocol_version
+            .is_some_and(|v| v >= ProtocolVersionId::Version34);
+        if !supported {
+            tracing::error!(
+                "Ignoring force-fail mark for priority op {serial_id} (tx {tx_hash:?}): \
+                 batch protocol version {:?} predates force-fail support",
+                self.last_batch_protocol_version
+            );
+            return None;
+        }
+        Some(reason.as_deref().unwrap_or("<none>"))
+    }
+
+    async fn refresh_force_fail_marks(&mut self) -> anyhow::Result<()> {
+        if !self.force_fail_config.enabled {
+            return Ok(());
+        }
+        let stale = self
+            .force_fail_refreshed_at
+            .is_none_or(|at| at.elapsed() >= self.force_fail_config.refresh_interval);
+        if !stale {
+            return Ok(());
+        }
+        let marks = self
+            .pool
+            .connection_tagged("state_keeper")
+            .await?
+            .force_fail_dal()
+            .get_force_failed_priority_ops()
+            .await
+            .context("failed loading force-failed priority ops")?;
+        self.force_fail_marks = marks.into_iter().collect();
+        self.force_fail_refreshed_at = Some(Instant::now());
+        Ok(())
+    }
+
     fn pubdata_params(&self, protocol_version: ProtocolVersionId) -> anyhow::Result<PubdataParams> {
-        // Starting from v31 we have to use commitment schema instead of address
+        // Starting from v31 we have to use commitment schema instead of address.
+        //
+        // For v31+ batches the pubdata type is derived from the commitment scheme whenever the
+        // scheme determines it (blob-based schemes imply a rollup). This lets a chain switch from
+        // validium to rollup together with the v31 upgrade: pre-v31 batches keep using the
+        // configured (DA client based) pubdata type, while v31+ batches follow the scheme.
+        // For validium schemes the configured pubdata type is used as before.
         let pubdata_params = match (
             protocol_version.is_pre_medium_interop(),
             self.l2_da_validator_address,
@@ -550,7 +630,9 @@ impl MempoolIO {
             )?,
             (false, _, Some(l2_da_commitment_scheme)) => PubdataParams::new(
                 L2PubdataValidator::CommitmentScheme(l2_da_commitment_scheme),
-                self.pubdata_type,
+                l2_da_commitment_scheme
+                    .implied_pubdata_type()
+                    .unwrap_or(self.pubdata_type),
             )?,
             (_, _, _) => anyhow::bail!(
                 "Inconsistent   pubdata parameters: \
@@ -764,6 +846,73 @@ impl MempoolIO {
             Some(self.settlement_mode.settlement_layer()),
             notification,
         )
+    }
+
+    /// Stops L1->L2 transaction processing because `tx`, a priority transaction, turned out to be
+    /// unexecutable.
+    ///
+    /// The transaction is left exactly as it was: not marked rejected, and put back in the mempool so
+    /// that the mempool still considers it the next one to execute — it simply never hands it out
+    /// again while paused. Nothing has been sealed, so a node restarted with the cause addressed picks
+    /// the queue up from this same transaction.
+    ///
+    /// L2 traffic is unaffected and the node keeps sequencing.
+    ///
+    /// Only a reason a new batch could not fix gets this far. A batch-relative one — the batch ran
+    /// out of room, not the transaction out of options — is turned into
+    /// [`SealResolution::ExcludeAndSeal`](crate::seal_criteria::SealResolution::ExcludeAndSeal) by
+    /// the keeper and retried in the next batch instead, so it never reaches here unless the
+    /// transaction was already alone in its batch. That case is reported distinctly below, because
+    /// what an operator has to do about it is different.
+    fn pause_l1_to_l2_txs(&mut self, tx: &Transaction, reason: &UnexecutableReason) {
+        let already_paused = self.mempool.l1_transactions_paused();
+        // Un-consume the transaction, so that the queue resumes at it rather than at the one after
+        // it. Both halves are needed and for different reasons: `rollback()` rewinds
+        // `next_priority_id`, but `next_transaction()` *removed* the transaction from the priority
+        // buffer, and the L1 arm of `rollback()` does not put it back. Rolling back alone would leave
+        // the mempool pointing at an id it no longer holds, with the transactions behind it
+        // unreachable — see `rollback_alone_does_not_re_arm_an_l1_tx` in `zksync_mempool`. This is the
+        // same pair `Self::rollback()` uses.
+        if let Some(constraint) = self.mempool.rollback(tx) {
+            self.mempool
+                .insert(vec![(tx.clone(), constraint)], HashMap::new());
+        }
+        self.mempool.pause_l1_transactions();
+        KEEPER_METRICS.l1_to_l2_txs_paused.set(1);
+
+        if already_paused {
+            return;
+        }
+        // The transition, which is the thing to be notified about. Raises the gauge too, so a
+        // pause can never be counted without being visible as current state.
+        KEEPER_METRICS.inc_l1_to_l2_pauses(reason);
+        KEEPER_METRICS.inc_rejected_txs(reason.as_metric_label());
+        // Same pause either way; the two differ in what to go and look at, so they are not reported
+        // as one thing.
+        if reason.is_batch_relative() {
+            tracing::error!(
+                tx_hash = ?tx.hash(),
+                reason = %reason,
+                reason_label = reason.as_metric_label(),
+                "L1->L2 transaction exhausted a whole batch on its own, so no batch can execute it \
+                 as things stand. A priority transaction cannot be rejected, so L1->L2 processing \
+                 is paused and this transaction stays at the head of the priority queue; L2 \
+                 transactions keep being sequenced. This is a capacity problem rather than a bad \
+                 transaction: check the batch gas and pubdata limits against what this transaction \
+                 needs, then restart the node to resume L1->L2 processing."
+            );
+        } else {
+            tracing::error!(
+                tx_hash = ?tx.hash(),
+                reason = %reason,
+                reason_label = reason.as_metric_label(),
+                "L1->L2 transaction is unexecutable, and no batch would execute it either. A \
+                 priority transaction cannot be rejected, so L1->L2 processing is paused and this \
+                 transaction stays at the head of the priority queue; L2 transactions keep being \
+                 sequenced. Investigate the reason above, then restart the node to resume L1->L2 \
+                 processing."
+            );
+        }
     }
 
     #[cfg(test)]

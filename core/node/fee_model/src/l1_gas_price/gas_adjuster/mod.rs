@@ -2,9 +2,13 @@
 
 use std::{
     collections::VecDeque,
-    sync::{Arc, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, RwLock,
+    },
 };
 
+use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
 use zksync_dal::{ConnectionPool, Core};
@@ -67,6 +71,9 @@ pub struct GasAdjuster {
     client: GasAdjusterClient,
     connection_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
+    /// Blob base fee predicted for the L1 batches that are not committed yet. Only used with
+    /// [`PubdataSendingMode::Blobs`]; refreshed by [`Self::update_blob_base_fee_prediction()`].
+    predicted_blob_base_fee: AtomicU64,
 }
 
 impl GasAdjuster {
@@ -117,7 +124,7 @@ impl GasAdjuster {
                 .map(|base_fee| base_fee.gas_per_pubdata()),
         );
 
-        Ok(Self {
+        let this = Self {
             base_fee_statistics,
             blob_base_fee_statistics,
             l2_pubdata_price_statistics,
@@ -127,7 +134,10 @@ impl GasAdjuster {
             client,
             commitment_mode,
             connection_pool,
-        })
+            predicted_blob_base_fee: AtomicU64::new(0),
+        };
+        this.update_blob_base_fee_prediction(current_block).await;
+        Ok(this)
     }
 
     /// Performs an actualization routine for `GasAdjuster`.
@@ -200,7 +210,54 @@ impl GasAdjuster {
             self.gas_per_pubdata_price_statistic
                 .add_samples(fee_data.iter().map(|base_fee| base_fee.gas_per_pubdata()));
         }
+
+        self.update_blob_base_fee_prediction(current_block).await;
         Ok(())
+    }
+
+    /// Recomputes the blob base fee prediction (see [`predict_blob_base_fee`]) for the current L1
+    /// head and blob median. Falls back to the median if the prediction fails.
+    ///
+    /// This runs once per [`Self::keep_updated()`] poll rather than on every fee-input request.
+    /// Fee-input requests include every `eth_call`, `eth_estimateGas` and `eth_sendRawTransaction`
+    /// that the API serves while no L1 batch is open, so doing L1 or DB I/O there would scale with
+    /// API traffic.
+    async fn update_blob_base_fee_prediction(&self, l1_block_number: usize) {
+        if !matches!(self.pubdata_sending_mode, PubdataSendingMode::Blobs)
+            || self.config.internal_enforced_pubdata_price.is_some()
+        {
+            return;
+        }
+        let blob_base_fee_median = self.blob_base_fee_statistics.median();
+        if blob_base_fee_median > U256::from(u64::MAX) {
+            // `estimate_effective_pubdata_price()` returns `max_blob_base_fee` without reading the prediction.
+            return;
+        }
+        let blob_base_fee_median = blob_base_fee_median.as_u64();
+
+        let prediction = async {
+            let l1_block_number =
+                u32::try_from(l1_block_number).context("L1 block number doesn't fit into u32")?;
+            let mut connection = self
+                .connection_pool
+                .connection_tagged("gas_adjuster")
+                .await?;
+            predict_blob_base_fee(&mut connection, l1_block_number, blob_base_fee_median).await
+        };
+        let predicted_blob_base_fee = match prediction.await {
+            Ok(fee) => fee,
+            Err(err) => {
+                tracing::warn!(
+                    "Failed to predict blob base fee, using the median {blob_base_fee_median}: {err:#}"
+                );
+                blob_base_fee_median
+            }
+        };
+
+        tracing::debug!("Predicted blob base fee: {predicted_blob_base_fee}, blob base fee median: {blob_base_fee_median}");
+        METRICS.predicted_blob_base_fee.set(predicted_blob_base_fee);
+        self.predicted_blob_base_fee
+            .store(predicted_blob_base_fee, Ordering::Relaxed);
     }
 
     fn bound_gas_price(&self, gas_price: u64) -> u64 {
@@ -250,7 +307,9 @@ impl GasAdjuster {
         self.bound_gas_price(calculated_price)
     }
 
-    pub(crate) async fn estimate_effective_pubdata_price(&self) -> u64 {
+    /// Doesn't do any I/O: it's called for every fee-input request (see
+    /// [`Self::update_blob_base_fee_prediction()`]).
+    pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
         if let Some(price) = self.config.internal_enforced_pubdata_price {
             return price;
         }
@@ -271,19 +330,7 @@ impl GasAdjuster {
                     .median_blob_base_fee
                     .set(blob_base_fee_median.as_u64());
 
-                let predicted_blob_base_fee = predict_blob_base_fee(
-                    &mut self
-                        .connection_pool
-                        .connection()
-                        .await
-                        .expect("Failed to acquire connection"),
-                    &self.client,
-                    blob_base_fee_median.as_u64(),
-                )
-                .await;
-
-                tracing::debug!("Predicted blob base fee: {predicted_blob_base_fee}, blob base fee median: {blob_base_fee_median}");
-
+                let predicted_blob_base_fee = self.predicted_blob_base_fee.load(Ordering::Relaxed);
                 let calculated_price = predicted_blob_base_fee as f64
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_pubdata_pricing_multiplier;

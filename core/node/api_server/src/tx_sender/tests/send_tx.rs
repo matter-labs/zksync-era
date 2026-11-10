@@ -1,6 +1,6 @@
 //! Tests for sending raw transactions.
 
-use std::ops::Range;
+use std::{ops::Range, slice};
 
 use assert_matches::assert_matches;
 use chrono::NaiveDateTime;
@@ -8,6 +8,7 @@ use test_casing::test_casing;
 use zksync_multivm::interface::{tracer::ValidationTraces, ExecutionResult};
 use zksync_node_fee_model::{BatchFeeModelInputProvider, MockBatchFeeParamsProvider};
 use zksync_node_test_utils::create_l2_transaction;
+use zksync_system_constants::KNOWN_CODES_STORAGE_ADDRESS;
 use zksync_test_contracts::Account;
 
 use super::*;
@@ -418,4 +419,150 @@ async fn submitting_evm_deployment() {
     let tx = alice.create_evm_counter_deployment(42.into());
     let vm_result = tx_sender.submit_tx(tx, block_args).await.unwrap();
     assert_matches!(&vm_result.result, ExecutionResult::Success { .. });
+}
+
+/// Bytecode of `words` 32-byte words (must be odd, per EraVM). Only its hash and length matter to
+/// the bound under test.
+fn factory_dep(words: usize, seed: u8) -> Vec<u8> {
+    assert!(words % 2 == 1, "bytecode must have an odd number of words");
+    let mut code = vec![0_u8; words * 32];
+    code[0] = 1;
+    code[1] = seed;
+    code[2..10].copy_from_slice(&(words as u64).to_be_bytes());
+    code
+}
+
+/// Submits a no-op transaction carrying `factory_deps`, with `already_known` marked as published in
+/// `KnownCodesStorage` beforehand, and returns the admission result.
+async fn submit_tx_with_factory_deps(
+    factory_deps: Vec<Vec<u8>>,
+    already_known: &[Vec<u8>],
+) -> Result<(), SubmitTxError> {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParamsInitials::mock())
+        .await
+        .unwrap();
+
+    let l2_chain_id = L2ChainId::default();
+    let fee_params_provider: &dyn BatchFeeModelInputProvider =
+        &MockBatchFeeParamsProvider::default();
+    let fee_input = fee_params_provider.get_batch_fee_input().await.unwrap();
+    let (base_fee, gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
+    let mut tx = create_l2_transaction(base_fee, gas_per_pubdata);
+    tx.execute.factory_deps = factory_deps;
+
+    let mut state = StateBuilder::default().with_balance(tx.initiator_account(), u64::MAX.into());
+    // A non-zero `KnownCodesStorage` marker is what makes a bytecode "already published".
+    for dep in already_known {
+        state = state.with_storage_slot(
+            KNOWN_CODES_STORAGE_ADDRESS,
+            BytecodeHash::for_bytecode(dep).value(),
+            H256::from_low_u64_be(1),
+        );
+    }
+    state.apply(storage).await;
+
+    let mut tx_executor = MockOneshotExecutor::default();
+    tx_executor.set_tx_responses(|_, _| ExecutionResult::Success { output: vec![] });
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+    let block_args = pending_block_args(&tx_sender).await;
+
+    tx_sender.submit_tx(tx, block_args).await.map(drop)
+}
+
+/// The bound the test config derives from its 1,000,000-byte L2-block payload budget.
+const TEST_MAX_REDUNDANT_SIZE: usize = 125_000;
+
+#[test]
+fn test_tx_sender_config_derives_the_documented_bound() {
+    let config = TxSenderConfig::new(
+        &StateKeeperConfig::for_tests(),
+        &Web3JsonRpcConfig::for_tests(),
+        Address::zero(),
+        L2ChainId::default(),
+    );
+    assert_eq!(
+        config.max_redundant_factory_deps_size,
+        Some(TEST_MAX_REDUNDANT_SIZE)
+    );
+}
+
+/// A large already-published preimage is metered as one 32-byte hash but occupies L2-block payload
+/// at full size, so re-attaching it must be rejected.
+#[tokio::test]
+async fn submitting_tx_with_large_already_known_factory_dep_is_rejected() {
+    let dep = factory_dep(6_251, 1); // 200,032 bytes, above the bound
+    assert!(dep.len() > TEST_MAX_REDUNDANT_SIZE);
+
+    let err = submit_tx_with_factory_deps(vec![dep.clone()], slice::from_ref(&dep))
+        .await
+        .unwrap_err();
+
+    assert_matches!(
+        err,
+        SubmitTxError::TooManyRedundantFactoryDependencies(size, max)
+            if size == dep.len() && max == TEST_MAX_REDUNDANT_SIZE
+    );
+}
+
+/// The same preimage is admitted when the transaction is the one publishing it: publication pays
+/// gas proportional to the bytecode size, so those bytes are not free.
+#[tokio::test]
+async fn submitting_tx_publishing_large_factory_dep_is_allowed() {
+    let dep = factory_dep(6_251, 1);
+
+    submit_tx_with_factory_deps(vec![dep], &[])
+        .await
+        .expect("newly published factory dep must not be bounded");
+}
+
+/// A known preimage well under the bound is admitted, so ordinary redeploys keep working.
+#[tokio::test]
+async fn submitting_tx_with_small_already_known_factory_dep_is_allowed() {
+    let dep = factory_dep(17, 1); // 544 bytes
+
+    submit_tx_with_factory_deps(vec![dep.clone()], &[dep])
+        .await
+        .expect("small known factory dep must be admitted");
+}
+
+/// Only the first copy of a bytecode is backed by publication work, so a transaction cannot get
+/// around the bound by repeating an unpublished dependency.
+#[tokio::test]
+async fn submitting_tx_with_duplicated_factory_dep_is_rejected() {
+    // 32,032 bytes: one copy is under the bound (and is the paid publication), the other five are
+    // not, so only the repeats are charged.
+    let dep = factory_dep(1_001, 1);
+    assert!(dep.len() <= TEST_MAX_REDUNDANT_SIZE);
+    assert!(5 * dep.len() > TEST_MAX_REDUNDANT_SIZE);
+
+    let err = submit_tx_with_factory_deps(vec![dep.clone(); 6], &[])
+        .await
+        .unwrap_err();
+
+    assert_matches!(
+        err,
+        SubmitTxError::TooManyRedundantFactoryDependencies(size, _) if size == 5 * dep.len()
+    );
+}
+
+/// Distinct known preimages aggregate, so the payload cannot slip through by being split across
+/// dependencies.
+#[tokio::test]
+async fn submitting_tx_with_many_small_already_known_factory_deps_is_rejected() {
+    let deps: Vec<Vec<u8>> = (0..5).map(|i| factory_dep(1_001, i as u8 + 1)).collect();
+    let total: usize = deps.iter().map(Vec::len).sum();
+    assert!(total > TEST_MAX_REDUNDANT_SIZE);
+
+    let err = submit_tx_with_factory_deps(deps.clone(), &deps)
+        .await
+        .unwrap_err();
+
+    assert_matches!(
+        err,
+        SubmitTxError::TooManyRedundantFactoryDependencies(size, _) if size == total
+    );
 }

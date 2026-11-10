@@ -192,6 +192,11 @@
         "ordinal": 37,
         "name": "timestamp_asserter_range_end",
         "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 38,
+        "name": "force_fail",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -237,6 +242,7 @@
       true,
       true,
       false,
+      true,
       true,
       true,
       true,

@@ -42,7 +42,12 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
         .contains(&h256_to_u256(tx.bytecode_hash)));
 
     // Note: `Default_AA` will be in the list of used contracts if L2 tx is used
-    assert_eq!(vm.vm.decommitted_hashes(), vm.vm.known_bytecode_hashes());
+    let mut decommitted_hashes = vm.vm.decommitted_hashes();
+    // The bootloader is decommitted before execution starts.
+    assert!(decommitted_hashes.remove(&h256_to_u256(
+        vm.system_env.base_system_smart_contracts.bootloader.hash
+    )));
+    assert_eq!(decommitted_hashes, vm.vm.known_bytecode_hashes());
 
     // create push and execute some non-empty factory deps transaction that fails
     // (`known_bytecodes` will be updated but we expect `get_decommitted_hashes()` to not be updated)

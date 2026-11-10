@@ -38,6 +38,7 @@ serde_json.workspace = true
 serde = { version = "1.0.189", features = ["derive"] }
 
 [dev-dependencies]
+sqlx.workspace = true
 zksync_web3_decl.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true

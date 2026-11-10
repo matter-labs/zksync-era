@@ -65,3 +65,16 @@ impl GatewayMigrationNotification {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProofSystemStatusNotification {
+    pub disabled_proof_systems: u8,
+    pub log_index: u64,
+}
+
+pub static PROOF_SYSTEM_STATUS_NOTIFICATION_SIGNATURE: Lazy<H256> = Lazy::new(|| {
+    server_notifier_contract()
+        .event("ProofSystemStatusNotified")
+        .unwrap()
+        .signature()
+});

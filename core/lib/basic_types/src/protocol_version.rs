@@ -76,17 +76,19 @@ pub enum ProtocolVersionId {
     // Version `30` was skipped as an Era upgrade due to version clash with ZKsync OS.
     Version30,
     Version31,
-    // Speculative next protocol version for the upgrade integration tests etc.
     Version32,
+    Version33,
+    Version34,
+    Version35,
 }
 
 impl ProtocolVersionId {
     pub const fn latest() -> Self {
-        Self::Version31
+        Self::Version34
     }
 
     pub const fn next() -> Self {
-        Self::Version32
+        Self::Version35
     }
 
     pub fn try_from_packed_semver(packed_semver: U256) -> Result<Self, String> {
@@ -137,8 +139,10 @@ impl ProtocolVersionId {
             // Note V30 is only present on zksync os
             ProtocolVersionId::Version30 => VmVersion::VmInterop,
             ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
-            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version32 => VmVersion::VmMediumInterop,
+            ProtocolVersionId::Version33 => VmVersion::VmMediumInterop,
+            ProtocolVersionId::Version34 => VmVersion::VmMediumInteropForceFail,
+            ProtocolVersionId::Version35 => VmVersion::VmMediumInteropForceFail,
         }
     }
 
@@ -178,6 +182,12 @@ impl ProtocolVersionId {
 
     pub fn is_pre_medium_interop(&self) -> bool {
         self < &Self::Version31
+    }
+
+    /// Whether an upgrade from `from` to this version takes its L2 tx from `getL2UpgradeTxData`:
+    /// upgrades to v31, or from below v31 to later, as only `SettlementLayerV31UpgradeBase` has it.
+    pub fn rewrites_l2_upgrade_tx(&self, from: ProtocolVersionId) -> bool {
+        matches!(self, Self::Version31) || (from < Self::Version31 && self > &Self::Version31)
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -334,8 +344,12 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version29 => VmVersion::VmInterop,
             ProtocolVersionId::Version30 => VmVersion::VmInterop,
             ProtocolVersionId::Version31 => VmVersion::VmMediumInterop,
-            // Speculative VM version for the next protocol version to be used in the upgrade integration test etc.
             ProtocolVersionId::Version32 => VmVersion::VmMediumInterop,
+            // v33 is v32's VM; only the bootloader changes.
+            ProtocolVersionId::Version33 => VmVersion::VmMediumInterop,
+            ProtocolVersionId::Version34 => VmVersion::VmMediumInteropForceFail,
+            // Speculative next protocol version for the upgrade integration tests etc.
+            ProtocolVersionId::Version35 => VmVersion::VmMediumInteropForceFail,
         }
     }
 }
@@ -479,5 +493,33 @@ mod tests {
         let ser_str = serde_json::to_string(&ser).unwrap();
         let expected_str = r#"{"recursion_scheduler_level_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111","fflonk_snark_wrapper_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111","airbender_snark_wrapper_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111"}"#;
         assert_eq!(ser_str, expected_str);
+    }
+
+    #[test]
+    fn l2_upgrade_tx_rewrite_depends_on_both_versions() {
+        use ProtocolVersionId::*;
+
+        for (from, to, rewrites) in [
+            // Upgrades to v31 itself, as before.
+            (Version29, Version31, true),
+            (Version30, Version31, true),
+            (Version31, Version31, true),
+            // A v31 upgrade contract relabelled to a later target (e.g. v30 -> v33).
+            (Version30, Version32, true),
+            (Version30, Version33, true),
+            // Upgrades starting at v31+ ship a `DefaultUpgrade` (e.g. v31 -> v33).
+            (Version31, Version33, false),
+            (Version32, Version33, false),
+            (Version33, Version34, false),
+            // Upgrades that stay below v31.
+            (Version27, Version28, false),
+            (Version29, Version30, false),
+        ] {
+            assert_eq!(
+                to.rewrites_l2_upgrade_tx(from),
+                rewrites,
+                "{from:?} -> {to:?}"
+            );
+        }
     }
 }

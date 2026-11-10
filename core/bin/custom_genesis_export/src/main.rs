@@ -125,6 +125,7 @@ async fn main() -> anyhow::Result<()> {
     genesis_config.genesis_root_hash = Some(genesis_batch_params.root_hash);
     genesis_config.rollup_last_leaf_index = Some(genesis_batch_params.rollup_last_leaf_index);
     genesis_config.genesis_commitment = Some(genesis_batch_params.commitment);
+    genesis_config.genesis_airbender_commitment = genesis_batch_params.airbender_commitment;
     genesis_config.custom_genesis_state_path =
         args.output_path.canonicalize()?.to_str().map(String::from);
 

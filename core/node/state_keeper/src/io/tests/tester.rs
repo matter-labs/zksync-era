@@ -3,7 +3,10 @@
 use std::{slice, sync::Arc, time::Duration};
 
 use zksync_config::{
-    configs::{chain::StateKeeperConfig, wallets::Wallets},
+    configs::{
+        chain::{ForceFailConfig, StateKeeperConfig},
+        wallets::Wallets,
+    },
     GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContracts;
@@ -31,13 +34,14 @@ use zksync_types::{
     block::L2BlockHeader,
     commitment::{L1BatchCommitmentMode, L2DACommitmentScheme},
     fee_model::{BaseTokenConversionRatio, BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
+    l1::L1TxCommonData,
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     pubdata_da::PubdataSendingMode,
     settlement::WorkingSettlementLayer,
     system_contracts::get_system_smart_contracts,
-    L1ChainId, L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId,
-    TransactionTimeRangeConstraint, H256, U256,
+    Address, Execute, ExecuteTransactionCommon, L1ChainId, L2BlockNumber, L2ChainId, PriorityOpId,
+    ProtocolVersionId, Transaction, TransactionTimeRangeConstraint, H256, U256,
 };
 
 use crate::{MempoolGuard, MempoolIO};
@@ -47,6 +51,7 @@ pub struct Tester {
     base_system_contracts: BaseSystemContracts,
     current_timestamp: u64,
     commitment_mode: L1BatchCommitmentMode,
+    force_fail: ForceFailConfig,
 }
 
 impl Tester {
@@ -56,7 +61,12 @@ impl Tester {
             base_system_contracts,
             current_timestamp: 0,
             commitment_mode,
+            force_fail: ForceFailConfig::default(),
         }
+    }
+
+    pub(super) fn enable_force_fail(&mut self) {
+        self.force_fail.enabled = true;
     }
 
     async fn create_gas_adjuster(&self) -> GasAdjuster {
@@ -139,6 +149,23 @@ impl Tester {
         pool: ConnectionPool<Core>,
         settlement_mode: WorkingSettlementLayer,
     ) -> (MempoolIO, MempoolGuard) {
+        let mempool = MempoolGuard::new(PriorityOpId(0), 100, None, None);
+        (
+            self.create_test_mempool_io_around(pool, mempool.clone(), settlement_mode)
+                .await,
+            mempool,
+        )
+    }
+
+    /// As above, but around a mempool the caller already has. The restart test needs this: its
+    /// second mempool is built with the production constructor, so that `next_priority_id` comes
+    /// from Postgres rather than being assumed.
+    pub(super) async fn create_test_mempool_io_around(
+        &self,
+        pool: ConnectionPool<Core>,
+        mempool: MempoolGuard,
+        settlement_mode: WorkingSettlementLayer,
+    ) -> MempoolIO {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
@@ -154,14 +181,14 @@ impl Tester {
             U256::zero(),
         );
 
-        let mempool = MempoolGuard::new(PriorityOpId(0), 100, None, None);
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
+            force_fail: self.force_fail.clone(),
             ..StateKeeperConfig::for_tests()
         };
         let wallets = Wallets::for_tests();
-        let io = MempoolIO::new(
+        MempoolIO::new(
             mempool.clone(),
             Arc::new(batch_fee_input_provider),
             pool,
@@ -174,9 +201,7 @@ impl Tester {
             Default::default(),
             SettlementModeResource::new(settlement_mode),
         )
-        .unwrap();
-
-        (io, mempool)
+        .unwrap()
     }
 
     pub(super) fn set_timestamp(&mut self, timestamp: u64) {
@@ -240,6 +265,7 @@ impl Tester {
                 1.into(),
                 ProtocolVersionId::latest(),
                 false,
+                zksync_dal::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
             )
             .await
             .unwrap();
@@ -302,6 +328,35 @@ impl Tester {
     ) -> L2Tx {
         let tx = create_l2_transaction(fee_per_gas, gas_per_pubdata.into());
         guard.insert(vec![(tx.clone().into(), constraint)], Default::default());
+        tx
+    }
+
+    pub(super) fn insert_l1_tx(
+        &self,
+        guard: &mut MempoolGuard,
+        serial_id: PriorityOpId,
+    ) -> Transaction {
+        let tx = Transaction {
+            common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
+                sender: Address::random(),
+                serial_id,
+                gas_limit: U256::from(100_000),
+                gas_per_pubdata_limit: U256::one(),
+                // `Transaction::hash()` of an L1 transaction is this field verbatim, so it has to be
+                // distinct per transaction or tests cannot tell two of them apart.
+                canonical_tx_hash: H256::from_low_u64_be(serial_id.0 + 1),
+                ..L1TxCommonData::default()
+            }),
+            execute: Execute {
+                contract_address: Some(Address::random()),
+                calldata: vec![],
+                value: U256::zero(),
+                factory_deps: vec![],
+            },
+            received_timestamp_ms: 0,
+            raw_bytes: None,
+        };
+        guard.insert(vec![(tx.clone(), Default::default())], Default::default());
         tx
     }
 }

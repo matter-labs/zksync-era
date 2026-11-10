@@ -17,7 +17,7 @@ import {
     setEthSenderSenderAggregatedBlockCommitDeadline
 } from './utils';
 import path from 'path';
-import { CONTRACT_DEPLOYER, CONTRACT_DEPLOYER_ADDRESS, hashBytecode, ZKSYNC_MAIN_ABI } from 'zksync-ethers/build/utils';
+import { CONTRACT_DEPLOYER, CONTRACT_DEPLOYER_ADDRESS, hashBytecode } from 'zksync-ethers/build/utils';
 import { utils as zksync_utils } from 'zksync-ethers';
 import { logsTestPath } from 'utils/build/logs';
 import { waitForNewL1Batch } from 'utils';
@@ -127,6 +127,7 @@ describe('Upgrade test', function () {
     let evmEmulatorHash: string;
     let bytecodeSupplier: string;
     let executeOperation: string;
+    let expectedProtocolVersion: bigint;
     let forceDeployAddress: string;
     let forceDeployBytecode: string;
     let logs: fs.FileHandle;
@@ -222,8 +223,12 @@ describe('Upgrade test', function () {
         );
 
         slMainContract = gatewayInfo
-            ? new ethers.Contract(gatewayInfo.l2DiamondProxyAddress, ZKSYNC_MAIN_ABI, gatewayInfo.gatewayProvider)
-            : new ethers.Contract(contractsConfig.l1.diamond_proxy_addr, ZKSYNC_MAIN_ABI, tester.syncWallet.providerL1);
+            ? new ethers.Contract(gatewayInfo.l2DiamondProxyAddress, ZK_CHAIN_INTERFACE, gatewayInfo.gatewayProvider)
+            : new ethers.Contract(
+                  contractsConfig.l1.diamond_proxy_addr,
+                  ZK_CHAIN_INTERFACE,
+                  tester.syncWallet.providerL1
+              );
 
         const l1CtmContract = new ethers.Contract(
             contractsConfig.ecosystem_contracts.state_transition_proxy_addr,
@@ -231,6 +236,31 @@ describe('Upgrade test', function () {
             tester.syncWallet.providerL1
         );
         ecosystemGovernance = await l1CtmContract.owner();
+
+        if (!gatewayInfo) {
+            const [, minor] = unpackNumberSemVer(Number(await slMainContract.getProtocolVersion()));
+            expect(minor, 'Operator-driven upgrades require v31 or later').to.be.at.least(31);
+
+            const timelock = new ethers.Contract(
+                await l1CtmContract.validatorTimelockPostV29(),
+                contracts.validatorTimelockAbi,
+                tester.ethProvider
+            );
+            const chainAddress = await slMainContract.getAddress();
+            const upgraderRole = await timelock.UPGRADER_ROLE();
+            const operator = chainWalletConfig.operator.address;
+            if (!(await timelock.hasRole(chainAddress, upgraderRole, operator))) {
+                await sendChainAdminOperation(
+                    {
+                        target: await timelock.getAddress(),
+                        value: 0,
+                        data: timelock.interface.encodeFunctionData('grantRole', [chainAddress, upgraderRole, operator])
+                    },
+                    null
+                );
+            }
+            expect(await timelock.hasRole(chainAddress, upgraderRole, operator)).to.be.true;
+        }
 
         upgradeAddress = await deployDefaultUpgradeImpl(
             ecosystemGovWallet,
@@ -358,7 +388,7 @@ describe('Upgrade test', function () {
             delegateCalldata
         ]);
 
-        const { stmUpgradeData, chainUpgradeCalldata, setTimestampServerNotifierCall } = await prepareUpgradeCalldata(
+        const upgradeCalldata = await prepareUpgradeCalldata(
             alice._providerL1(),
             alice._providerL2(),
             upgradeAddress!,
@@ -390,7 +420,9 @@ describe('Upgrade test', function () {
             },
             gatewayInfo
         );
+        const { stmUpgradeData, chainUpgradeCalldata, setTimestampServerNotifierCall } = upgradeCalldata;
         executeOperation = chainUpgradeCalldata;
+        expectedProtocolVersion = BigInt(upgradeCalldata.newProtocolVersion);
 
         const pauseMigrationCalldata = await pauseMigrationsCalldata(
             alice._providerL1(),
@@ -418,7 +450,6 @@ describe('Upgrade test', function () {
         );
 
         console.log('Sending chain admin operation');
-        // ChainAdminOwnable.sol: `setUpgradeTimestamp` has onlyOwner so we call it directly.
         await sendChainAdminOperation(setTimestampServerNotifierCall, null);
 
         // Wait for server to process L1 event.
@@ -432,7 +463,6 @@ describe('Upgrade test', function () {
     });
 
     step('Finalize upgrade on the target chain', async () => {
-        // Wait for batches with old bootloader to be executed on L1.
         let l1BatchNumber = await alice.provider.getL1BatchNumber();
         while (
             (await alice.provider.getL1BatchDetails(l1BatchNumber)).baseSystemContractsHashes.bootloader ==
@@ -441,28 +471,38 @@ describe('Upgrade test', function () {
             l1BatchNumber -= 1;
         }
 
-        let lastBatchExecuted = await slMainContract.getTotalBatchesExecuted();
-        let tryCount = 0;
-        while (lastBatchExecuted < l1BatchNumber && tryCount < 40) {
-            lastBatchExecuted = await slMainContract.getTotalBatchesExecuted();
-            tryCount += 1;
-            await utils.sleep(2);
-        }
-        if (lastBatchExecuted < l1BatchNumber) {
-            throw new Error('Server did not execute old blocks');
+        if (gatewayInfo) {
+            let lastBatchExecuted = await slMainContract.getTotalBatchesExecuted();
+            let tryCount = 0;
+            while (lastBatchExecuted < l1BatchNumber && tryCount < 40) {
+                lastBatchExecuted = await slMainContract.getTotalBatchesExecuted();
+                tryCount += 1;
+                await utils.sleep(2);
+            }
+            if (lastBatchExecuted < l1BatchNumber) {
+                throw new Error('Server did not execute old blocks');
+            }
+
+            await sendChainAdminOperation(
+                {
+                    target: await slMainContract.getAddress(),
+                    data: executeOperation,
+                    value: 0
+                },
+                gatewayInfo
+            );
+        } else {
+            let protocolVersion = await slMainContract.getProtocolVersion();
+            for (let attempt = 0; protocolVersion !== expectedProtocolVersion && attempt < 90; attempt++) {
+                await utils.sleep(2);
+                protocolVersion = await slMainContract.getProtocolVersion();
+            }
+            expect(protocolVersion, 'Server did not finalize the protocol upgrade').to.eq(expectedProtocolVersion);
+            const lastBatchProven = await slMainContract.getTotalBatchesVerified();
+            expect(lastBatchProven >= BigInt(l1BatchNumber), 'Server did not prove old batches').to.be.true;
         }
 
-        // Execute the upgrade
-        await sendChainAdminOperation(
-            {
-                target: await slMainContract.getAddress(),
-                data: executeOperation,
-                value: 0
-            },
-            gatewayInfo
-        );
-
-        let bootloaderHashL1 = await slMainContract.getL2BootloaderBytecodeHash();
+        const bootloaderHashL1 = await slMainContract.getL2BootloaderBytecodeHash();
         expect(bootloaderHashL1).eq(bootloaderHash);
     });
 
@@ -792,7 +832,8 @@ async function prepareUpgradeCalldata(
     return {
         stmUpgradeData,
         chainUpgradeCalldata,
-        setTimestampServerNotifierCall
+        setTimestampServerNotifierCall,
+        newProtocolVersion
     };
 }
 
@@ -898,8 +939,11 @@ async function composeL1ToL2Call(
     refundRecipient: string
 ): Promise<Call> {
     const gasPerPubdata = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
-    // Just a constant that needs to be large enough to handle upgrade-related things
-    const gasLimit = 40_000_000;
+    // `USER_PRIORITY_TX_MAX_GAS_LIMIT` in `contracts/l1-contracts/contracts/common/Config.sol`, the
+    // ceiling the Mailbox puts on the body gas of a caller-supplied L1->L2 transaction. Requesting
+    // exactly the constant leaves the body strictly under it, and it is far more than these
+    // governance calls to the gateway need.
+    const gasLimit = 15_000_000;
 
     const gasPrice = (await l1Provider.getFeeData()).gasPrice! * BigInt(5);
 

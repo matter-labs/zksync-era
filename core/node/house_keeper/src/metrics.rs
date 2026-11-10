@@ -9,6 +9,8 @@ pub(crate) struct FriProverMetrics {
     pub airbender_batches_ready_for_proving: Gauge<u64>,
     /// Number of batches whose FRI proof is ready and are waiting to be wrapped into a SNARK proof.
     pub airbender_batches_ready_for_snark: Gauge<u64>,
+    /// Batches waiting for Airbender read proofs; only meaningful on chains running Airbender.
+    pub airbender_batches_awaiting_read_proofs: Gauge<u64>,
 }
 
 #[vise::register]

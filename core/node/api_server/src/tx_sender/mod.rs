@@ -1,6 +1,7 @@
 //! Helper module to submit transactions into the ZKsync Network.
 
 use std::{
+    collections::HashSet,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -33,8 +34,10 @@ use zksync_object_store::ObjectStore;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::state_override::StateOverride,
+    bytecode::BytecodeHash,
+    factory_deps::{max_redundant_factory_deps_size, redundant_factory_deps_size},
     fee_model::BatchFeeInput,
-    get_intrinsic_constants, h256_to_u256,
+    get_intrinsic_constants, get_known_code_key, h256_to_u256,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
@@ -281,6 +284,9 @@ pub struct TxSenderConfig {
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
     pub timestamp_asserter_params: Option<TimestampAsserterParams>,
+    /// Per-transaction bound on unpublished factory-dep preimages, or `None` to not enforce one.
+    /// See [`max_redundant_factory_deps_size()`].
+    pub max_redundant_factory_deps_size: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -307,6 +313,9 @@ impl TxSenderConfig {
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
             timestamp_asserter_params: None,
+            max_redundant_factory_deps_size: Some(max_redundant_factory_deps_size(
+                state_keeper_config.l2_block_max_payload_size.0 as usize,
+            )),
         }
     }
 
@@ -481,6 +490,7 @@ impl TxSender {
         if !execution_output.are_published_bytecodes_ok {
             return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
         }
+
         let mut stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DbInsert);
         self.ensure_tx_executable(&tx.clone().into(), execution_output.metrics, true)
@@ -586,6 +596,7 @@ impl TxSender {
                 max_new_factory_deps,
             ));
         }
+        self.validate_redundant_factory_deps(tx).await?;
 
         let intrinsic_consts = get_intrinsic_constants();
         assert!(
@@ -603,6 +614,59 @@ impl TxSender {
         // Even though without enough balance the tx will not pass anyway
         // we check the user for enough balance explicitly here for better DevEx.
         self.validate_enough_balance(tx).await?;
+        Ok(())
+    }
+
+    /// Bounds the preimages no publication work backs: already-known bytecode, and repeats within
+    /// the transaction.
+    ///
+    /// Reads the `KnownCodesStorage` markers directly rather than inferring them from
+    /// `MarkedAsKnown` events, so an oversized payload is rejected before it costs a VM permit. The
+    /// view is the last sealed L2 block, which cannot see publications still in the mempool — hence
+    /// the state keeper's post-execution re-check.
+    async fn validate_redundant_factory_deps(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
+        let Some(max_size) = self.0.sender_config.max_redundant_factory_deps_size else {
+            return Ok(());
+        };
+        let factory_deps = &tx.execute.factory_deps;
+        // The redundant bytes are a subset of the total, so anything this small clears the bound
+        // whatever the markers say — no hashing and no database read.
+        if factory_deps.iter().map(Vec::len).sum::<usize>() <= max_size {
+            return Ok(());
+        }
+
+        let hashes: Vec<H256> = factory_deps
+            .iter()
+            .map(|dep| BytecodeHash::for_bytecode(dep).value())
+            .collect();
+        let hashed_keys: Vec<H256> = hashes
+            .iter()
+            .map(|hash| get_known_code_key(hash).hashed_key())
+            .collect();
+
+        let mut connection = self.acquire_replica_connection().await?;
+        let markers = connection
+            .storage_web3_dal()
+            .get_values(&hashed_keys)
+            .await
+            .context("failed reading `KnownCodesStorage` markers")?;
+        drop(connection);
+
+        // A dependency is backed by publication work exactly when its bytecode is not known yet.
+        let newly_published: HashSet<H256> = hashes
+            .iter()
+            .zip(&hashed_keys)
+            .filter(|(_, key)| !markers.get(*key).is_some_and(|marker| !marker.is_zero()))
+            .map(|(hash, _)| *hash)
+            .collect();
+
+        let redundant_size = redundant_factory_deps_size(factory_deps, newly_published);
+        if redundant_size > max_size {
+            return Err(SubmitTxError::TooManyRedundantFactoryDependencies(
+                redundant_size,
+                max_size,
+            ));
+        }
         Ok(())
     }
 

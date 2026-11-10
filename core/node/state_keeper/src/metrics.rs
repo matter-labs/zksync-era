@@ -1,7 +1,7 @@
 //! General-purpose state keeper metrics.
 
 use std::{
-    sync::{Mutex, Weak},
+    sync::{Mutex, PoisonError, Weak},
     time::Duration,
 };
 
@@ -13,7 +13,7 @@ use zksync_mempool::MempoolStore;
 use zksync_multivm::interface::{DeduplicatedWritesMetrics, VmRevertReason};
 use zksync_types::ProtocolVersionId;
 
-use super::seal_criteria::SealResolution;
+use super::seal_criteria::{SealResolution, UnexecutableReason};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -43,6 +43,24 @@ pub struct TxExecutionResult {
     reason: Option<&'static str>,
 }
 
+/// Which kind of problem stopped L1->L2 processing. The two want different people looking at them,
+/// so they are separate label values rather than one "paused" event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub enum L1ToL2PauseCause {
+    /// A single priority transaction exhausted a whole batch. Nothing is wrong with the chain or the
+    /// transaction; the batch limits are too tight for it.
+    BatchCapacity,
+    /// The priority transaction cannot execute in any batch — a VM halt, a size no batch can hold.
+    Transaction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub struct L1ToL2Pause {
+    cause: L1ToL2PauseCause,
+    reason: &'static str,
+}
+
 impl TxExecutionType {
     pub fn from_is_l1(is_l1: bool) -> TxExecutionType {
         match is_l1 {
@@ -68,6 +86,31 @@ pub struct StateKeeperMetrics {
     pub mempool_stashed_accounts: Gauge<usize>,
     /// Number of purged accounts in mempool
     pub mempool_purged_accounts: Gauge<usize>,
+    /// Whether L1->L2 (priority) transactions are currently withheld from execution: 0 while they
+    /// are being processed, 1 while paused.
+    ///
+    /// It is reported from node start, so an unexpected 1 is what to alert on. It covers both the
+    /// configured pause (`mempool.l1_to_l2_txs_paused`) and the one the state keeper latches when a
+    /// priority transaction turns out to be unexecutable, since an operator asking "are deposits
+    /// being processed?" wants one answer. Which of the two it is follows from the log line emitted
+    /// at the same time.
+    pub l1_to_l2_txs_paused: Gauge<u64>,
+    /// Times L1->L2 processing latched into the paused state because a priority transaction turned
+    /// out to be unexecutable, by cause and by the reason's metric label.
+    ///
+    /// This is the alerting signal, and it is a counter rather than a second gauge on purpose. The
+    /// pause itself is in-memory state, and clearing it means restarting the node — after which
+    /// `l1_to_l2_txs_paused` reads 0 again. An operator who reacts quickly would therefore leave no
+    /// trace in metrics at all, and "did this happen overnight?" would have no answer. A counter
+    /// answers it: alert on `increase(...) > 0`, and page on the gauge for "still paused right now".
+    ///
+    /// Counted once per pause, not once per unexecutable transaction: further ones while already
+    /// paused are the same incident, and the queue is not moving to produce them anyway.
+    ///
+    /// The configured pause (`mempool.l1_to_l2_txs_paused`) is deliberately absent here. It is an
+    /// operator's own decision rather than something to be notified about, and it is visible in the
+    /// gauge.
+    pub l1_to_l2_txs_pauses: Family<L1ToL2Pause, Counter>,
     /// Latency of the state keeper waiting for a transaction.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub waiting_for_tx: Histogram<Duration>,
@@ -112,6 +155,23 @@ fn vm_revert_reason_as_metric_label(reason: &VmRevertReason) -> &'static str {
 }
 
 impl StateKeeperMetrics {
+    /// Reports that L1->L2 processing has just been paused: raises the gauge and counts the event.
+    ///
+    /// Both in one call so that the two cannot drift apart — a gauge at 1 with no counter increment,
+    /// or the other way round, would make the alert and the record disagree about the same incident.
+    pub(crate) fn inc_l1_to_l2_pauses(&self, reason: &UnexecutableReason) {
+        self.l1_to_l2_txs_paused.set(1);
+        let labels = L1ToL2Pause {
+            cause: if reason.is_batch_relative() {
+                L1ToL2PauseCause::BatchCapacity
+            } else {
+                L1ToL2PauseCause::Transaction
+            },
+            reason: reason.as_metric_label(),
+        };
+        self.l1_to_l2_txs_pauses[&labels].inc();
+    }
+
     pub fn inc_rejected_txs(&self, reason: &'static str) {
         let result = TxExecutionResult {
             status: TxExecutionStatus::Rejected,
@@ -162,7 +222,7 @@ impl StateKeeperGauges {
 
         let res = COLLECTOR.before_scrape(move || {
             pool_ref.upgrade().map(|pool| {
-                let stats = pool.lock().expect("failed to acquire mempool lock").stats();
+                let stats = pool.lock().unwrap_or_else(PoisonError::into_inner).stats();
                 drop(pool); // Don't prevent the pool to be dropped
 
                 let gauges = StateKeeperGauges::default();

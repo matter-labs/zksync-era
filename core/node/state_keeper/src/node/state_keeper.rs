@@ -20,6 +20,9 @@ use crate::{seal_criteria::ConditionalSealer, AsyncRocksdbCache, StateKeeperBuil
 pub struct StateKeeperLayer {
     state_keeper_db_path: PathBuf,
     rocksdb_options: RocksdbStorageOptions,
+    /// Per-transaction bound on unpublished factory-dep preimages, or `None` to not enforce one.
+    /// Sequencing state keepers only; an external node replays blocks it did not build.
+    max_redundant_factory_deps_size: Option<usize>,
 }
 
 #[derive(Debug, FromContext)]
@@ -45,10 +48,15 @@ pub struct Output {
 }
 
 impl StateKeeperLayer {
-    pub fn new(state_keeper_db_path: PathBuf, rocksdb_options: RocksdbStorageOptions) -> Self {
+    pub fn new(
+        state_keeper_db_path: PathBuf,
+        rocksdb_options: RocksdbStorageOptions,
+        max_redundant_factory_deps_size: Option<usize>,
+    ) -> Self {
         Self {
             state_keeper_db_path,
             rocksdb_options,
+            max_redundant_factory_deps_size,
         }
     }
 }
@@ -96,7 +104,7 @@ impl WiringLayer for StateKeeperLayer {
             .await?;
         rocksdb_catchup = rocksdb_catchup.with_recovery_pool(recovery_pool);
 
-        let state_keeper_builder = StateKeeperBuilder::new(
+        let mut state_keeper_builder = StateKeeperBuilder::new(
             io,
             batch_executor_base,
             output_handler,
@@ -104,6 +112,10 @@ impl WiringLayer for StateKeeperLayer {
             Arc::new(storage_factory),
             input.shared_allow_list.map(DeploymentTxFilter::new),
         );
+        if let Some(max_size) = self.max_redundant_factory_deps_size {
+            state_keeper_builder =
+                state_keeper_builder.with_max_redundant_factory_deps_size(max_size);
+        }
 
         input
             .app_health

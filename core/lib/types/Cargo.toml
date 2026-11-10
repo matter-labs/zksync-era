@@ -42,6 +42,7 @@ blake2.workspace = true
 assert_matches.workspace = true
 bincode.workspace = true
 serde_urlencoded.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [build-dependencies]
 zksync_protobuf_build = { workspace = true, optional = true }

@@ -26,6 +26,7 @@ use jsonrpsee::{
         client::{BatchResponse, ClientT, Error, Subscription, SubscriptionClientT},
         params::BatchRequestBuilder,
         traits::ToRpcParams,
+        TEN_MB_SIZE_BYTES,
     },
     http_client::{transport::HttpBackend, HttpClient, HttpClientBuilder},
     ws_client,
@@ -149,9 +150,10 @@ impl<Net: Network> Client<Net> {
         crate::client::rustls::set_rustls_backend_if_required();
 
         let client = HttpClientBuilder::default()
-            .set_http_middleware(
-                tower::ServiceBuilder::new().layer(decompression::EagerDecompressionLayer::new()),
-            )
+            .max_response_size(TEN_MB_SIZE_BYTES)
+            .set_http_middleware(tower::ServiceBuilder::new().layer(
+                decompression::EagerDecompressionLayer::new(TEN_MB_SIZE_BYTES),
+            ))
             .build(url.expose_str())?;
         Ok(ClientBuilder::new(client, url))
     }

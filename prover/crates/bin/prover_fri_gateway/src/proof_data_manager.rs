@@ -30,7 +30,7 @@ impl ProofDataManager {
             .connection()
             .await?
             .fri_proof_compressor_dal()
-            .protocol_version_for_successful_proof(batch_id)
+            .protocol_version_for_available_proof(batch_id)
             .await;
 
         let Some(protocol_version) = protocol_version else {
@@ -51,13 +51,17 @@ impl ProofDataManager {
             }
         };
 
-        self.pool
+        // Best-effort: the proof stays fetchable either way, so don't fail the request over it.
+        if let Err(e) = self
+            .pool
             .connection()
             .await?
             .fri_proof_compressor_dal()
             .mark_proof_sent_to_server(batch_id)
             .await
-            .ok();
+        {
+            tracing::warn!("Failed to mark proof for batch {batch_id} as sent to server: {e}");
+        }
 
         Ok(Some(proof))
     }

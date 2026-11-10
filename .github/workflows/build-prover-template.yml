@@ -56,12 +56,14 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
-          sccache_mode: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'READ_WRITE' || 'READ_ONLY' }}
+          gcp-workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          sccache-reader-service-account: ${{ secrets.GCP_SCCACHE_READER_SERVICE_ACCOUNT }}
+          sccache-writer-service-account: ${{ secrets.GCP_SCCACHE_WRITER_SERVICE_ACCOUNT }}
 
       - name: setup rust
         uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1.11.0
         with:
-          toolchain: nightly-2024-09-01
+          toolchain: nightly-2026-08-09
 
       - name: protocol-version
         id: protocolversion
@@ -83,6 +85,7 @@ jobs:
     permissions:
       packages: write
       contents: read
+      id-token: write
     strategy:
       matrix:
         components:
@@ -102,8 +105,6 @@ jobs:
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
-        with:
-          sccache_mode: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: Set env vars
         shell: bash
@@ -125,8 +126,15 @@ jobs:
         if: ( inputs.is_pr_from_fork == true && matrix.components == 'proof-fri-gpu-compressor' )
         run: ./.github/scripts/rate_limit_check.sh
 
+      - name: Authenticate to Google Cloud
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/'))
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_AR_PUBLISHER_SERVICE_ACCOUNT }}
+
       - name: login to Docker registries
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/'))
         shell: bash
         run: |
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
@@ -134,7 +142,7 @@ jobs:
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/dev' || startsWith(github.ref, 'refs/tags/'))
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -145,9 +153,6 @@ jobs:
         with:
           context: .
           load: true
-          # sccache is intentionally disabled for image builds: shipped artifacts
-          # must be built hermetically and never link objects from the shared
-          # cache, which is writable by other CI contexts.
           build-args: |
             CUDA_ARCH=${{ inputs.CUDA_ARCH }}
             PROTOCOL_VERSION=${{ env.PROTOCOL_VERSION }}

@@ -313,6 +313,7 @@ async fn store_l1_batches(
                 1.into(),
                 ProtocolVersionId::latest(),
                 false,
+                zksync_dal::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
             )
             .await?;
 

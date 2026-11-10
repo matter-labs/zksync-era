@@ -11,12 +11,12 @@ use crate::{
         pubdata::{PubdataBuilder, PubdataInput},
         storage::{ImmutableStorageView, InMemoryStorage, ReadStorage, StorageView},
         tracer::ViolatedValidationRule,
-        Call, CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
-        VmExecutionResultAndLogs, VmInterface,
+        Call, CurrentExecutionState, FeatureVector, InspectExecutionMode, L2BlockEnv,
+        VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
     },
     versions::testonly::{
         validation_params, TestedVm, TestedVmForValidation, TestedVmWithCallTracer,
-        TestedVmWithStorageLimit,
+        TestedVmWithCycleTracer, TestedVmWithStorageLimit,
     },
     vm_fast::{
         tracers::WithBuiltinTracers, CallTracer, FastValidationTracer, StorageInvocationsTracer,
@@ -30,6 +30,7 @@ mod bytecode_publishing;
 mod call_tracer;
 mod circuits;
 mod code_oracle;
+mod cycle_estimator;
 mod default_aa;
 mod evm;
 mod gas_limit;
@@ -41,6 +42,7 @@ mod l2_blocks;
 mod mock_evm;
 mod nonce_holder;
 mod precompiles;
+mod prestate_read_proofs;
 mod refunds;
 mod require_eip712;
 mod rollbacks;
@@ -137,7 +139,14 @@ where
     }
 
     fn known_bytecode_hashes(&self) -> HashSet<U256> {
-        self.world.bytecode_cache.keys().copied().collect()
+        let bootloader_hash =
+            h256_to_u256(self.system_env.base_system_smart_contracts.bootloader.hash);
+        self.world
+            .bytecode_cache
+            .keys()
+            .copied()
+            .filter(|&hash| hash != bootloader_hash)
+            .collect()
     }
 
     fn manually_decommit(&mut self, code_hash: H256) -> bool {
@@ -208,6 +217,16 @@ impl TestedVmWithCallTracer for TestedFastVm<CallTracer, FastValidationTracer> {
         let mut tracer = (CallTracer::default(), FastValidationTracer::default());
         let result = self.inspect(&mut tracer, InspectExecutionMode::OneTx);
         (result, tracer.0.into_result())
+    }
+}
+
+impl TestedVmWithCycleTracer for TestedFastVm<(), FastValidationTracer> {
+    fn inspect_with_cycle_tracer(&mut self) -> (VmExecutionResultAndLogs, FeatureVector) {
+        // A built-in tracer counts them, so they arrive with the execution statistics
+        // rather than through a tracer handle.
+        let result = self.execute(InspectExecutionMode::OneTx);
+        let features = result.statistics.cycle_features.clone();
+        (result, features)
     }
 }
 

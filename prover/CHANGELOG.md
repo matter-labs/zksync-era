@@ -1,5 +1,19 @@
 # Changelog
 
+## [25.4.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.3.0...f3744ffbc5f1763ce96cf30863b3946b2d655420) (2026-09-10)
+
+
+### Features
+
+* **cycles:** integrate the measured Airbender cycle estimator ([a9330d1](https://github.com/matter-labs/zksync-era/commit/a9330d14b3a2d6a87d96cd605ed96527ffc28982))
+* **state_keeper:** bound max_cycles_per_batch by Airbender's proving ceiling ([d7e7cf2](https://github.com/matter-labs/zksync-era/commit/d7e7cf267dd898f3b8da0e96a7879582d9adabae))
+
+
+### Bug Fixes
+
+* **deps:** bump h2 to 0.4.19 for RUSTSEC-2026-0258 ([aca4a7d](https://github.com/matter-labs/zksync-era/commit/aca4a7dc0b1eb80eae6007ed7d2ea7b29080db84))
+* **prover_fri_gateway:** make proof delivery to the server retriable ([d0d2e21](https://github.com/matter-labs/zksync-era/commit/d0d2e21392fba99c1b834e0ed1a3b706e1ced49b))
+
 ## [25.3.0](https://github.com/matter-labs/zksync-era/compare/prover-v25.2.0...prover-v25.3.0) (2026-04-10)
 
 

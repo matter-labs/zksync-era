@@ -1,5 +1,16 @@
-use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
-use zksync_types::{server_notification::GatewayMigrationNotification, L1BlockNumber, H256};
+use sqlx::Row;
+use zksync_db_connection::{
+    connection::Connection,
+    error::DalResult,
+    instrument::{InstrumentExt, Instrumented},
+};
+use zksync_types::{
+    server_notification::{
+        GatewayMigrationNotification, ProofSystemStatusNotification,
+        PROOF_SYSTEM_STATUS_NOTIFICATION_SIGNATURE,
+    },
+    L1BlockNumber, H256,
+};
 
 use crate::{models::server_notification::ServerNotification, Core};
 
@@ -9,6 +20,48 @@ pub struct ServerNotificationsDal<'a, 'c> {
 }
 
 impl ServerNotificationsDal<'_, '_> {
+    pub async fn save_proof_system_status_notification(
+        &mut self,
+        l1_block_number: L1BlockNumber,
+        notification: ProofSystemStatusNotification,
+    ) -> DalResult<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO server_notifications (main_topic, l1_block_number, value, created_at)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (main_topic, l1_block_number) DO UPDATE SET value = EXCLUDED.value
+            WHERE (server_notifications.value->>'log_index')::bigint < (EXCLUDED.value->>'log_index')::bigint
+            "#,
+        )
+        .bind(PROOF_SYSTEM_STATUS_NOTIFICATION_SIGNATURE.as_bytes())
+        .bind(i64::from(l1_block_number.0))
+        .bind(serde_json::to_value(notification).unwrap())
+        .instrument("save_proof_system_status_notification")
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_latest_proof_system_status_notification(
+        &mut self,
+    ) -> DalResult<Option<ProofSystemStatusNotification>> {
+        let value: Option<serde_json::Value> = sqlx::query(
+            "SELECT value FROM server_notifications WHERE main_topic = $1 ORDER BY l1_block_number DESC LIMIT 1",
+        )
+        .bind(PROOF_SYSTEM_STATUS_NOTIFICATION_SIGNATURE.as_bytes())
+        .try_map(|row: sqlx::postgres::PgRow| row.try_get(0))
+        .instrument("get_latest_proof_system_status_notification")
+        .fetch_optional(self.storage)
+        .await?;
+        value
+            .map(serde_json::from_value)
+            .transpose()
+            .map_err(|err| {
+                Instrumented::new("get_latest_proof_system_status_notification")
+                    .constraint_error(err.into())
+            })
+    }
+
     pub async fn save_notification(
         &mut self,
         main_topic: H256,

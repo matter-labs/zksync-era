@@ -2,6 +2,14 @@ import * as fs from 'fs';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 export const REQUIRED_L2_GAS_PRICE_PER_PUBDATA = 800;
 
+/**
+ * `USER_PRIORITY_TX_MAX_GAS_LIMIT` in `contracts/l1-contracts/contracts/common/Config.sol`: the bound
+ * an EraVM chain puts on the transaction *body* gas of an L1->L2 transaction whose gas limit comes
+ * from the caller. It applies on top of the chain's `priorityTxMaxGasLimit`, whichever is lower; only
+ * protocol-authored transactions may spend the chain limit on its own.
+ */
+export const USER_PRIORITY_TX_MAX_GAS_LIMIT = 15_000_000n;
+
 export const SYSTEM_UPGRADE_L2_TX_TYPE = 254;
 export const GATEWAY_CHAIN_ID = 506;
 export const ADDRESS_ONE = '0x0000000000000000000000000000000000000001';

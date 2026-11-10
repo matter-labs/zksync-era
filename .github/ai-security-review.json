@@ -1,0 +1,93 @@
+{
+    "version": 1,
+    "profiles": ["domains/distributed-system", "domains/protocol-state-transition"],
+    "context": [
+        ".github/ai-security-review/protocol.md",
+        ".github/ai-security-review/node.md",
+        ".github/ai-security-review/ci.md"
+    ],
+    "allowedLockfileSources": [
+        "https://github.com/Moonsong-Labs/compilers",
+        "https://github.com/matter-labs/airbender-platform",
+        "https://github.com/matter-labs/sqlx-postgres",
+        "https://github.com/matter-labs/zksync-airbender",
+        "https://github.com/matter-labs/zksync-protocol"
+    ],
+    "pathProfiles": [
+        {
+            "paths": [
+                "core/lib/crypto_primitives/**",
+                "core/lib/merkle_tree/**",
+                "core/lib/mini_merkle_tree/**",
+                "core/lib/zk_os_merkle_tree/**"
+            ],
+            "profiles": ["domains/cryptography"]
+        },
+        {
+            "paths": ["core/lib/eth_signer/**", "core/lib/operator_signer/**"],
+            "profiles": ["domains/wallet-signing"]
+        },
+        {
+            "paths": [
+                "core/lib/multivm/**",
+                "core/lib/vm_executor/**",
+                "core/lib/vm_interface/**",
+                "core/node/vm_runner/**"
+            ],
+            "profiles": ["domains/compiler-vm"]
+        },
+        {
+            "paths": ["airbender_prover_server/**", "prover/**"],
+            "profiles": ["domains/cryptography", "domains/zk-circuit"]
+        },
+        {
+            "paths": [
+                "core/node/api_server/**",
+                "core/node/contract_verification_server/**",
+                "core/lib/web3_decl/**",
+                "core/lib/contract_verifier/**"
+            ],
+            "profiles": ["domains/http-service"]
+        },
+        {
+            "paths": [
+                "core/node/proof_data_handler/**",
+                "core/node/airbender_proof_data_handler/**",
+                "core/node/external_proof_integration_api/**"
+            ],
+            "profiles": ["domains/http-service", "domains/authorization"]
+        },
+        {
+            "paths": ["core/node/eth_sender/**", "core/node/eth_watch/**", "core/lib/l1_contract_interface/**"],
+            "profiles": ["domains/bridge-cross-chain"]
+        },
+        {
+            "paths": ["zkstack_cli/**"],
+            "profiles": ["domains/privileged-automation"]
+        },
+        {
+            "paths": ["core/lib/airbender_verifier/**"],
+            "profiles": ["domains/cryptography", "domains/zk-circuit"]
+        },
+        {
+            "paths": [
+                ".github/**",
+                ".cargo/**",
+                "bin/**",
+                "docker/**",
+                "infrastructure/**",
+                "**/scripts/**",
+                "**/build.rs",
+                "**/Dockerfile*",
+                "docker-compose*.yaml",
+                "docker-compose*.yml",
+                "**/Cargo.toml",
+                "**/Cargo.lock",
+                "**/package.json",
+                "**/yarn.lock",
+                ".gitmodules"
+            ],
+            "profiles": ["domains/ci-supply-chain", "domains/privileged-automation"]
+        }
+    ]
+}

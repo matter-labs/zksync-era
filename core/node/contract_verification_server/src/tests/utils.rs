@@ -30,7 +30,7 @@ use zksync_vm_interface::VmEvent;
 use crate::{api_impl::ApiError, RestApi};
 
 pub(super) const SOLC_VERSION: &str = "0.8.27";
-pub(super) const ZKSOLC_VERSION: &str = "1.5.6";
+pub(super) const ZKSOLC_VERSION: &str = "v1.5.17";
 
 pub(super) async fn prepare_storage(storage: &mut Connection<'_, Core>) {
     storage
@@ -323,6 +323,17 @@ impl MockApiClient {
         Self::assert_response_error(response, expected_err).await;
     }
 
+    pub async fn assert_oversized_verification_request_rejected(&self) {
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri("/contract_verification")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(vec![b' '; 4 * 1024 * 1024 + 1]))
+            .unwrap();
+        let response = self.router.clone().oneshot(req).await.unwrap();
+        Self::assert_response_error(response, ApiError::RequestTooLarge).await;
+    }
+
     pub async fn assert_verification_request_status_error(
         &self,
         id: usize,
@@ -365,6 +376,20 @@ impl MockApiClient {
     pub async fn solc_versions(&self) -> Vec<String> {
         let response = self
             .send_request("/contract_verification/solc_versions", None)
+            .await;
+        Self::json_response::<Vec<String>>(response).await
+    }
+
+    pub async fn vyper_versions(&self) -> Vec<String> {
+        let response = self
+            .send_request("/contract_verification/vyper_versions", None)
+            .await;
+        Self::json_response::<Vec<String>>(response).await
+    }
+
+    pub async fn zkvyper_versions(&self) -> Vec<String> {
+        let response = self
+            .send_request("/contract_verification/zkvyper_versions", None)
             .await;
         Self::json_response::<Vec<String>>(response).await
     }

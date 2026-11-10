@@ -8,11 +8,14 @@ pub use self::{
     storage::StorageInvocationsTracer,
     validation::{FastValidationTracer, FullValidationTracer, ValidationTracer},
 };
-use self::{circuits::CircuitsTracer, evm_deploy::EvmDeployTracer};
-use crate::interface::CircuitStatistic;
+use self::{
+    circuits::CircuitsTracer, cycle_features::CycleFeatureTracer, evm_deploy::EvmDeployTracer,
+};
+use crate::interface::{CircuitStatistic, FeatureVector};
 
 mod calls;
 mod circuits;
+mod cycle_features;
 mod evm_deploy;
 mod storage;
 mod validation;
@@ -22,6 +25,7 @@ pub(super) struct WithBuiltinTracers<Ext, Val> {
     pub external: Ext,
     pub validation: Val,
     circuits: CircuitsTracer,
+    cycle_features: CycleFeatureTracer,
     evm_deploy_tracer: EvmDeployTracer,
 }
 
@@ -31,12 +35,17 @@ impl<Tr: Tracer, Val: ValidationTracer> WithBuiltinTracers<Tr, Val> {
             external,
             validation,
             circuits: CircuitsTracer::default(),
+            cycle_features: CycleFeatureTracer::default(),
             evm_deploy_tracer: EvmDeployTracer::new(dynamic_bytecodes),
         }
     }
 
     pub(super) fn circuit_statistic(&self) -> CircuitStatistic {
         self.circuits.circuit_statistic()
+    }
+
+    pub(super) fn cycle_features(&self) -> FeatureVector {
+        self.cycle_features.features()
     }
 }
 
@@ -53,6 +62,7 @@ impl<Tr: Tracer, Val: Tracer> Tracer for WithBuiltinTracers<Tr, Val> {
         self.validation.before_instruction::<OP, _>(state);
         self.external.before_instruction::<OP, _>(state);
         self.circuits.before_instruction::<OP, _>(state);
+        self.cycle_features.before_instruction::<OP, _>(state);
         self.evm_deploy_tracer.before_instruction::<OP, _>(state);
     }
 
@@ -79,6 +89,12 @@ impl<Tr: Tracer, Val: Tracer> Tracer for WithBuiltinTracers<Tr, Val> {
         ) {
             return ShouldStop::Stop;
         }
+        if matches!(
+            self.cycle_features.after_instruction::<OP, _>(state),
+            ShouldStop::Stop
+        ) {
+            return ShouldStop::Stop;
+        }
         self.evm_deploy_tracer.after_instruction::<OP, _>(state)
     }
 
@@ -87,6 +103,7 @@ impl<Tr: Tracer, Val: Tracer> Tracer for WithBuiltinTracers<Tr, Val> {
         self.validation.on_extra_prover_cycles(stats);
         self.external.on_extra_prover_cycles(stats);
         self.circuits.on_extra_prover_cycles(stats);
+        self.cycle_features.on_extra_prover_cycles(stats);
         self.evm_deploy_tracer.on_extra_prover_cycles(stats);
     }
 }

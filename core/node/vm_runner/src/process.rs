@@ -118,7 +118,9 @@ impl VmRunner {
                     .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
                 anyhow::ensure!(
                     !exec_result.was_halted(),
-                    "Unexpected non-successful transaction"
+                    "Unexpected non-successful transaction {:?}: {:?}",
+                    tx.hash(),
+                    exec_result.tx_result.result
                 );
                 block_output.push(tx, exec_result);
             }

@@ -262,6 +262,16 @@ mod call_tracer {
     fn evm_deployment_from_contract() {
         test_evm_deployment_from_contract::<super::ShadowedFastVm<_, _>>();
     }
+
+    #[test]
+    fn revert_reason_trace_data_budget() {
+        test_revert_reason_trace_data_budget::<super::ShadowedFastVm<_, _>>();
+    }
+
+    #[test]
+    fn code_oracle_trace_data_budget() {
+        test_code_oracle_trace_data_budget::<super::ShadowedFastVm<_, _>>();
+    }
 }
 
 mod circuits {
@@ -289,6 +299,24 @@ mod code_oracle {
     #[test]
     fn refunds_in_code_oracle() {
         test_refunds_in_code_oracle::<super::ShadowedFastVm>();
+    }
+
+    #[test_casing::test_casing(2, [false, true])]
+    fn bootloader_in_code_oracle(store_bootloader: bool) {
+        test_bootloader_in_code_oracle::<super::ShadowedFastVm>(store_bootloader);
+    }
+
+    #[test]
+    fn bootloader_in_create2() {
+        test_bootloader_in_create2::<super::ShadowedFastVm>();
+    }
+
+    /// Diverges by the same 188 gas as the `vm_fast` case, for the same reason: `zksync_vm2` keys
+    /// decommit freshness by versioned hash. See `vm_fast::tests::code_oracle`.
+    #[test]
+    #[ignore = "needs the `zksync_vm2` half of the cross-version decommit alias fix"]
+    fn cross_version_alias_in_code_oracle() {
+        test_cross_version_alias_in_code_oracle::<super::ShadowedFastVm>();
     }
 }
 

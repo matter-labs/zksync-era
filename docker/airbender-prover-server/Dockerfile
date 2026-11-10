@@ -14,7 +14,7 @@
 # skip cargo-airbender and its guest-only extras.
 FROM nvidia/cuda:13.0.0-devel-ubuntu22.04 AS builder
 
-ARG RUST_TOOLCHAIN=nightly-2026-02-10
+ARG RUST_TOOLCHAIN=nightly-2026-08-09
 ARG CMAKE_VERSION=3.30.2
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -82,10 +82,8 @@ RUN mkdir -p /setup \
 COPY . .
 
 # The guest program (`guest/dist/app/{app.bin,app.text}`) and verification keys
-# (`vks/`) are NOT in the build context — they are gitignored and downloaded by
-# the server crate's `build.rs` from the pinned `zksync_airbender_verifier`
-# GitHub release during the `cargo build` below, so no guard/vendoring step is
-# needed here. A failed download fails `cargo build` loudly.
+# (`vks/`) are gitignored: the workflow downloads them into the context first
+# (`.github/actions/airbender-artifacts`) and `COPY . .` carries them in.
 
 # Step 5: build the server binary (FRI on GPU + SNARK wrapper on GPU). BuildKit
 # cache mounts persist cargo's registry, git, and target dirs across builds.
@@ -94,7 +92,7 @@ COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/workspace/target \
-    cargo build --release --locked --features gpu_snark \
+    CARGO_HOME=/workspace/cargo cargo build --release --locked --features gpu_snark \
         -p eravm-prover-server \
     && mkdir -p /out \
     && cp /workspace/target/release/eravm-prover-server /out/

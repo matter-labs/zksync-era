@@ -6,6 +6,7 @@ pub(crate) enum FastVmVersion {
     Gateway,
     Interop,
     MediumInterop,
+    ForceFail,
 }
 
 impl From<FastVmVersion> for MultiVmSubversion {
@@ -15,6 +16,7 @@ impl From<FastVmVersion> for MultiVmSubversion {
             FastVmVersion::Gateway => Self::Gateway,
             FastVmVersion::Interop => Self::Interop,
             FastVmVersion::MediumInterop => Self::MediumInterop,
+            FastVmVersion::ForceFail => Self::ForceFail,
         }
     }
 }
@@ -31,6 +33,7 @@ impl TryFrom<VmVersion> for FastVmVersion {
             }
             VmVersion::VmInterop => Ok(Self::Interop),
             VmVersion::VmMediumInterop => Ok(Self::MediumInterop),
+            VmVersion::VmMediumInteropForceFail => Ok(Self::ForceFail),
             _ => Err(()),
         }
     }

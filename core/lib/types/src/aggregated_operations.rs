@@ -18,6 +18,8 @@ pub enum L1BatchAggregatedActionType {
 pub enum AggregatedActionType {
     L2Block(L2BlockAggregatedActionType),
     L1Batch(L1BatchAggregatedActionType),
+    /// Finalizes a protocol upgrade on the settlement layer; not linked to any batch.
+    ProtocolUpgrade,
 }
 
 impl L2BlockAggregatedActionType {
@@ -86,6 +88,7 @@ impl AggregatedActionType {
         match self {
             Self::L2Block(action) => action.as_str(),
             Self::L1Batch(action) => action.as_str(),
+            Self::ProtocolUpgrade => "ProtocolUpgrade",
         }
     }
 }
@@ -98,6 +101,9 @@ impl FromStr for AggregatedActionType {
         }
         if let Ok(action) = L1BatchAggregatedActionType::from_str(s) {
             return Ok(Self::L1Batch(action));
+        }
+        if s == Self::ProtocolUpgrade.as_str() {
+            return Ok(Self::ProtocolUpgrade);
         }
         Err("Incorrect aggregated action type")
     }

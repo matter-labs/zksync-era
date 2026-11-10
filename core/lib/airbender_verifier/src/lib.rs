@@ -379,6 +379,7 @@ mod tests {
             )
             .unwrap(),
             commitment_input: None,
+            prestate_read_proofs: vec![],
         };
         let serialized =
             serde_json::to_vec(&tvi).expect("Failed to serialize AirbenderVerifierInput.");
@@ -386,5 +387,14 @@ mod tests {
             .expect("Failed to deserialize AirbenderVerifierInput.");
 
         assert_eq!(tvi, deserialized);
+
+        // A payload without the field decodes as an empty list.
+        let mut json = serde_json::to_value(&tvi).unwrap();
+        json.as_object_mut()
+            .unwrap()
+            .remove("prestate_read_proofs")
+            .expect("field is serialized");
+        let old: AirbenderVerifierInput = serde_json::from_value(json).unwrap();
+        assert_eq!(old, tvi);
     }
 }

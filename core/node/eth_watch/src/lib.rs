@@ -22,7 +22,7 @@ use self::{
     event_processors::{
         BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventProcessor,
         EventProcessorError, EventsSource, GatewayMigrationProcessor, InteropRootProcessor,
-        PriorityOpsEventProcessor,
+        PriorityOpsEventProcessor, ProofSystemStatusProcessor,
     },
     metrics::METRICS,
 };
@@ -88,6 +88,7 @@ impl EthWatch {
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
             Box::new(gateway_migration_processor),
+            Box::new(ProofSystemStatusProcessor::new(chain_id)),
         ];
 
         if let Some(SettlementLayer::Gateway(_)) = sl_layer {

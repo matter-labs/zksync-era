@@ -96,7 +96,7 @@ pub struct Vm<S, Tr = (), Val = FastValidationTracer> {
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
+impl<S: ReadStorage, Tr: Tracer + Default, Val: ValidationTracer> Vm<S, Tr, Val> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         let vm_version: FastVmVersion = VmVersion::from(system_env.version)
             .try_into()
@@ -169,9 +169,29 @@ impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
             enforced_state_diffs: None,
         };
         this.write_to_bootloader_heap(bootloader_memory);
+        this.populate_entry_point();
         this
     }
 
+    /// Records the bootloader as already decommitted, as the proving side does before execution
+    /// starts.
+    fn populate_entry_point(&mut self) {
+        let bootloader = &self.system_env.base_system_smart_contracts.bootloader;
+        let bootloader_hash = h256_to_u256(bootloader.hash);
+        self.world
+            .bytecode_cache
+            .insert(bootloader_hash, bootloader.code.clone());
+        let mut tracer = WithBuiltinTracers::new(
+            Tr::default(),
+            Val::default(),
+            self.world.dynamic_bytecodes.clone(),
+        );
+        self.inner
+            .manually_decommit(&mut self.world, &mut tracer, bootloader_hash);
+    }
+}
+
+impl<S: ReadStorage, Tr: Tracer, Val: ValidationTracer> Vm<S, Tr, Val> {
     pub fn skip_signature_verification(&mut self) {
         self.skip_signature_verification = true;
     }
@@ -705,6 +725,7 @@ where
             pubdata_builder,
         );
         let circuit_statistic = full_tracer.circuit_statistic();
+        let cycle_features = full_tracer.cycle_features();
         *tracer = (full_tracer.external, full_tracer.validation);
 
         let ignore_world_diff =
@@ -779,7 +800,7 @@ where
                 computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
                 pubdata_published: result.pubdata_published,
                 circuit_statistic,
-                cycle_features: Default::default(),
+                cycle_features,
                 contracts_used: 0,
                 cycles_used: 0,
                 total_log_queries: 0,

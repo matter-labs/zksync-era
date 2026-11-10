@@ -1,6 +1,7 @@
 // Public re-exports
 pub use self::{
     airbender_proof_data_handler::AirbenderProofDataHandlerConfig,
+    airbender_read_proofs_producer::AirbenderReadProofsProducerConfig,
     api::ApiConfig,
     base_token_adjuster::BaseTokenAdjusterConfig,
     commitment_generator::CommitmentGeneratorConfig,
@@ -40,6 +41,7 @@ pub use self::{
 };
 
 pub mod airbender_proof_data_handler;
+pub mod airbender_read_proofs_producer;
 pub mod api;
 pub mod base_token_adjuster;
 pub mod chain;

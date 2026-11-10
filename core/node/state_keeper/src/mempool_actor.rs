@@ -41,7 +41,6 @@ pub struct MempoolFetcher {
     sync_interval: Duration,
     sync_batch_size: usize,
     stuck_tx_timeout: Option<Duration>,
-    l1_to_l2_txs_paused: bool,
     #[cfg(test)]
     transaction_hashes_sender: mpsc::UnboundedSender<Vec<H256>>,
 }
@@ -52,6 +51,19 @@ impl MempoolFetcher {
         config: &MempoolConfig,
         pool: ConnectionPool<Core>,
     ) -> Self {
+        // The configured pause and the one the state keeper latches at run time are the same state,
+        // held by the mempool, so that both stop this fetcher and the state keeper alike. It is set
+        // here rather than in the run loop so that no priority transaction can be served in between.
+        if config.l1_to_l2_txs_paused {
+            tracing::info!(
+                "L1->L2 transactions are paused by configuration; none will be loaded or executed"
+            );
+            mempool.pause_l1_transactions();
+        }
+        KEEPER_METRICS
+            .l1_to_l2_txs_paused
+            .set(mempool.l1_transactions_paused().into());
+
         Self {
             mempool,
             pool,
@@ -59,7 +71,6 @@ impl MempoolFetcher {
             sync_interval: config.sync_interval,
             sync_batch_size: config.sync_batch_size,
             stuck_tx_timeout: config.remove_stuck_txs.then_some(config.stuck_tx_timeout),
-            l1_to_l2_txs_paused: config.l1_to_l2_txs_paused,
             #[cfg(test)]
             transaction_hashes_sender: mpsc::unbounded_channel().0,
         }
@@ -127,7 +138,9 @@ impl MempoolFetcher {
                     &mempool_info.purged_accounts,
                     gas_per_pubdata,
                     fee_per_gas,
-                    !self.l1_to_l2_txs_paused,
+                    // Re-read every iteration: the state keeper may have paused L1->L2 transactions
+                    // since the last one, and there is no point loading what will never be served.
+                    !self.mempool.l1_transactions_paused(),
                     self.sync_batch_size,
                 )
                 .await

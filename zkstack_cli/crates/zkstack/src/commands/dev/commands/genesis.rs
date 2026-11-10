@@ -1,5 +1,10 @@
 use xshell::{cmd, Shell};
-use zkstack_cli_common::{cmd::Cmd, db::DatabaseConfig, spinner::Spinner};
+use zkstack_cli_common::{
+    cmd::Cmd,
+    contracts::{build_l1_contracts, build_system_contracts},
+    db::DatabaseConfig,
+    spinner::Spinner,
+};
 use zkstack_cli_config::{SecretsConfig, ZkStackConfig, ZkStackConfigTrait, SECRETS_FILE};
 
 use crate::{
@@ -12,6 +17,9 @@ use crate::{
 
 pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     let chain = ZkStackConfig::current_chain(shell)?;
+    let contracts_path = chain.link_to_code().join("contracts");
+    build_l1_contracts(shell.clone(), &contracts_path)?;
+    build_system_contracts(shell.clone(), &contracts_path)?;
     let spinner = Spinner::new(MSG_GENESIS_FILE_GENERATION_STARTED);
     let tmp_dir = shell.create_temp_dir()?;
     let secrets_path = match chain.path_to_secrets_config().canonicalize() {
@@ -42,6 +50,10 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     let genesis_path = chain.path_to_genesis_config().canonicalize()?;
     let _dir = shell.push_dir("core");
     Cmd::new(cmd!(shell,"cargo run --package genesis_generator --bin genesis_generator -- --config-path={secrets_path} --genesis-path={genesis_path}")).run()?;
+    let contracts_genesis = chain.get_contracts_genesis_config().await?;
+    let mut genesis = chain.get_genesis_config().await?.patched();
+    genesis.update_from_contracts_genesis(&contracts_genesis, chain.vm_option)?;
+    genesis.save().await?;
     spinner.finish();
     Ok(())
 }

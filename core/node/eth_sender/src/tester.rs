@@ -18,11 +18,13 @@ use zksync_types::{
     block::L1BatchHeader,
     commitment::L1BatchCommitmentMode,
     eth_sender::{EthTx, EthTxFinalityStatus, L1BlockNumbers},
+    ethabi::Token,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
     pubdata_da::PubdataSendingMode,
     settlement::SettlementLayer,
-    Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, SLChainId, H256,
+    web3, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, SLChainId, H256,
 };
+use zksync_web3_decl::jsonrpsee::core::ClientError;
 
 use crate::{
     abstract_l1_interface::OperatorType,
@@ -33,6 +35,9 @@ use crate::{
 
 pub(super) const STATE_TRANSITION_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xa0);
 pub(super) const STATE_TRANSITION_MANAGER_CONTRACT_ADDRESS: Address = Address::repeat_byte(0xb0);
+
+pub(crate) type CallHandler =
+    Arc<dyn Fn(&web3::CallRequest) -> Result<Token, ClientError> + Send + Sync>;
 
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
@@ -179,6 +184,31 @@ impl EthSenderTester {
         settlement_layer: SettlementLayer,
         protocol_version_id: ProtocolVersionId,
     ) -> Self {
+        Self::new_with_call_handler(
+            connection_pool,
+            history,
+            non_ordering_confirmations,
+            aggregator_operate_4844_mode,
+            commitment_mode,
+            settlement_layer,
+            protocol_version_id,
+            Arc::new(|call| panic!("unexpected call: {call:?}")),
+        )
+        .await
+    }
+
+    /// `call_handler` serves L1 calls that don't go through the multicall contract.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn new_with_call_handler(
+        connection_pool: ConnectionPool<Core>,
+        history: Vec<u64>,
+        non_ordering_confirmations: bool,
+        aggregator_operate_4844_mode: bool,
+        commitment_mode: L1BatchCommitmentMode,
+        settlement_layer: SettlementLayer,
+        protocol_version_id: ProtocolVersionId,
+        call_handler: CallHandler,
+    ) -> Self {
         let eth_sender_config = EthConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
         let pubdata_sending_mode =
@@ -215,9 +245,15 @@ impl EthSenderTester {
                 .collect(),
             )
             .with_non_ordering_confirmation(non_ordering_confirmations)
-            .with_call_handler(move |call, _| {
-                assert_eq!(call.to, Some(contracts_config.l1.multicall3_addr));
-                crate::tests::mock_multicall_response(call, protocol_version_id)
+            .with_fallible_call_handler(move |call, _| {
+                if call.to == Some(contracts_config.l1.multicall3_addr) {
+                    Ok(crate::tests::mock_multicall_response(
+                        call,
+                        protocol_version_id,
+                    ))
+                } else {
+                    call_handler(call)
+                }
             })
             .build();
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS, EthTxFinalityStatus::Finalized);
@@ -413,6 +449,12 @@ impl EthSenderTester {
                 header.number,
                 &l1_batch_metadata_to_commitment_artifacts(&metadata),
             )
+            .await
+            .unwrap();
+        self.storage()
+            .await
+            .blocks_dal()
+            .save_airbender_batch_commitment(header.number, &metadata.airbender.unwrap())
             .await
             .unwrap();
         header

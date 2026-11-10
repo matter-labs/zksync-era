@@ -17,6 +17,8 @@ fn loading_historic_estimation_base_contracts() {
         BaseSystemContracts::estimate_gas_evm_emulator,
         BaseSystemContracts::estimate_gas_interop,
         BaseSystemContracts::estimate_gas_medium_interop,
+        BaseSystemContracts::estimate_gas_medium_interop_dse,
+        BaseSystemContracts::estimate_gas_force_fail,
     ];
     for (i, load_fn) in load_fns.into_iter().enumerate() {
         println!("Testing base contracts #{i}");
@@ -43,6 +45,8 @@ fn loading_historic_playground_contracts() {
         BaseSystemContracts::playground_evm_emulator,
         BaseSystemContracts::playground_interop,
         BaseSystemContracts::playground_medium_interop,
+        BaseSystemContracts::playground_medium_interop_dse,
+        BaseSystemContracts::playground_force_fail,
     ];
     for (i, load_fn) in load_fns.into_iter().enumerate() {
         println!("Testing base contracts #{i}");
@@ -50,4 +54,15 @@ fn loading_historic_playground_contracts() {
         assert!(!base_contracts.bootloader.code.is_empty());
         assert!(!base_contracts.default_aa.code.is_empty());
     }
+}
+
+#[test]
+fn loading_multi_proof_verifier() {
+    let abi = crate::verifier_contract();
+    let functions = abi.functions_by_name("verificationKeyHash").unwrap();
+    assert!(functions.iter().any(|function| function.inputs.is_empty()));
+    assert!(functions.iter().any(|function| function.inputs.len() == 1));
+    assert!(abi.function("BOOJUM_VERIFIER").is_ok());
+    assert!(abi.function("AIRBENDER_VERIFIER").is_ok());
+    assert!(abi.function("requiredProofSystems").is_ok());
 }

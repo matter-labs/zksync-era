@@ -62,6 +62,8 @@ pub struct ContractsGenesis {
     pub genesis_root: H256,
     pub genesis_rollup_leaf_index: u64,
     pub genesis_batch_commitment: H256,
+    #[serde(default)]
+    pub genesis_airbender_batch_commitment: H256,
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
     pub evm_emulator_hash: Option<H256>,

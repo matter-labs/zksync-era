@@ -189,8 +189,9 @@ async function loadTestEnvironmentFromFile(
     }
 
     const validationComputationalGasLimit = parseInt(generalConfig.state_keeper.validation_computational_gas_limit);
-    // TODO set it properly
-    const priorityTxMaxGasLimit = 72000000n;
+    const forceFailEnabled = generalConfig.state_keeper.force_fail?.enabled === true;
+    // USER_PRIORITY_TX_MAX_GAS_LIMIT in the EraVM contracts.
+    const priorityTxMaxGasLimit = 15_000_000n;
     const maxLogsLimit = parseInt(generalConfig.api.web3_json_rpc.req_entities_limit);
 
     const healthcheckPort = generalConfig.api.healthcheck.port;
@@ -205,6 +206,7 @@ async function loadTestEnvironmentFromFile(
         nodeMode,
         minimalL2GasPrice,
         l1BatchCommitDataGeneratorMode,
+        forceFailEnabled,
         l2ChainId,
         l2ChainIdSecondChain,
         network,

@@ -464,6 +464,7 @@ async fn transactions_are_handled_correctly_after_pruning() {
             1.into(),
             ProtocolVersionId::latest(),
             false,
+            crate::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
         )
         .await
         .unwrap();

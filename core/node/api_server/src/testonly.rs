@@ -670,6 +670,7 @@ pub(crate) async fn store_custom_l2_block(
             1.into(),
             ProtocolVersionId::latest(),
             false,
+            zksync_dal::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
         )
         .await?;
     Ok(())
@@ -859,7 +860,11 @@ pub(crate) async fn persist_sealed_batch_with_call_trace(
 
     storage
         .transactions_dal()
-        .insert_call_traces(&[(tx_hash, call.clone())], ProtocolVersionId::latest())
+        .insert_call_traces(
+            &[(tx_hash, call.clone())],
+            ProtocolVersionId::latest(),
+            zksync_dal::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
+        )
         .await
         .unwrap();
 

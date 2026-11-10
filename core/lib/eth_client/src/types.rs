@@ -389,6 +389,12 @@ pub struct FailureInfo {
     /// RPC error message (normally, for a reverted transaction it would
     /// include the revert reason).
     pub revert_reason: String,
+    /// Raw returndata of the revert, from the RPC error's `data` field.
+    ///
+    /// A custom error carries its payload only here: `revert_reason` is derived from the
+    /// human-readable message, which for a custom error is the bare `execution reverted`
+    /// and thus decodes to an empty string.
+    pub revert_data: Vec<u8>,
     /// Amount of gas used by transaction (may be `None` for `eth_call` requests).
     pub gas_used: Option<U256>,
     /// Gas limit of the transaction.

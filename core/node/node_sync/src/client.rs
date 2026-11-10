@@ -135,6 +135,7 @@ impl MainNodeClient for Box<DynClient<L2>> {
             genesis_root_hash: Some(dto.genesis_root_hash),
             rollup_last_leaf_index: Some(dto.rollup_last_leaf_index),
             genesis_commitment: Some(dto.genesis_commitment),
+            genesis_airbender_commitment: dto.genesis_airbender_commitment,
             bootloader_hash: Some(dto.bootloader_hash),
             default_aa_hash: Some(dto.default_aa_hash),
             evm_emulator_hash: dto.evm_emulator_hash,

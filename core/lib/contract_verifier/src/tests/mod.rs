@@ -29,10 +29,10 @@ use crate::{
 mod real;
 
 const SOLC_VERSION: &str = "0.8.27";
-const ZKSOLC_VERSION: &str = "1.5.4";
+const ZKSOLC_VERSION: &str = "1.5.15";
 /// A zksolc version `>= 1.5.13` (CBOR-capable). Used by metadata-disabledness tests that need to
 /// exercise the post-1.5.13 regime of [`SourceCodeData::appended_metadata_disabled`].
-const ZKSOLC_VERSION_WITH_CBOR: &str = "1.5.14";
+const ZKSOLC_VERSION_WITH_CBOR: &str = "1.5.17";
 
 const BYTECODE_KINDS: [BytecodeMarker; 2] = [BytecodeMarker::EraVm, BytecodeMarker::Evm];
 
@@ -341,6 +341,7 @@ impl CompilerResolver for MockCompilerResolver {
             zksolc: [
                 ZKSOLC_VERSION.to_owned(),
                 ZKSOLC_VERSION_WITH_CBOR.to_owned(),
+                "1.5.14".to_owned(),
             ]
             .into_iter()
             .collect(),
@@ -476,8 +477,8 @@ async fn contract_verifier_basics(contract: TestContract) {
         .unwrap();
 
     let mock_resolver = MockCompilerResolver::zksolc(|input| {
-        let ZkSolcInput::StandardJson { input, .. } = &input else {
-            panic!("unexpected input");
+        let ZkSolcInput::StandardJson { input, .. } = input else {
+            panic!("expected standard JSON input");
         };
         assert_eq!(input.language, "Solidity");
         assert_eq!(input.sources.len(), 1);
@@ -513,8 +514,7 @@ async fn contract_verifier_basics(contract: TestContract) {
         .get_zksolc_versions()
         .await
         .unwrap();
-    // Ordered by version text, so `1.5.14` sorts before `1.5.4`.
-    assert_eq!(zksolc_versions, [ZKSOLC_VERSION_WITH_CBOR, ZKSOLC_VERSION]);
+    assert_eq!(zksolc_versions, [ZKSOLC_VERSION, ZKSOLC_VERSION_WITH_CBOR]);
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
     verifier.run(stop_receiver, Some(1)).await.unwrap();
@@ -776,13 +776,12 @@ fn no_metadata_standard_json_request(
 
 /// A deployed contract differing from the verified source only in the final word must NOT pass as a
 /// partial match when metadata is disabled (that word is functional code). Cased over `(metadata
-/// settings, zksolc version)` pairs that yield metadata-less bytecode, which is version-dependent:
-/// `>= 1.5.13` needs `appendCBOR:false` + non-`keccak256` hash; `< 1.5.13` needs `bytecodeHash:none`.
-#[test_casing(4, [
-    (serde_json::json!({ "bytecodeHash": "none", "appendCBOR": false }), "1.5.14"),
-    (serde_json::json!({ "appendCBOR": false }), "1.5.14"),
-    (serde_json::json!({ "bytecodeHash": "ipfs", "appendCBOR": false }), "1.5.14"),
-    (serde_json::json!({ "bytecodeHash": "none" }), "1.5.4"),
+/// settings, zksolc version)` pairs supported by the public policy that yield metadata-less
+/// bytecode. Compatibility detection for older versions is covered in `zksync_types`.
+#[test_casing(3, [
+    (serde_json::json!({ "bytecodeHash": "none", "appendCBOR": false }), ZKSOLC_VERSION),
+    (serde_json::json!({ "appendCBOR": false }), ZKSOLC_VERSION),
+    (serde_json::json!({ "bytecodeHash": "ipfs", "appendCBOR": false }), ZKSOLC_VERSION),
 ])]
 #[tokio::test]
 async fn no_metadata_final_word_mismatch_is_rejected(

@@ -66,6 +66,7 @@ message PubdataParams {
 message L1Transaction {
   optional bytes rlp = 1; // required; RLP encoded L2CanonicalTransaction
   repeated bytes factory_deps = 2;
+  optional bool force_fail = 3; // sequencer-set; absent == false
 }
 
 message L2Transaction {

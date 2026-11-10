@@ -171,6 +171,7 @@ impl EnNamespace {
             genesis_root_hash: genesis_batch.metadata.root_hash,
             rollup_last_leaf_index: genesis_batch.metadata.rollup_last_leaf_index,
             genesis_commitment: genesis_batch.metadata.commitment,
+            genesis_airbender_commitment: genesis_batch.metadata.airbender.map(|a| a.commitment),
             bootloader_hash: genesis_batch.header.base_system_contracts_hashes.bootloader,
             default_aa_hash: genesis_batch.header.base_system_contracts_hashes.default_aa,
             evm_emulator_hash: genesis_batch

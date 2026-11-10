@@ -10,7 +10,9 @@ use zksync_dal::{blocks_dal::TxForPrecommit, Connection, ConnectionPool, Core, C
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError, StoredObject};
-use zksync_prover_interface::outputs::{L1BatchProofForL1, L1BatchProofForL1Key};
+use zksync_prover_interface::outputs::{
+    L1BatchProofForL1, L1BatchProofForL1Key, TypedL1BatchProofForL1,
+};
 use zksync_types::{
     aggregated_operations::L1BatchAggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
@@ -260,10 +262,14 @@ impl Aggregator {
             .await?,
         ) {
             Ok(Some(op))
-        } else if let Some(op) = restrictions.filter_prove_op(
-            self.get_proof_operation(storage, last_sealed_l1_batch_number, l1_verifier_config)
-                .await,
-        ) {
+        } else if let Some(op) =
+            restrictions.filter_prove_op(if restrictions.prove_restriction.is_some() {
+                None
+            } else {
+                self.get_proof_operation(storage, last_sealed_l1_batch_number, l1_verifier_config)
+                    .await
+            })
+        {
             Ok(Some(op))
         } else if let Some(op) = restrictions.filter_commit_op(
             self.get_commit_operation(
@@ -436,11 +442,7 @@ impl Aggregator {
         }
         let ready_for_execute_batches = storage
             .blocks_dal()
-            .get_ready_for_execute_l1_batches(
-                limit,
-                max_l1_batch_timestamp_millis,
-                self.config.prover,
-            )
+            .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)
             .await
             .unwrap();
         let Some(l1_batches) = extract_ready_subrange(
@@ -562,6 +564,10 @@ impl Aggregator {
         }))
     }
 
+    pub(super) fn set_prover(&mut self, prover: ProverType) {
+        self.config.prover = prover;
+    }
+
     async fn get_commit_operation(
         &mut self,
         storage: &mut Connection<'_, Core>,
@@ -583,10 +589,9 @@ impl Aggregator {
 
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
-            .get_last_committed_to_eth_l1_batch(self.config.prover)
+            .get_last_committed_to_eth_l1_batch()
             .await
             .unwrap()?;
-
         let mut ready_for_commit_l1_batches = if protocol_version_id.is_pre_boojum() {
             blocks_dal
                 .pre_boojum_get_ready_for_commit_l1_batches(
@@ -606,18 +611,29 @@ impl Aggregator {
                     protocol_version_id,
                     self.commitment_mode != L1BatchCommitmentMode::Rollup,
                     send_precommit_tx,
-                    self.config.prover,
                 )
                 .await
                 .unwrap()
         };
 
-        // When the Airbender prover is active, a batch can only be committed once its
-        // Airbender FRI proof has been produced (`proof_blob_url IS NOT NULL`). Keep
-        // only the leading prefix of batches that satisfy this, preserving sequentiality.
-        if self.config.prover == ProverType::Airbender {
-            ready_for_commit_l1_batches =
-                Self::filter_airbender_fri_proven(storage, ready_for_commit_l1_batches).await;
+        if protocol_version_id >= ProtocolVersionId::Version34 {
+            ready_for_commit_l1_batches = ready_for_commit_l1_batches
+                .into_iter()
+                .take_while(|batch| {
+                    let ready = batch
+                        .metadata
+                        .airbender
+                        .as_ref()
+                        .is_some_and(|a| !a.bootloader_initial_content_commitment.is_zero());
+                    if !ready {
+                        tracing::warn!(
+                            l1_batch_number = %batch.header.number,
+                            "Commit range truncated: missing Airbender bootloader commitment"
+                        );
+                    }
+                    ready
+                })
+                .collect();
         }
 
         // Check that the L1 batches that are selected are sequential
@@ -701,11 +717,10 @@ impl Aggregator {
     async fn load_dummy_proof_operations(
         storage: &mut Connection<'_, Core>,
         is_4844_mode: bool,
-        prover: ProverType,
     ) -> Vec<L1BatchWithMetadata> {
         let mut ready_for_proof_l1_batches = storage
             .blocks_dal()
-            .get_ready_for_dummy_proof_l1_batches(1, prover)
+            .get_ready_for_dummy_proof_l1_batches(1)
             .await
             .unwrap();
 
@@ -781,79 +796,19 @@ impl Aggregator {
             .unwrap()
             .unwrap();
 
-        // We may have multiple versions with different verification keys, so we check only for
-        // proofs that use keys that correspond to one on L1 — the Boojum plonk VK hash for Boojum
-        // proofs, the Airbender SNARK-wrapper VK hash for Airbender proofs.
-        let (l1_vk_hash, allowed_patch_versions) = match prover {
-            ProverType::Boojum => {
-                let vk_hash = l1_verifier_config.snark_wrapper_vk_hash;
-                (
-                    vk_hash,
-                    storage
-                        .protocol_versions_dal()
-                        .get_patch_versions_for_vk(minor_version, vk_hash)
-                        .await
-                        .unwrap(),
-                )
-            }
-            ProverType::Airbender => {
-                let Some(airbender_vk_hash) = l1_verifier_config.airbender_snark_wrapper_vk_hash
-                else {
-                    tracing::warn!(
-                        "The L1 verifier does not expose an Airbender SNARK-wrapper VK; \
-                         cannot submit Airbender proofs"
-                    );
-                    return None;
-                };
-                (
-                    airbender_vk_hash,
-                    storage
-                        .protocol_versions_dal()
-                        .get_patch_versions_for_airbender_vk(minor_version, airbender_vk_hash)
-                        .await
-                        .unwrap(),
-                )
-            }
-        };
-        if allowed_patch_versions.is_empty() {
-            // The hash is what an operator diffs against `protocol_patches` to see which prover
-            // generation L1 now expects, so keep it in the message: submission is stalled until a
-            // patch registers this key.
-            tracing::warn!(
-                "No patch version of minor version {minor_version:?} corresponds to the \
-                 verification key on L1 {l1_vk_hash:?} (prover: {prover:?})",
-            );
-            return None;
-        };
+        let proofs = Self::load_real_proofs(
+            storage,
+            l1_verifier_config,
+            blob_store,
+            batch_to_prove,
+            minor_version,
+            prover,
+        )
+        .await?;
 
-        let allowed_versions: Vec<_> = allowed_patch_versions
-            .into_iter()
-            .map(|patch| ProtocolSemanticVersion {
-                minor: minor_version,
-                patch,
-            })
-            .collect();
-
-        let proof = match prover {
-            ProverType::Boojum => {
-                load_wrapped_fri_proofs_for_range(batch_to_prove, blob_store, &allowed_versions)
-                    .await
-            }
-            ProverType::Airbender => {
-                load_airbender_snark_proof(batch_to_prove, blob_store, &allowed_versions).await
-            }
-        };
-        let Some(proof) = proof else {
-            // The proof for the next L1 batch is not generated yet
-            return None;
-        };
-
-        // The `StoredBatchInfo` of both the previous and the proven batch must match what the
-        // L1 contract stored at commit time, which for the Airbender prover is the
-        // Airbender-shape commitment.
         let previous_proven_batch_metadata = storage
             .blocks_dal()
-            .get_l1_batch_metadata_with_prover(previous_proven_batch_number, prover)
+            .get_l1_batch_metadata(previous_proven_batch_number)
             .await
             .unwrap()
             .unwrap_or_else(|| {
@@ -864,7 +819,7 @@ impl Aggregator {
             });
         let metadata_for_batch_being_proved = storage
             .blocks_dal()
-            .get_l1_batch_metadata_with_prover(batch_to_prove, prover)
+            .get_l1_batch_metadata(batch_to_prove)
             .await
             .unwrap()
             .unwrap_or_else(|| {
@@ -874,33 +829,113 @@ impl Aggregator {
         Some(ProveBatches {
             prev_l1_batch: previous_proven_batch_metadata,
             l1_batches: vec![metadata_for_batch_being_proved],
-            proofs: vec![proof],
+            proofs,
             should_verify: true,
         })
     }
 
-    /// Truncates `batches` to the leading prefix whose Airbender FRI proof has been
-    /// produced (`airbender_proof_generation_details.proof_blob_url IS NOT NULL`).
-    /// Batches are sequential, so the first one without a proof stops the range.
-    async fn filter_airbender_fri_proven(
+    async fn load_real_proofs(
         storage: &mut Connection<'_, Core>,
-        batches: Vec<L1BatchWithMetadata>,
-    ) -> Vec<L1BatchWithMetadata> {
-        let batch_numbers: Vec<_> = batches.iter().map(|batch| batch.header.number).collect();
-        let proven = storage
-            .airbender_proof_generation_dal()
-            .get_airbender_fri_proven_batches(&batch_numbers)
-            .await
-            .unwrap();
-
-        let mut result = Vec::with_capacity(batches.len());
-        for batch in batches {
-            if !proven.contains(&batch.header.number) {
-                break;
+        l1_verifier_config: L1VerifierConfig,
+        blob_store: &dyn ObjectStore,
+        batch: L1BatchNumber,
+        minor_version: ProtocolVersionId,
+        prover: ProverType,
+    ) -> Option<Vec<L1BatchProofForL1>> {
+        let fflonk_only = minor_version >= ProtocolVersionId::Version34;
+        let prover = match prover {
+            ProverType::Airbender if !fflonk_only => {
+                tracing::warn!(
+                    ?batch,
+                    ?minor_version,
+                    "Airbender L1 proofs require v34 or later"
+                );
+                return None;
             }
-            result.push(batch);
+            ProverType::Both if !fflonk_only => ProverType::Boojum,
+            prover => prover,
+        };
+        let mut patches = if prover.requires_boojum() {
+            if fflonk_only {
+                let Some(vk_hash) = l1_verifier_config.fflonk_snark_wrapper_vk_hash else {
+                    tracing::warn!("The L1 verifier does not expose a FFLONK SNARK-wrapper VK");
+                    return None;
+                };
+                storage
+                    .protocol_versions_dal()
+                    .get_patch_versions_for_fflonk_vk(minor_version, vk_hash)
+                    .await
+                    .unwrap()
+            } else {
+                storage
+                    .protocol_versions_dal()
+                    .get_patch_versions_for_vk(
+                        minor_version,
+                        l1_verifier_config.snark_wrapper_vk_hash,
+                    )
+                    .await
+                    .unwrap()
+            }
+        } else {
+            vec![]
+        };
+        if prover.requires_airbender() {
+            let Some(vk_hash) = l1_verifier_config.airbender_snark_wrapper_vk_hash else {
+                tracing::warn!("The L1 verifier does not expose an Airbender SNARK-wrapper VK");
+                return None;
+            };
+            let airbender_patches = storage
+                .protocol_versions_dal()
+                .get_patch_versions_for_airbender_vk(minor_version, vk_hash)
+                .await
+                .unwrap();
+            if prover.requires_boojum() {
+                patches.retain(|patch| airbender_patches.contains(patch));
+            } else {
+                patches = airbender_patches;
+            }
         }
-        result
+        if patches.is_empty() {
+            tracing::warn!(
+                "No patch version of {minor_version:?} matches the required {prover:?} L1 VKs: {l1_verifier_config:?}"
+            );
+            return None;
+        }
+
+        for patch in patches {
+            let version = ProtocolSemanticVersion {
+                minor: minor_version,
+                patch,
+            };
+            let mut proofs = Vec::with_capacity(2);
+            if prover.requires_boojum() {
+                let Some(proof) =
+                    load_wrapped_fri_proofs_for_range(batch, blob_store, &[version]).await
+                else {
+                    continue;
+                };
+                if fflonk_only && !matches!(proof.inner(), TypedL1BatchProofForL1::Fflonk(_)) {
+                    tracing::warn!("Boojum proof must be FFLONK for batch {batch}");
+                    continue;
+                }
+                proofs.push(proof);
+            }
+            if prover.requires_airbender() {
+                let Some(proof) = load_airbender_snark_proof(batch, blob_store, &[version]).await
+                else {
+                    continue;
+                };
+                proofs.push(proof);
+            }
+            if proofs
+                .iter()
+                .all(|proof| proof.protocol_version() == version)
+            {
+                return Some(proofs);
+            }
+            tracing::warn!("Proof protocol version does not match {version} for batch {batch}");
+        }
+        None
     }
 
     async fn prepare_dummy_proof_operation(
@@ -921,7 +956,7 @@ impl Aggregator {
         let prev_l1_batch_number = batches.first().map(|batch| batch.header.number - 1)?;
         let prev_batch = storage
             .blocks_dal()
-            .get_l1_batch_metadata_with_prover(prev_l1_batch_number, self.config.prover)
+            .get_l1_batch_metadata(prev_l1_batch_number)
             .await
             .unwrap()?;
 
@@ -931,6 +966,32 @@ impl Aggregator {
             proofs: vec![],
             should_verify: false,
         })
+    }
+
+    /// Dummy proofs don't depend on the verification key, so they are available for any version.
+    pub(crate) async fn has_proof_for_version(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        version: ProtocolSemanticVersion,
+    ) -> bool {
+        if self.config.proof_sending_mode == ProofSendingMode::SkipEveryProof {
+            return true;
+        }
+        let prover = match self.config.prover {
+            ProverType::Both if version.minor < ProtocolVersionId::Version34 => ProverType::Boojum,
+            prover => prover,
+        };
+        if prover.requires_boojum()
+            && load_wrapped_fri_proofs_for_range(l1_batch_number, &*self.blob_store, &[version])
+                .await
+                .is_none()
+        {
+            return false;
+        }
+        !prover.requires_airbender()
+            || load_airbender_snark_proof(l1_batch_number, &*self.blob_store, &[version])
+                .await
+                .is_some()
     }
 
     async fn get_proof_operation(
@@ -952,12 +1013,8 @@ impl Aggregator {
             }
 
             ProofSendingMode::SkipEveryProof => {
-                let ready_for_proof_l1_batches = Self::load_dummy_proof_operations(
-                    storage,
-                    self.operate_4844_mode,
-                    self.config.prover,
-                )
-                .await;
+                let ready_for_proof_l1_batches =
+                    Self::load_dummy_proof_operations(storage, self.operate_4844_mode).await;
                 self.prepare_dummy_proof_operation(
                     storage,
                     ready_for_proof_l1_batches,
@@ -981,7 +1038,7 @@ impl Aggregator {
                 } else {
                     let ready_for_proof_batches = storage
                         .blocks_dal()
-                        .get_skipped_for_proof_l1_batches(1, self.config.prover)
+                        .get_skipped_for_proof_l1_batches(1)
                         .await
                         .unwrap();
                     self.prepare_dummy_proof_operation(
@@ -1174,23 +1231,40 @@ mod tests {
     }
 
     mod airbender {
+        use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
         use zksync_node_test_utils::{create_l1_batch, create_l1_batch_metadata};
         use zksync_object_store::MockObjectStore;
-        use zksync_prover_interface::outputs::AirbenderL1BatchProofForL1;
+        use zksync_prover_interface::outputs::{
+            AirbenderL1BatchProofForL1, TypedL1BatchProofForL1,
+        };
+        use zksync_types::{
+            ethabi::{decode, ParamType, Token},
+            protocol_upgrade::ProtocolVersion,
+            H256, U256,
+        };
 
         use super::*;
 
         fn test_version() -> ProtocolSemanticVersion {
             ProtocolSemanticVersion {
-                minor: ProtocolVersionId::latest(),
+                minor: ProtocolVersionId::Version34,
                 patch: 0.into(),
             }
         }
 
         fn batch_with_metadata(number: u32) -> L1BatchWithMetadata {
+            let mut header = create_l1_batch(number);
+            header.protocol_version = Some(ProtocolVersionId::Version34);
+            let mut metadata = create_l1_batch_metadata(number);
+            metadata.airbender = Some(zksync_types::commitment::AirbenderBatchCommitment {
+                commitment: H256::repeat_byte(10),
+                aux_data_hash: H256::repeat_byte(11),
+                bootloader_initial_content_commitment: H256::repeat_byte(12),
+                events_queue_commitment: H256::zero(),
+            });
             L1BatchWithMetadata {
-                header: create_l1_batch(number),
-                metadata: create_l1_batch_metadata(number),
+                header,
+                metadata,
                 raw_published_factory_deps: vec![],
             }
         }
@@ -1199,59 +1273,785 @@ mod tests {
         /// what the proof data handler stores and `load_airbender_snark_proof` expects to decode.
         fn snark_blob(version: ProtocolSemanticVersion) -> L1BatchAirbenderSnarkProofForL1 {
             let proof = L1BatchProofForL1::new_airbender(AirbenderL1BatchProofForL1 {
-                proof: vec![0x01, 0x02, 0x03, 0x04],
+                proof: vec![0x11; 44 * 32],
                 protocol_version: version,
             });
             let snark_proof = <L1BatchProofForL1 as StoredObject>::serialize(&proof).unwrap();
             L1BatchAirbenderSnarkProofForL1 { snark_proof }
         }
 
-        async fn seed_fri_proof(storage: &mut Connection<'_, Core>, batch: L1BatchNumber) {
-            let mut dal = storage.airbender_proof_generation_dal();
-            dal.insert_airbender_proof_generation_job(batch)
-                .await
-                .unwrap();
-            dal.save_proof_artifacts_metadata(batch, "fri-blob-url", "fri-prover")
-                .await
-                .unwrap();
+        fn boojum_proof(version: ProtocolSemanticVersion) -> L1BatchProofForL1 {
+            let proof = L1BatchProofForL1::deserialize(
+                include_bytes!("../../../lib/prover_interface/tests/l1_batch_proof_1_0_27_0.cbor")
+                    .to_vec(),
+            )
+            .unwrap();
+            match proof.inner() {
+                TypedL1BatchProofForL1::Fflonk(mut proof) => {
+                    proof.protocol_version = version;
+                    L1BatchProofForL1::new_fflonk(proof)
+                }
+                TypedL1BatchProofForL1::Plonk(mut proof) => {
+                    proof.protocol_version = version;
+                    L1BatchProofForL1::new_plonk(proof)
+                }
+                TypedL1BatchProofForL1::Airbender(_) => panic!("expected Boojum fixture"),
+            }
         }
 
-        // Commit gating: only the leading prefix of batches with a FRI proof is kept.
+        #[test_casing::test_casing(4, [(false, false), (true, false), (false, true), (true, true)])]
         #[tokio::test]
-        async fn filter_airbender_fri_proven_keeps_proven_prefix() {
+        async fn proof_selection_waits_for_required_proofs(
+            boojum_ready: bool,
+            airbender_ready: bool,
+        ) {
             let pool = ConnectionPool::<Core>::test_pool().await;
             let mut storage = pool.connection().await.unwrap();
-
-            seed_fri_proof(&mut storage, L1BatchNumber(1)).await;
-            seed_fri_proof(&mut storage, L1BatchNumber(2)).await;
-            // Batch 3 is picked but its FRI proof hasn't been submitted yet.
+            let blob_store = MockObjectStore::arc();
+            let batch = L1BatchNumber(1);
+            let boojum_version = test_version();
+            let airbender_version = boojum_version;
+            let verifier = L1VerifierConfig {
+                snark_wrapper_vk_hash: H256::repeat_byte(1),
+                fflonk_snark_wrapper_vk_hash: Some(H256::repeat_byte(5)),
+                airbender_snark_wrapper_vk_hash: Some(H256::repeat_byte(2)),
+            };
             storage
-                .airbender_proof_generation_dal()
-                .insert_airbender_proof_generation_job(L1BatchNumber(3))
+                .protocol_versions_dal()
+                .save_protocol_version_with_tx(&ProtocolVersion {
+                    version: boojum_version,
+                    l1_verifier_config: verifier,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            blob_store
+                .put(
+                    L1BatchProofForL1Key::Core((
+                        if boojum_ready { batch } else { batch + 1 },
+                        boojum_version,
+                    )),
+                    &boojum_proof(boojum_version),
+                )
+                .await
+                .unwrap();
+            blob_store
+                .put(
+                    (
+                        if airbender_ready { batch } else { batch + 1 },
+                        airbender_version,
+                    ),
+                    &snark_blob(airbender_version),
+                )
                 .await
                 .unwrap();
 
-            let batches = vec![
-                batch_with_metadata(1),
-                batch_with_metadata(2),
-                batch_with_metadata(3),
-            ];
-            let filtered = Aggregator::filter_airbender_fri_proven(&mut storage, batches).await;
-
-            let numbers: Vec<_> = filtered.iter().map(|b| b.header.number.0).collect();
-            assert_eq!(numbers, vec![1, 2]);
+            for (prover, ready, versions) in [
+                (ProverType::Boojum, boojum_ready, vec![boojum_version]),
+                (
+                    ProverType::Airbender,
+                    airbender_ready,
+                    vec![airbender_version],
+                ),
+                (
+                    ProverType::Both,
+                    boojum_ready && airbender_ready,
+                    vec![boojum_version, airbender_version],
+                ),
+            ] {
+                let proofs = Aggregator::load_real_proofs(
+                    &mut storage,
+                    L1VerifierConfig {
+                        snark_wrapper_vk_hash: verifier.fflonk_snark_wrapper_vk_hash.unwrap(),
+                        ..verifier
+                    },
+                    &*blob_store,
+                    batch,
+                    boojum_version.minor,
+                    prover,
+                )
+                .await;
+                assert_eq!(proofs.is_some(), ready, "{prover:?}");
+                if let Some(proofs) = proofs {
+                    assert_eq!(
+                        proofs
+                            .iter()
+                            .map(L1BatchProofForL1::protocol_version)
+                            .collect::<Vec<_>>(),
+                        versions
+                    );
+                }
+            }
+            for fflonk_vk in [None, Some(H256::repeat_byte(4))] {
+                let keys = L1VerifierConfig {
+                    fflonk_snark_wrapper_vk_hash: fflonk_vk,
+                    ..verifier
+                };
+                assert!(Aggregator::load_real_proofs(
+                    &mut storage,
+                    keys,
+                    &*blob_store,
+                    batch,
+                    boojum_version.minor,
+                    ProverType::Both,
+                )
+                .await
+                .is_none());
+            }
+            for airbender_vk in [None, Some(H256::repeat_byte(4))] {
+                let keys = L1VerifierConfig {
+                    airbender_snark_wrapper_vk_hash: airbender_vk,
+                    ..verifier
+                };
+                assert!(Aggregator::load_real_proofs(
+                    &mut storage,
+                    keys,
+                    &*blob_store,
+                    batch,
+                    boojum_version.minor,
+                    ProverType::Both,
+                )
+                .await
+                .is_none());
+            }
         }
 
-        // A batch with no airbender row at all gates the commit (nothing is returned).
+        #[test_casing::test_casing(4, [(false, false), (true, false), (false, true), (true, true)])]
         #[tokio::test]
-        async fn filter_airbender_fri_proven_stops_at_missing_row() {
+        async fn proof_selection_requires_matching_patches(shared_keys: bool, boojum_newer: bool) {
             let pool = ConnectionPool::<Core>::test_pool().await;
             let mut storage = pool.connection().await.unwrap();
+            let blob_store = MockObjectStore::arc();
+            let batch = L1BatchNumber(1);
+            let older = test_version();
+            let newer = ProtocolSemanticVersion {
+                patch: 1.into(),
+                ..older
+            };
+            let (boojum_version, airbender_version) = if boojum_newer {
+                (newer, older)
+            } else {
+                (older, newer)
+            };
+            let verifier = L1VerifierConfig {
+                snark_wrapper_vk_hash: H256::repeat_byte(1),
+                fflonk_snark_wrapper_vk_hash: Some(H256::repeat_byte(5)),
+                airbender_snark_wrapper_vk_hash: Some(H256::repeat_byte(2)),
+            };
+            for version in [older, newer] {
+                let mut keys = verifier;
+                if !shared_keys {
+                    if version != boojum_version {
+                        keys.fflonk_snark_wrapper_vk_hash = Some(H256::repeat_byte(3));
+                    }
+                    if version != airbender_version {
+                        keys.airbender_snark_wrapper_vk_hash = Some(H256::repeat_byte(4));
+                    }
+                }
+                storage
+                    .protocol_versions_dal()
+                    .save_protocol_version_with_tx(&ProtocolVersion {
+                        version,
+                        l1_verifier_config: keys,
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap();
+            }
+            blob_store
+                .put(
+                    L1BatchProofForL1Key::Core((batch, boojum_version)),
+                    &boojum_proof(boojum_version),
+                )
+                .await
+                .unwrap();
+            blob_store
+                .put((batch, airbender_version), &snark_blob(airbender_version))
+                .await
+                .unwrap();
 
-            let filtered =
-                Aggregator::filter_airbender_fri_proven(&mut storage, vec![batch_with_metadata(1)])
-                    .await;
-            assert!(filtered.is_empty());
+            for (prover, version) in [
+                (ProverType::Boojum, boojum_version),
+                (ProverType::Airbender, airbender_version),
+            ] {
+                let proofs = Aggregator::load_real_proofs(
+                    &mut storage,
+                    verifier,
+                    &*blob_store,
+                    batch,
+                    older.minor,
+                    prover,
+                )
+                .await
+                .unwrap();
+                assert_eq!(proofs.len(), 1);
+                assert_eq!(proofs[0].protocol_version(), version);
+            }
+            assert!(Aggregator::load_real_proofs(
+                &mut storage,
+                verifier,
+                &*blob_store,
+                batch,
+                older.minor,
+                ProverType::Both,
+            )
+            .await
+            .is_none());
+
+            for version in [older, newer] {
+                blob_store
+                    .put(
+                        L1BatchProofForL1Key::Core((batch, version)),
+                        &boojum_proof(version),
+                    )
+                    .await
+                    .unwrap();
+                blob_store
+                    .put((batch, version), &snark_blob(version))
+                    .await
+                    .unwrap();
+                let proofs = Aggregator::load_real_proofs(
+                    &mut storage,
+                    verifier,
+                    &*blob_store,
+                    batch,
+                    older.minor,
+                    ProverType::Both,
+                )
+                .await;
+                assert_eq!(proofs.is_some(), shared_keys);
+                if let Some(proofs) = proofs {
+                    assert_eq!(proofs.len(), 2);
+                    assert!(proofs
+                        .iter()
+                        .all(|proof| proof.protocol_version() == version));
+                }
+            }
+        }
+
+        #[test_casing::test_casing(2, [false, true])]
+        #[tokio::test]
+        async fn proof_selection_rejects_mismatched_blob_version(boojum_mismatch: bool) {
+            let pool = ConnectionPool::<Core>::test_pool().await;
+            let mut storage = pool.connection().await.unwrap();
+            let blob_store = MockObjectStore::arc();
+            let batch = L1BatchNumber(1);
+            let version = test_version();
+            let other_version = ProtocolSemanticVersion {
+                patch: 1.into(),
+                ..version
+            };
+            let verifier = L1VerifierConfig {
+                snark_wrapper_vk_hash: H256::repeat_byte(1),
+                fflonk_snark_wrapper_vk_hash: Some(H256::repeat_byte(5)),
+                airbender_snark_wrapper_vk_hash: Some(H256::repeat_byte(2)),
+            };
+            storage
+                .protocol_versions_dal()
+                .save_protocol_version_with_tx(&ProtocolVersion {
+                    version,
+                    l1_verifier_config: verifier,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            blob_store
+                .put(
+                    L1BatchProofForL1Key::Core((batch, version)),
+                    &boojum_proof(if boojum_mismatch {
+                        other_version
+                    } else {
+                        version
+                    }),
+                )
+                .await
+                .unwrap();
+            blob_store
+                .put(
+                    (batch, version),
+                    &snark_blob(if boojum_mismatch {
+                        version
+                    } else {
+                        other_version
+                    }),
+                )
+                .await
+                .unwrap();
+            assert!(Aggregator::load_real_proofs(
+                &mut storage,
+                verifier,
+                &*blob_store,
+                batch,
+                version.minor,
+                ProverType::Both,
+            )
+            .await
+            .is_none());
+        }
+
+        #[test]
+        fn v34_proof_envelopes() {
+            let version = test_version();
+            let boojum = boojum_proof(version);
+            let airbender =
+                L1BatchProofForL1::deserialize(snark_blob(version).snark_proof).unwrap();
+            let proof_array = ParamType::Array(Box::new(ParamType::Uint(256)));
+            let stored = StoredBatchInfo::schema_for_protocol_version(version.minor);
+            let decode_proof = |proofs| {
+                let op = ProveBatches {
+                    prev_l1_batch: batch_with_metadata(0),
+                    l1_batches: vec![batch_with_metadata(1)],
+                    proofs,
+                    should_verify: true,
+                };
+                let args = op.conditional_into_tokens(false);
+                assert_eq!(&args[..2], &[Token::Uint(1.into()), Token::Uint(1.into())]);
+                let Token::Bytes(data) = &args[2] else {
+                    panic!("expected proof bytes")
+                };
+                assert_eq!(data[0], 5);
+                let decoded = decode(
+                    &[
+                        stored.clone(),
+                        ParamType::Array(Box::new(stored.clone())),
+                        proof_array.clone(),
+                    ],
+                    &data[1..],
+                )
+                .unwrap();
+                let Token::Array(proof) = &decoded[2] else {
+                    panic!("expected proof envelope")
+                };
+                proof.clone()
+            };
+            let combined = decode_proof(vec![boojum.clone(), airbender.clone()]);
+            assert_eq!(combined[0], Token::Uint(4.into()));
+            assert_eq!(combined.len(), 1 + 24 + 44);
+            assert_eq!(
+                &combined[25..],
+                vec![Token::Uint(U256::from_big_endian(&[0x11; 32])); 44]
+            );
+            let boojum_only = decode_proof(vec![boojum]);
+            assert_eq!(&boojum_only[..25], &combined[..25]);
+            assert_eq!(&boojum_only[25..], vec![Token::Uint(U256::zero()); 44]);
+            let airbender_only = decode_proof(vec![airbender]);
+            assert_eq!(airbender_only.len(), combined.len());
+            assert_eq!(airbender_only[0], Token::Uint(4.into()));
+            assert_eq!(&airbender_only[1..25], vec![Token::Uint(U256::zero()); 24]);
+            assert_eq!(&airbender_only[25..], &combined[25..]);
+        }
+
+        #[test]
+        #[should_panic]
+        fn malformed_airbender_proof_is_rejected() {
+            ProveBatches {
+                prev_l1_batch: batch_with_metadata(0),
+                l1_batches: vec![batch_with_metadata(1)],
+                proofs: vec![L1BatchProofForL1::new_airbender(
+                    AirbenderL1BatchProofForL1 {
+                        proof: vec![0; 43 * 32],
+                        protocol_version: test_version(),
+                    },
+                )],
+                should_verify: true,
+            }
+            .conditional_into_tokens(false);
+        }
+
+        #[test]
+        fn v34_commit_execute_and_precommit_encoding() {
+            use zksync_l1_contract_interface::{
+                i_executor::{
+                    methods::{CommitBatches, PrecommitBatches},
+                    structures::CommitBatchInfo,
+                },
+                Tokenizable, Tokenize,
+            };
+            use zksync_types::{commitment::AirbenderBatchCommitment, Address};
+            let mut batch = batch_with_metadata(1);
+            batch.metadata.airbender = Some(AirbenderBatchCommitment {
+                commitment: H256::repeat_byte(10),
+                aux_data_hash: H256::repeat_byte(11),
+                bootloader_initial_content_commitment: H256::repeat_byte(12),
+                events_queue_commitment: H256::zero(),
+            });
+            let mut previous = batch_with_metadata(0);
+            previous.header.protocol_version = Some(ProtocolVersionId::Version33);
+            {
+                let batches = vec![batch.clone()];
+                let args = (&CommitBatches {
+                    last_committed_l1_batch: &previous,
+                    l1_batches: &batches,
+                    mode: L1BatchCommitmentMode::Validium,
+                    pubdata_da: PubdataSendingMode::Calldata,
+                })
+                    .into_tokens();
+                let Token::Bytes(data) = &args[2] else {
+                    panic!("commit bytes")
+                };
+                assert_eq!(data[0], 5);
+                let stored =
+                    StoredBatchInfo::schema_for_protocol_version(ProtocolVersionId::Version34);
+                let decoded = decode(
+                    &[
+                        stored.clone(),
+                        ParamType::Array(Box::new(CommitBatchInfo::schema_for_protocol_version(
+                            ProtocolVersionId::Version34,
+                        ))),
+                    ],
+                    &data[1..],
+                )
+                .unwrap();
+                let Token::Tuple(prev) = &decoded[0] else {
+                    panic!("previous batch")
+                };
+                assert_eq!(prev.len(), 10);
+                assert_eq!(prev[9], Token::FixedBytes(vec![0; 32]));
+                let Token::Array(commits) = &decoded[1] else {
+                    panic!("commit array")
+                };
+                let Token::Tuple(fields) = &commits[0] else {
+                    panic!("commit fields")
+                };
+                assert_eq!(fields.len(), 11);
+                assert_eq!(fields[8], Token::FixedBytes(vec![12; 32]));
+                assert_eq!(
+                    fields[6],
+                    Token::FixedBytes(
+                        batch
+                            .metadata
+                            .bootloader_initial_content_commitment
+                            .unwrap()
+                            .as_bytes()
+                            .to_vec()
+                    )
+                );
+                assert_eq!(
+                    fields[7],
+                    Token::FixedBytes(
+                        batch
+                            .metadata
+                            .events_queue_commitment
+                            .unwrap()
+                            .as_bytes()
+                            .to_vec()
+                    )
+                );
+                let args = ExecuteBatches {
+                    l1_batches: batches,
+                    priority_ops_proofs: vec![],
+                    dependency_roots: vec![],
+                    logs: vec![],
+                    messages: vec![],
+                    message_roots: vec![],
+                }
+                .encode_for_eth_tx(ProtocolVersionId::Version34, Address::zero());
+                let Token::Bytes(data) = &args[2] else {
+                    panic!("execute bytes")
+                };
+                assert_eq!(data[0], 5);
+                let decoded = decode(&[ParamType::Array(Box::new(stored))], &data[1..]).unwrap();
+                assert_eq!(
+                    decoded[0],
+                    Token::Array(vec![StoredBatchInfo::from(&batch)
+                        .into_token_with_protocol_version(ProtocolVersionId::Version34)])
+                );
+            }
+            let args = (&PrecommitBatches {
+                txs: &[],
+                last_l2_block: L2BlockNumber(1),
+                l1_batch_number: L1BatchNumber(1),
+            })
+                .into_tokens();
+            let Token::Bytes(data) = &args[1] else {
+                panic!("precommit bytes")
+            };
+            assert_eq!(data[0], 1);
+            let legacy = CommitBatchInfo::new(
+                L1BatchCommitmentMode::Validium,
+                &previous,
+                PubdataSendingMode::Calldata,
+            )
+            .into_token();
+            assert_eq!(legacy.into_tuple().unwrap().len(), 10);
+        }
+
+        #[test_casing::test_casing(4, [
+            (ProtocolVersionId::Version33, L1BatchNumber(0)),
+            (ProtocolVersionId::Version33, L1BatchNumber(1)),
+            (ProtocolVersionId::Version34, L1BatchNumber(0)),
+            (ProtocolVersionId::Version34, L1BatchNumber(1)),
+        ])]
+        #[tokio::test]
+        async fn commitments_and_predecessor_follow_l1(
+            version: ProtocolVersionId,
+            number: L1BatchNumber,
+        ) {
+            use zksync_types::{
+                block::L1BatchTreeData,
+                commitment::{AirbenderBatchCommitment, L1BatchCommitmentArtifacts},
+            };
+            let pool = ConnectionPool::<Core>::test_pool().await;
+            let mut storage = pool.connection().await.unwrap();
+            storage
+                .protocol_versions_dal()
+                .save_protocol_version_with_tx(&ProtocolVersion {
+                    version: ProtocolSemanticVersion {
+                        minor: version,
+                        ..test_version()
+                    },
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            let mut header = batch_with_metadata(number.0).header;
+            header.protocol_version = Some(version);
+            storage
+                .blocks_dal()
+                .insert_mock_l1_batch(&header)
+                .await
+                .unwrap();
+            storage
+                .blocks_dal()
+                .save_l1_batch_tree_data(
+                    number,
+                    &L1BatchTreeData {
+                        hash: H256::repeat_byte(3),
+                        rollup_last_leaf_index: 1,
+                    },
+                )
+                .await
+                .unwrap();
+            let mut artifacts = L1BatchCommitmentArtifacts::default();
+            artifacts.commitment_hash.commitment = H256::repeat_byte(4);
+            artifacts.commitment_hash.aux_output = H256::repeat_byte(5);
+            storage
+                .blocks_dal()
+                .save_l1_batch_commitment_artifacts(number, &artifacts)
+                .await
+                .unwrap();
+            let boojum = storage
+                .blocks_dal()
+                .get_l1_batch_metadata(number)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(boojum.metadata.airbender, None);
+            let predecessor = storage
+                .blocks_dal()
+                .get_prev_batch_airbender_commitment_input(number, ProtocolVersionId::Version34)
+                .await
+                .unwrap();
+            if version >= ProtocolVersionId::Version34 {
+                assert!(predecessor.is_none());
+            } else {
+                assert_eq!(
+                    predecessor.unwrap().prev_batch_commitment,
+                    boojum.metadata.commitment
+                );
+            }
+            let airbender = AirbenderBatchCommitment {
+                commitment: H256::repeat_byte(10),
+                aux_data_hash: H256::repeat_byte(11),
+                bootloader_initial_content_commitment: H256::repeat_byte(12),
+                events_queue_commitment: H256::zero(),
+            };
+            storage
+                .blocks_dal()
+                .save_airbender_batch_commitment(number, &airbender)
+                .await
+                .unwrap();
+            assert_eq!(
+                storage
+                    .blocks_dal()
+                    .get_airbender_batch_commitment(number)
+                    .await
+                    .unwrap(),
+                Some(airbender)
+            );
+            let batch = storage
+                .blocks_dal()
+                .get_l1_batch_metadata(number)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(batch.metadata.airbender, Some(airbender));
+            assert_eq!(batch.metadata.commitment, boojum.metadata.commitment);
+            assert_eq!(batch.metadata.aux_data_hash, boojum.metadata.aux_data_hash);
+            assert_eq!(
+                batch.metadata.events_queue_commitment,
+                boojum.metadata.events_queue_commitment
+            );
+            assert_eq!(
+                batch.metadata.bootloader_initial_content_commitment,
+                boojum.metadata.bootloader_initial_content_commitment
+            );
+            let stored = StoredBatchInfo::from(&batch);
+            assert_eq!(stored.commitment, H256::repeat_byte(4));
+            assert_eq!(
+                stored.airbender_commitment,
+                if version >= ProtocolVersionId::Version34 {
+                    airbender.commitment
+                } else {
+                    H256::zero()
+                }
+            );
+            let prev = storage
+                .blocks_dal()
+                .get_prev_batch_airbender_commitment_input(number, ProtocolVersionId::Version34)
+                .await
+                .unwrap()
+                .unwrap();
+            if version >= ProtocolVersionId::Version34 {
+                assert_eq!(prev.prev_batch_commitment, airbender.commitment);
+                assert_eq!(prev.prev_aux_hash, airbender.aux_data_hash);
+            } else {
+                assert_eq!(prev.prev_batch_commitment, boojum.metadata.commitment);
+                assert_eq!(prev.prev_aux_hash, boojum.metadata.aux_data_hash);
+            }
+            let legacy = storage
+                .blocks_dal()
+                .get_prev_batch_airbender_commitment_input(number, ProtocolVersionId::Version33)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(legacy.prev_batch_commitment, airbender.commitment);
+            assert_eq!(legacy.prev_aux_hash, airbender.aux_data_hash);
+        }
+
+        #[test_casing::test_casing(2, [ProtocolVersionId::Version33, ProtocolVersionId::Version34])]
+        #[tokio::test]
+        async fn proof_submission_respects_protocol_version(current_version: ProtocolVersionId) {
+            use zksync_types::{
+                aggregated_operations::AggregatedActionType, block::L1BatchTreeData,
+                commitment::L1BatchCommitmentArtifacts, Address,
+            };
+            let pool = ConnectionPool::<Core>::test_pool().await;
+            let mut storage = pool.connection().await.unwrap();
+            let keys = L1VerifierConfig {
+                snark_wrapper_vk_hash: H256::repeat_byte(1),
+                fflonk_snark_wrapper_vk_hash: Some(H256::repeat_byte(5)),
+                airbender_snark_wrapper_vk_hash: Some(H256::repeat_byte(2)),
+            };
+            for (number, version, action) in [
+                (
+                    1,
+                    ProtocolVersionId::Version33,
+                    L1BatchAggregatedActionType::PublishProofOnchain,
+                ),
+                (2, current_version, L1BatchAggregatedActionType::Commit),
+            ] {
+                storage
+                    .protocol_versions_dal()
+                    .save_protocol_version_with_tx(&ProtocolVersion {
+                        version: ProtocolSemanticVersion {
+                            minor: version,
+                            patch: 0.into(),
+                        },
+                        l1_verifier_config: keys,
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap();
+                let mut batch = batch_with_metadata(number);
+                batch.header.protocol_version = Some(version);
+                let number = batch.header.number;
+                storage
+                    .blocks_dal()
+                    .insert_mock_l1_batch(&batch.header)
+                    .await
+                    .unwrap();
+                storage
+                    .blocks_dal()
+                    .save_l1_batch_tree_data(
+                        number,
+                        &L1BatchTreeData {
+                            hash: H256::repeat_byte(3),
+                            rollup_last_leaf_index: 1,
+                        },
+                    )
+                    .await
+                    .unwrap();
+                let mut artifacts = L1BatchCommitmentArtifacts::default();
+                artifacts.commitment_hash.commitment = H256::repeat_byte(4);
+                artifacts.commitment_hash.aux_output = H256::repeat_byte(5);
+                storage
+                    .blocks_dal()
+                    .save_l1_batch_commitment_artifacts(number, &artifacts)
+                    .await
+                    .unwrap();
+                storage
+                    .blocks_dal()
+                    .save_airbender_batch_commitment(number, &batch.metadata.airbender.unwrap())
+                    .await
+                    .unwrap();
+                let action = AggregatedActionType::L1Batch(action);
+                let tx = storage
+                    .eth_sender_dal()
+                    .save_eth_tx(0, vec![], action, Address::zero(), None, None, None, false)
+                    .await
+                    .unwrap();
+                storage
+                    .blocks_dal()
+                    .set_eth_tx_id_for_l1_batches(number..=number, tx.id, action)
+                    .await
+                    .unwrap();
+            }
+            let version = ProtocolSemanticVersion {
+                minor: current_version,
+                patch: 0.into(),
+            };
+            let blobs = MockObjectStore::arc();
+            blobs
+                .put(
+                    L1BatchProofForL1Key::Core((L1BatchNumber(2), version)),
+                    &boojum_proof(version),
+                )
+                .await
+                .unwrap();
+            blobs
+                .put((L1BatchNumber(2), version), &snark_blob(version))
+                .await
+                .unwrap();
+            for prover in [ProverType::Both, ProverType::Airbender, ProverType::Boojum] {
+                let operation = Aggregator::load_real_proof_operation(
+                    &mut storage,
+                    keys,
+                    &*blobs,
+                    false,
+                    prover,
+                )
+                .await;
+                if current_version < ProtocolVersionId::Version34 && prover == ProverType::Airbender
+                {
+                    assert!(operation.is_none());
+                    continue;
+                }
+                let operation = operation.unwrap();
+                assert_eq!(
+                    operation.prev_l1_batch.metadata.commitment,
+                    H256::repeat_byte(4)
+                );
+                assert_eq!(
+                    operation.proofs.len(),
+                    if prover == ProverType::Both && current_version >= ProtocolVersionId::Version34
+                    {
+                        2
+                    } else {
+                        1
+                    }
+                );
+                let stored = StoredBatchInfo::from(&operation.l1_batches[0]);
+                assert_eq!(stored.commitment, H256::repeat_byte(4));
+                assert_eq!(
+                    stored.airbender_commitment,
+                    if current_version >= ProtocolVersionId::Version34 {
+                        H256::repeat_byte(10)
+                    } else {
+                        H256::zero()
+                    }
+                );
+            }
         }
 
         // Prove path: the SNARK proof stored under `(batch, version)` is loaded and decoded when
@@ -1291,7 +2091,7 @@ mod tests {
             let batch = L1BatchNumber(1);
             let stored_version = test_version();
             let allowed_version = ProtocolSemanticVersion {
-                minor: ProtocolVersionId::latest(),
+                minor: ProtocolVersionId::Version34,
                 patch: 1.into(),
             };
 

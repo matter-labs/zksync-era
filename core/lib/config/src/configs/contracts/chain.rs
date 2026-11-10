@@ -198,6 +198,10 @@ pub struct ContractsConfig {
     /// The scheme is normally read from the chain via `getDAValidatorPair`, but that getter only
     /// exists from the medium-interop upgrade onwards. This config makes it possible to pin the
     /// scheme before that upgrade is applied (or when the on-chain value is `None`).
+    ///
+    /// For v31+ batches the scheme also drives the pubdata type where it determines it
+    /// unambiguously: blob-based schemes make the batch a rollup one regardless of the DA client
+    /// config, which allows switching a validium chain to a rollup together with the v31 upgrade.
     #[config(with = Optional(Serde![str]))]
     pub l2_da_commitment_scheme: Option<L2DACommitmentScheme>,
 }

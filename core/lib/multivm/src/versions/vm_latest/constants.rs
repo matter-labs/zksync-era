@@ -29,7 +29,8 @@ pub(crate) const fn get_used_bootloader_memory_bytes(subversion: MultiVmSubversi
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles
         | MultiVmSubversion::Interop
-        | MultiVmSubversion::MediumInterop => 63_800_000,
+        | MultiVmSubversion::MediumInterop
+        | MultiVmSubversion::ForceFail => 63_800_000,
     }
 }
 
@@ -76,7 +77,8 @@ pub(crate) const fn get_max_new_factory_deps(subversion: MultiVmSubversion) -> u
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles
         | MultiVmSubversion::Interop
-        | MultiVmSubversion::MediumInterop => 64,
+        | MultiVmSubversion::MediumInterop
+        | MultiVmSubversion::ForceFail => 64,
     }
 }
 
@@ -164,7 +166,9 @@ pub(crate) const fn get_compressed_bytecodes_offset(subversion: MultiVmSubversio
     match subversion {
         // The additional slot comes from INTEROP_ROOT_ROLLING_HASH_SLOT.
         MultiVmSubversion::Interop => get_interop_root_offset(subversion) + INTEROP_ROOT_SLOTS + 1,
-        MultiVmSubversion::MediumInterop => get_interop_fee_offset(subversion) + 1,
+        MultiVmSubversion::MediumInterop | MultiVmSubversion::ForceFail => {
+            get_interop_fee_offset(subversion) + 1
+        }
         MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles
         | MultiVmSubversion::Gateway
@@ -190,7 +194,9 @@ pub(crate) const fn get_operator_provided_l1_messenger_pubdata_offset(
     subversion: MultiVmSubversion,
 ) -> usize {
     match subversion {
-        MultiVmSubversion::Interop | MultiVmSubversion::MediumInterop => {
+        MultiVmSubversion::Interop
+        | MultiVmSubversion::MediumInterop
+        | MultiVmSubversion::ForceFail => {
             get_priority_txs_l1_data_offset(subversion)
                 + PRIORITY_TXS_L1_DATA_SLOTS
                 + TXS_STATUS_ROLLING_HASH_SLOTS

@@ -216,6 +216,7 @@ async fn insert_tx(
                 )
                 .await?;
         }
+        AggregatedActionType::ProtocolUpgrade => unreachable!(),
     }
     Ok(())
 }
@@ -248,6 +249,7 @@ async fn insert_invalid_tx(
                 )
                 .await?;
         }
+        AggregatedActionType::ProtocolUpgrade => unreachable!(),
     }
     Ok(())
 }
@@ -399,6 +401,7 @@ fn create_tx_hash(tx_type: AggregatedActionType, batch_number: u32) -> H256 {
         AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain) => 2,
         AggregatedActionType::L1Batch(L1BatchAggregatedActionType::Execute) => 3,
         AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit) => 4,
+        AggregatedActionType::ProtocolUpgrade => 5,
     };
     h[28..].copy_from_slice(&batch_number.to_be_bytes());
     H256::from(h)

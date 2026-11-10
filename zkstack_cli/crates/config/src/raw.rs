@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Context;
 use serde::{de::DeserializeOwned, Serialize};
@@ -174,8 +177,90 @@ impl PatchedConfig {
                 anyhow::bail!("unsupported config file extension `{extension}`");
             }
         };
-        fs::write(&path, contents)
-            .await
-            .with_context(|| format!("failed writing config to `{:?}`", path))
+        tokio::task::spawn_blocking(move || {
+            let (target, permissions) = match std::fs::canonicalize(&path) {
+                Ok(target) => {
+                    let permissions = std::fs::metadata(&target)?.permissions();
+                    (target, Some(permissions))
+                }
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => (path.clone(), None),
+                Err(err) => return Err(err.into()),
+            };
+            let mut file = tempfile::Builder::new().make_in(
+                target.parent().context("config path has no parent")?,
+                |path| {
+                    std::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(path)
+                },
+            )?;
+            if let Some(permissions) = permissions {
+                file.as_file().set_permissions(permissions)?;
+            }
+            file.write_all(contents.as_bytes())?;
+            file.persist(&target)
+                .with_context(|| format!("failed writing config to `{path:?}`"))?;
+            anyhow::Ok(())
+        })
+        .await?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Read;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn creates_config_with_default_permissions() {
+        let shell = Shell::new().unwrap();
+        let dir = shell.create_temp_dir().unwrap();
+        let reference = dir.path().join("reference.yaml");
+        shell.write_file(&reference, "prover: {}\n").unwrap();
+        let path = dir.path().join("general.yaml");
+        let mut config = PatchedConfig::empty(&shell, &path);
+        config
+            .insert("prover.setup_data_path", "data/keys")
+            .unwrap();
+        config.save().await.unwrap();
+
+        let config = RawConfig::read(&shell, &path).await.unwrap();
+        assert_eq!(
+            config.get::<String>("prover.setup_data_path").unwrap(),
+            "data/keys"
+        );
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions(),
+            std::fs::metadata(&reference).unwrap().permissions()
+        );
+    }
+
+    #[tokio::test]
+    async fn in_flight_read_sees_complete_previous_config() {
+        let shell = Shell::new().unwrap();
+        let dir = shell.create_temp_dir().unwrap();
+        let path = dir.path().join("general.yaml");
+        let original = "prover:\n  setup_data_path: data/keys\n";
+        shell.write_file(&path, original).unwrap();
+
+        let mut reader = std::fs::File::open(&path).unwrap();
+        let mut prefix = [0; 8];
+        reader.read_exact(&mut prefix).unwrap();
+        let mut config = RawConfig::read(&shell, &path).await.unwrap().patched();
+        config
+            .insert("prover.setup_data_path", "prover/data/keys")
+            .unwrap();
+        config.save().await.unwrap();
+
+        let mut snapshot = String::from_utf8(prefix.to_vec()).unwrap();
+        reader.read_to_string(&mut snapshot).unwrap();
+        assert_eq!(snapshot, original);
+        let config = RawConfig::read(&shell, &path).await.unwrap();
+        assert_eq!(
+            config.get::<String>("prover.setup_data_path").unwrap(),
+            "prover/data/keys"
+        );
     }
 }

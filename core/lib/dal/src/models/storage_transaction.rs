@@ -74,6 +74,8 @@ pub struct StorageTransaction {
 
     // DEPRECATED.
     pub l1_block_number: Option<i32>,
+
+    pub force_fail: Option<bool>,
 }
 
 impl From<StorageTransaction> for L1TxCommonData {
@@ -148,6 +150,7 @@ impl From<StorageTransaction> for L1TxCommonData {
             canonical_tx_hash,
             // DEPRECATED.
             eth_block: tx.l1_block_number.unwrap_or_default() as u64,
+            force_fail: tx.force_fail.unwrap_or(false),
         }
     }
 }
@@ -443,6 +446,7 @@ pub(crate) struct StorageTransactionDetails {
     pub eth_execute_tx_hash: Option<String>,
     pub eth_execute_tx_finality_status: Option<String>,
     pub eth_precommit_tx_hash: Option<String>,
+    pub force_fail: Option<bool>,
 }
 
 impl StorageTransactionDetails {
@@ -514,6 +518,7 @@ impl From<StorageTransactionDetails> for TransactionDetails {
             eth_prove_tx_hash,
             eth_execute_tx_hash,
             eth_precommit_tx_hash,
+            force_failed: tx_details.force_fail.unwrap_or(false),
         }
     }
 }
@@ -636,13 +641,14 @@ pub(crate) fn parse_call_trace(call_trace: &[u8], protocol_version: ProtocolVers
 }
 
 pub(crate) fn serialize_call_into_bytes(
-    call: Call,
+    call: &Call,
     protocol_version: ProtocolVersionId,
 ) -> Vec<u8> {
     if protocol_version.is_pre_1_5_0() {
-        bincode::serialize(&LegacyCall::try_from(call).unwrap())
+        // `LegacyCall` conversion consumes the call, so this branch (and only this branch) clones it.
+        bincode::serialize(&LegacyCall::try_from(call.clone()).unwrap())
     } else {
-        bincode::serialize(&call)
+        bincode::serialize(call)
     }
     .unwrap()
 }

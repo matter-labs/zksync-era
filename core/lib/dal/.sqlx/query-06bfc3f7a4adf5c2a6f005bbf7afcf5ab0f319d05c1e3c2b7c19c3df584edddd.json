@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_proof_manager SET\n                submit_proof_request_tx_hash = $2,\n                submit_proof_request_tx_sent_at\n                = COALESCE(submit_proof_request_tx_sent_at, NOW()),\n                updated_at = NOW()\n            WHERE\n                l1_batch_number = $1\n                AND status NOT IN ($3, $4, $5)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "06bfc3f7a4adf5c2a6f005bbf7afcf5ab0f319d05c1e3c2b7c19c3df584edddd"
+}

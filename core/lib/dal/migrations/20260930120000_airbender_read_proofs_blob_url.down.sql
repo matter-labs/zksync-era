@@ -1,0 +1,1 @@
+ALTER TABLE proof_generation_details DROP COLUMN IF EXISTS airbender_read_proofs_blob_url;

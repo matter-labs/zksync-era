@@ -51,6 +51,12 @@ pub enum SubmitTxError {
         "too many factory dependencies in the transaction. {0} provided, while only {1} allowed"
     )]
     TooManyFactoryDependencies(usize, usize),
+    #[error(
+        "transaction carries {0} bytes of factory dependencies that it does not publish (already \
+        known on-chain, or duplicated), while only {1} bytes are allowed. Already-published \
+        bytecode is available to the VM without being attached; remove it from `factoryDeps`."
+    )]
+    TooManyRedundantFactoryDependencies(usize, usize),
     /// IntrinsicGas is returned if the transaction is specified to use less gas
     /// than required to start the invocation.
     #[error("intrinsic gas too low")]
@@ -95,6 +101,9 @@ impl SubmitTxError {
             Self::MaxPriorityFeeGreaterThanMaxFee => "max-priority-fee-greater-than-max-fee",
             Self::UnexpectedVMBehavior(_) => "unexpected-vm-behavior",
             Self::TooManyFactoryDependencies(_, _) => "too-many-factory-dependencies",
+            Self::TooManyRedundantFactoryDependencies(_, _) => {
+                "too-many-redundant-factory-dependencies"
+            }
             Self::IntrinsicGas => "intrinsic-gas",
             Self::FailedToPublishCompressedBytecodes => "failed-to-publish-compressed-bytecodes",
             Self::MintedAmountOverflow => "minted-amount-overflow",

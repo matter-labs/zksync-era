@@ -625,15 +625,13 @@ impl EthTxManager {
         {
             storage
                 .eth_proof_manager_dal()
-                .mark_batch_as_proven(batch_number, false, 0)
+                .fallback_batch_after_l1_failure(batch_number)
                 .await
                 .unwrap();
-            storage
-                .eth_proof_manager_dal()
-                .fallback_batch(batch_number)
-                .await
-                .unwrap();
-            tracing::info!("Batch {} proven with false result", batch_number);
+            tracing::info!(
+                "Proof for batch {} failed on L1, requeued for proving",
+                batch_number
+            );
         }
 
         let failure_reason = self
@@ -705,7 +703,12 @@ impl EthTxManager {
             .await
             .unwrap()
             .unwrap_or(0);
-        let waited_blocks = tx_status.receipt.block_number.unwrap().as_u32() - sent_at_block;
+        let waited_blocks = tx_status
+            .receipt
+            .block_number
+            .unwrap()
+            .as_u32()
+            .saturating_sub(sent_at_block);
         METRICS.l1_blocks_waited_in_mempool[&tx_type_label].observe(waited_blocks.into());
     }
 

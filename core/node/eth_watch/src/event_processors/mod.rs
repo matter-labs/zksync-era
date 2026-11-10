@@ -8,7 +8,7 @@ pub(crate) use self::{
     appended_chain_batch_root::BatchRootProcessor,
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
     gateway_migration::GatewayMigrationProcessor, interop_root::InteropRootProcessor,
-    priority_ops::PriorityOpsEventProcessor,
+    priority_ops::PriorityOpsEventProcessor, proof_system_status::ProofSystemStatusProcessor,
 };
 
 mod appended_chain_batch_root;
@@ -16,6 +16,7 @@ mod decentralized_upgrades;
 mod gateway_migration;
 mod interop_root;
 mod priority_ops;
+mod proof_system_status;
 
 /// Errors issued by an [`EventProcessor`].
 #[derive(Debug, thiserror::Error)]

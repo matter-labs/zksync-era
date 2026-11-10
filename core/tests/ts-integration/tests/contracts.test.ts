@@ -212,14 +212,19 @@ describe('Smart contract behavior checks', () => {
         await expect(call(txWithBytecodeWithEvenChunks)).toBeRejected(/*evenChunksError*/);
         await expect(estimateGas(txWithBytecodeWithEvenChunks)).toBeRejected(/*evenChunksError*/);
 
-        const longBytecodeLen = zksync.utils.MAX_BYTECODE_LEN_BYTES + 32;
+        // The server caps bytecodes two words below the `2^16 - 1` words a versioned bytecode hash can
+        // express (`MAX_BYTECODE_LENGTH_IN_WORDS` in `zksync_basic_types::bytecode`), since the
+        // `code_unpacker_sha256` circuit cannot prove a decommit at that length. The SDK's
+        // `zksync.utils.MAX_BYTECODE_LEN_BYTES` still reflects the old bound.
+        const maxBytecodeLen = (65536 - 3) * 32;
+        const longBytecodeLen = maxBytecodeLen + 32;
         const txWithTooLongBytecode = await invalidTx(longBytecodeLen);
-        const tooLongBytecodeError = `Bytecode too long: ${longBytecodeLen} bytes, while max ${zksync.utils.MAX_BYTECODE_LEN_BYTES} allowed`;
+        const tooLongBytecodeError = `Bytecode too long: ${longBytecodeLen} bytes, while max ${maxBytecodeLen} allowed`;
         await expect(send(txWithTooLongBytecode)).toBeRejected(tooLongBytecodeError);
         /*
         {
           code: 3,
-          message: 'Failed to serialize transaction: factory dependency #0 is invalid: Bytecode too long: 2097152 bytes, while max 2097120 allowed'
+          message: 'Failed to serialize transaction: factory dependency #0 is invalid: Bytecode too long: 2097088 bytes, while max 2097056 allowed'
         }
          */
         await expect(call(txWithTooLongBytecode)).toBeRejected(/*tooLongBytecodeError*/);

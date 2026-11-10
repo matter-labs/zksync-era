@@ -1,5 +1,8 @@
 use anyhow::Context as _;
-use zksync_dal::node::{MasterPool, PoolResource};
+use zksync_dal::{
+    node::{MasterPool, PoolResource},
+    DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
+};
 use zksync_node_framework::{
     resource::Unique,
     service::StopReceiver,
@@ -44,6 +47,8 @@ pub struct OutputHandlerLayer {
     /// Whether the predicted Airbender cycle count is persisted when an L1 batch is sealed.
     /// Should only be set on the main node; external nodes merely replay batches.
     predicted_cycles_persistence_enabled: bool,
+    /// Maximum combined size of serialized call traces bound in a single insert statement.
+    call_traces_max_chunk_size: usize,
 }
 
 #[derive(Debug, FromContext)]
@@ -67,7 +72,13 @@ impl OutputHandlerLayer {
             pre_insert_txs: false,
             protective_reads_persistence_enabled: false,
             predicted_cycles_persistence_enabled: false,
+            call_traces_max_chunk_size: DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
         }
+    }
+
+    pub fn with_call_traces_max_chunk_size(mut self, call_traces_max_chunk_size: usize) -> Self {
+        self.call_traces_max_chunk_size = call_traces_max_chunk_size;
+        self
     }
 
     pub fn with_pre_insert_txs(mut self, pre_insert_txs: bool) -> Self {
@@ -126,6 +137,7 @@ impl WiringLayer for OutputHandlerLayer {
             self.l2_block_seal_queue_capacity,
         )
         .await?;
+        persistence = persistence.with_call_traces_max_chunk_size(self.call_traces_max_chunk_size);
         if self.pre_insert_txs {
             persistence = persistence.with_tx_insertion();
         }

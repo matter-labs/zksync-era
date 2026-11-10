@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(*) FROM eth_proof_manager\n            WHERE\n                validation_tx_attempts >= $1\n                AND validated_proof_request_tx_hash IS NULL\n                AND status != $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "206aeb27b3dda445ae68a99f022f68c44c8677ed41c6582b44a7e6be62681136"
+}

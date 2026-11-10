@@ -214,6 +214,7 @@ impl L2BlockSealSubtask for MarkTransactionsInL2BlockSubtask {
                 command.base_fee_per_gas.into(),
                 command.l2_block.protocol_version,
                 command.pre_insert_data,
+                command.call_traces_max_chunk_size,
             )
             .await?;
 
@@ -597,6 +598,7 @@ mod tests {
             insert_header: false, // Doesn't matter for this test.
             rolling_txs_hash: Default::default(),
             settlement_layer: SettlementLayer::for_tests(),
+            call_traces_max_chunk_size: zksync_dal::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
         };
 
         // Run.

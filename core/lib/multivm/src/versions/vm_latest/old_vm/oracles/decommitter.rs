@@ -8,7 +8,10 @@ use zk_evm_1_5_2::{
     aux_structures::{
         DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
     },
-    zkevm_opcode_defs::{VersionedHashHeader, VersionedHashNormalizedPreimage},
+    zkevm_opcode_defs::{
+        ContractCodeSha256Format, VersionedHashHeader, VersionedHashLen32,
+        VersionedHashNormalizedPreimage,
+    },
 };
 use zksync_types::{h256_to_u256, u256_to_h256, H256, U256};
 
@@ -35,8 +38,17 @@ pub struct DecommitterOracle<const B: bool, S, H: HistoryMode> {
     pub dynamic_bytecode_hashes: HashSet<U256>,
     /// Stores pages of memory where certain code hashes have already been decommitted.
     /// It is expected that they all are present in the DB.
+    ///
+    /// Keyed by the full versioned hash; this is the source of the "used contracts" output.
+    /// Use [`Self::decommitted_preimages`] to decide whether a decommit is fresh.
     // `decommitted_code_hashes` history is necessary
     pub decommitted_code_hashes: HistoryRecorder<HashMap<U256, Option<u32>>, HistoryEnabled>,
+    /// Maps the header-normalized preimage of a versioned hash to the memory page its bytecode was
+    /// decommitted into. This is the decommit identity used by the proving VM and the circuits, so
+    /// it is what decides freshness here as well: one body can have both an EraVM (version 1) and
+    /// an EVM (version 2) hash, which differ only in the 4-byte header, and decommitting it twice
+    /// into two memory pages cannot be represented by the decommittments sorter.
+    decommitted_preimages: HistoryRecorder<HashMap<VersionedHashNormalizedPreimage, u32>, H>,
     /// Stores history of decommitment requests.
     decommitment_requests: HistoryRecorder<Vec<()>, H>,
 }
@@ -48,6 +60,7 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
             known_bytecodes: HistoryRecorder::default(),
             dynamic_bytecode_hashes: HashSet::default(),
             decommitted_code_hashes: HistoryRecorder::default(),
+            decommitted_preimages: HistoryRecorder::default(),
             decommitment_requests: HistoryRecorder::default(),
         }
     }
@@ -81,6 +94,20 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
         for (hash, bytecode) in bytecodes {
             self.known_bytecodes.insert(hash, bytecode, timestamp);
         }
+    }
+
+    /// Records the entry point as already decommitted into `page`, as the proving side does before
+    /// execution starts.
+    pub fn populate_entry_point(&mut self, hash: U256, page: u32, timestamp: Timestamp) {
+        let mut hash_bytes = [0_u8; 32];
+        hash.to_big_endian(&mut hash_bytes);
+        let (_, normalized_preimage) =
+            ContractCodeSha256Format::normalize_for_decommitment(&hash_bytes);
+
+        self.decommitted_code_hashes
+            .insert(hash, Some(page), timestamp);
+        self.decommitted_preimages
+            .insert(normalized_preimage, page, timestamp);
     }
 
     pub fn insert_dynamic_bytecode(
@@ -127,8 +154,10 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
             .sum::<usize>();
         let decommitted_code_hashes_size =
             self.decommitted_code_hashes.inner().len() * std::mem::size_of::<(U256, Option<u32>)>();
+        let decommitted_preimages_size = self.decommitted_preimages.inner().len()
+            * std::mem::size_of::<(VersionedHashNormalizedPreimage, u32)>();
 
-        known_bytecodes_size + decommitted_code_hashes_size
+        known_bytecodes_size + decommitted_code_hashes_size + decommitted_preimages_size
     }
 
     pub(crate) fn get_history_size(&self) -> usize {
@@ -152,11 +181,20 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
             self.decommitted_code_hashes.borrow_history(|h| h.len(), 0)
                 * std::mem::size_of::<<HashMap<U256, Option<u32>> as WithHistory>::HistoryRecord>();
 
-        known_bytecodes_stack_size + known_bytecodes_heap_size + decommitted_code_hashes_size
+        let decommitted_preimages_size = self.decommitted_preimages.borrow_history(|h| h.len(), 0)
+            * std::mem::size_of::<
+                <HashMap<VersionedHashNormalizedPreimage, u32> as WithHistory>::HistoryRecord,
+            >();
+
+        known_bytecodes_stack_size
+            + known_bytecodes_heap_size
+            + decommitted_code_hashes_size
+            + decommitted_preimages_size
     }
 
     pub fn delete_history(&mut self) {
         self.decommitted_code_hashes.delete_history();
+        self.decommitted_preimages.delete_history();
         self.known_bytecodes.delete_history();
         self.decommitment_requests.delete_history();
     }
@@ -166,6 +204,7 @@ impl<S, const B: bool> OracleWithHistory for DecommitterOracle<B, S, HistoryEnab
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.decommitted_code_hashes
             .rollback_to_timestamp(timestamp);
+        self.decommitted_preimages.rollback_to_timestamp(timestamp);
         self.known_bytecodes.rollback_to_timestamp(timestamp);
         self.decommitment_requests.rollback_to_timestamp(timestamp);
     }
@@ -184,17 +223,33 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
     ) -> anyhow::Result<DecommittmentQuery> {
         let versioned_hash = VersionedCodeHash::from_query(&partial_query);
         let stored_hash = versioned_hash.to_stored_hash();
+        partial_query.decommitted_length = versioned_hash.get_preimage_length() as u16;
 
+        // Freshness is decided by the normalized preimage, not by the full versioned hash, so that
+        // cross-version aliases of one body share a single decommit and a single memory page.
         if let Some(memory_page) = self
-            .decommitted_code_hashes
+            .decommitted_preimages
             .inner()
-            .get(&stored_hash)
+            .get(&partial_query.normalized_preimage)
             .copied()
-            .flatten()
         {
             partial_query.is_fresh = false;
             partial_query.memory_page = MemoryPage(memory_page);
-            partial_query.decommitted_length = versioned_hash.get_preimage_length() as u16;
+
+            // The request still counts towards the "used contracts" output, resolved to the page it
+            // shares with the identifier that was decommitted first.
+            if self
+                .decommitted_code_hashes
+                .inner()
+                .get(&stored_hash)
+                .is_none()
+            {
+                self.decommitted_code_hashes.insert(
+                    stored_hash,
+                    Some(memory_page),
+                    partial_query.timestamp,
+                );
+            }
 
             Ok(partial_query)
         } else {
@@ -208,7 +263,6 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
                     .insert(stored_hash, None, partial_query.timestamp);
             };
             partial_query.is_fresh = true;
-            partial_query.decommitted_length = versioned_hash.get_preimage_length() as u16;
 
             Ok(partial_query)
         }
@@ -246,6 +300,11 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         };
         self.decommitted_code_hashes
             .insert(stored_hash, Some(page_to_use.0), timestamp);
+        self.decommitted_preimages.insert(
+            partial_query.normalized_preimage,
+            page_to_use.0,
+            timestamp,
+        );
 
         // Copy the bytecode (that is stored in 'values' Vec) into the memory page.
         if B {

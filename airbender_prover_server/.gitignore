@@ -9,3 +9,6 @@
 /vks/snark_vk.json
 /vks/*.tag
 /guest/dist/app/*.tag
+
+# CARGO_HOME of the image build
+/cargo

@@ -181,6 +181,7 @@ impl UpdatesManager {
         &self,
         l2_legacy_shared_bridge_addr: Option<Address>,
         pre_insert_data: bool,
+        call_traces_max_chunk_size: usize,
     ) -> L2BlockSealCommand {
         let l2_block = self.last_pending_l2_block().clone();
         let tx_count_in_last_block = l2_block.executed_transactions.len();
@@ -200,6 +201,7 @@ impl UpdatesManager {
                 || (tx_count_in_last_block == 0),
             rolling_txs_hash: self.rolling_tx_hash_updates.rolling_hash,
             settlement_layer: self.settlement_layer,
+            call_traces_max_chunk_size,
         }
     }
 
@@ -531,6 +533,9 @@ pub struct L2BlockSealCommand {
     pub insert_header: bool,
     pub rolling_txs_hash: H256,
     pub settlement_layer: SettlementLayer,
+    /// Maximum combined size of serialized call traces bound in a single insert statement when
+    /// persisting this block's call traces.
+    pub call_traces_max_chunk_size: usize,
 }
 
 #[cfg(test)]

@@ -220,6 +220,13 @@ impl TestContract {
         &CONTRACT
     }
 
+    /// Returns a contract whose rolled-back write is observable through the pubdata counter.
+    pub fn rolled_back_write() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::rolled_back_write::RolledBackWrite));
+        &CONTRACT
+    }
+
     /// Returns a contract for testing base token transfers.
     pub fn transfer_test() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =

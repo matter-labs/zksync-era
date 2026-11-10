@@ -20,8 +20,14 @@ use zksync_types::{
 use crate::{
     metrics::{ValidationResult, METRICS},
     types::{FflonkFinalVerificationKey, ProvingNetwork},
-    watcher::events::EventHandler,
+    watcher::events::{EventError, EventHandler},
 };
+
+/// Invalid proofs yield a false verdict; transient failures record no verdict.
+enum VerifyError {
+    Invalid(anyhow::Error),
+    Transient(anyhow::Error),
+}
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -76,7 +82,92 @@ impl EventHandler for ProofRequestProvenHandler {
         EventType::ProofRequestProven
     }
 
-    async fn handle(&self, log: Log) -> anyhow::Result<()> {
+    async fn handle(&self, log: &Log) -> Result<(), EventError> {
+        let mut event = self.parse(log).map_err(EventError::fatal)?;
+        let proof = std::mem::take(&mut event.proof);
+
+        tracing::info!(
+            "Received ProofRequestProvenEvent for batch {}, chain_id: {}, assigned_to: {:?}, requested_reward: {}",
+            event.block_number,
+            event.chain_id,
+            event.assigned_to,
+            event.requested_reward,
+        );
+
+        let batch_number = L1BatchNumber(event.block_number.as_u32());
+
+        let verification_result = match verify_proof(
+            self.connection_pool.clone(),
+            batch_number,
+            proof,
+            self.fflonk_vk.clone(),
+        )
+        .await
+        {
+            Ok(proof) => {
+                tracing::info!("Proof for batch {} verified successfully", batch_number);
+
+                let proof_blob_url = self
+                    .blob_store
+                    .put(
+                        L1BatchProofForL1Key::Core((batch_number, proof.protocol_version())),
+                        &proof,
+                    )
+                    .await
+                    .map_err(EventError::transient)?;
+
+                self.connection_pool
+                    .connection()
+                    .await
+                    .map_err(EventError::transient)?
+                    .proof_generation_dal()
+                    .save_proof_artifacts_metadata(batch_number, &proof_blob_url)
+                    .await
+                    .map_err(EventError::transient)?;
+
+                METRICS.validated_batches[&ValidationResult::Success].inc();
+                METRICS.proven_batches[&event.assigned_to].set(batch_number.0 as u64);
+                true
+            }
+            Err(VerifyError::Invalid(e)) => {
+                tracing::error!("Proof for batch {} is invalid: {:#}", batch_number, e);
+                METRICS.validated_batches[&ValidationResult::Failed].inc();
+                false
+            }
+            Err(VerifyError::Transient(e)) => {
+                return Err(EventError::Transient(e.context(format!(
+                    "could not verify the proof for batch {batch_number}"
+                ))))
+            }
+        };
+
+        tracing::info!(
+            "Batch {}, chain_id: {}, assigned_to: {:?}, verification_result: {:?}",
+            batch_number,
+            event.chain_id,
+            event.assigned_to,
+            verification_result
+        );
+
+        self.connection_pool
+            .connection()
+            .await
+            .map_err(EventError::transient)?
+            .eth_proof_manager_dal()
+            .mark_batch_as_proven(
+                batch_number,
+                verification_result,
+                event.requested_reward.as_u64(),
+            )
+            .await
+            .map_err(EventError::transient)?;
+
+        Ok(())
+    }
+}
+
+impl ProofRequestProvenHandler {
+    fn parse(&self, log: &Log) -> anyhow::Result<ProofRequestProven> {
         if log.topics.len() != 3 {
             return Err(anyhow::anyhow!(
                 "invalid number of topics: {:?}, expected 3",
@@ -127,81 +218,13 @@ impl EventHandler for ProofRequestProvenHandler {
             ),
         };
 
-        let event = ProofRequestProven {
+        Ok(ProofRequestProven {
             chain_id,
             block_number,
-            proof: proof.clone(),
+            proof,
             assigned_to,
             requested_reward,
-        };
-
-        tracing::info!(
-            "Received ProofRequestProvenEvent for batch {}, chain_id: {}, assigned_to: {:?}, requested_reward: {}",
-            event.block_number,
-            event.chain_id,
-            event.assigned_to,
-            event.requested_reward,
-        );
-
-        let batch_number = L1BatchNumber(event.block_number.as_u32());
-
-        let verification_result = match verify_proof(
-            self.connection_pool.clone(),
-            batch_number,
-            proof.clone(),
-            self.fflonk_vk.clone(),
-        )
-        .await
-        {
-            Ok(proof) => {
-                tracing::info!("Proof for batch {} verified successfully", batch_number);
-
-                let proof_blob_url = self
-                    .blob_store
-                    .put(
-                        L1BatchProofForL1Key::Core((batch_number, proof.protocol_version())),
-                        &proof,
-                    )
-                    .await?;
-
-                self.connection_pool
-                    .connection()
-                    .await?
-                    .proof_generation_dal()
-                    .save_proof_artifacts_metadata(batch_number, &proof_blob_url)
-                    .await?;
-
-                METRICS.validated_batches[&ValidationResult::Success].inc();
-                METRICS.proven_batches[&event.assigned_to].set(batch_number.0 as u64);
-                true
-            }
-            Err(e) => {
-                tracing::error!("Failed to verify proof for batch {}: {}", batch_number, e);
-                METRICS.validated_batches[&ValidationResult::Failed].inc();
-                false
-            }
-        };
-
-        tracing::info!(
-            "Batch {}, chain_id: {}, assigned_to: {:?}, verification_result: {:?}",
-            batch_number,
-            event.chain_id,
-            event.assigned_to,
-            verification_result
-        );
-
-        self.connection_pool
-            .connection()
-            .await?
-            .eth_proof_manager_dal()
-            .mark_batch_as_proven(
-                batch_number,
-                verification_result,
-                event.requested_reward.as_u64(),
-            )
-            .await?;
-
-        Ok(())
+        })
     }
 }
 
@@ -210,9 +233,9 @@ async fn verify_proof(
     batch_number: L1BatchNumber,
     proof_bytes: Vec<u8>,
     verification_key: FflonkFinalVerificationKey,
-) -> anyhow::Result<L1BatchProofForL1> {
+) -> Result<L1BatchProofForL1, VerifyError> {
     let proof = <L1BatchProofForL1 as StoredObject>::deserialize(proof_bytes)
-        .map_err(|e| anyhow::anyhow!("Failed to deserialize proof: {}", e))?;
+        .map_err(|e| VerifyError::Invalid(anyhow::anyhow!("Failed to deserialize proof: {}", e)))?;
 
     let verification_result = match proof.inner() {
         TypedL1BatchProofForL1::Fflonk(fflonk_proof) => {
@@ -231,27 +254,29 @@ async fn verify_proof(
             })) {
                 Ok(result) => result,
                 Err(_) => {
-                    return Err(anyhow::anyhow!(
+                    return Err(VerifyError::Invalid(anyhow::anyhow!(
                         "fflonk verifier panicked for batch {} — treating as invalid proof",
                         batch_number
-                    ));
+                    )));
                 }
             }
         }
         TypedL1BatchProofForL1::Plonk(_) => {
-            return Err(anyhow::anyhow!(
+            return Err(VerifyError::Invalid(anyhow::anyhow!(
                 "Plonk proofs are not supported by proving networks"
-            ));
+            )));
         }
         TypedL1BatchProofForL1::Airbender(_) => {
-            return Err(anyhow::anyhow!(
+            return Err(VerifyError::Invalid(anyhow::anyhow!(
                 "Airbender proofs are not supported by proving networks"
-            ));
+            )));
         }
     };
 
     if !verification_result {
-        return Err(anyhow::anyhow!("Verify function returned false"));
+        return Err(VerifyError::Invalid(anyhow::anyhow!(
+            "Verify function returned false"
+        )));
     }
 
     let aggregation_coords = proof.aggregation_result_coords();
@@ -261,13 +286,18 @@ async fn verify_proof(
     let bootloader_heap_initial_content_from_prover = H256::from_slice(&aggregation_coords[2]);
     let events_queue_state_from_prover = H256::from_slice(&aggregation_coords[3]);
 
-    let mut storage = connection_pool.connection().await?;
+    // Database errors and missing metadata are retried without recording a verdict.
+    let mut storage = connection_pool
+        .connection()
+        .await
+        .map_err(|e| VerifyError::Transient(e.into()))?;
 
     let l1_batch = storage
         .blocks_dal()
         .get_l1_batch_metadata(batch_number)
-        .await?
-        .ok_or(anyhow::anyhow!("Proved block without metadata"))?;
+        .await
+        .map_err(|e| VerifyError::Transient(e.into()))?
+        .ok_or_else(|| VerifyError::Transient(anyhow::anyhow!("Proved block without metadata")))?;
 
     let protocol_version = l1_batch
         .header
@@ -275,30 +305,31 @@ async fn verify_proof(
         .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
     if protocol_version != proof.protocol_version().minor {
-        return Err(anyhow::anyhow!(
+        return Err(VerifyError::Invalid(anyhow::anyhow!(
             "Protocol version doesn't match, server values: {protocol_version}, prover values: {}",
             proof.protocol_version()
-        ));
+        )));
     }
 
     let events_queue_state = l1_batch
         .metadata
         .events_queue_commitment
-        .ok_or(anyhow::anyhow!("No events_queue_commitment"))?;
-    let bootloader_heap_initial_content =
-        l1_batch
-            .metadata
-            .bootloader_initial_content_commitment
-            .ok_or(anyhow::anyhow!("No bootloader_initial_content_commitment"))?;
+        .ok_or_else(|| VerifyError::Transient(anyhow::anyhow!("No events_queue_commitment")))?;
+    let bootloader_heap_initial_content = l1_batch
+        .metadata
+        .bootloader_initial_content_commitment
+        .ok_or_else(|| {
+        VerifyError::Transient(anyhow::anyhow!("No bootloader_initial_content_commitment"))
+    })?;
 
     if events_queue_state != events_queue_state_from_prover
         || bootloader_heap_initial_content != bootloader_heap_initial_content_from_prover
     {
-        return Err(anyhow::anyhow!(
+        return Err(VerifyError::Invalid(anyhow::anyhow!(
                     "Auxilary output doesn't match\n\
                     server values: events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}\n\
                     prover values: events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}",
-                ));
+                )));
     }
 
     let system_logs = serialize_commitments(&l1_batch.header.system_logs);
@@ -313,13 +344,17 @@ async fn verify_proof(
                 (log.0.key == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY as u64))
                     .then_some(log.0.value)
             })
-            .ok_or(anyhow::anyhow!(
-                "Failed to get state_diff_hash from system logs"
-            ))?
+            .ok_or_else(|| {
+                VerifyError::Transient(anyhow::anyhow!(
+                    "Failed to get state_diff_hash from system logs"
+                ))
+            })?
     } else {
-        l1_batch.metadata.state_diff_hash.ok_or(anyhow::anyhow!(
-            "Failed to get state_diff_hash from metadata"
-        ))?
+        l1_batch.metadata.state_diff_hash.ok_or_else(|| {
+            VerifyError::Transient(anyhow::anyhow!(
+                "Failed to get state_diff_hash from metadata"
+            ))
+        })?
     };
 
     if state_diff_hash != state_diff_hash_from_prover
@@ -328,11 +363,11 @@ async fn verify_proof(
         let server_values =
             format!("system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}");
         let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
-        return Err(anyhow::anyhow!(
+        return Err(VerifyError::Invalid(anyhow::anyhow!(
             "Auxilary output doesn't match, server values: {} prover values: {}",
             server_values,
             prover_values
-        ));
+        )));
     }
 
     Ok(proof)

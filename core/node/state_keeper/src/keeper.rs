@@ -1,4 +1,9 @@
-use std::{collections::VecDeque, convert::Infallible, sync::Arc, time::Duration};
+use std::{
+    collections::{HashSet, VecDeque},
+    convert::Infallible,
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
@@ -7,16 +12,18 @@ use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
-        FeatureVectorExt, Halt, L1BatchEnv, SystemEnv,
+        FeatureVectorExt, Halt, L1BatchEnv, SystemEnv, VmEvent,
     },
     utils::StorageWritesDeduplicator,
 };
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
-    block::L2BlockExecutionData, commitment::PubdataParams, l2::TransactionType,
+    block::L2BlockExecutionData, commitment::PubdataParams,
+    factory_deps::redundant_factory_deps_size, l2::TransactionType,
     protocol_upgrade::ProtocolUpgradeTx, protocol_version::ProtocolVersionId, try_stoppable,
     utils::display_timestamp, L1BatchNumber, L2BlockNumber, OrStopped, StopContext, Transaction,
+    H256,
 };
 use zksync_vm_executor::whitelist::DeploymentTxFilter;
 
@@ -127,6 +134,7 @@ pub struct StateKeeperBuilder {
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
     leader_rotation: bool,
+    max_redundant_factory_deps_size: Option<usize>,
 }
 
 /// Helper struct that encapsulates some private state keeper methods.
@@ -140,6 +148,7 @@ pub(super) struct StateKeeperInner {
     health_updater: HealthUpdater,
     deployment_tx_filter: Option<DeploymentTxFilter>,
     leader_rotation: bool,
+    max_redundant_factory_deps_size: Option<usize>,
 }
 
 impl From<StateKeeperBuilder> for StateKeeperInner {
@@ -153,6 +162,7 @@ impl From<StateKeeperBuilder> for StateKeeperInner {
             health_updater: b.health_updater,
             deployment_tx_filter: b.deployment_tx_filter,
             leader_rotation: b.leader_rotation,
+            max_redundant_factory_deps_size: b.max_redundant_factory_deps_size,
         }
     }
 }
@@ -175,11 +185,19 @@ impl StateKeeperBuilder {
             health_updater: ReactiveHealthCheck::new("state_keeper").1,
             deployment_tx_filter,
             leader_rotation: false,
+            max_redundant_factory_deps_size: None,
         }
     }
 
     pub fn with_leader_rotation(mut self, sync: bool) -> Self {
         self.leader_rotation = sync;
+        self
+    }
+
+    /// Rejects a transaction carrying more unpublished preimages than this. Sequencing state
+    /// keepers only — an external node replays blocks verbatim, so it leaves the bound unset.
+    pub fn with_max_redundant_factory_deps_size(mut self, max_size: usize) -> Self {
+        self.max_redundant_factory_deps_size = Some(max_size);
         self
     }
 
@@ -709,6 +727,26 @@ impl StateKeeperInner {
         }
     }
 
+    /// Whether the preimages this execution did not publish exceed `max_size`.
+    ///
+    /// `KnownCodesStorage` emits `MarkedAsKnown` only the first time it sees a hash, so those
+    /// events are exactly the set the transaction paid publication work for.
+    fn carries_too_many_redundant_factory_deps(
+        tx: &Transaction,
+        events: &[VmEvent],
+        max_size: usize,
+    ) -> Option<usize> {
+        // The redundant bytes are a subset of the total, so anything this small clears the bound
+        // whatever the events say — no event scan and no hashing.
+        if tx.execute.factory_deps.iter().map(Vec::len).sum::<usize>() <= max_size {
+            return None;
+        }
+        let newly_published: HashSet<H256> =
+            VmEvent::extract_bytecodes_marked_as_known(events).collect();
+        let redundant_size = redundant_factory_deps_size(&tx.execute.factory_deps, newly_published);
+        (redundant_size > max_size).then_some(redundant_size)
+    }
+
     /// Executes one transaction in the batch executor, and then decides whether the batch should be sealed.
     /// Batch may be sealed because of one of the following reasons:
     /// 1. The VM entered an incorrect state (e.g. out of gas). In that case, we must revert the transaction and seal
@@ -772,7 +810,26 @@ impl StateKeeperInner {
                 resolution
             }
             TxExecutionResult::RejectedByVm { reason } => {
-                UnexecutableReason::Halt(reason.clone()).into()
+                let reason = UnexecutableReason::Halt(reason.clone());
+                // A priority transaction cannot be rejected, so for one of those a reason that is
+                // only about how full *this* batch is must not become the verdict: seal the batch
+                // and let the transaction run again with the room it needs, exactly as the
+                // out-of-gas arm above already does. `is_first_tx` is what stops that repeating
+                // forever — a transaction that was alone in a batch and still failed this way would
+                // fail the same in the next one, so there the reason is final and the queue pauses.
+                //
+                // The two arms differ only in how the failure arrives. Out of gas comes back as its
+                // own `TxExecutionResult` and so has always been position-sensitive; these arrive as
+                // an ordinary halt and were final at every position, which for a priority
+                // transaction meant a full batch could stall the queue.
+                if tx.is_l1() && !is_first_tx && reason.is_batch_relative() {
+                    let resolution = SealResolution::ExcludeAndSeal;
+                    AGGREGATION_METRICS
+                        .l1_batch_reason_inc("l1_tx_batch_relative_halt", &resolution);
+                    resolution
+                } else {
+                    reason.into()
+                }
             }
             TxExecutionResult::Success {
                 tx_result,
@@ -796,6 +853,33 @@ impl StateKeeperInner {
                     updates_manager.pending_execution_metrics() + **tx_execution_metrics,
                 );
 
+                // Admission reads `KnownCodesStorage` at the last sealed L2 block, so transactions
+                // carrying the same not-yet-published bytecode all look like the one paying for it.
+                // The `MarkedAsKnown` events say which one actually did, so the verdict is final
+                // here. Priority and upgrade transactions cannot be rejected, and are paid on L1.
+                if let Some(max_size) = self
+                    .max_redundant_factory_deps_size
+                    .filter(|_| !(tx.is_l1() || tx.is_protocol_upgrade()))
+                {
+                    if let Some(redundant_size) = Self::carries_too_many_redundant_factory_deps(
+                        &tx,
+                        &tx_result.logs.events,
+                        max_size,
+                    ) {
+                        tracing::warn!(
+                            "Transaction {:?} carries {redundant_size} bytes of factory \
+                             dependencies it does not publish, above the {max_size} byte bound. \
+                             Mark it as unexecutable.",
+                            tx.hash(),
+                        );
+                        latency.observe();
+                        return Ok((
+                            SealResolution::Unexecutable(UnexecutableReason::RedundantFactoryDeps),
+                            exec_result,
+                        ));
+                    }
+                }
+
                 if let Some(tx_filter) = &self.deployment_tx_filter {
                     if !(tx.is_l1() || tx.is_protocol_upgrade())
                         && tx_filter
@@ -809,6 +893,7 @@ impl StateKeeperInner {
                         tracing::warn!(
                                 "Deployment transaction {tx:?} is not allowed. Mark it as unexecutable."
                             );
+                        latency.observe();
                         return Ok((
                             SealResolution::Unexecutable(UnexecutableReason::DeploymentNotAllowed),
                             exec_result,

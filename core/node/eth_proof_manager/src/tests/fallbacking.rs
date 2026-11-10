@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{num::NonZeroU32, time::Duration};
 
 use zksync_config::configs::proof_data_handler::ProvingMode;
 use zksync_dal::{eth_proof_manager_dal::ProvingNetwork, CoreDal};
@@ -15,7 +15,7 @@ async fn prepare_batch_for_proving_network(ctx: &TestContext) -> L1BatchNumber {
         .await
         .unwrap()
         .eth_proof_manager_dal()
-        .lock_batch_for_proving_network_and_prepare()
+        .lock_batch_for_proving_network_and_prepare(NonZeroU32::MIN)
         .await
         .unwrap()
         .unwrap()

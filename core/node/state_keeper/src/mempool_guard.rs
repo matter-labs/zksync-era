@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, PoisonError},
 };
 
 use tokio::sync::{Mutex as TokioMutex, MutexGuard};
@@ -62,14 +62,14 @@ impl MempoolGuard {
     ) {
         self.mempool
             .lock()
-            .expect("failed to acquire mempool lock")
+            .unwrap_or_else(PoisonError::into_inner)
             .insert(transactions, nonces);
     }
 
     pub fn has_next(&self, filter: &L2TxFilter) -> bool {
         self.mempool
             .lock()
-            .expect("failed to acquire mempool lock")
+            .unwrap_or_else(PoisonError::into_inner)
             .has_next(filter)
     }
 
@@ -79,28 +79,45 @@ impl MempoolGuard {
     ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {
         self.mempool
             .lock()
-            .expect("failed to acquire mempool lock")
+            .unwrap_or_else(PoisonError::into_inner)
             .next_transaction(filter)
     }
 
-    pub fn rollback(&mut self, rejected: &Transaction) -> TransactionTimeRangeConstraint {
+    /// Withholds every L1 (priority) transaction from execution, from now on. See
+    /// [`MempoolStore::pause_l1_transactions()`] for what this does and why it does not un-pause.
+    pub fn pause_l1_transactions(&self) {
         self.mempool
             .lock()
-            .expect("failed to acquire mempool lock")
+            .unwrap_or_else(PoisonError::into_inner)
+            .pause_l1_transactions();
+    }
+
+    /// Whether L1 (priority) transactions are currently withheld from execution.
+    pub fn l1_transactions_paused(&self) -> bool {
+        self.mempool
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .l1_transactions_paused()
+    }
+
+    pub fn rollback(&mut self, rejected: &Transaction) -> Option<TransactionTimeRangeConstraint> {
+        self.mempool
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
             .rollback(rejected)
     }
 
     pub fn get_mempool_info(&mut self) -> MempoolInfo {
         self.mempool
             .lock()
-            .expect("failed to acquire mempool lock")
+            .unwrap_or_else(PoisonError::into_inner)
             .get_mempool_info()
     }
 
     pub fn advance_after_block(&self, input: AdvanceInput) {
         self.mempool
             .lock()
-            .expect("failed to acquire mempool lock")
+            .unwrap_or_else(PoisonError::into_inner)
             .advance_after_block(input)
     }
 
@@ -112,11 +129,31 @@ impl MempoolGuard {
     pub fn stats(&self) -> zksync_mempool::MempoolStats {
         self.mempool
             .lock()
-            .expect("failed to acquire mempool lock")
+            .unwrap_or_else(PoisonError::into_inner)
             .stats()
     }
 
     pub fn register_metrics(&self) {
         StateKeeperGauges::register(Arc::downgrade(&self.mempool));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mempool_guard_survives_poisoned_lock() {
+        let guard = MempoolGuard::new(PriorityOpId(0), 100, None, None);
+        let mempool = guard.mempool.clone();
+        std::thread::spawn(move || {
+            let _lock = mempool.lock().unwrap();
+            panic!("poison mempool lock");
+        })
+        .join()
+        .unwrap_err();
+        assert!(guard.mempool.is_poisoned());
+
+        assert!(!guard.has_next(&L2TxFilter::default()));
     }
 }

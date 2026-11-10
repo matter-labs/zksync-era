@@ -15,17 +15,23 @@ use std::{
 
 use bytes::Bytes;
 use http::{header, HeaderValue, Request, Response};
-use http_body_util::{BodyExt, Full};
-use jsonrpsee::http_client::transport::Error as TransportError;
+use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
+use jsonrpsee::{core::http_helpers::HttpError, http_client::transport::Error as TransportError};
 use tower::Service;
 
 /// Tower layer that adds eager HTTP response decompression.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct EagerDecompressionLayer;
+///
+/// `max_response_size` bounds both the raw body read and the decompressed output,
+/// mirroring jsonrpsee's own response size limit so a malicious upstream cannot OOM
+/// the process with an endless body or a decompression bomb.
+#[derive(Clone, Copy, Debug)]
+pub struct EagerDecompressionLayer {
+    max_response_size: u32,
+}
 
 impl EagerDecompressionLayer {
-    pub fn new() -> Self {
-        Self
+    pub fn new(max_response_size: u32) -> Self {
+        Self { max_response_size }
     }
 }
 
@@ -33,8 +39,25 @@ impl<S> tower::Layer<S> for EagerDecompressionLayer {
     type Service = EagerDecompression<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        EagerDecompression { inner }
+        EagerDecompression {
+            inner,
+            max_response_size: self.max_response_size,
+        }
     }
+}
+
+/// Reads a decoder to the end, failing with [`HttpError::TooLarge`] once the output
+/// exceeds `limit` instead of allocating without bound.
+fn read_capped<R: Read>(reader: R, limit: usize) -> Result<Bytes, TransportError> {
+    let mut buf = Vec::new();
+    reader
+        .take(limit as u64 + 1)
+        .read_to_end(&mut buf)
+        .map_err(|e| TransportError::Http(HttpError::Stream(e.into())))?;
+    if buf.len() > limit {
+        return Err(TransportError::Http(HttpError::TooLarge));
+    }
+    Ok(Bytes::from(buf))
 }
 
 /// Tower service that decompresses HTTP responses eagerly.
@@ -45,6 +68,7 @@ impl<S> tower::Layer<S> for EagerDecompressionLayer {
 #[derive(Clone, Debug)]
 pub struct EagerDecompression<S> {
     inner: S,
+    max_response_size: u32,
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for EagerDecompression<S>
@@ -79,15 +103,20 @@ where
         // Swap to use the ready clone (tower Service poll_ready convention).
         std::mem::swap(&mut self.inner, &mut inner);
 
+        let limit = self.max_response_size as usize;
         Box::pin(async move {
             let response = inner.call(req).await?;
             let (parts, body) = response.into_parts();
 
-            let compressed_bytes = body
+            let compressed_bytes = Limited::new(body, limit)
                 .collect()
                 .await
                 .map_err(|e| {
-                    TransportError::Http(jsonrpsee::core::http_helpers::HttpError::Stream(e.into()))
+                    if e.downcast_ref::<LengthLimitError>().is_some() {
+                        TransportError::Http(HttpError::TooLarge)
+                    } else {
+                        TransportError::Http(HttpError::Stream(e))
+                    }
                 })?
                 .to_bytes();
 
@@ -98,22 +127,12 @@ where
 
             let decompressed = match encoding {
                 Some("gzip") => {
-                    let mut decoder = flate2::read::GzDecoder::new(&compressed_bytes[..]);
-                    let mut buf = Vec::new();
-                    decoder.read_to_end(&mut buf).map_err(|e| {
-                        TransportError::Http(jsonrpsee::core::http_helpers::HttpError::Stream(
-                            e.into(),
-                        ))
-                    })?;
-                    Bytes::from(buf)
+                    read_capped(flate2::read::GzDecoder::new(&compressed_bytes[..]), limit)?
                 }
                 Some("zstd") => {
-                    let buf = zstd::stream::decode_all(&compressed_bytes[..]).map_err(|e| {
-                        TransportError::Http(jsonrpsee::core::http_helpers::HttpError::Stream(
-                            e.into(),
-                        ))
-                    })?;
-                    Bytes::from(buf)
+                    let decoder = zstd::stream::read::Decoder::new(&compressed_bytes[..])
+                        .map_err(|e| TransportError::Http(HttpError::Stream(e.into())))?;
+                    read_capped(decoder, limit)?
                 }
                 _ => compressed_bytes,
             };
@@ -130,10 +149,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
     use http_body_util::Full;
     use tower::Layer;
 
     use super::*;
+
+    const LIMIT: u32 = 1024 * 1024;
 
     /// Mock service that returns a response with the given body and headers.
     #[derive(Clone, Debug)]
@@ -185,7 +207,7 @@ mod tests {
             response_body: Bytes::from_static(payload),
             content_encoding: None,
         };
-        let mut svc = EagerDecompressionLayer::new().layer(backend);
+        let mut svc = EagerDecompressionLayer::new(LIMIT).layer(backend);
 
         let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let resp = svc.call(req).await.unwrap();
@@ -204,7 +226,7 @@ mod tests {
             response_body: Bytes::from(compressed),
             content_encoding: Some("gzip"),
         };
-        let mut svc = EagerDecompressionLayer::new().layer(backend);
+        let mut svc = EagerDecompressionLayer::new(LIMIT).layer(backend);
 
         let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let resp = svc.call(req).await.unwrap();
@@ -223,7 +245,7 @@ mod tests {
             response_body: Bytes::from(compressed),
             content_encoding: Some("zstd"),
         };
-        let mut svc = EagerDecompressionLayer::new().layer(backend);
+        let mut svc = EagerDecompressionLayer::new(LIMIT).layer(backend);
 
         let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let resp = svc.call(req).await.unwrap();
@@ -242,7 +264,7 @@ mod tests {
             response_body: Bytes::from(compressed),
             content_encoding: Some("gzip"),
         };
-        let mut svc = EagerDecompressionLayer::new().layer(backend);
+        let mut svc = EagerDecompressionLayer::new(LIMIT).layer(backend);
 
         let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let resp = svc.call(req).await.unwrap();
@@ -275,7 +297,7 @@ mod tests {
 
         let captured = std::sync::Arc::new(std::sync::Mutex::new(None));
         let backend = HeaderCapture(captured.clone());
-        let mut svc = EagerDecompressionLayer::new().layer(backend);
+        let mut svc = EagerDecompressionLayer::new(LIMIT).layer(backend);
 
         let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let _ = svc.call(req).await.unwrap();
@@ -307,7 +329,7 @@ mod tests {
 
         let captured = std::sync::Arc::new(std::sync::Mutex::new(None));
         let backend = HeaderCapture(captured.clone());
-        let mut svc = EagerDecompressionLayer::new().layer(backend);
+        let mut svc = EagerDecompressionLayer::new(LIMIT).layer(backend);
 
         let req = Request::builder()
             .header(header::ACCEPT_ENCODING, "br")
@@ -320,22 +342,67 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn decompresses_large_response() {
-        // Verify large responses decompress fully (no artificial size limit).
-        // jsonrpsee's own max_response_body_size applies downstream.
-        let large_data = vec![42u8; 16 * 1024 * 1024]; // 16 MiB
-        let compressed = gzip_compress(&large_data);
+    async fn decompresses_response_up_to_limit() {
+        let payload = vec![42u8; LIMIT as usize];
+        let compressed = gzip_compress(&payload);
         let backend = MockBackend {
             response_body: Bytes::from(compressed),
             content_encoding: Some("gzip"),
         };
-        let mut svc = EagerDecompressionLayer::new().layer(backend);
+        let mut svc = EagerDecompressionLayer::new(LIMIT).layer(backend);
 
         let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
         let resp = svc.call(req).await.unwrap();
 
         let body = resp.into_body().collect().await.unwrap().to_bytes();
-        assert_eq!(body.len(), 16 * 1024 * 1024);
+        assert_eq!(body.len(), LIMIT as usize);
+    }
+
+    #[tokio::test]
+    async fn rejects_oversized_raw_body() {
+        let payload = vec![42u8; LIMIT as usize + 1];
+        let backend = MockBackend {
+            response_body: Bytes::from(payload),
+            content_encoding: None,
+        };
+        let mut svc = EagerDecompressionLayer::new(LIMIT).layer(backend);
+
+        let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
+        let err = svc.call(req).await.unwrap_err();
+        assert_matches!(err, TransportError::Http(HttpError::TooLarge));
+    }
+
+    #[tokio::test]
+    async fn rejects_gzip_bomb() {
+        // A few KiB on the wire inflating well past the limit.
+        let payload = vec![42u8; 64 * LIMIT as usize];
+        let compressed = gzip_compress(&payload);
+        assert!(compressed.len() < LIMIT as usize);
+        let backend = MockBackend {
+            response_body: Bytes::from(compressed),
+            content_encoding: Some("gzip"),
+        };
+        let mut svc = EagerDecompressionLayer::new(LIMIT).layer(backend);
+
+        let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
+        let err = svc.call(req).await.unwrap_err();
+        assert_matches!(err, TransportError::Http(HttpError::TooLarge));
+    }
+
+    #[tokio::test]
+    async fn rejects_zstd_bomb() {
+        let payload = vec![42u8; 64 * LIMIT as usize];
+        let compressed = zstd_compress(&payload);
+        assert!(compressed.len() < LIMIT as usize);
+        let backend = MockBackend {
+            response_body: Bytes::from(compressed),
+            content_encoding: Some("zstd"),
+        };
+        let mut svc = EagerDecompressionLayer::new(LIMIT).layer(backend);
+
+        let req = Request::builder().body(Full::new(Bytes::new())).unwrap();
+        let err = svc.call(req).await.unwrap_err();
+        assert_matches!(err, TransportError::Http(HttpError::TooLarge));
     }
 
     /// Verifies that the server-side 1KB compression threshold works as configured

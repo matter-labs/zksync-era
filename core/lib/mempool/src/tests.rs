@@ -119,6 +119,133 @@ fn prioritize_l1_txns() {
 }
 
 #[test]
+fn pausing_withholds_l1_txns_and_leaves_l2_txns_alone() {
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
+    assert!(!mempool.l1_transactions_paused());
+
+    let account = Address::random();
+    mempool.insert_without_constraints(
+        vec![
+            gen_l1_tx(PriorityOpId(0), None),
+            gen_l1_tx(PriorityOpId(1), None),
+            gen_l2_tx(account, Nonce(0)),
+        ],
+        HashMap::new(),
+    );
+
+    mempool.pause_l1_transactions();
+    assert!(mempool.l1_transactions_paused());
+
+    // L2 traffic keeps flowing, and it is now served ahead of the buffered priority transactions,
+    // which are otherwise prioritized (see `prioritize_l1_txns`).
+    assert!(mempool.has_next(&L2TxFilter::default()));
+    assert_eq!(
+        view(mempool.next_transaction(&L2TxFilter::default())),
+        (account, 0)
+    );
+
+    // The priority transactions are still there, and still withheld.
+    assert!(!mempool.has_next(&L2TxFilter::default()));
+    assert!(mempool.next_transaction(&L2TxFilter::default()).is_none());
+    assert_eq!(mempool.stats().l1_transaction_count, 2);
+}
+
+/// `rollback()` alone does not put an L1 transaction back — it only rewinds the priority id.
+///
+/// `next_transaction()` *removes* the transaction from `l1_transactions`, and the L1 arm of
+/// `rollback()` restores nothing but `next_priority_id`. So a caller that rolls back without
+/// re-inserting is left with a store that points at a transaction it no longer holds: the id says
+/// "serve #0 next", the buffer has only #1.
+///
+/// This is why `MempoolIO::rollback()` pairs the two calls ("Insert the transaction back"). Anything
+/// that rolls an L1 transaction back has to do the same.
+#[test]
+fn rollback_alone_does_not_re_arm_an_l1_tx() {
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
+    mempool.insert_without_constraints(
+        vec![
+            gen_l1_tx(PriorityOpId(0), None),
+            gen_l1_tx(PriorityOpId(1), None),
+        ],
+        HashMap::new(),
+    );
+
+    let (tx, _) = mempool.next_transaction(&L2TxFilter::default()).unwrap();
+    assert_eq!(mempool.stats().l1_transaction_count, 1, "#0 was consumed");
+    mempool.rollback(&tx);
+
+    // No pause here, so nothing but the missing entry can stop #0 being served again. It is not
+    // served: the store is now wedged, pointing at an id whose transaction it dropped. #1 is
+    // unreachable behind it, too.
+    assert!(
+        mempool.next_transaction(&L2TxFilter::default()).is_none(),
+        "rollback re-armed the transaction; this test is obsolete and the pause path can rely on it"
+    );
+    assert_eq!(mempool.stats().l1_transaction_count, 1, "#0 is still gone");
+
+    // Pairing the insert is what actually re-arms it, and then #0 comes back first.
+    let constraint = mempool.rollback(&tx);
+    mempool.insert_without_constraints(vec![tx], HashMap::new());
+    let _ = constraint;
+    assert_eq!(mempool.stats().l1_transaction_count, 2);
+    let served = mempool.next_transaction(&L2TxFilter::default()).unwrap().0;
+    match served.common_data {
+        ExecuteTransactionCommon::L1(data) => assert_eq!(data.serial_id, PriorityOpId(0)),
+        _ => unreachable!("expected L1 transaction"),
+    }
+}
+
+#[test]
+fn pausing_l1_txns_does_not_lose_the_priority_id() {
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
+    mempool.insert_without_constraints(
+        vec![
+            gen_l1_tx(PriorityOpId(0), None),
+            gen_l1_tx(PriorityOpId(1), None),
+        ],
+        HashMap::new(),
+    );
+
+    // What the state keeper does when a priority transaction turns out to be unexecutable: it
+    // un-consumes the transaction it took — rewind the id *and* put the transaction back, see
+    // `rollback_alone_does_not_re_arm_an_l1_tx` for why both — and then pauses.
+    let (tx, _) = mempool.next_transaction(&L2TxFilter::default()).unwrap();
+    let constraint = mempool.rollback(&tx).unwrap();
+    mempool.insert(vec![(tx, constraint)], HashMap::new());
+    mempool.pause_l1_transactions();
+
+    assert!(mempool.next_transaction(&L2TxFilter::default()).is_none());
+
+    // Asserted on the paused store itself, not on a freshly built one: the transaction that caused
+    // the pause is still held, so it is the pause withholding it rather than the store having
+    // dropped it. A store that had lost it would look identical from `next_transaction()` alone.
+    assert_eq!(mempool.stats().l1_transaction_count, 2);
+
+    // And it is still the one at the head, so the queue resumes at the transaction that paused it
+    // rather than skipping to the next. Checked by draining an unpaused store in the same state,
+    // since the pause is a latch with no in-process release.
+    let mut resumed = MempoolStore::new(PriorityOpId(0), 100, None, None);
+    resumed.insert_without_constraints(
+        vec![
+            gen_l1_tx(PriorityOpId(0), None),
+            gen_l1_tx(PriorityOpId(1), None),
+        ],
+        HashMap::new(),
+    );
+    for idx in 0..2 {
+        let data = resumed
+            .next_transaction(&L2TxFilter::default())
+            .unwrap()
+            .0
+            .common_data;
+        match data {
+            ExecuteTransactionCommon::L1(data) => assert_eq!(data.serial_id, PriorityOpId(idx)),
+            _ => unreachable!("expected L1 transaction"),
+        }
+    }
+}
+
+#[test]
 fn l1_txns_priority_id() {
     let mut mempool = MempoolStore::new(PriorityOpId(0), 100, None, None);
     let transactions = vec![
@@ -613,6 +740,83 @@ fn high_priority_l2_txs_execute_after_protocol_version() {
     );
 }
 
+#[test]
+fn rollback_high_priority_l2_tx() {
+    let high_priority_l2_tx_initiator = Address::random();
+    let mut mempool = MempoolStore::new(
+        PriorityOpId(0),
+        100,
+        Some(high_priority_l2_tx_initiator),
+        Some(ProtocolVersionId::Version28),
+    );
+    let transactions = vec![
+        gen_l2_tx(high_priority_l2_tx_initiator, Nonce(0)),
+        gen_l2_tx(high_priority_l2_tx_initiator, Nonce(1)),
+        gen_l2_tx(high_priority_l2_tx_initiator, Nonce(2)),
+    ];
+    mempool.insert_without_constraints(transactions, HashMap::new());
+
+    let filter = L2TxFilter {
+        protocol_version: ProtocolVersionId::Version29,
+        ..Default::default()
+    };
+    assert_eq!(
+        view(mempool.next_transaction(&filter)),
+        (high_priority_l2_tx_initiator, 0)
+    );
+    assert_eq!(
+        view(mempool.next_transaction(&filter)),
+        (high_priority_l2_tx_initiator, 1)
+    );
+
+    mempool.rollback(&gen_l2_tx(high_priority_l2_tx_initiator, Nonce(1)));
+    assert!(mempool.next_transaction(&filter).is_none());
+
+    mempool.insert_without_constraints(
+        vec![gen_l2_tx(high_priority_l2_tx_initiator, Nonce(1))],
+        HashMap::new(),
+    );
+    assert_eq!(
+        view(mempool.next_transaction(&filter)),
+        (high_priority_l2_tx_initiator, 1)
+    );
+    assert_eq!(
+        view(mempool.next_transaction(&filter)),
+        (high_priority_l2_tx_initiator, 2)
+    );
+}
+
+#[test]
+fn rollback_tx_from_unknown_account() {
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 100, Some(Address::random()), None);
+    assert_eq!(
+        mempool.rollback(&gen_l2_tx(Address::random(), Nonce(0))),
+        None
+    );
+}
+
+#[test]
+fn rollback_tx_from_purged_account() {
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 1, None, None);
+    let purged = Address::random();
+    let other = Address::random();
+    mempool.insert_without_constraints(
+        vec![gen_l2_tx(purged, Nonce(5))],
+        HashMap::from([(purged, Nonce(5))]),
+    );
+    assert_eq!(
+        view(mempool.next_transaction(&L2TxFilter::default())),
+        (purged, 5)
+    );
+
+    mempool.insert_without_constraints(
+        vec![gen_l2_tx(other, Nonce(0)), gen_l2_tx(other, Nonce(1))],
+        HashMap::new(),
+    );
+    assert_eq!(mempool.get_mempool_info().purged_accounts, vec![purged]);
+    assert_eq!(mempool.rollback(&gen_l2_tx(purged, Nonce(5))), None);
+}
+
 fn gen_l2_tx(address: Address, nonce: Nonce) -> Transaction {
     gen_l2_tx_with_timestamp(address, nonce, unix_timestamp_ms())
 }
@@ -653,6 +857,7 @@ fn gen_l1_tx(priority_id: PriorityOpId, address: Option<Address>) -> Transaction
         canonical_tx_hash: H256::zero(),
         to_mint: U256::zero(),
         refund_recipient: Address::random(),
+        force_fail: false,
     };
 
     Transaction {

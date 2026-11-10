@@ -72,6 +72,8 @@ pub enum GenesisError {
     BaseSystemContractsHashes(Box<BaseContractsHashError>),
     #[error("Commitment mismatched: From config: {0:?}, Calculated {1:?}")]
     Commitment(H256, H256),
+    #[error("Airbender commitment mismatched: From config: {0:?}, Calculated {1:?}")]
+    AirbenderCommitment(H256, Option<H256>),
     #[error("Wrong protocol version")]
     ProtocolVersion(u16),
     #[error("DB Error: {0}")]
@@ -126,6 +128,7 @@ impl GenesisParamsInitials {
                 genesis_root: H256::default(),
                 genesis_rollup_leaf_index: 26,
                 genesis_batch_commitment: H256::default(),
+                genesis_airbender_batch_commitment: H256::default(),
                 bootloader_hash: base_system_contracts_hashes.bootloader,
                 default_aa_hash: base_system_contracts_hashes.default_aa,
                 evm_emulator_hash: base_system_contracts_hashes.evm_emulator,
@@ -151,6 +154,10 @@ impl From<GenesisParams> for GenesisParamsInitials {
                 genesis_batch_commitment: genesis_state
                     .config
                     .genesis_commitment
+                    .unwrap_or_default(),
+                genesis_airbender_batch_commitment: genesis_state
+                    .config
+                    .genesis_airbender_commitment
                     .unwrap_or_default(),
                 bootloader_hash: genesis_state.config.bootloader_hash.unwrap_or_default(),
                 default_aa_hash: genesis_state.config.default_aa_hash.unwrap_or_default(),
@@ -243,6 +250,7 @@ impl GenesisParams {
 pub struct GenesisBatchParams {
     pub root_hash: H256,
     pub commitment: H256,
+    pub airbender_commitment: Option<H256>,
     pub rollup_last_leaf_index: u64,
 }
 
@@ -258,6 +266,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         genesis_root_hash: Some(H256::default()),
         rollup_last_leaf_index: Some(26),
         genesis_commitment: Some(H256::default()),
+        genesis_airbender_commitment: None,
         bootloader_hash: Some(base_system_contracts_hashes.bootloader),
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
         evm_emulator_hash: base_system_contracts_hashes.evm_emulator,
@@ -309,6 +318,9 @@ pub fn make_genesis_batch_params(
         GenesisBatchParams {
             root_hash,
             commitment,
+            airbender_commitment: block_commitment
+                .airbender_artifacts()?
+                .map(|a| a.commitment),
             rollup_last_leaf_index,
         },
         block_commitment,
@@ -442,10 +454,17 @@ pub async fn validate_genesis_params(
         .call(query_client)
         .await?;
 
-    if verification_key_hash != genesis_params.config().snark_wrapper_vk_hash {
+    let expected_vk_hash = if protocol_version.minor >= ProtocolVersionId::Version34 {
+        genesis_params
+            .config()
+            .fflonk_snark_wrapper_vk_hash
+            .context("FFLONK verification key hash is required for v34+")?
+    } else {
+        genesis_params.config().snark_wrapper_vk_hash
+    };
+    if verification_key_hash != expected_vk_hash {
         return Err(anyhow::anyhow!(
-            "Verification key hash mismatch: {verification_key_hash:?} on contract, {:?} in config",
-            genesis_params.config().snark_wrapper_vk_hash
+            "Verification key hash mismatch: {verification_key_hash:?} on contract, {expected_vk_hash:?} in config"
         ));
     }
 
@@ -547,6 +566,7 @@ pub async fn ensure_genesis_state(
     let GenesisBatchParams {
         root_hash,
         commitment,
+        airbender_commitment,
         rollup_last_leaf_index,
     } = insert_genesis_batch_with_custom_state(
         &mut transaction,
@@ -577,6 +597,15 @@ pub async fn ensure_genesis_state(
 
     if expected_commitment != commitment {
         return Err(GenesisError::Commitment(expected_commitment, commitment));
+    }
+
+    if let Some(expected) = genesis_params.config.genesis_airbender_commitment {
+        if Some(expected) != airbender_commitment {
+            return Err(GenesisError::AirbenderCommitment(
+                expected,
+                airbender_commitment,
+            ));
+        }
     }
 
     if expected_rollup_last_leaf_index != rollup_last_leaf_index {
