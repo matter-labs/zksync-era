@@ -35,6 +35,7 @@ pub mod commitment;
 #[cfg(feature = "contract-verification")]
 pub mod contract_verification;
 pub mod debug_flat_call;
+pub mod factory_deps;
 pub mod fee;
 pub mod fee_model;
 pub mod interop_root;
@@ -305,6 +306,7 @@ impl TryFrom<Transaction> for abi::Transaction {
                 .into(),
                 factory_deps,
                 eth_block: data.eth_block,
+                force_fail: data.force_fail,
             },
             E::ProtocolUpgrade(data) => Self::L1 {
                 tx: abi::L2CanonicalTransaction {
@@ -336,6 +338,7 @@ impl TryFrom<Transaction> for abi::Transaction {
                 .into(),
                 factory_deps,
                 eth_block: data.eth_block,
+                force_fail: false,
             },
         })
     }
@@ -354,6 +357,7 @@ impl Transaction {
                 tx,
                 factory_deps,
                 eth_block,
+                force_fail,
             } => {
                 let factory_deps_hashes: Vec<_> = factory_deps
                     .iter()
@@ -390,9 +394,11 @@ impl Transaction {
                                 op_processing_type: l1::OpProcessingType::Common,
                                 priority_queue_type: l1::PriorityQueueType::Deque,
                                 eth_block,
+                                force_fail,
                             })
                         }
                         t if t == PROTOCOL_UPGRADE_TX_TYPE.into() => {
+                            anyhow::ensure!(!force_fail, "upgrade tx cannot be force-failed");
                             ExecuteTransactionCommon::ProtocolUpgrade(ProtocolUpgradeTxCommonData {
                                 upgrade_id: tx.nonce.try_into().unwrap(),
                                 canonical_tx_hash: hash,

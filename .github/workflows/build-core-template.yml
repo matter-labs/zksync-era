@@ -99,16 +99,28 @@ jobs:
         if: env.BUILD_CONTRACTS == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1.11.0
         with:
-          toolchain: nightly-2024-09-01
+          toolchain: nightly-2026-08-09
 
       - name: Install foundry-zksync
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           mkdir ./foundry-zksync
-          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-27360d4c8d12beddbb730dae07ad33a206b38f4b/foundry_nightly_linux_amd64.tar.gz
-          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          curl --fail --location -o foundry-zksync.tar.gz https://github.com/matter-labs/foundry-zksync/releases/download/foundry-zksync-v0.1.5/foundry_zksync_v0.1.5_linux_amd64.tar.gz
+          echo "3835574db25f52650df01df854886aebed25f63c561826708dccd46c3fc401bd  foundry-zksync.tar.gz" | sha256sum --check
+          tar zxf foundry-zksync.tar.gz -C ./foundry-zksync
           chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
           echo "$PWD/foundry-zksync" >> $GITHUB_PATH
+
+      # Same as docker/zk-environment/Dockerfile: foundry-zksync fetches stable zksolc
+      # via `zksolc-bin`, which stops at 1.5.15. This job builds on the bare runner.
+      - name: Install zksolc 1.5.17
+        if: env.BUILD_CONTRACTS == 'true'
+        run: |
+          zksolc="$HOME/.zksync/zksolc-linux-amd64-musl-v1.5.17"
+          mkdir -p "$HOME/.zksync"
+          curl --fail --location -o "$zksolc" https://github.com/matter-labs/era-compiler-solidity/releases/download/1.5.17/zksolc-linux-amd64-musl-v1.5.17
+          echo "3bda51f97a3087e7d959c05aa992f7d00f98acedfdc9caede64b334aaa76181f  $zksolc" | sha256sum --check
+          chmod +x "$zksolc"
 
       - name: Pre-download compilers
         if: env.BUILD_CONTRACTS == 'true'
@@ -151,7 +163,7 @@ jobs:
 
   prepare-proof-manager-contracts:
     name: Prepare proof manager contracts
-    runs-on: matterlabs-ci-runner-high-performance
+    runs-on: matterlabs-ci-runner-medium
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -213,6 +225,7 @@ jobs:
     permissions:
       packages: write
       contents: read
+      id-token: write
     strategy:
       matrix:
         components:
@@ -282,6 +295,13 @@ jobs:
           path: |
             ./proof-manager-contracts/out
 
+      - name: Authenticate to Google Cloud
+        if: ${{ inputs.action == 'push' }}
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_AR_PUBLISHER_SERVICE_ACCOUNT }}
+
       - name: login to Docker registries
         if: ${{ inputs.action == 'push' }}
         shell: bash
@@ -304,9 +324,6 @@ jobs:
           load: true
           platforms: ${{ matrix.platforms }}
           file: docker/${{ matrix.components }}/Dockerfile
-          # sccache is intentionally disabled for image builds: shipped artifacts
-          # must be built hermetically and never link objects from the shared
-          # cache, which is writable by other CI contexts.
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
             ghcr.io/${{ github.repository_owner }}/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
@@ -322,6 +339,9 @@ jobs:
   create_manifest:
     name: Create release manifest
     runs-on: matterlabs-ci-runner
+    permissions:
+      contents: read
+      id-token: write
     needs: build-images
     if: ${{ inputs.action == 'push' }}
     strategy:
@@ -338,6 +358,12 @@ jobs:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.component.name == 'external-node') && '-alpha' || '' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_AR_PUBLISHER_SERVICE_ACCOUNT }}
 
       - name: login to Docker registries
         run: |

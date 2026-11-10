@@ -1,5 +1,143 @@
 # Changelog
 
+## [34.0.2](https://github.com/matter-labs/zksync-era/compare/3aa040b270b7ae29c35fe35f000c3d35a97cd3d2...4bc5dc89710412c8f3d2c3cbc6d7b7158d64145b) (2026-11-03)
+
+
+### Bug Fixes
+
+* **deps:** bump tokio, libz-sys and zstd crates for new advisories ([585c82b](https://github.com/matter-labs/zksync-era/commit/585c82bf39535e4beb219230a76b03170f711d72))
+* **fee_model:** don't query L1 on every pubdata price estimate ([e6805a7](https://github.com/matter-labs/zksync-era/commit/e6805a742402b975e23beb9db5b2ed1907d756fc))
+
+## [34.0.1](https://github.com/matter-labs/zksync-era/compare/c3f0dd81f2d78c318efe47342b3a2c7364ecf2eb...3aa040b270b7ae29c35fe35f000c3d35a97cd3d2) (2026-10-26)
+
+
+### Bug Fixes
+
+* **types:** accept pre-EIP-155 legacy txs in the canonical encoding check ([a4bfdec](https://github.com/matter-labs/zksync-era/commit/a4bfdec1bef60d79609047ef804def95ede077d3))
+
+## [34.0.0](https://github.com/matter-labs/zksync-era/compare/59442e713794c15057293c5ce21186b3fd994921...c3f0dd81f2d78c318efe47342b3a2c7364ecf2eb) (2026-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **airbender:** pin the eraVM verifier to v31.5.0
+
+### Features
+
+* **airbender:** pin the eraVM verifier to v31.5.0 ([727fad9](https://github.com/matter-labs/zksync-era/commit/727fad9f969fc6c61caa255d445b0309f3a6b2da))
+* **eth_proof_manager:** send only every N-th batch to the proving network ([79844e4](https://github.com/matter-labs/zksync-era/commit/79844e4ba859eb6b1b1b0fe9424669b1788b9ead))
+
+
+### Bug Fixes
+
+* **deps:** bump webpki crates for emSign distrust advisories ([4e07114](https://github.com/matter-labs/zksync-era/commit/4e07114ebb40ec29aac435ac03bf9b714a8c7aa2))
+* **upgrades:** rewrite the L2 upgrade tx when an upgrade jumps over v31 ([b5718c7](https://github.com/matter-labs/zksync-era/commit/b5718c7fc9ee8a5b228549d32b8fc43c9cef5824))
+
+## [33.1.0](https://github.com/matter-labs/zksync-era/compare/4b78e20976698fa0824a9d60596296a157a7a9e9...59442e713794c15057293c5ce21186b3fd994921) (2026-10-16)
+
+
+### Features
+
+* **eth_sender:** finalize protocol upgrades from the operator ([3902a17](https://github.com/matter-labs/zksync-era/commit/3902a17fd3db9da189bb65cc37e5d1387aa6b4c2))
+* **eth_sender:** support v33 Airbender and Boojum proof settlement ([7a639be](https://github.com/matter-labs/zksync-era/commit/7a639befe397eb6a7ff7aa16fe179ba07dc3563a))
+
+
+### Bug Fixes
+
+* **airbender:** produce pre-batch read proofs for the Airbender guest ([10da739](https://github.com/matter-labs/zksync-era/commit/10da739b8c98e454f6d7176a6846eb103587a1fa))
+* **multivm:** treat the bootloader as decommitted at batch start ([6949d8b](https://github.com/matter-labs/zksync-era/commit/6949d8b400930fcc37bfa92470b3fb57f7b09163))
+* **types:** reject non-canonically encoded transactions ([58d9200](https://github.com/matter-labs/zksync-era/commit/58d9200a7c9cc59dd6e8ae2ebe060b5d5769a302))
+
+## [33.0.0](https://github.com/matter-labs/zksync-era/compare/6c52ea83bd62eee46c40baf8b0343063fed6daf2...4b78e20976698fa0824a9d60596296a157a7a9e9) (2026-10-09)
+
+
+### Miscellaneous Chores
+
+* **core:** release 33.0.0 ([51b9e6e](https://github.com/matter-labs/zksync-era/commit/51b9e6ed22730788d7859b4cd33516169195a9a9))
+
+## [32.0.0](https://github.com/matter-labs/zksync-era/compare/5f5cda3fc1ba0958dd4e89bc91919da34d41fd8b...6c52ea83bd62eee46c40baf8b0343063fed6daf2) (2026-10-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* v33 = DSE compiler; force-fail moves to v34
+* **state-keeper:** force-fail L1->L2 priority operations
+
+### Features
+
+* **api:** add block range limit for eth_getLogs ([50d4efd](https://github.com/matter-labs/zksync-era/commit/50d4efd39eaabea6afa15b68e1f0158f54413125))
+* **eth_sender:** add configurable lower bound for execution delay ([9a7d906](https://github.com/matter-labs/zksync-era/commit/9a7d906a4f189c5cbfeee54d45624503fb587c7e))
+* **multivm:** add protocol version 33 with the force-fail bootloader ([419869f](https://github.com/matter-labs/zksync-era/commit/419869ff56462e48e0366c550cd7102aac3193d4))
+* **state-keeper:** force-fail L1-&gt;L2 priority operations ([e7fe692](https://github.com/matter-labs/zksync-era/commit/e7fe6922ff6b6ba775bd7aeae8c5c1d6af6078e9))
+* v33 = DSE compiler; force-fail moves to v34 ([4111eb6](https://github.com/matter-labs/zksync-era/commit/4111eb638dad28d62382fd6fb9fabb701903b0bb))
+
+
+### Bug Fixes
+
+* **eth_proof_manager:** stop retrying validation results that can never land ([3635079](https://github.com/matter-labs/zksync-era/commit/363507956e5b75e715f7ee3ffb4fd0b2f45b1097))
+* **mempool:** roll back high-priority L2 txs without panicking ([8565fe2](https://github.com/matter-labs/zksync-era/commit/8565fe208db85e3c0ccaa8fb782147a7befcaf53))
+* **web3_decl:** bound outbound RPC response decompression ([83e784a](https://github.com/matter-labs/zksync-era/commit/83e784a56f477c758cfd770e6792b82a563c944c))
+
+## [31.8.2](https://github.com/matter-labs/zksync-era/compare/efff00c8be7593d83708a52a306e891f4d5d7aa1...5f5cda3fc1ba0958dd4e89bc91919da34d41fd8b) (2026-09-17)
+
+
+### Bug Fixes
+
+* **eth_proof_manager:** stop re-reporting already-settled proof requests ([1c56981](https://github.com/matter-labs/zksync-era/commit/1c569818d703c600d71024bedf80cf291a10039f))
+
+## [31.8.1](https://github.com/matter-labs/zksync-era/compare/9c37c0893f91d26c921f73e7b2e6684884a191f5...efff00c8be7593d83708a52a306e891f4d5d7aa1) (2026-09-16)
+
+
+### Bug Fixes
+
+* **api,state-keeper:** bound factory-dep preimages a transaction does not publish (report 85896) ([7b1ac30](https://github.com/matter-labs/zksync-era/commit/7b1ac30d78009f06d844c3b404d17ffec727d6c4))
+* **vm_runner:** name the transaction and its result on an unexpected failure ([bd81832](https://github.com/matter-labs/zksync-era/commit/bd81832ad9e3c6bc6b3a2bc2cdfa82969920c8b7))
+
+## [31.8.0](https://github.com/matter-labs/zksync-era/compare/3b26a0a5e11c057fbebe89e79bc2dea06063d3e8...9c37c0893f91d26c921f73e7b2e6684884a191f5) (2026-09-10)
+
+
+### Features
+
+* **state_keeper:** bound max_cycles_per_batch by Airbender's proving ceiling ([d7e7cf2](https://github.com/matter-labs/zksync-era/commit/d7e7cf267dd898f3b8da0e96a7879582d9adabae))
+* **state_keeper:** derive pubdata type from L2 DA commitment scheme for v31+ batches ([8a09b90](https://github.com/matter-labs/zksync-era/commit/8a09b906d221d0f54ebd14d97e178447cf242232))
+
+
+### Bug Fixes
+
+* **eth_proof_manager:** stop orphaning proof validation results ([7445fd0](https://github.com/matter-labs/zksync-era/commit/7445fd003e831474456c24498ee4927f0142797c))
+* **eth_sender:** read the chain-specific execution delay from ValidatorTimelock ([2478938](https://github.com/matter-labs/zksync-era/commit/24789381eac029ba1526fe24a88694566fc9bee1))
+* **state-keeper:** measure tx and batch pubdata with the same ruler ([0fe4304](https://github.com/matter-labs/zksync-era/commit/0fe43043bd75babf47d956d8b9269829237a4499))
+
+
+### Performance Improvements
+
+* **api:** fetch block receipts by L2 block number instead of tx hashes ([0e7dbb2](https://github.com/matter-labs/zksync-era/commit/0e7dbb2aa395e227460ed160c63a2e8e823517e9))
+
+## [31.7.0](https://github.com/matter-labs/zksync-era/compare/34d97e711212c96d0b140a2cc7199b716ffa4bb4...3b26a0a5e11c057fbebe89e79bc2dea06063d3e8) (2026-09-03)
+
+
+### Features
+
+* **cycles:** integrate the measured Airbender cycle estimator ([a9330d1](https://github.com/matter-labs/zksync-era/commit/a9330d14b3a2d6a87d96cd605ed96527ffc28982))
+
+
+### Bug Fixes
+
+* **basic_types:** reject bytecodes the code unpacker circuit cannot p… ([ba5ae3a](https://github.com/matter-labs/zksync-era/commit/ba5ae3aff6b03cb398052244a049f0ecff04ca79))
+
+## [31.6.0](https://github.com/matter-labs/zksync-era/compare/core-v31.5.0...34d97e711212c96d0b140a2cc7199b716ffa4bb4) (2026-08-28)
+
+
+### Features
+
+* **contract-verifier:** restrict the compiler surface exposed by the public verifier ([0731736](https://github.com/matter-labs/zksync-era/commit/07317362ab9d6815b85b765f2c6c547de24ed686))
+
+
+### Bug Fixes
+
+* **ci:** ignore the six unfixable advisories failing cargo-deny ([0d14d30](https://github.com/matter-labs/zksync-era/commit/0d14d301eabefa720924646ad0dd747e752b436b))
+* **deps:** bump h2 to 0.4.19 for RUSTSEC-2026-0258 ([aca4a7d](https://github.com/matter-labs/zksync-era/commit/aca4a7dc0b1eb80eae6007ed7d2ea7b29080db84))
+
 ## [31.5.0](https://github.com/matter-labs/zksync-era/compare/core-v31.4.0...core-v31.5.0) (2026-08-07)
 
 

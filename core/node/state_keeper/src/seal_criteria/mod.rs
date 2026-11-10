@@ -72,6 +72,7 @@ pub enum UnexecutableReason {
     NotEnoughGasProvided,
     TooMuchUserL2L1Logs,
     DeploymentNotAllowed,
+    RedundantFactoryDeps,
 }
 
 impl UnexecutableReason {
@@ -88,6 +89,56 @@ impl UnexecutableReason {
             UnexecutableReason::NotEnoughGasProvided => "NotEnoughGasProvided",
             UnexecutableReason::TooMuchUserL2L1Logs => "TooMuchUserL2L1Logs",
             UnexecutableReason::DeploymentNotAllowed => "DeploymentNotAllowed",
+            UnexecutableReason::RedundantFactoryDeps => "RedundantFactoryDeps",
+        }
+    }
+
+    /// Whether this is a property of the *batch* the transaction landed in rather than of the
+    /// transaction itself, i.e. whether an otherwise identical batch with more room left could have
+    /// executed it.
+    ///
+    /// Such a failure says nothing about the transaction, so the transaction deserves another batch
+    /// rather than a verdict. That is what [`SealResolution::ExcludeAndSeal`] does, and it is why
+    /// the caller must consult this before treating a reason as final.
+    ///
+    /// The distinction only exists because a priority transaction cannot be rejected. An L2
+    /// transaction that is dropped can be resubmitted by its sender; an L1->L2 transaction is
+    /// already committed on L1, so the only alternatives are to execute it or to stall the whole
+    /// priority queue. Stalling the queue over a full batch would be a serious over-reaction, and
+    /// `BootloaderOutOfGas` at the tail of a busy batch is an ordinary event, not an incident.
+    ///
+    /// Everything not listed is treated as final, which is the safe default: the cost of getting it
+    /// wrong in that direction is one extra sealed batch, while the other direction re-executes a
+    /// transaction that can never succeed, forever.
+    pub fn is_batch_relative(&self) -> bool {
+        match self {
+            // Batch-wide gas: the bootloader's frame is shared by every transaction in the batch, so
+            // how much is left depends on what ran before.
+            Self::BootloaderOutOfGas
+            | Self::NotEnoughGasProvided
+            | Self::OutOfGasForBatchTip
+            | Self::Halt(Halt::BootloaderOutOfGas)
+            | Self::Halt(Halt::NotEnoughGasProvided) => true,
+            // Batch-wide VM resources, accumulated across the batch the same way.
+            Self::Halt(Halt::MissingInvocationLimitReached)
+            | Self::Halt(Halt::FailedToPublishCompressedBytecodes) => true,
+            // State of the L2 block being built, not of the transaction.
+            Self::Halt(Halt::FailedToSetL2Block(_))
+            | Self::Halt(Halt::FailedToAppendTransactionToL2Block(_)) => true,
+            // Intrinsic to the transaction, and so is every other halt: validation failures, a gas
+            // limit too big to ever schedule, a VM panic. A fresh batch would reproduce all of them.
+            Self::Halt(_) => false,
+            // Criteria that already compare the transaction *alone* against a whole batch's
+            // capacity, and only return `Unexecutable` when it is the sole transaction. A new batch
+            // would be no roomier.
+            Self::TxEncodingSize
+            | Self::LargeEncodingSize
+            | Self::PubdataLimit
+            | Self::ProofWillFail
+            | Self::TooMuchGas
+            | Self::TooMuchUserL2L1Logs
+            | Self::DeploymentNotAllowed
+            | Self::RedundantFactoryDeps => false,
         }
     }
 }
@@ -114,6 +165,12 @@ impl fmt::Display for UnexecutableReason {
             UnexecutableReason::NotEnoughGasProvided => write!(f, "Not enough gas provided"),
             UnexecutableReason::TooMuchUserL2L1Logs => write!(f, "Too much user l2 l1 logs"),
             UnexecutableReason::DeploymentNotAllowed => write!(f, "Deployment not allowed"),
+            UnexecutableReason::RedundantFactoryDeps => {
+                write!(
+                    f,
+                    "Too many factory dependencies the transaction does not publish"
+                )
+            }
         }
     }
 }

@@ -294,6 +294,12 @@ impl BatchTransactionUpdater {
                         .map(|miniblock| miniblock.number)
                         .collect::<Vec<_>>()
                 }
+                AggregatedActionType::ProtocolUpgrade => {
+                    anyhow::bail!(
+                        "Transaction {} is a protocol upgrade tx, which is not tracked by external nodes",
+                        eth_history_tx.tx_hash
+                    );
+                }
             };
             Some(for_blocks_or_batches)
         };

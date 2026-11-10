@@ -1,6 +1,6 @@
 //! Tests for filter-related methods in the `eth` namespace.
 
-use std::fmt;
+use std::{fmt, num::NonZeroU32};
 
 use zksync_web3_decl::{
     jsonrpsee::{
@@ -282,6 +282,76 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
 #[tokio::test]
 async fn log_filter_changes_with_block_boundaries() {
     test_http_server(LogFilterChangesWithBlockBoundariesTest).await;
+}
+
+#[derive(Debug)]
+struct GetLogsBlockRangeLimitTest;
+
+#[async_trait]
+impl HttpTest for GetLogsBlockRangeLimitTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        let (_, events) = store_events(&mut storage, 1, 0).await?;
+        let (_, new_events) = store_events(&mut storage, 2, 4).await?;
+        store_events(&mut storage, 3, 8).await?;
+        drop(storage);
+        let events: Vec<_> = events.iter().chain(&new_events).collect();
+
+        // A range spanning exactly the limit is fine.
+        let filter = Filter {
+            from_block: Some(api::BlockNumber::Number(1.into())),
+            to_block: Some(api::BlockNumber::Number(2.into())),
+            ..Filter::default()
+        };
+        let logs = client.get_logs(filter).await?;
+        assert_logs_match(&logs, &events);
+
+        // ...and so is a filter by block hash, which always spans a single block.
+        let block_hash = client
+            .get_block_by_number(api::BlockNumber::Number(1.into()), false)
+            .await?
+            .expect("no block #1")
+            .hash;
+        let filter = Filter {
+            block_hash: Some(block_hash),
+            ..Filter::default()
+        };
+        client.get_logs(filter).await?;
+
+        // A wider range is rejected.
+        let filter = Filter {
+            from_block: Some(api::BlockNumber::Number(1.into())),
+            to_block: Some(api::BlockNumber::Number(3.into())),
+            ..Filter::default()
+        };
+        let err = client.get_logs(filter).await.unwrap_err();
+        assert_matches!(err, Error::Call(err) => {
+            assert_eq!(err.code(), ErrorCode::InvalidParams.code());
+            assert!(
+                err.message().contains("block range is too large: 3 blocks, while the limit is 2"),
+                "{}",
+                err.message()
+            );
+        });
+
+        Ok(())
+    }
+
+    fn web3_config(&self) -> Web3JsonRpcConfig {
+        Web3JsonRpcConfig {
+            get_logs_block_range_limit: NonZeroU32::new(2),
+            ..Web3JsonRpcConfig::for_tests()
+        }
+    }
+}
+
+#[tokio::test]
+async fn get_logs_block_range_limit() {
+    test_http_server(GetLogsBlockRangeLimitTest).await;
 }
 
 fn assert_not_implemented<T: fmt::Debug>(result: Result<T, Error>) {

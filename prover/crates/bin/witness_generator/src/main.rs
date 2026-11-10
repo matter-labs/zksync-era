@@ -22,7 +22,9 @@ use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_task_management::ManagedTasks;
-use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
+use zksync_types::{
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, ProtocolVersionId,
+};
 use zksync_witness_generator::metrics::SERVER_METRICS;
 use zksync_witness_generator_service::{
     rounds::{BasicCircuits, LeafAggregation, NodeAggregation, RecursionTip, Scheduler},
@@ -86,10 +88,15 @@ async fn ensure_protocol_alignment(
             );
         }
     };
-    let scheduler_vk_hash = vk_commitments_in_db.snark_wrapper_vk_hash;
-    keystore
-        .verify_scheduler_vk_hash(scheduler_vk_hash)
-        .with_context(||
+    let alignment = if protocol_version.minor >= ProtocolVersionId::Version34 {
+        let hash = vk_commitments_in_db
+            .fflonk_snark_wrapper_vk_hash
+            .context("FFLONK verification key hash is required for v34+")?;
+        keystore.verify_fflonk_scheduler_vk_hash(hash)
+    } else {
+        keystore.verify_scheduler_vk_hash(vk_commitments_in_db.snark_wrapper_vk_hash)
+    };
+    alignment.with_context(||
             format!("VK commitments didn't match commitments from DB for protocol version {protocol_version:?}")
         )?;
     Ok(())

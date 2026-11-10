@@ -17,7 +17,10 @@ use sha2::{Digest, Sha256};
 
 use crate::{H256, U256};
 
-const MAX_BYTECODE_LENGTH_IN_WORDS: usize = (1 << 16) - 1;
+/// Capped two words below the `2^16 - 1` a versioned bytecode hash can express: the
+/// `code_unpacker_sha256` circuit enforces `L + 1 < 2^16` on its word counter, and lengths must
+/// be odd. Raising this without fixing that circuit makes max-length decommits unprovable.
+pub const MAX_BYTECODE_LENGTH_IN_WORDS: usize = (1 << 16) - 3;
 const MAX_BYTECODE_LENGTH_BYTES: usize = MAX_BYTECODE_LENGTH_IN_WORDS * 32;
 
 /// Errors returned from [`validate_bytecode()`].
@@ -271,6 +274,32 @@ mod tests {
         testonly::{PADDED_EVM_BYTECODE, PROCESSED_EVM_BYTECODE},
         *,
     };
+
+    /// Guards the exact value: 65535 words would be legal by every other rule.
+    #[test]
+    fn length_cap_matches_what_the_circuit_can_prove() {
+        assert_eq!(MAX_BYTECODE_LENGTH_IN_WORDS, 65_533);
+        assert!(!MAX_BYTECODE_LENGTH_IN_WORDS.is_multiple_of(2));
+        assert!(MAX_BYTECODE_LENGTH_IN_WORDS + 1 < 1 << 16);
+    }
+
+    #[test]
+    fn bytecode_at_the_length_cap_is_accepted() {
+        let code = vec![0_u8; MAX_BYTECODE_LENGTH_BYTES];
+        validate_bytecode(&code).unwrap();
+    }
+
+    #[test]
+    fn bytecode_past_the_length_cap_is_rejected() {
+        let code = vec![0_u8; (MAX_BYTECODE_LENGTH_IN_WORDS + 2) * 32];
+        match validate_bytecode(&code).unwrap_err() {
+            InvalidBytecodeError::BytecodeTooLong(len, max) => {
+                assert_eq!(len, (MAX_BYTECODE_LENGTH_IN_WORDS + 2) * 32);
+                assert_eq!(max, MAX_BYTECODE_LENGTH_BYTES);
+            }
+            other => panic!("unexpected error: {other}"),
+        }
+    }
 
     #[test]
     fn bytecode_markers_are_valid() {

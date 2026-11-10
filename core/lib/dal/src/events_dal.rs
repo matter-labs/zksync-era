@@ -5,7 +5,7 @@ use zksync_db_connection::{
     connection::Connection,
     error::DalResult,
     instrument::{CopyStatement, InstrumentExt},
-    write_str, writeln_str,
+    interpolate_query, match_query_as, write_str, writeln_str,
 };
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
@@ -31,6 +31,29 @@ impl fmt::LowerHex for EventTopic<'_> {
             fmt::LowerHex::fmt(topic, formatter)
         } else {
             Ok(()) // Don't write anything
+        }
+    }
+}
+
+/// Selects transactions to fetch logs or receipts for.
+#[derive(Clone, Copy)]
+pub(crate) enum TxSelector<'a> {
+    /// Transactions with the specified hashes.
+    Hashes(&'a [H256]),
+    /// All transactions included in the specified L2 block. This is significantly cheaper than selecting
+    /// by hashes, since the `events` and `l2_to_l1_logs` tables are keyed by the L2 block number.
+    L2Block(L2BlockNumber),
+}
+
+impl fmt::Debug for TxSelector<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            // Hashes are not printed to keep the output compact for large blocks.
+            Self::Hashes(hashes) => formatter
+                .debug_struct("Hashes")
+                .field("len", &hashes.len())
+                .finish(),
+            Self::L2Block(number) => formatter.debug_tuple("L2Block").field(number).finish(),
         }
     }
 }
@@ -195,46 +218,58 @@ impl EventsDal<'_, '_> {
         Ok(())
     }
 
-    pub(crate) async fn get_logs_by_tx_hashes(
+    /// Returns logs emitted by the selected transactions, grouped by the transaction hash.
+    pub(crate) async fn get_logs_by_tx(
         &mut self,
-        hashes: &[H256],
+        selector: TxSelector<'_>,
     ) -> DalResult<HashMap<H256, Vec<api::Log>>> {
-        let hashes = hashes
-            .iter()
-            .map(|hash| hash.as_bytes())
-            .collect::<Vec<_>>();
-        let logs: Vec<_> = sqlx::query_as!(
+        let query = match_query_as!(
             StorageWeb3Log,
-            r#"
-            SELECT
-                address,
-                topic1,
-                topic2,
-                topic3,
-                topic4,
-                value,
-                NULL::bytea AS "block_hash",
-                NULL::bigint AS "l1_batch_number?",
-                miniblock_number,
-                tx_hash,
-                tx_index_in_block,
-                event_index_in_block,
-                event_index_in_tx,
-                NULL::bigint AS "block_timestamp?"
-            FROM
-                events
-            WHERE
-                tx_hash = ANY($1)
-            ORDER BY
-                miniblock_number ASC,
-                event_index_in_block ASC
-            "#,
-            &hashes[..] as &[&[u8]],
-        )
-        .instrument("get_logs_by_tx_hashes")
-        .with_arg("hashes.len", &hashes.len())
-        .fetch_all(self.storage)
-        .await?;
+            [
+                r#"
+                SELECT
+                    address,
+                    topic1,
+                    topic2,
+                    topic3,
+                    topic4,
+                    value,
+                    NULL::bytea AS "block_hash",
+                    NULL::bigint AS "l1_batch_number?",
+                    miniblock_number,
+                    tx_hash,
+                    tx_index_in_block,
+                    event_index_in_block,
+                    event_index_in_tx,
+                    NULL::bigint AS "block_timestamp?"
+                FROM
+                    events
+                WHERE
+                "#,
+                _, // WHERE condition
+                r#"
+                ORDER BY
+                    miniblock_number ASC,
+                    event_index_in_block ASC
+                "#
+            ],
+            match (selector) {
+                TxSelector::Hashes(hashes) => (
+                    "tx_hash = ANY($1)";
+                    &hashes.iter().map(H256::as_bytes).collect::<Vec<_>>() as &[&[u8]]
+                ),
+                TxSelector::L2Block(block_number) => (
+                    "miniblock_number = $1";
+                    i64::from(block_number.0)
+                ),
+            }
+        );
+
+        let logs: Vec<_> = query
+            .instrument("get_logs_by_tx")
+            .with_arg("selector", &selector)
+            .fetch_all(self.storage)
+            .await?;
 
         let mut result = HashMap::<H256, Vec<api::Log>>::new();
         for storage_log in logs {
@@ -289,44 +324,56 @@ impl EventsDal<'_, '_> {
         Ok(result)
     }
 
-    pub(crate) async fn get_l2_to_l1_logs_by_hashes(
+    /// Returns L2-to-L1 logs emitted by the selected transactions, grouped by the transaction hash.
+    pub(crate) async fn get_l2_to_l1_logs_by_tx(
         &mut self,
-        hashes: &[H256],
+        selector: TxSelector<'_>,
     ) -> DalResult<HashMap<H256, Vec<api::L2ToL1Log>>> {
-        let hashes = &hashes
-            .iter()
-            .map(|hash| hash.as_bytes().to_vec())
-            .collect::<Vec<_>>();
-        let logs: Vec<_> = sqlx::query_as!(
+        let query = match_query_as!(
             StorageL2ToL1Log,
-            r#"
-            SELECT
-                miniblock_number,
-                log_index_in_miniblock,
-                log_index_in_tx,
-                tx_hash,
-                NULL::BIGINT AS "l1_batch_number?",
-                shard_id,
-                is_service,
-                tx_index_in_miniblock,
-                tx_index_in_l1_batch,
-                sender,
-                key,
-                value
-            FROM
-                l2_to_l1_logs
-            WHERE
-                tx_hash = ANY($1)
-            ORDER BY
-                tx_index_in_l1_batch ASC,
-                log_index_in_tx ASC
-            "#,
-            &hashes[..]
-        )
-        .instrument("get_l2_to_l1_logs_by_hashes")
-        .with_arg("hashes", &hashes.len())
-        .fetch_all(self.storage)
-        .await?;
+            [
+                r#"
+                SELECT
+                    miniblock_number,
+                    log_index_in_miniblock,
+                    log_index_in_tx,
+                    tx_hash,
+                    NULL::BIGINT AS "l1_batch_number?",
+                    shard_id,
+                    is_service,
+                    tx_index_in_miniblock,
+                    tx_index_in_l1_batch,
+                    sender,
+                    key,
+                    value
+                FROM
+                    l2_to_l1_logs
+                WHERE
+                "#,
+                _, // WHERE condition
+                r#"
+                ORDER BY
+                    tx_index_in_l1_batch ASC,
+                    log_index_in_tx ASC
+                "#
+            ],
+            match (selector) {
+                TxSelector::Hashes(hashes) => (
+                    "tx_hash = ANY($1)";
+                    &hashes.iter().map(H256::as_bytes).collect::<Vec<_>>() as &[&[u8]]
+                ),
+                TxSelector::L2Block(block_number) => (
+                    "miniblock_number = $1";
+                    i64::from(block_number.0)
+                ),
+            }
+        );
+
+        let logs: Vec<_> = query
+            .instrument("get_l2_to_l1_logs_by_tx")
+            .with_arg("selector", &selector)
+            .fetch_all(self.storage)
+            .await?;
 
         let mut result = HashMap::<H256, Vec<api::L2ToL1Log>>::new();
         for storage_log in logs {
@@ -583,7 +630,7 @@ mod tests {
 
         let logs = conn
             .events_dal()
-            .get_l2_to_l1_logs_by_hashes(&[H256([1; 32])])
+            .get_l2_to_l1_logs_by_tx(TxSelector::Hashes(&[H256([1; 32])]))
             .await
             .unwrap();
 
@@ -602,7 +649,7 @@ mod tests {
 
         let logs = conn
             .events_dal()
-            .get_l2_to_l1_logs_by_hashes(&[H256([2; 32])])
+            .get_l2_to_l1_logs_by_tx(TxSelector::Hashes(&[H256([2; 32])]))
             .await
             .unwrap()
             .get(&H256([2; 32]))

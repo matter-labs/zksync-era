@@ -9,15 +9,18 @@ use zksync_test_contracts::{
 };
 use zksync_types::{
     address_to_h256,
+    bytecode::BytecodeHash,
     fee::Fee,
+    get_known_code_key, u256_to_h256,
     utils::{deployed_address_create, deployed_address_evm_create},
     zk_evm_types::FarCallOpcode,
-    AccountTreeId, Address, Execute, StorageKey, H256,
+    AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
 
 use super::{ContractToDeploy, TestedVmWithCallTracer, VmTester, VmTesterBuilder};
 use crate::{
-    interface::{Call, CallType, ExecutionResult, TxExecutionMode},
+    interface::{storage::InMemoryStorage, Call, CallType, ExecutionResult, TxExecutionMode},
+    tracers::MAX_TRACE_DATA_BYTES_PER_TX,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
@@ -389,6 +392,128 @@ pub(crate) fn test_evm_deployment_tx<VM: TestedVmWithCallTracer>() {
             && call.to == expected_address
             && call.r#type == CallType::Create
     });
+}
+
+/// Regression test for report 85768: a cheap `CodeOracle` loop used to make the tracer retain a
+/// copy of the decommitted bytecode per call — over a gigabyte, which the state keeper then failed
+/// to persist, taking the node down. Retained data must stay in budget, call structure intact.
+pub(crate) fn test_code_oracle_trace_data_budget<VM: TestedVmWithCallTracer>() {
+    // 4,095 words: a large factory dependency, published through ordinary means.
+    let big_bytecode = vec![2_u8; 4095 * 32];
+    let bytecode_hash = BytecodeHash::for_bytecode(&big_bytecode).value();
+    // Enough calls that the full outputs would exceed the budget many times over.
+    let call_count = 4 * MAX_TRACE_DATA_BYTES_PER_TX / big_bytecode.len();
+
+    let precompiles_contract_address = Address::repeat_byte(1);
+    let mut storage = InMemoryStorage::with_system_contracts();
+    // `CodeOracle` only requires the queried hash to be marked known.
+    storage.set_value(
+        get_known_code_key(&bytecode_hash),
+        u256_to_h256(U256::one()),
+    );
+
+    let mut vm: VmTester<VM> = VmTesterBuilder::new()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_rich_accounts(1)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            TestContract::precompiles_test().bytecode.to_vec(),
+            precompiles_contract_address,
+        )])
+        .with_storage(storage)
+        .build();
+    vm.vm.insert_bytecodes(&[big_bytecode.as_slice()]);
+
+    let account = &mut vm.rich_accounts[0];
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(precompiles_contract_address),
+            calldata: TestContract::precompiles_test()
+                .function("callCodeOracleMany")
+                .encode_input(&[
+                    Token::FixedBytes(bytecode_hash.0.to_vec()),
+                    Token::Uint(call_count.into()),
+                ])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx);
+
+    let (res, call_traces) = vm.vm.inspect_with_call_tracer();
+    assert!(!res.result.is_failed(), "{:#?}", res.result);
+
+    let code_oracle = Address::from_low_u64_be(0x8012);
+    let oracle_calls = extract_all_calls(&call_traces, |call| call.to == code_oracle);
+    assert_eq!(
+        oracle_calls.len(),
+        call_count,
+        "the tracer must keep the call structure intact"
+    );
+    // The trace is truncated from the end, so the earliest calls are still fully recorded.
+    assert_eq!(oracle_calls[0].output.len(), big_bytecode.len());
+    assert!(
+        oracle_calls.last().unwrap().output.is_empty(),
+        "the budget should have run out long before the last call"
+    );
+
+    fn retained_bytes(calls: &[Call]) -> usize {
+        calls
+            .iter()
+            .map(|call| call.input.len() + call.output.len() + retained_bytes(&call.calls))
+            .sum()
+    }
+    let retained = retained_bytes(&call_traces);
+    assert!(
+        retained <= MAX_TRACE_DATA_BYTES_PER_TX,
+        "retained {retained} B of trace data, budget is {MAX_TRACE_DATA_BYTES_PER_TX} B"
+    );
+}
+
+/// Companion to [`test_code_oracle_trace_data_budget()`]: a revert reason is stored as a string
+/// hex-encoding the data it was parsed from, so it can be twice as long as the bytes read. Check
+/// that the budget still bounds this path (report 85768).
+pub(crate) fn test_revert_reason_trace_data_budget<VM: TestedVmWithCallTracer>() {
+    let precompiles_contract_address = Address::repeat_byte(1);
+    let mut vm: VmTester<VM> = VmTesterBuilder::new()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_rich_accounts(1)
+        .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            TestContract::precompiles_test().bytecode.to_vec(),
+            precompiles_contract_address,
+        )])
+        .build();
+
+    let revert_size = 2 * MAX_TRACE_DATA_BYTES_PER_TX;
+    let account = &mut vm.rich_accounts[0];
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(precompiles_contract_address),
+            calldata: TestContract::precompiles_test()
+                .function("revertWithLargeData")
+                .encode_input(&[Token::Uint(revert_size.into())])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx);
+
+    let (_, call_traces) = vm.vm.inspect_with_call_tracer();
+    let call = extract_single_call(&call_traces, |call| {
+        call.to == precompiles_contract_address && call.revert_reason.is_some()
+    });
+    let reason_len = call.revert_reason.as_ref().unwrap().len();
+    println!("revert_size={revert_size} retained_revert_reason={reason_len}");
+    // Hex encoding doubles the bytes read, which is the bound the tracer actually guarantees.
+    assert!(
+        reason_len <= 2 * MAX_TRACE_DATA_BYTES_PER_TX + 128,
+        "retained a {reason_len} B revert reason"
+    );
 }
 
 pub(crate) fn test_evm_deployment_from_contract<VM: TestedVmWithCallTracer>() {

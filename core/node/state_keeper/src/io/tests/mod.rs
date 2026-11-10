@@ -1,4 +1,8 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
 
 use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -6,33 +10,43 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_multivm::{
     interface::{
-        tracer::ValidationTraces, TransactionExecutionMetrics, VmEvent, VmExecutionMetrics,
+        executor::{BatchExecutor, BatchExecutorFactory},
+        storage::{InMemoryStorage, StorageView},
+        tracer::ValidationTraces,
+        BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
+        L2BlockEnv, SystemEnv, TransactionExecutionMetrics, VmEvent, VmExecutionMetrics,
+        VmExecutionResultAndLogs,
     },
     utils::derive_base_fee_and_gas_per_pubdata,
 };
 use zksync_node_test_utils::prepare_recovery_snapshot;
+use zksync_state::OwnedStorage;
 use zksync_system_constants::KNOWN_CODES_STORAGE_ADDRESS;
 use zksync_types::{
     block::L2BlockHasher,
     bytecode::BytecodeHash,
     commitment::{L1BatchCommitmentMode, PubdataParams},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    l1::{L1Tx, L1TxCommonData},
     l2::L2Tx,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolSemanticVersion,
     settlement::{SettlementLayer, WorkingSettlementLayer},
-    AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, SLChainId, StorageKey, TransactionTimeRangeConstraint, H256, U256,
+    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
+    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, SLChainId,
+    StorageKey, Transaction, TransactionTimeRangeConstraint, H256, U256,
 };
 
 use self::tester::Tester;
 use crate::{
     io::{seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, StateKeeperIO},
     mempool_actor::l2_tx_filter,
-    testonly::BASE_SYSTEM_CONTRACTS,
+    mempool_guard::MempoolGuard,
+    seal_criteria::{NoopSealer, UnexecutableReason},
+    testonly::{test_batch_executor::MockReadStorageFactory, BASE_SYSTEM_CONTRACTS},
     tests::{create_execution_result, create_transaction, seconds_since_epoch, Query},
     updates::{L2BlockSealCommand, L2BlockUpdates, UpdatesManager},
-    StateKeeperOutputHandler, StateKeeperPersistence,
+    MempoolIO, OutputHandler, StateKeeperBuilder, StateKeeperOutputHandler, StateKeeperPersistence,
 };
 
 mod tester;
@@ -151,6 +165,266 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
         .await
         .expect("No batch params in the test mempool");
     assert_eq!(mempool.filter(), &want_filter);
+}
+
+/// A priority transaction cannot be rejected, and reaching `reject()` with one used to stop the
+/// node. It now pauses L1->L2 processing and keeps the node sequencing L2 traffic.
+#[tokio::test]
+async fn unexecutable_l1_tx_pauses_l1_to_l2_processing() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tester = Tester::new(L1BatchCommitmentMode::Rollup);
+    tester.genesis(&connection_pool).await;
+    let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool).await;
+
+    let l1_tx = tester.insert_l1_tx(&mut guard, PriorityOpId(0));
+    let l2_tx = tester.insert_tx(
+        &mut guard,
+        55,
+        555,
+        TransactionTimeRangeConstraint::default(),
+    );
+    assert!(!guard.l1_transactions_paused());
+
+    // The priority transaction is served first, as it is prioritized.
+    let next = guard.next_transaction(&L2TxFilter::default()).unwrap().0;
+    assert_eq!(next.hash(), l1_tx.hash());
+
+    // Rejecting it must not fail; it pauses instead.
+    mempool
+        .reject(&l1_tx, UnexecutableReason::Halt(Halt::VMPanic))
+        .await
+        .expect("rejecting an L1 transaction must not stop the state keeper");
+    assert!(guard.l1_transactions_paused());
+
+    // L2 traffic keeps flowing while the priority queue stalls.
+    let next = guard.next_transaction(&L2TxFilter::default()).unwrap().0;
+    assert_eq!(next.hash(), l2_tx.hash());
+    assert!(guard.next_transaction(&L2TxFilter::default()).is_none());
+
+    // A further unexecutable priority transaction is also survivable.
+    mempool
+        .reject(&l1_tx, UnexecutableReason::Halt(Halt::VMPanic))
+        .await
+        .unwrap();
+    assert!(guard.l1_transactions_paused());
+}
+
+/// A batch executor that halts every L1 transaction and accepts every L2 one. It records what it was asked to execute.
+///
+/// With `halt_l1_txs` cleared it accepts everything, which is how the restart test models a node
+/// brought back up with the cause dealt with.
+#[derive(Debug, Clone)]
+struct HaltsL1TxsExecutor {
+    executed: Arc<Mutex<Vec<H256>>>,
+    halt_l1_txs: bool,
+}
+
+impl BatchExecutorFactory<OwnedStorage> for HaltsL1TxsExecutor {
+    fn init_batch(
+        &mut self,
+        _storage: OwnedStorage,
+        _l1_batch_env: L1BatchEnv,
+        _system_env: SystemEnv,
+        _pubdata_params: PubdataParams,
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
+        Box::new(self.clone())
+    }
+}
+
+#[async_trait::async_trait]
+impl BatchExecutor<OwnedStorage> for HaltsL1TxsExecutor {
+    async fn execute_tx(
+        &mut self,
+        tx: Transaction,
+    ) -> anyhow::Result<BatchTransactionExecutionResult> {
+        self.executed.lock().unwrap().push(tx.hash());
+        if tx.is_l1() && self.halt_l1_txs {
+            return Ok(BatchTransactionExecutionResult {
+                tx_result: Box::new(VmExecutionResultAndLogs::mock(ExecutionResult::Halt {
+                    reason: Halt::VMPanic,
+                })),
+                compression_result: Ok(()),
+                call_traces: vec![],
+            });
+        }
+        Ok(crate::testonly::successful_exec())
+    }
+
+    async fn rollback_last_tx(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn start_next_l2_block(&mut self, _env: L2BlockEnv) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn finish_batch(
+        self: Box<Self>,
+    ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {
+        let storage = OwnedStorage::boxed(InMemoryStorage::default());
+        Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
+    }
+
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn commit_l2_block(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+}
+
+/// End to end through the real state keeper loop: the real `MempoolIO`, the real keeper, and an L1
+/// transaction that halts. The keeper must not die, must pause L1->L2 processing, and
+/// must go on to execute the L2 transaction behind it.
+///
+/// Before the pause existed, `MempoolIO::reject()` returned an error here and the keeper stopped
+/// with it — the whole sequencer down on one bad deposit.
+#[tokio::test]
+async fn state_keeper_survives_an_unexecutable_l1_tx() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(2).await;
+    let mut tester = Tester::new(L1BatchCommitmentMode::Rollup);
+    tester.genesis(&connection_pool).await;
+
+    // A sealed batch, so the new batch the keeper opens has a previous state root.
+    let tx_result = tester
+        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .await;
+    tester
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
+        .await;
+    tester.set_timestamp(2);
+
+    let (io, mut guard) = tester.create_test_mempool_io(connection_pool.clone()).await;
+
+    // The L2 transaction has to clear the fee filter the keeper will build, or it would be ignored
+    // for reasons that have nothing to do with this test.
+    let filter = l2_tx_filter(
+        &tester.create_batch_fee_input_provider().await,
+        ProtocolVersionId::latest(),
+    )
+    .await
+    .unwrap();
+    let l1_tx = tester.insert_l1_tx(&mut guard, PriorityOpId(0));
+    let l2_tx = tester.insert_tx(
+        &mut guard,
+        filter.fee_per_gas,
+        filter.gas_per_pubdata,
+        TransactionTimeRangeConstraint::default(),
+    );
+
+    let executed = Arc::new(Mutex::new(Vec::new()));
+    let (persistence, l2_block_sealer) =
+        StateKeeperPersistence::new(connection_pool.clone(), Some(Address::default()), 5)
+            .await
+            .unwrap();
+    tokio::spawn(l2_block_sealer.run());
+
+    let (stop_sender, stop_receiver) = tokio::sync::watch::channel(false);
+    let state_keeper = StateKeeperBuilder::new(
+        Box::new(io),
+        Box::new(HaltsL1TxsExecutor {
+            executed: executed.clone(),
+            halt_l1_txs: true,
+        }),
+        OutputHandler::new(Box::new(persistence.with_tx_insertion())),
+        Arc::new(NoopSealer),
+        Arc::new(MockReadStorageFactory),
+        None,
+    )
+    .build(&stop_receiver)
+    .await
+    .unwrap();
+    let keeper_handle = tokio::spawn(state_keeper.run(stop_receiver));
+
+    // Wait for the keeper to have tried the L1 transaction and moved on to the L2 one.
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut keeper_died = false;
+    let mut timed_out = false;
+    loop {
+        // The keeper has no reason to finish on its own here: it was not asked to stop. Finishing
+        // means it failed, which is exactly the crash this test is about.
+        if keeper_handle.is_finished() {
+            keeper_died = true;
+            break;
+        }
+        if executed.lock().unwrap().contains(&l2_tx.hash()) {
+            break;
+        }
+        if Instant::now() >= deadline {
+            timed_out = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    if keeper_died {
+        let outcome = keeper_handle.await.expect("the state keeper panicked");
+        panic!("the state keeper stopped instead of pausing L1->L2 processing: {outcome:?}");
+    }
+    assert!(
+        !timed_out,
+        "the L2 transaction was never executed; executed so far: {:?}",
+        executed.lock().unwrap()
+    );
+
+    // The L1 transaction was tried, halted, and the queue is now paused.
+    assert!(
+        executed.lock().unwrap().contains(&l1_tx.hash()),
+        "the L1 transaction was never executed: {:?}",
+        executed.lock().unwrap()
+    );
+    assert!(
+        guard.l1_transactions_paused(),
+        "L1->L2 processing should be paused"
+    );
+
+    // And no further L1 transaction is served, even though one is buffered and it is the next
+    // priority id. Read the live record, not a snapshot taken before it was inserted.
+    let l1_tx_2 = tester.insert_l1_tx(&mut guard, PriorityOpId(1));
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert!(
+        !executed.lock().unwrap().contains(&l1_tx_2.hash()),
+        "a priority transaction was served while paused: {:?}",
+        executed.lock().unwrap()
+    );
+
+    // The keeper is alive and shuts down cleanly, rather than having died on the rejection.
+    assert!(
+        !keeper_handle.is_finished(),
+        "the state keeper stopped while paused"
+    );
+    stop_sender.send_replace(true);
+    keeper_handle
+        .await
+        .expect("the state keeper panicked")
+        .expect("the state keeper returned an error");
+}
+
+/// The pause must not swallow ordinary L2 rejections, which still mark the transaction rejected.
+#[tokio::test]
+async fn rejecting_an_l2_tx_is_unaffected_by_the_l1_pause() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tester = Tester::new(L1BatchCommitmentMode::Rollup);
+    tester.genesis(&connection_pool).await;
+    let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool).await;
+
+    let l2_tx = tester.insert_tx(
+        &mut guard,
+        55,
+        555,
+        TransactionTimeRangeConstraint::default(),
+    );
+    guard.next_transaction(&L2TxFilter::default()).unwrap();
+
+    // Still goes down the ordinary rejection path, which marks the transaction rejected in Postgres.
+    mempool
+        .reject(&l2_tx.into(), UnexecutableReason::Halt(Halt::VMPanic))
+        .await
+        .unwrap();
+
+    // L1->L2 processing is untouched by an L2 rejection.
+    assert!(!guard.l1_transactions_paused());
 }
 
 async fn assert_new_batch_settlement_layer(
@@ -381,6 +655,7 @@ fn create_block_seal_command(
         insert_header: true,
         rolling_txs_hash: Default::default(),
         settlement_layer: SettlementLayer::for_tests(),
+        call_traces_max_chunk_size: zksync_dal::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
     }
 }
 
@@ -1054,4 +1329,333 @@ async fn insert_l2_transaction(storage: &mut Connection<'_, Core>, tx: &L2Tx) {
         )
         .await
         .unwrap();
+}
+
+/// The restart contract, against Postgres: a priority transaction that paused the queue is still
+/// there after a restart, and executes.
+///
+/// This is the only route by which a paused deposit is ever processed, and it is the one claim in the
+/// pause design that the other tests cannot reach. They seed the in-memory mempool directly, and a
+/// restart throws that mempool away — Postgres is the only thing that carries the deposit across. So
+/// this test puts the deposit in the database, pauses on it, and then rebuilds from the database the
+/// way a restarted node does.
+///
+/// One limit worth stating: the `MempoolFetcher` actor is not spun up. The test calls the same two
+/// DAL functions its `run()` does, in the same order — `reset_mempool()` then `sync_mempool()` — so
+/// what is covered is the database contract between the two runs, not the actor's own loop.
+#[tokio::test]
+async fn a_paused_l1_tx_is_executed_after_a_restart() {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(4).await;
+    let mut tester = Tester::new(L1BatchCommitmentMode::Rollup);
+    tester.genesis(&connection_pool).await;
+    let tx_result = tester
+        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .await;
+    tester
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result.hash])
+        .await;
+    tester.set_timestamp(2);
+
+    // The deposit lives in Postgres, the way a real one does, rather than only in the mempool.
+    let l1_tx = L1Tx {
+        execute: Execute {
+            contract_address: Some(Address::random()),
+            calldata: vec![],
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        common_data: L1TxCommonData {
+            sender: Address::random(),
+            serial_id: PriorityOpId(0),
+            gas_limit: U256::from(100_000),
+            gas_per_pubdata_limit: U256::from(800),
+            canonical_tx_hash: H256::from_low_u64_be(0xdeadbeef),
+            ..L1TxCommonData::default()
+        },
+        received_timestamp_ms: 0,
+    };
+    let l1_hash = Transaction::from(l1_tx.clone()).hash();
+    connection_pool
+        .connection()
+        .await
+        .unwrap()
+        .transactions_dal()
+        .insert_transaction_l1(&l1_tx, L1BlockNumber(1))
+        .await
+        .unwrap();
+
+    let filter = l2_tx_filter(
+        &tester.create_batch_fee_input_provider().await,
+        ProtocolVersionId::latest(),
+    )
+    .await
+    .unwrap();
+
+    // Loads pending transactions exactly as `MempoolFetcher` does, priority ones included.
+    async fn load_from_postgres(
+        pool: &ConnectionPool<Core>,
+        filter: &L2TxFilter,
+    ) -> Vec<(Transaction, TransactionTimeRangeConstraint)> {
+        pool.connection()
+            .await
+            .unwrap()
+            .transactions_dal()
+            .sync_mempool(
+                &[],
+                &[],
+                filter.gas_per_pubdata,
+                filter.fee_per_gas,
+                true,
+                10,
+            )
+            .await
+            .unwrap()
+    }
+
+    // ---- First run: the executor halts the deposit, so the queue pauses on it. ----
+    let executed_before = Arc::new(Mutex::new(Vec::new()));
+    {
+        let (io, guard) = tester.create_test_mempool_io(connection_pool.clone()).await;
+        let loaded = load_from_postgres(&connection_pool, &filter).await;
+        assert!(
+            loaded.iter().any(|(tx, _)| tx.hash() == l1_hash),
+            "the deposit was not loaded from Postgres: {loaded:?}"
+        );
+        guard.insert(loaded, HashMap::new());
+
+        let (persistence, l2_block_sealer) =
+            StateKeeperPersistence::new(connection_pool.clone(), Some(Address::default()), 5)
+                .await
+                .unwrap();
+        let sealer_handle = tokio::spawn(l2_block_sealer.run());
+        let (stop_sender, stop_receiver) = tokio::sync::watch::channel(false);
+        let state_keeper = StateKeeperBuilder::new(
+            Box::new(io),
+            Box::new(HaltsL1TxsExecutor {
+                executed: executed_before.clone(),
+                halt_l1_txs: true,
+            }),
+            OutputHandler::new(Box::new(persistence.with_tx_insertion())),
+            Arc::new(NoopSealer),
+            Arc::new(MockReadStorageFactory),
+            None,
+        )
+        .build(&stop_receiver)
+        .await
+        .unwrap();
+        let keeper_handle = tokio::spawn(state_keeper.run(stop_receiver));
+
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !guard.l1_transactions_paused() {
+            assert!(
+                !keeper_handle.is_finished(),
+                "the state keeper stopped instead of pausing"
+            );
+            assert!(Instant::now() < deadline, "the queue never paused");
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert!(
+            executed_before.lock().unwrap().contains(&l1_hash),
+            "the deposit was never tried"
+        );
+
+        stop_sender.send_replace(true);
+        keeper_handle.await.expect("the state keeper panicked").ok();
+        sealer_handle.abort();
+    }
+
+    // The database still holds the deposit as pending, which is the whole reason a restart can pick
+    // it up. `next_priority_id()` is what `MempoolGuard::from_storage()` reads, and it still points
+    // at this transaction rather than past it.
+    let mut conn = connection_pool.connection().await.unwrap();
+    assert_eq!(
+        conn.transactions_dal().next_priority_id().await,
+        PriorityOpId(0),
+        "the priority id advanced past a deposit that never executed"
+    );
+
+    // ---- Restart: a fresh mempool, built the production way so the id comes from Postgres. ----
+    //
+    // `MempoolFetcher::run()` clears `in_mempool` before its first sync, and that step is load
+    // bearing rather than housekeeping: `sync_mempool()` hands each transaction out once and leaves
+    // it flagged, so without the reset a restarted node would never be offered the deposit again.
+    // Nothing clears the flag when a process dies, so the restart has to. Modelled here for the same
+    // reason the rest of this test exists — the flag lives in Postgres and outlives the process.
+    conn.transactions_dal().reset_mempool().await.unwrap();
+    let restarted = MempoolGuard::from_storage(&mut conn, 100, None, None).await;
+    drop(conn);
+    assert!(
+        !restarted.l1_transactions_paused(),
+        "the pause survived the restart; it is in-memory state and must not"
+    );
+    let loaded = load_from_postgres(&connection_pool, &filter).await;
+    assert!(
+        loaded.iter().any(|(tx, _)| tx.hash() == l1_hash),
+        "the deposit was not re-loaded from Postgres after the restart: {loaded:?}"
+    );
+    restarted.insert(loaded, HashMap::new());
+
+    // ---- Second run: with the cause dealt with, the same deposit executes. ----
+    let io = tester
+        .create_test_mempool_io_around(
+            connection_pool.clone(),
+            restarted.clone(),
+            WorkingSettlementLayer::for_tests(),
+        )
+        .await;
+    let executed_after = Arc::new(Mutex::new(Vec::new()));
+    let (persistence, l2_block_sealer) =
+        StateKeeperPersistence::new(connection_pool.clone(), Some(Address::default()), 5)
+            .await
+            .unwrap();
+    let sealer_handle = tokio::spawn(l2_block_sealer.run());
+    let (stop_sender, stop_receiver) = tokio::sync::watch::channel(false);
+    let state_keeper = StateKeeperBuilder::new(
+        Box::new(io),
+        Box::new(HaltsL1TxsExecutor {
+            executed: executed_after.clone(),
+            halt_l1_txs: false,
+        }),
+        OutputHandler::new(Box::new(persistence.with_tx_insertion())),
+        Arc::new(NoopSealer),
+        Arc::new(MockReadStorageFactory),
+        None,
+    )
+    .build(&stop_receiver)
+    .await
+    .unwrap();
+    let keeper_handle = tokio::spawn(state_keeper.run(stop_receiver));
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        assert!(
+            !keeper_handle.is_finished(),
+            "the state keeper stopped during the second run"
+        );
+        if executed_after.lock().unwrap().contains(&l1_hash) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the deposit was never executed after the restart; executed: {:?}",
+            executed_after.lock().unwrap()
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    // Executed, and the queue is running rather than paused again.
+    assert!(
+        !restarted.l1_transactions_paused(),
+        "the queue paused again on a deposit that executed fine"
+    );
+
+    stop_sender.send_replace(true);
+    keeper_handle.await.expect("the state keeper panicked").ok();
+    sealer_handle.abort();
+}
+
+fn priority_tx(serial_id: u64) -> L1Tx {
+    L1Tx {
+        execute: Execute {
+            contract_address: Some(Address::random()),
+            calldata: vec![],
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        common_data: L1TxCommonData {
+            sender: Address::random(),
+            serial_id: PriorityOpId(serial_id),
+            gas_limit: U256::from(100_000),
+            gas_per_pubdata_limit: U256::from(800),
+            canonical_tx_hash: H256::from_low_u64_be(0x1000 + serial_id),
+            ..L1TxCommonData::default()
+        },
+        received_timestamp_ms: 0,
+    }
+}
+
+/// Hands the mempool's priority queue to `io` and returns the `force_fail` flag of each tx it hands
+/// out, keyed by serial id.
+async fn force_fail_flags_handed_out(
+    io: &mut MempoolIO,
+    guard: &MempoolGuard,
+    txs: &[L1Tx],
+) -> Vec<(PriorityOpId, bool)> {
+    guard.insert(
+        txs.iter()
+            .map(|tx| {
+                (
+                    Transaction::from(tx.clone()),
+                    TransactionTimeRangeConstraint::default(),
+                )
+            })
+            .collect(),
+        HashMap::new(),
+    );
+    let mut flags = vec![];
+    for _ in txs {
+        let tx = io
+            .wait_for_next_tx(Duration::from_secs(1), 0)
+            .await
+            .unwrap()
+            .expect("no tx handed out");
+        let ExecuteTransactionCommon::L1(data) = &tx.common_data else {
+            panic!("not an L1 tx: {tx:?}");
+        };
+        flags.push((data.serial_id, data.force_fail));
+    }
+    flags
+}
+
+#[tokio::test]
+async fn force_fail_marks_are_applied_from_the_operator_table() {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let mut tester = Tester::new(L1BatchCommitmentMode::Rollup);
+    tester.genesis(&connection_pool).await;
+    connection_pool
+        .connection()
+        .await
+        .unwrap()
+        .force_fail_dal()
+        .insert_force_failed_priority_op(PriorityOpId(1), Some("test"), "tests")
+        .await
+        .unwrap();
+    let txs = [priority_tx(0), priority_tx(1)];
+
+    // Feature off: the mark is never read.
+    let (mut io, guard) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    io.set_last_batch_protocol_version(ProtocolVersionId::Version34);
+    assert_eq!(
+        force_fail_flags_handed_out(&mut io, &guard, &txs).await,
+        [(PriorityOpId(0), false), (PriorityOpId(1), false)]
+    );
+
+    // Feature on: only the marked op is flagged.
+    tester.enable_force_fail();
+    let (mut io, guard) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    io.set_last_batch_protocol_version(ProtocolVersionId::Version34);
+    assert_eq!(
+        force_fail_flags_handed_out(&mut io, &guard, &txs).await,
+        [(PriorityOpId(0), false), (PriorityOpId(1), true)]
+    );
+
+    // Feature on, but the batch runs a bootloader that cannot read the bit: the mark is ignored.
+    // v33 is the last such version (v32's VM with the DSE-compiled bootloader).
+    let (mut io, guard) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    io.set_last_batch_protocol_version(ProtocolVersionId::Version33);
+    assert_eq!(
+        force_fail_flags_handed_out(&mut io, &guard, &txs).await,
+        [(PriorityOpId(0), false), (PriorityOpId(1), false)]
+    );
+
+    // A stale `true` read back from Postgres (e.g. after a block revert) does not survive
+    // without a mark; the operator table is the only source of intent.
+    let (mut io, guard) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    io.set_last_batch_protocol_version(ProtocolVersionId::Version34);
+    let mut stale = priority_tx(0);
+    stale.common_data.force_fail = true;
+    assert_eq!(
+        force_fail_flags_handed_out(&mut io, &guard, &[stale]).await,
+        [(PriorityOpId(0), false)]
+    );
 }

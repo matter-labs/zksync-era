@@ -14,6 +14,7 @@ use zksync_types::{
 };
 
 use crate::{
+    events_dal::TxSelector,
     models::storage_transaction::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
         StorageTransactionExecutionInfo, StorageTransactionReceipt,
@@ -50,44 +51,78 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hashes: &[H256],
     ) -> DalResult<Vec<ExtendedTransactionReceipt>> {
-        let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
+        self.get_transaction_receipts_inner(TxSelector::Hashes(hashes))
+            .await
+    }
 
-        let st_receipts: Vec<StorageTransactionReceipt> = sqlx::query_as!(
+    /// Returns receipts for all transactions included in the specified L2 block. This is significantly cheaper
+    /// than [`Self::get_transaction_receipts()`] with all transaction hashes from the block since it queries
+    /// transactions and their logs by the block number rather than by hashes.
+    ///
+    /// # Important!
+    ///
+    /// The returned receipts do not have `contract_address` set; this field needs to be filled separately.
+    pub async fn get_l2_block_transaction_receipts(
+        &mut self,
+        block_number: L2BlockNumber,
+    ) -> DalResult<Vec<ExtendedTransactionReceipt>> {
+        self.get_transaction_receipts_inner(TxSelector::L2Block(block_number))
+            .await
+    }
+
+    async fn get_transaction_receipts_inner(
+        &mut self,
+        selector: TxSelector<'_>,
+    ) -> DalResult<Vec<ExtendedTransactionReceipt>> {
+        let query = match_query_as!(
             StorageTransactionReceipt,
-            r#"
-            SELECT
-                transactions.hash AS tx_hash,
-                transactions.index_in_block,
-                transactions.l1_batch_tx_index,
-                transactions.miniblock_number AS "block_number!",
-                transactions.error,
-                transactions.effective_gas_price,
-                transactions.initiator_address,
-                transactions.data -> 'to' AS "transfer_to?",
-                transactions.data -> 'contractAddress' AS "execute_contract_address?",
-                transactions.data -> 'calldata' AS "calldata",
-                transactions.tx_format AS "tx_format?",
-                transactions.refunded_gas,
-                transactions.gas_limit,
-                transactions.nonce,
-                miniblocks.hash AS "block_hash",
-                miniblocks.l1_batch_number AS "l1_batch_number?",
-                miniblocks.timestamp AS "block_timestamp?"
-            FROM
-                transactions
-            JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-            WHERE
-                transactions.hash = ANY($1)
-                AND transactions.data != '{}'::jsonb
-            "#,
-            // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
-            // transaction info.
-            &hash_bytes as &[&[u8]],
-        )
-        .instrument("get_transaction_receipts")
-        .with_arg("hashes.len", &hashes.len())
-        .fetch_all(self.storage)
-        .await?;
+            [
+                r#"
+                SELECT
+                    transactions.hash AS tx_hash,
+                    transactions.index_in_block,
+                    transactions.l1_batch_tx_index,
+                    transactions.miniblock_number AS "block_number!",
+                    transactions.error,
+                    transactions.effective_gas_price,
+                    transactions.initiator_address,
+                    transactions.data -> 'to' AS "transfer_to?",
+                    transactions.data -> 'contractAddress' AS "execute_contract_address?",
+                    transactions.data -> 'calldata' AS "calldata",
+                    transactions.tx_format AS "tx_format?",
+                    transactions.refunded_gas,
+                    transactions.gas_limit,
+                    transactions.nonce,
+                    miniblocks.hash AS "block_hash",
+                    miniblocks.l1_batch_number AS "l1_batch_number?",
+                    miniblocks.timestamp AS "block_timestamp?"
+                FROM
+                    transactions
+                JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                WHERE
+                "#,
+                _, // WHERE condition
+                " AND transactions.data != '{}'::jsonb"
+                // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
+                // transaction info.
+            ],
+            match (selector) {
+                TxSelector::Hashes(hashes) => (
+                    "transactions.hash = ANY($1)";
+                    &hashes.iter().map(H256::as_bytes).collect::<Vec<_>>() as &[&[u8]]
+                ),
+                TxSelector::L2Block(block_number) => (
+                    "transactions.miniblock_number = $1";
+                    i64::from(block_number.0)
+                ),
+            }
+        );
+
+        let st_receipts: Vec<StorageTransactionReceipt> = query
+            .instrument("get_transaction_receipts")
+            .with_arg("selector", &selector)
+            .fetch_all(self.storage)
+            .await?;
 
         let block_timestamps: Vec<Option<i64>> =
             st_receipts.iter().map(|x| x.block_timestamp).collect();
@@ -95,16 +130,12 @@ impl TransactionsWeb3Dal<'_, '_> {
         let mut receipts: Vec<ExtendedTransactionReceipt> =
             st_receipts.into_iter().map(Into::into).collect();
 
-        let mut logs = self
-            .storage
-            .events_dal()
-            .get_logs_by_tx_hashes(hashes)
-            .await?;
+        let mut logs = self.storage.events_dal().get_logs_by_tx(selector).await?;
 
         let mut l2_to_l1_logs = self
             .storage
             .events_dal()
-            .get_l2_to_l1_logs_by_hashes(hashes)
+            .get_l2_to_l1_logs_by_tx(selector)
             .await?;
 
         for (receipt, block_timestamp) in receipts.iter_mut().zip(block_timestamps) {
@@ -293,7 +324,8 @@ impl TransactionsWeb3Dal<'_, '_> {
                 prove_tx.tx_hash AS "eth_prove_tx_hash?",
                 precommit_tx.tx_hash AS "eth_precommit_tx_hash?",
                 execute_tx.tx_hash AS "eth_execute_tx_hash?",
-                execute_tx.finality_status AS "eth_execute_tx_finality_status?"
+                execute_tx.finality_status AS "eth_execute_tx_finality_status?",
+                transactions.force_fail
             FROM
                 transactions
             LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
@@ -589,6 +621,7 @@ mod tests {
                 U256::from(1),
                 ProtocolVersionId::latest(),
                 false,
+                crate::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
             )
             .await
             .unwrap();
@@ -721,6 +754,32 @@ mod tests {
         assert_eq!(receipts.len(), 2);
         assert_eq!(receipts[0].inner.transaction_hash, tx1_hash);
         assert_eq!(receipts[1].inner.transaction_hash, tx2_hash);
+
+        let mut block_receipts = conn
+            .transactions_web3_dal()
+            .get_l2_block_transaction_receipts(L2BlockNumber(1))
+            .await
+            .unwrap();
+        block_receipts.sort_unstable_by_key(|receipt| receipt.inner.transaction_index);
+        assert_eq!(block_receipts.len(), 2);
+        for (block_receipt, receipt) in block_receipts.iter().zip(&receipts) {
+            assert_eq!(block_receipt.inner, receipt.inner);
+            assert_eq!(block_receipt.nonce, receipt.nonce);
+            assert_eq!(block_receipt.calldata, receipt.calldata);
+        }
+
+        let no_receipts = conn
+            .transactions_web3_dal()
+            .get_l2_block_transaction_receipts(L2BlockNumber(0))
+            .await
+            .unwrap();
+        assert!(no_receipts.is_empty());
+        let no_receipts = conn
+            .transactions_web3_dal()
+            .get_l2_block_transaction_receipts(L2BlockNumber(2))
+            .await
+            .unwrap();
+        assert!(no_receipts.is_empty());
     }
 
     #[tokio::test]
@@ -844,6 +903,7 @@ mod tests {
                 1.into(),
                 ProtocolVersionId::latest(),
                 false,
+                crate::DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
             )
             .await
             .unwrap();

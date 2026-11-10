@@ -31,6 +31,8 @@ pub(crate) struct BootloaderTx {
     pub(crate) trusted_gas_limit: U256,
     /// Offset of the tx in bootloader memory
     pub(crate) offset: usize,
+    /// Operator-requested failure; goes into the `txMeta` word, not the encoding.
+    pub(crate) force_fail: bool,
 }
 
 impl BootloaderTx {
@@ -56,6 +58,7 @@ impl BootloaderTx {
             })
         });
 
+        let force_fail = tx.force_fail;
         let this = Self {
             hash,
             encoded: tx.into_tokens(),
@@ -64,6 +67,7 @@ impl BootloaderTx {
             gas_overhead: predefined_overhead,
             trusted_gas_limit,
             offset,
+            force_fail,
         };
         (this, expected_ecrecover_call)
     }

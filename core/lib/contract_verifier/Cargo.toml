@@ -25,15 +25,13 @@ serde_json.workspace = true
 ethabi.workspace = true
 vise.workspace = true
 hex.workspace = true
+libc.workspace = true
 serde = { workspace = true, features = ["derive"] }
 tempfile.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 tracing.workspace = true
 semver.workspace = true
-octocrab = { workspace = true, features = ["stream"] }
-futures-util.workspace = true
-rustls.workspace = true
 secrecy.workspace = true
 
 [dev-dependencies]

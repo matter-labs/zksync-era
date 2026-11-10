@@ -29,6 +29,8 @@ pub(crate) enum ProcessorErrorKind {
     Dal,
     /// Soft retry: inputs/proof not yet available on GCS, the batch lock is rolled back and retried.
     ObjectStoreKeyNotFound,
+    /// Soft retry: the read-proofs blob doesn't decode, the lock is rolled back and the blob rebuilt.
+    ReadProofsBlobUndecodable,
     /// A job-handout endpoint exhausted `max_attempts` looking for a batch with available data.
     AttemptsExhausted,
 }

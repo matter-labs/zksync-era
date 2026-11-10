@@ -292,6 +292,10 @@ pub struct Web3JsonRpcConfig {
     /// Max possible limit of entities to be requested once.
     #[config(default_t = 1_024)]
     pub req_entities_limit: u32,
+    /// Max possible number of blocks that a single `eth_getLogs` request is allowed to span.
+    /// If not set, the block range is not limited (only the number of returned logs is,
+    /// see `req_entities_limit`).
+    pub get_logs_block_range_limit: Option<NonZeroU32>,
     /// Whether to support HTTP methods that install filters and query filter changes.
     /// WS methods are unaffected.
     ///
@@ -337,7 +341,7 @@ pub struct Web3JsonRpcConfig {
     #[config(default)]
     pub eth_call_gas_cap: Option<u64>,
     /// Max possible size of an ABI-encoded transaction.
-    #[config(default_t = 10 * SizeUnit::MiB, with = Fallback(SizeUnit::Bytes))]
+    #[config(default_t = 1 * SizeUnit::MiB, with = Fallback(SizeUnit::Bytes))]
     pub max_tx_size: ByteSize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the VM execution is stopped.
     pub vm_execution_cache_misses_limit: Option<usize>,
@@ -516,6 +520,7 @@ mod tests {
                 http_port: 3050,
                 ws_port: 3051,
                 req_entities_limit: 10000,
+                get_logs_block_range_limit: NonZeroU32::new(50_000),
                 filters_disabled: false,
                 filters_limit: 10000,
                 subscriptions_limit: 10000,
@@ -577,6 +582,7 @@ mod tests {
             API_WEB3_JSON_RPC_WS_PORT="3051"
             API_WEB3_JSON_RPC_WS_URL="ws://127.0.0.1:3051"
             API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT=10000
+            API_WEB3_JSON_RPC_GET_LOGS_BLOCK_RANGE_LIMIT=50000
             API_WEB3_JSON_RPC_FILTERS_DISABLED=false
             API_WEB3_JSON_RPC_FILTERS_LIMIT=10000
             API_WEB3_JSON_RPC_SUBSCRIPTIONS_LIMIT=10000
@@ -637,6 +643,7 @@ mod tests {
             ws_port: 3051
             ws_url: ws://127.0.0.1:3051/
             req_entities_limit: 10000
+            get_logs_block_range_limit: 50000
             filters_limit: 10000
             fee_history_limit: 100
             subscriptions_limit: 10000
@@ -703,6 +710,7 @@ mod tests {
             ws_port: 3051
             ws_url: ws://127.0.0.1:3051/
             req_entities_limit: 10000
+            get_logs_block_range_limit: 50000
             filters_limit: 10000
             fee_history_limit: 100
             subscriptions_limit: 10000

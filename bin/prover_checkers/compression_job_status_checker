@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+
+# Configuration
+# DATABASE_URL - The URL of the prover database to connect to
+# BATCH_NUMBER - The batch number to check the compression job status for
+# INTERVAL - Time interval for polling in seconds
+# TIMEOUT - Timeout of script in seconds
+
+START_TIME=$(date +%s)
+
+while true; do
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+    if [ $ELAPSED_TIME -ge "$TIMEOUT" ]; then
+        echo "Timeout reached. Failing CI..."
+        exit 1
+    fi
+
+    STATUS=$(psql "$DATABASE_URL" -c "SELECT status FROM proof_compression_jobs_fri WHERE l1_batch_number = $BATCH_NUMBER;" -t -A)
+
+    if [ "$STATUS" = "successful" ] || [ "$STATUS" = "sent_to_server" ]; then
+        echo "Compression job for batch $BATCH_NUMBER is $STATUS. Success!"
+        exit 0
+    fi
+
+    echo "Compression job status is '${STATUS:-missing}', retrying in $INTERVAL seconds..."
+    sleep "$INTERVAL"
+done

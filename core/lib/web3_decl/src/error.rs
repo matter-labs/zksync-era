@@ -37,6 +37,8 @@ pub enum Web3Error {
     FilterNotFound,
     #[error("Query returned more than {0} results. Try with this block range [{1:#x}, {2:#x}].")]
     LogsLimitExceeded(usize, u32, u32),
+    #[error("Requested block range is too large: {0} blocks, while the limit is {1}. Try with this block range [{2:#x}, {3:#x}].")]
+    LogsBlockRangeLimitExceeded(u64, u32, u32, u32),
     #[error("invalid filter: if blockHash is supplied fromBlock and toBlock must not be")]
     InvalidFilterBlockHash,
     #[error("invalid `eth_feeHistory` reward percentiles: {0}")]

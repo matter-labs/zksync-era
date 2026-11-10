@@ -702,6 +702,9 @@ pub struct TransactionDetails {
     pub eth_prove_tx_hash: Option<H256>,
     pub eth_execute_tx_hash: Option<H256>,
     pub eth_precommit_tx_hash: Option<H256>,
+    /// Whether the operator force-failed this L1->L2 tx. The on-chain revert reason stays empty.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub force_failed: bool,
 }
 
 #[derive(Debug, Clone)]

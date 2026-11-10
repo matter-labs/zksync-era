@@ -49,6 +49,8 @@ pub(crate) struct TransactionData {
     pub(crate) paymaster_input: Vec<u8>,
     pub(crate) reserved_dynamic: Vec<u8>,
     pub(crate) raw_bytes: Option<Vec<u8>>,
+    /// Operator-requested failure, written to `txMeta` rather than the encoding. L1 txs only.
+    pub(crate) force_fail: bool,
 }
 
 impl TransactionData {
@@ -113,6 +115,7 @@ impl TransactionData {
                     paymaster_input: common_data.paymaster_params.paymaster_input,
                     reserved_dynamic: vec![],
                     raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
+                    force_fail: false,
                 }
             }
             ExecuteTransactionCommon::L1(common_data) => {
@@ -143,6 +146,7 @@ impl TransactionData {
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
                     raw_bytes: None,
+                    force_fail: common_data.force_fail,
                 }
             }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
@@ -173,6 +177,7 @@ impl TransactionData {
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
                     raw_bytes: None,
+                    force_fail: false,
                 }
             }
         }
@@ -349,6 +354,7 @@ mod tests {
             paymaster_input: vec![0u8; 85],
             reserved_dynamic: vec![0u8; 32],
             raw_bytes: None,
+            force_fail: false,
         };
 
         let assumed_encoded_len = encoding_len(65, 75, 2, 85, 32);

@@ -136,6 +136,73 @@ impl ProtocolVersionsDal<'_, '_> {
         db_transaction.commit().await
     }
 
+    /// Saves the ABI-encoded `DiamondCutData` that upgrades the chain to `version`.
+    pub async fn save_upgrade_cut_data(
+        &mut self,
+        version: ProtocolSemanticVersion,
+        upgrade_cut_data: &[u8],
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            UPDATE protocol_patches
+            SET
+                upgrade_cut_data = $3
+            WHERE
+                minor = $1
+                AND patch = $2
+            "#,
+            version.minor as i32,
+            version.patch.0 as i32,
+            upgrade_cut_data,
+        )
+        .instrument("save_upgrade_cut_data")
+        .with_arg("version", &version)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    /// Returns the version directly following `version` and the diamond cut upgrading to it.
+    pub async fn next_version_with_upgrade_cut_data(
+        &mut self,
+        version: ProtocolSemanticVersion,
+    ) -> DalResult<Option<(ProtocolSemanticVersion, Option<Vec<u8>>)>> {
+        sqlx::query!(
+            r#"
+            SELECT
+                minor,
+                patch,
+                upgrade_cut_data
+            FROM
+                protocol_patches
+            WHERE
+                (minor, patch) > ($1, $2)
+            ORDER BY
+                minor,
+                patch
+            LIMIT
+                1
+            "#,
+            version.minor as i32,
+            version.patch.0 as i32,
+        )
+        .try_map(|row| {
+            parse_protocol_version(row.minor).map(|minor| {
+                (
+                    ProtocolSemanticVersion {
+                        minor,
+                        patch: (row.patch as u32).into(),
+                    },
+                    row.upgrade_cut_data,
+                )
+            })
+        })
+        .instrument("next_version_with_upgrade_cut_data")
+        .with_arg("version", &version)
+        .fetch_optional(self.storage)
+        .await
+    }
+
     async fn save_genesis_upgrade_tx_hash(
         &mut self,
         id: ProtocolVersionId,
@@ -338,6 +405,35 @@ impl ProtocolVersionsDal<'_, '_> {
             snark_wrapper_vk_hash.as_bytes()
         )
         .instrument("get_patch_versions_for_vk")
+        .fetch_all(self.storage)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| VersionPatch(row.patch as u32))
+            .collect())
+    }
+
+    pub async fn get_patch_versions_for_fflonk_vk(
+        &mut self,
+        minor_version: ProtocolVersionId,
+        fflonk_snark_wrapper_vk_hash: H256,
+    ) -> DalResult<Vec<VersionPatch>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                patch
+            FROM
+                protocol_patches
+            WHERE
+                minor = $1
+                AND fflonk_snark_wrapper_vk_hash = $2
+            ORDER BY
+                patch DESC
+            "#,
+            minor_version as i32,
+            fflonk_snark_wrapper_vk_hash.as_bytes()
+        )
+        .instrument("get_patch_versions_for_fflonk_vk")
         .fetch_all(self.storage)
         .await?;
         Ok(rows

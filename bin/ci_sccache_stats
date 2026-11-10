@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# Prints the stats of the sccache servers started by the `setup-env` action.
+cd $ZKSYNC_HOME
+[ -n "$RUSTC_WRAPPER" ] || exit 0
+
+$RUSTC_WRAPPER --show-stats
+ci_run /usr/src/zksync/.sccache/sccache --show-stats

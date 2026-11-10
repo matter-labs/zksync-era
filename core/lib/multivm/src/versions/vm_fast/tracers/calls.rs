@@ -10,7 +10,8 @@ use zksync_vm2::{
 
 use crate::{
     interface::{Call, CallType, VmRevertReason},
-    vm_fast::utils::read_raw_fat_pointer,
+    tracers::call_tracer::DataBudget,
+    vm_fast::utils::{fat_pointer_len, read_fat_pointer_truncated},
 };
 
 /// Call tracer for the fast VM.
@@ -22,6 +23,8 @@ pub struct CallTracer {
     // TODO: report as metrics
     max_stack_depth: usize,
     max_near_calls: usize,
+    /// Bounds the input / output bytes this trace retains; see [`DataBudget`].
+    data_budget: DataBudget,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +36,7 @@ struct FarcallAndNearCallCount {
 impl CallTracer {
     /// Converts this tracer into the captured calls.
     pub fn into_result(self) -> Vec<Call> {
+        self.data_budget.report();
         self.finished_calls
     }
 }
@@ -53,7 +57,11 @@ impl Tracer for CallTracer {
                 let input = if current_gas == 0 {
                     vec![]
                 } else {
-                    read_raw_fat_pointer(state, state.read_register(1).0)
+                    // Clamped to the retained-data budget, so that oversized calldata is never
+                    // allocated.
+                    let pointer = FatPointer::from(state.read_register(1).0);
+                    let limit = self.data_budget.take(fat_pointer_len(&pointer));
+                    read_fat_pointer_truncated(state, pointer, limit)
                 };
                 let value = U256::from(state.current_frame().context_u128());
                 let ty = match ty {
@@ -116,7 +124,11 @@ impl Tracer for CallTracer {
                             // when extracting the revert reason; the legacy VM treats the trivial pointer specially.
                             None
                         } else {
-                            Some(read_raw_fat_pointer(state, maybe_output_ptr))
+                            // The callee decides this length, not the caller's output buffer; e.g.
+                            // `CodeOracle` returns an entire decommitted bytecode. Clamped to the
+                            // retained-data budget.
+                            let limit = self.data_budget.take(fat_pointer_len(&output_ptr));
+                            Some(read_fat_pointer_truncated(state, output_ptr, limit))
                         }
                     } else {
                         None

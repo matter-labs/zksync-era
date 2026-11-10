@@ -281,8 +281,8 @@ impl PanicSealer {
             close_block_at_gas_percentage: 1.0,
             max_circuits_per_batch: get_max_batch_base_layer_circuits(protocol_version.into()),
             // The EN only verifies batches the sequencer already produced, so it must
-            // not reject/seal on the cycle criterion: keep it effectively unbounded.
-            max_cycles_per_batch: u64::MAX,
+            // not reject/seal on the cycle criterion: `0` switches it off.
+            max_cycles_per_batch: 0,
             reject_tx_at_cycles_percentage: 1.0,
             close_block_at_cycles_percentage: 1.0,
         }

@@ -3,9 +3,7 @@
 //! [`VmExecutionStatistics`](super::VmExecutionStatistics) without pulling in
 //! `multivm`.
 
-pub use zksync_era_airbender_cycles_estimator::{
-    FeatureId, FeatureVector, SAFETY_CRITICAL_FEATURES,
-};
+pub use zksync_era_airbender_cycles_estimator::{FeatureId, FeatureVector, VM_TRACE_FEATURES};
 
 /// Batch accumulation of feature vectors — a sequencer concern, kept off the
 /// VM-agnostic upstream type as an extension trait.

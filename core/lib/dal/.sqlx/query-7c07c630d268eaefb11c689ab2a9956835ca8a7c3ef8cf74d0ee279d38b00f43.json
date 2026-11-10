@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE eth_proof_manager e\n            SET\n                validation_tx_attempts = e.validation_tx_attempts + 1,\n                validation_tx_last_attempt_at = NOW(),\n                updated_at = NOW()\n            WHERE\n                e.l1_batch_number = (\n                    SELECT e2.l1_batch_number\n                    FROM eth_proof_manager e2\n                    WHERE\n                        (e2.status = $1 OR e2.status = $3)\n                        AND e2.proof_validation_result IS NOT NULL\n                        -- Invalid verdicts wait for fallback; valid verdicts wait for L1 publication.\n                        AND (\n                            (e2.proof_validation_result = FALSE AND e2.status = $3)\n                            OR (\n                                e2.proof_validation_result = TRUE\n                                AND e2.l1_batch_number <= $2\n                            )\n                        )\n                        AND e2.validated_proof_request_tx_hash IS NULL\n                        -- The attempt count is a hard cap: a verdict the contract keeps\n                        -- rejecting leaves the pool instead of reverting once per backoff\n                        -- forever. `get_reached_max_attempts_amount` counts what is left.\n                        AND e2.validation_tx_attempts < $4\n                        AND (\n                            e2.validation_tx_last_attempt_at IS NULL\n                            OR e2.validation_tx_last_attempt_at < NOW() - $5::INTERVAL\n                        )\n                    ORDER BY e2.l1_batch_number ASC\n                    LIMIT 1\n                )\n            RETURNING e.l1_batch_number, e.proof_validation_result;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "proof_validation_result",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Text",
+        "Int4",
+        "Interval"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "7c07c630d268eaefb11c689ab2a9956835ca8a7c3ef8cf74d0ee279d38b00f43"
+}

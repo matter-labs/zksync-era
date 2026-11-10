@@ -1,67 +1,58 @@
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_types::{
-    web3::{BlockId, BlockNumber},
-    L1BatchNumber,
-};
-
-use crate::l1_gas_price::GasAdjusterClient;
+use zksync_types::L1BatchNumber;
 
 /// This function predicts the blob base fee for next bathes
 /// based on the last known blob base fee and the number of blobs to send in the next batches.
 ///
+/// `l1_block_number` is the L1 head that the gas adjuster fetched in the same poll, so this
+/// function doesn't query L1 itself.
+///
+/// Returns an error if `l1_block_number` is behind the L1 block at which the last committed batch
+/// was sent. That can happen if the gas adjuster's L1 provider lags behind the one used by
+/// `eth_sender`. Treating the elapsed time as a single L1 block would put all pending blobs into
+/// that block and push the prediction up to `max_blob_base_fee`.
+///
 /// WARNING: This function should be only used for L1, not for gateway settlement layer.
 pub(crate) async fn predict_blob_base_fee(
     connection: &mut Connection<'_, Core>,
-    client: &GasAdjusterClient,
+    l1_block_number: u32,
     last_known_l1_blob_fee: u64,
-) -> u64 {
+) -> anyhow::Result<u64> {
     let last_sealed_batch = connection
         .blocks_dal()
         .get_sealed_l1_batch_number()
-        .await
-        .expect("Failed to get last sealed batch")
+        .await?
         .unwrap_or(L1BatchNumber::from(0));
-
-    let latest_block_number = client
-        .inner
-        .block(BlockId::Number(BlockNumber::Latest))
-        .await
-        .expect("Failed to get latest block")
-        .expect("Latest block is None")
-        .number
-        .expect("Latest block number is None");
 
     let (last_l1_commited_batch, last_commited_block_number) = connection
         .eth_sender_dal()
-        .get_number_and_sent_at_block_for_latest_commited_batch(latest_block_number.as_u32())
-        .await
-        .expect("Failed to get sent at block for commited block");
+        .get_number_and_sent_at_block_for_latest_commited_batch(l1_block_number)
+        .await?;
 
     let total_blobs_to_send = connection
         .blocks_dal()
         .get_blobs_amount_for_range(L1BatchNumber(last_l1_commited_batch + 1), last_sealed_batch)
-        .await
-        .expect("Failed to get blobs amount for range");
+        .await?;
 
     if total_blobs_to_send == 0 {
-        return last_known_l1_blob_fee;
+        return Ok(last_known_l1_blob_fee);
     }
 
-    let mut total_l1_blocks_for_these_blocks = latest_block_number
-        .saturating_sub(last_commited_block_number.into())
-        .as_u64();
-
-    if total_l1_blocks_for_these_blocks == 0 {
-        total_l1_blocks_for_these_blocks = 1;
-    }
+    anyhow::ensure!(
+        last_commited_block_number <= l1_block_number,
+        "L1 head {l1_block_number} is behind L1 block {last_commited_block_number}, \
+         at which the commit tx for the last committed L1 batch #{last_l1_commited_batch} was sent"
+    );
+    let total_l1_blocks_for_these_blocks =
+        u64::from(l1_block_number - last_commited_block_number).max(1);
 
     tracing::debug!("Predicting blob fee cap with params: blobs_total: {total_blobs_to_send}, l1_blocks_total: {total_l1_blocks_for_these_blocks}, last_known_l1_gas_price: {last_known_l1_blob_fee}");
 
-    predict_blob_fee_cap(
+    Ok(predict_blob_fee_cap(
         total_blobs_to_send,
         total_l1_blocks_for_these_blocks,
         last_known_l1_blob_fee,
-    )
+    ))
 }
 
 const MIN_BASE_FEE_PER_BLOB_GAS: u64 = 1;

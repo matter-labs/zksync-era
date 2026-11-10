@@ -185,6 +185,12 @@ impl ProtoRepr for proto::InteropRoot {
     }
 }
 
+fn has_force_failed_tx(transactions: &[Transaction]) -> bool {
+    transactions
+        .iter()
+        .any(|tx| matches!(&tx.common_data, ExecuteTransactionCommon::L1(data) if data.force_fail))
+}
+
 impl ProtoFmt for Payload {
     type Proto = proto::Payload;
 
@@ -273,6 +279,12 @@ impl ProtoFmt for Payload {
                 "pubdata_limit should be Some for protocol_version >= 29"
             );
         }
+        if this.protocol_version < ProtocolVersionId::Version34 {
+            anyhow::ensure!(
+                !has_force_failed_tx(&this.transactions),
+                "force_fail should not be set for protocol_version < 34"
+            );
+        }
         Ok(this)
     }
 
@@ -292,6 +304,12 @@ impl ProtoFmt for Payload {
             assert!(
                 self.pubdata_limit.is_some(),
                 "pubdata_limit should be Some for protocol_version >= 29"
+            );
+        }
+        if self.protocol_version < ProtocolVersionId::Version34 {
+            assert!(
+                !has_force_failed_tx(&self.transactions),
+                "force_fail should not be set for protocol_version < 34"
             );
         }
         let mut x = Self::Proto {
@@ -359,6 +377,7 @@ impl ProtoRepr for proto::TransactionV25 {
                     .into(),
                 factory_deps: l1.factory_deps.clone(),
                 eth_block: 0,
+                force_fail: l1.force_fail.unwrap_or(false),
             },
             T::L2(l2) => abi::Transaction::L2(required(&l2.rlp).context("rlp")?.clone()),
         };
@@ -371,10 +390,14 @@ impl ProtoRepr for proto::TransactionV25 {
         Self {
             t: Some(match tx {
                 abi::Transaction::L1 {
-                    tx, factory_deps, ..
+                    tx,
+                    factory_deps,
+                    force_fail,
+                    ..
                 } => T::L1(proto::L1Transaction {
                     rlp: Some(ethabi::encode(&[tx.encode()])),
                     factory_deps,
+                    force_fail: force_fail.then_some(true),
                 }),
                 abi::Transaction::L2(tx) => T::L2(proto::L2Transaction { rlp: Some(tx) }),
             }),
@@ -453,6 +476,7 @@ impl ProtoRepr for proto::Transaction {
                         refund_recipient: required(&common_data.refund_recipient_address)
                             .and_then(|x| parse_h160(x))
                             .context("common_data.refund_recipient_address")?,
+                        force_fail: false,
                     })
                 }
                 proto::transaction::CommonData::L2(common_data) => {

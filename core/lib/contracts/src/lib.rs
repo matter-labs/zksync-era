@@ -85,10 +85,9 @@ const SETTLEMENT_LAYER_V31_UPGRADE_FILE: (&str, &str) = (
     "EraSettlementLayerV31Upgrade.sol/EraSettlementLayerV31Upgrade.json",
 );
 
-const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
-const DUAL_VERIFIER_CONTRACT_FILE: (&str, &str) = (
+const VERIFIER_CONTRACT_FILE: (&str, &str) = (
     "state-transition/verifiers",
-    "EraDualVerifier.sol/EraDualVerifier.json",
+    "EraMultiProofVerifier.sol/EraMultiProofVerifier.json",
 );
 
 const PROOF_MANAGER_CONTRACT_FILE: (&str, &str) = ("", "ProofManagerV1.sol/ProofManagerV1.json");
@@ -241,7 +240,10 @@ pub fn proof_manager_contract() -> Contract {
 }
 
 pub fn validator_timelock_contract() -> Contract {
-    // Create a simple contract definition for ValidatorTimelock with the executionDelay function
+    // Create a simple contract definition for ValidatorTimelock with the execution delay getters.
+    // `executionDelay` is the ecosystem-wide floor, while `getExecutionDelay` returns the delay
+    // that is actually enforced for a given chain: `max(executionDelay, chainExecutionDelay[chain])`.
+    // The latter is only present starting from v29 timelocks.
     let abi = r#"[
         {
             "inputs": [],
@@ -255,21 +257,32 @@ pub fn validator_timelock_contract() -> Contract {
             ],
             "stateMutability": "view",
             "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
+                    "name": "_chainAddress",
+                    "type": "address"
+                }
+            ],
+            "name": "getExecutionDelay",
+            "outputs": [
+                {
+                    "internalType": "uint32",
+                    "name": "",
+                    "type": "uint32"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
         }
     ]"#;
     serde_json::from_str(abi).unwrap()
 }
 
 pub fn verifier_contract() -> Contract {
-    let path = format!("{}/{}", FORGE_PATH_PREFIX, DUAL_VERIFIER_CONTRACT_FILE.1);
-    let zksync_home = home_path();
-    let path = Path::new(&zksync_home).join(path);
-
-    if path.exists() {
-        load_contract_for_both_compilers(DUAL_VERIFIER_CONTRACT_FILE)
-    } else {
-        load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
-    }
+    load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
 }
 
 pub fn deployer_contract() -> Contract {
@@ -670,6 +683,20 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
 
+    pub fn playground_medium_interop_dse() -> Self {
+        let bootloader_bytecode: Vec<u8> = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_medium_interop_dse/playground_batch.yul/Bootloader.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn playground_force_fail() -> Self {
+        let bootloader_bytecode: Vec<u8> = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_force_fail/playground_batch.yul/Bootloader.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
     pub fn estimate_gas_pre_virtual_blocks() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
@@ -771,6 +798,20 @@ impl BaseSystemContracts {
     pub fn estimate_gas_medium_interop() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_medium_interop/fee_estimate.yul/Bootloader.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn estimate_gas_medium_interop_dse() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_medium_interop_dse/fee_estimate.yul/Bootloader.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
+    }
+
+    pub fn estimate_gas_force_fail() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_force_fail/fee_estimate.yul/Bootloader.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode, true)
     }
@@ -1072,6 +1113,74 @@ pub static ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION: Lazy<Function> = Lazy::new
     let abi = r#"
     {
         "inputs": [
+          {
+            "internalType": "uint256",
+            "name": "_oldProtocolVersion",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "facet",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "enum Diamond.Action",
+                    "name": "action",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "bool",
+                    "name": "isFreezable",
+                    "type": "bool"
+                  },
+                  {
+                    "internalType": "bytes4[]",
+                    "name": "selectors",
+                    "type": "bytes4[]"
+                  }
+                ],
+                "internalType": "struct Diamond.FacetCut[]",
+                "name": "facetCuts",
+                "type": "tuple[]"
+              },
+              {
+                "internalType": "address",
+                "name": "initAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "initCalldata",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct Diamond.DiamondCutData",
+            "name": "_diamondCut",
+            "type": "tuple"
+          }
+        ],
+        "name": "upgradeChainFromVersion",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+// The function that is used in post-v31 chains to upgrade the chain, also exposed by `ValidatorTimelock`
+pub static UPGRADE_CHAIN_FROM_VERSION_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "_chainAddress",
+            "type": "address"
+          },
           {
             "internalType": "uint256",
             "name": "_oldProtocolVersion",

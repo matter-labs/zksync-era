@@ -63,9 +63,16 @@ pub(super) fn apply_tx_to_memory(
         + BOOTLOADER_TX_DESCRIPTION_SIZE * config.tx_index;
     let tx_description_offset = get_tx_description_offset(config.subversion) + tx_offset;
 
+    // Only the force-fail bootloader reads byte 1 of txMeta; older ones must never see it set.
+    if config.subversion < MultiVmSubversion::ForceFail {
+        assert!(
+            !bootloader_tx.force_fail,
+            "force_fail on a pre-force-fail bootloader"
+        );
+    }
     memory.push((
         bootloader_description_offset,
-        assemble_tx_meta(execution_mode, true),
+        assemble_tx_meta(execution_mode, true, bootloader_tx.force_fail),
     ));
 
     memory.push((
@@ -278,7 +285,8 @@ pub(crate) fn apply_pubdata_to_memory(
         | MultiVmSubversion::EvmEmulator
         | MultiVmSubversion::EcPrecompiles
         | MultiVmSubversion::Interop
-        | MultiVmSubversion::MediumInterop => {
+        | MultiVmSubversion::MediumInterop
+        | MultiVmSubversion::ForceFail => {
             // Skipping the first slot as it will be filled by the bootloader itself:
             // It is for the selector of the call to the L1Messenger.
             let l1_messenger_pubdata_start_slot =
@@ -320,8 +328,14 @@ pub(crate) fn apply_pubdata_to_memory(
 ///     - 0x00: validate & execute (normal mode)
 ///     - 0x02: execute but DO NOT validate
 ///
+/// - 30 byte: force-fail marker (bootloader byte 1, `getWordByte(txMeta, 1)`).
+///
 /// - 31 byte (LSB): whether to execute transaction or not (at all).
-pub(super) fn assemble_tx_meta(execution_mode: TxExecutionMode, execute_tx: bool) -> U256 {
+pub(super) fn assemble_tx_meta(
+    execution_mode: TxExecutionMode,
+    execute_tx: bool,
+    force_fail: bool,
+) -> U256 {
     let mut output = [0u8; 32];
 
     // Set 0 byte (execution mode)
@@ -330,6 +344,9 @@ pub(super) fn assemble_tx_meta(execution_mode: TxExecutionMode, execute_tx: bool
         TxExecutionMode::EstimateFee => 0x00,
         TxExecutionMode::EthCall => 0x02,
     };
+
+    // Set 30 byte (force-fail marker; the bootloader counts from the LSB and calls it byte 1)
+    output[30] = u8::from(force_fail);
 
     // Set 31 byte (marker for tx execution)
     output[31] = u8::from(execute_tx);

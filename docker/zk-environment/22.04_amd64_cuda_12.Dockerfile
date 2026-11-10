@@ -66,23 +66,30 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
-ENV GCLOUD_VERSION=451.0.1
+# NOTE: the version is intentionally not pinned - Google prunes older `google-cloud-cli`
+# releases from the apt repo, so any exact pin eventually breaks the image build.
 # Install gloud for gcr login and gcfuze for mounting buckets
 RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
     wget -c -O - https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
-    apt-get update -y && apt-get install google-cloud-cli=${GCLOUD_VERSION}-0 --no-install-recommends -y && \
+    apt-get update -y && apt-get install google-cloud-cli --no-install-recommends -y && \
     gcloud config set core/disable_usage_reporting true && \
     gcloud config set component_manager/disable_update_check true && \
     gcloud config set metrics/environment github_docker_image
 
 RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
-RUN rustup install nightly-2024-09-01
+RUN rustup install nightly-2026-08-09
 RUN rustup default stable
 RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install --locked cargo-nextest
 
 RUN git clone https://github.com/matter-labs/foundry-zksync
-RUN cd foundry-zksync && git checkout foundry-zksync-v0.1.5 && cargo build --release --bins
+# foundry-zksync itself builds on stable (see its `rust-toolchain`), but one of its
+# transitive build scripts formats generated code through `rustfmt-wrapper`, which picks
+# the newest installed *nightly* rustfmt. Point it at stable's rustfmt instead - the
+# nightly installed above is meant for building the prover, and its rustfmt ICEs on the
+# `macro_rules!` definitions that codegen emits.
+RUN cd foundry-zksync && git checkout foundry-zksync-v0.1.5 && \
+    RUSTFMT="$(rustup which --toolchain stable rustfmt)" cargo build --release --bins
 RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
 RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
 
@@ -95,6 +102,15 @@ RUN wget -c https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-l
 RUN wget -c https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.13 \
     && mv zksolc-linux-amd64-musl-v1.3.13 /usr/bin/zksolc \
     && chmod +x /usr/bin/zksolc
+# Preinstall `zksolc` 1.5.17 where foundry-zksync looks for compilers (`~/.zksync`).
+# foundry-zksync resolves stable releases via `zksolc-bin`, which stops at 1.5.15.
+# Same as docker/zk-environment/Dockerfile; this image is amd64 only.
+ARG ZKSOLC_VERSION=1.5.17
+RUN zksolc=/root/.zksync/zksolc-linux-amd64-musl-v${ZKSOLC_VERSION} \
+    && mkdir -p /root/.zksync \
+    && wget -nv -O "${zksolc}" https://github.com/matter-labs/era-compiler-solidity/releases/download/${ZKSOLC_VERSION}/zksolc-linux-amd64-musl-v${ZKSOLC_VERSION} \
+    && echo "3bda51f97a3087e7d959c05aa992f7d00f98acedfdc9caede64b334aaa76181f  ${zksolc}" | sha256sum --check \
+    && chmod +x "${zksolc}"
 
 # Setup the environment
 ENV ZKSYNC_HOME=/usr/src/zksync

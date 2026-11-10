@@ -30,8 +30,7 @@ use zksync_web3_decl::{
 };
 
 const FFLONK_VERIFIER_TYPE: i32 = 0;
-/// Verifier type routed to the Airbender PLONK verifier by the dual verifier contract
-/// (see `EraDualVerifier.sol`: 0 = FFLONK, 1 = PLONK, 2 = Airbender PLONK).
+/// Airbender key route in `EraMultiProofVerifier`.
 const AIRBENDER_PLONK_VERIFIER_TYPE: i32 = 2;
 
 /// Selector of `UnknownVerifierType()`, the error the dual verifier reverts with when asked for a

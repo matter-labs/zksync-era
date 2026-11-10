@@ -43,7 +43,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install --locked cargo-nextest
-RUN cargo install cargo-spellcheck
+RUN cargo install --locked cargo-spellcheck
 RUN cargo install sccache
 
 RUN git clone https://github.com/matter-labs/foundry-zksync
@@ -123,10 +123,11 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 # Install gloud for GCR/GAR login
 # Google was super lazy, and their package is around 1 GB.
 # So we trim it a little bit based on info from `https://github.com/GoogleCloudPlatform/gsutil/issues/1732`
-ENV GCLOUD_VERSION=451.0.1
+# NOTE: the version is intentionally not pinned - Google prunes older `google-cloud-cli`
+# releases from the apt repo, so any exact pin eventually breaks the image build.
 RUN echo "deb [arch=${ARCH}] http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
     wget -c -O - https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
-    apt-get update -y && apt-get install google-cloud-cli=${GCLOUD_VERSION}-0 --no-install-recommends -y && \
+    apt-get update -y && apt-get install google-cloud-cli --no-install-recommends -y && \
     gcloud config set core/disable_usage_reporting true && \
     gcloud config set component_manager/disable_update_check true && \
     gcloud config set metrics/environment github_docker_image && \
@@ -151,6 +152,19 @@ RUN chmod +x /usr/bin/solc
 RUN wget -c https://github.com/matter-labs/zksolc-bin/raw/main/linux-${ARCH}/zksolc-linux-${ARCH}-musl-v1.3.16 \
     && mv zksolc-linux-${ARCH}-musl-v1.3.16 /usr/bin/zksolc \
     && chmod +x /usr/bin/zksolc
+# Preinstall `zksolc` 1.5.17 where foundry-zksync looks for compilers (`~/.zksync`).
+# foundry-zksync resolves stable releases via `zksolc-bin`, which stops at 1.5.15.
+ARG ZKSOLC_VERSION=1.5.17
+RUN case "${ARCH}" in \
+      amd64) digest=3bda51f97a3087e7d959c05aa992f7d00f98acedfdc9caede64b334aaa76181f ;; \
+      arm64) digest=c2c6ee77ed4f0097c8adf96aeb8a1039372b773c5e9036ddc4e7be3078a1a17c ;; \
+      *) echo "Unsupported ARCH ${ARCH}" >&2; exit 1 ;; \
+    esac \
+    && zksolc=/root/.zksync/zksolc-linux-${ARCH}-musl-v${ZKSOLC_VERSION} \
+    && mkdir -p /root/.zksync \
+    && wget -nv -O "${zksolc}" https://github.com/matter-labs/era-compiler-solidity/releases/download/${ZKSOLC_VERSION}/zksolc-linux-${ARCH}-musl-v${ZKSOLC_VERSION} \
+    && echo "${digest}  ${zksolc}" | sha256sum --check \
+    && chmod +x "${zksolc}"
 
 # Somehow it is installed with some other packages
 RUN apt-get remove valgrind -y
@@ -176,5 +190,5 @@ RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y && \
 
 # If target is nightly - then install only nightly rust.
 FROM rust-lightweight-base as rust-lightweight-nightly
-RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2024-09-01 && \
+RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2026-08-09 && \
     rustup show active-toolchain || rustup toolchain install

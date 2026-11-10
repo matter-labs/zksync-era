@@ -426,6 +426,8 @@ pub struct GenesisConfigDto {
     pub genesis_root_hash: H256,
     pub rollup_last_leaf_index: u64,
     pub genesis_commitment: H256,
+    #[serde(default)]
+    pub genesis_airbender_commitment: Option<H256>,
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
     pub evm_emulator_hash: Option<H256>,
@@ -555,6 +557,7 @@ mod tests {
             airbender_snark_wrapper_vk_hash: None,
             fee_account: Address::zero(),
             genesis_commitment: H256::repeat_byte(0x17),
+            genesis_airbender_commitment: Some(H256::repeat_byte(0x17)),
             bootloader_hash: H256::zero(),
             default_aa_hash: H256::zero(),
             evm_emulator_hash: None,

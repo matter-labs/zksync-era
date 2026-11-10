@@ -20,16 +20,18 @@ use zksync_multivm::{
         executor::{BatchExecutor, BatchExecutorFactory},
         storage::InMemoryStorage,
         BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
-        L2BlockEnv, SystemEnv, VmExecutionLogs, VmExecutionResultAndLogs,
+        L2BlockEnv, SystemEnv, VmEvent, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_state::{interface::StorageView, OwnedStorage, ReadStorageFactory};
+use zksync_system_constants::KNOWN_CODES_STORAGE_ADDRESS;
 use zksync_types::{
-    commitment::PubdataParams, fee_model::BatchFeeInput, l2_to_l1_log::UserL2ToL1Log,
-    protocol_upgrade::ProtocolUpgradeTx, settlement::SettlementLayer, Address, L1BatchNumber,
-    L2BlockNumber, L2ChainId, OrStopped, ProtocolVersionId, Transaction, H256, U256,
+    bytecode::BytecodeHash, commitment::PubdataParams, fee_model::BatchFeeInput,
+    l1::L1TxCommonData, l2_to_l1_log::UserL2ToL1Log, protocol_upgrade::ProtocolUpgradeTx,
+    settlement::SettlementLayer, Address, Execute, ExecuteTransactionCommon, L1BatchNumber,
+    L2BlockNumber, L2ChainId, OrStopped, PriorityOpId, ProtocolVersionId, Transaction, H256, U256,
 };
 
 use crate::{
@@ -59,6 +61,7 @@ pub(crate) struct TestScenario {
     pending_batch: Option<PendingBatchData>,
     l1_batch_seal_fn: Box<SealFn>,
     l2_block_seal_fn: Box<SealFn>,
+    max_redundant_factory_deps_size: Option<usize>,
 }
 
 type SealFn = dyn FnMut(&UpdatesManager) -> bool + Send + Sync;
@@ -80,7 +83,14 @@ impl TestScenario {
             pending_batch: None,
             l1_batch_seal_fn: Box::new(|_| false),
             l2_block_seal_fn: Box::new(|_| false),
+            max_redundant_factory_deps_size: None,
         }
+    }
+
+    /// Bounds the factory-dependency preimages a transaction may carry without publishing them.
+    pub(crate) fn with_max_redundant_factory_deps_size(mut self, max_size: usize) -> Self {
+        self.max_redundant_factory_deps_size = Some(max_size);
+        self
     }
 
     /// Adds a pending batch data that would be fed into the state keeper.
@@ -238,6 +248,7 @@ impl TestScenario {
             })
             .collect();
         let (stop_sender, stop_receiver) = watch::channel(false);
+        let max_redundant_factory_deps_size = self.max_redundant_factory_deps_size;
         let (io, output_handler) = TestIO::new(stop_sender, self);
         let mut builder = StateKeeperBuilder::new(
             Box::new(io),
@@ -249,6 +260,9 @@ impl TestScenario {
         );
         if !block_numbers_to_rollback.is_empty() {
             builder = builder.with_leader_rotation(true);
+        }
+        if let Some(max_size) = max_redundant_factory_deps_size {
+            builder = builder.with_max_redundant_factory_deps_size(max_size);
         }
         let state_keeper = builder.build(&stop_receiver).await.unwrap();
         let sk_thread = tokio::spawn(async move {
@@ -303,6 +317,30 @@ pub(crate) fn random_tx(tx_number: u64) -> Transaction {
     tx.into()
 }
 
+/// Creates a random priority (L1->L2) transaction. As with [`random_tx()`], the number becomes the
+/// hash — for an L1 transaction `Transaction::hash()` is `canonical_tx_hash` verbatim — and it is
+/// also the priority id, so transactions come out ordered the way the mempool would serve them.
+pub(crate) fn random_l1_tx(tx_number: u64) -> Transaction {
+    Transaction {
+        common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
+            sender: Address::random(),
+            serial_id: PriorityOpId(tx_number),
+            gas_limit: U256::from(100_000),
+            gas_per_pubdata_limit: U256::one(),
+            canonical_tx_hash: H256::from_low_u64_be(tx_number),
+            ..L1TxCommonData::default()
+        }),
+        execute: Execute {
+            contract_address: Some(Address::random()),
+            calldata: vec![],
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        received_timestamp_ms: 0,
+        raw_bytes: None,
+    }
+}
+
 /// Creates a random protocol upgrade transaction. Provided tx number would be used as a transaction hash,
 /// so it's easier to understand which transaction caused test to fail.
 pub(crate) fn random_upgrade_tx(tx_number: u64) -> ProtocolUpgradeTx {
@@ -330,11 +368,62 @@ pub(crate) fn successful_exec_with_log() -> BatchTransactionExecutionResult {
     }
 }
 
+/// Creates a `TxExecutionResult` object for a successful execution that published `bytecodes`,
+/// i.e. one that emitted the `MarkedAsKnown` event `KnownCodesStorage` produces the first time it
+/// sees a bytecode hash.
+pub(crate) fn successful_exec_publishing(bytecodes: &[Vec<u8>]) -> BatchTransactionExecutionResult {
+    let events = bytecodes
+        .iter()
+        .map(|bytecode| VmEvent {
+            location: (L1BatchNumber(0), 0),
+            address: KNOWN_CODES_STORAGE_ADDRESS,
+            indexed_topics: vec![
+                VmEvent::PUBLISHED_BYTECODE_SIGNATURE,
+                BytecodeHash::for_bytecode(bytecode).value(),
+                // `shouldSendToL1`; not read by the bound.
+                H256::from_low_u64_be(1),
+            ],
+            value: vec![],
+        })
+        .collect();
+
+    BatchTransactionExecutionResult {
+        tx_result: Box::new(VmExecutionResultAndLogs {
+            logs: VmExecutionLogs {
+                events,
+                ..VmExecutionLogs::default()
+            },
+            ..VmExecutionResultAndLogs::mock_success()
+        }),
+        compression_result: Ok(()),
+        call_traces: vec![],
+    }
+}
+
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec(reason: Halt) -> BatchTransactionExecutionResult {
     BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs::mock(ExecutionResult::Halt {
             reason,
+        })),
+        compression_result: Ok(()),
+        call_traces: vec![],
+    }
+}
+
+/// Creates a `TxExecutionResult` object denoting a tx the VM ran and the callee reverted.
+///
+/// Deliberately not a halt. A revert is an ordinary outcome — the transaction is included in the
+/// batch and marked failed — and `TxExecutionResult::new()` maps it to `Success`, so it never
+/// reaches a seal resolution that could reject it. For an L1->L2 transaction that distinction is the
+/// whole difference between a failed deposit and a stalled priority queue.
+pub(crate) fn reverted_exec() -> BatchTransactionExecutionResult {
+    BatchTransactionExecutionResult {
+        tx_result: Box::new(VmExecutionResultAndLogs::mock(ExecutionResult::Revert {
+            output: VmRevertReason::General {
+                msg: "reverted".to_owned(),
+                data: vec![],
+            },
         })),
         compression_result: Ok(()),
         call_traces: vec![],

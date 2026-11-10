@@ -124,7 +124,7 @@ impl ExecuteBatches {
                         .iter()
                         .map(|batch| {
                             StoredBatchInfo::from(batch)
-                                .into_token_with_protocol_version(internal_protocol_version)
+                                .into_token_with_protocol_version(chain_protocol_version)
                         })
                         .collect(),
                 ),
@@ -177,7 +177,7 @@ impl ExecuteBatches {
                 Token::Address(settlement_fee_payer),
             ]);
             let execute_data = [
-                [get_encoding_version(internal_protocol_version)].to_vec(),
+                [get_encoding_version(chain_protocol_version)].to_vec(),
                 encoded_data,
             ]
             .concat()

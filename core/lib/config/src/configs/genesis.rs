@@ -37,6 +37,8 @@ pub struct PersistedGenesisConfig {
     genesis_root: H256,
     genesis_rollup_leaf_index: u64,
     genesis_batch_commitment: H256,
+    #[serde(default)]
+    genesis_airbender_batch_commitment: Option<H256>,
     bootloader_hash: H256,
     default_aa_hash: H256,
     evm_emulator_hash: Option<H256>,
@@ -69,6 +71,7 @@ impl TryFrom<GenesisConfig> for PersistedGenesisConfig {
             genesis_batch_commitment: config
                 .genesis_commitment
                 .context("missing `genesis_commitment`")?,
+            genesis_airbender_batch_commitment: config.genesis_airbender_commitment,
             bootloader_hash: config
                 .bootloader_hash
                 .context("missing `bootloader_hash`")?,
@@ -114,6 +117,7 @@ impl TryFrom<PersistedGenesisConfig> for GenesisConfig {
             genesis_root_hash: Some(config.genesis_root),
             rollup_last_leaf_index: Some(config.genesis_rollup_leaf_index),
             genesis_commitment: Some(config.genesis_batch_commitment),
+            genesis_airbender_commitment: config.genesis_airbender_batch_commitment,
             bootloader_hash: Some(config.bootloader_hash),
             default_aa_hash: Some(config.default_aa_hash),
             evm_emulator_hash: config.evm_emulator_hash,
@@ -139,6 +143,7 @@ pub struct GenesisConfig {
     pub genesis_root_hash: Option<H256>,
     pub rollup_last_leaf_index: Option<u64>,
     pub genesis_commitment: Option<H256>,
+    pub genesis_airbender_commitment: Option<H256>,
     pub bootloader_hash: Option<H256>,
     pub default_aa_hash: Option<H256>,
     pub evm_emulator_hash: Option<H256>,
@@ -163,6 +168,7 @@ impl GenesisConfig {
             airbender_snark_wrapper_vk_hash: Default::default(),
             fee_account: Default::default(),
             genesis_commitment: Some(H256::repeat_byte(0x17)),
+            genesis_airbender_commitment: None,
             bootloader_hash: Default::default(),
             default_aa_hash: Default::default(),
             evm_emulator_hash: Default::default(),
@@ -254,6 +260,7 @@ mod tests {
                     .parse()
                     .unwrap(),
             ),
+            genesis_airbender_commitment: None,
             bootloader_hash: Some(
                 "0x010008e15394cd83a8d463d61e00b4361afbc27c932b07a9d2100861b7d05e78"
                     .parse()
@@ -306,5 +313,16 @@ mod tests {
 
         let config: GenesisConfigWrapper = test_complete(yaml).unwrap();
         assert_eq!(config.genesis.unwrap(), expected_config());
+    }
+    #[test]
+    fn airbender_genesis_commitment_roundtrip() {
+        for commitment in [None, Some(H256::repeat_byte(0xab))] {
+            let mut config = expected_config();
+            config.genesis_airbender_commitment = commitment;
+            let persisted = PersistedGenesisConfig::try_from(config.clone()).unwrap();
+            let yaml = serde_yaml::to_string(&persisted).unwrap();
+            let parsed: PersistedGenesisConfig = serde_yaml::from_str(&yaml).unwrap();
+            assert_eq!(GenesisConfig::try_from(parsed).unwrap(), config);
+        }
     }
 }

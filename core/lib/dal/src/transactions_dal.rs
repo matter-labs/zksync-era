@@ -56,6 +56,13 @@ pub struct TransactionsDal<'c, 'a> {
     pub(crate) storage: &'c mut Connection<'a, Core>,
 }
 
+/// Default maximum combined size of serialized call traces bound in a single insert statement.
+/// Call traces for a block are written in chunks not exceeding this size so that a block with many
+/// transactions does not produce a protocol message larger than PostgreSQL accepts (~1 GiB).
+/// The actual value is configurable via the state keeper config; this is used by tests and as a
+/// fallback default.
+pub const DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE: usize = 32 << 20;
+
 /// In transaction insertion methods, we intentionally override `tx.received_timestamp_ms` to have well-defined causal ordering
 /// among transactions (transactions persisted earlier should have earlier timestamp). Causal ordering by the received timestamp
 /// is assumed in some logic dealing with transactions, e.g., pending transaction filters on the API server.
@@ -572,6 +579,7 @@ impl TransactionsDal<'_, '_> {
         // On the main node, transactions are inserted into the DB by API servers.
         // However on the EN, they need to be inserted after they are executed by the state keeper.
         insert_txs: bool,
+        call_traces_max_chunk_size: usize,
     ) -> DalResult<()> {
         let mut transaction = self.storage.start_transaction().await?;
 
@@ -654,7 +662,7 @@ impl TransactionsDal<'_, '_> {
 
         transaction
             .transactions_dal()
-            .insert_call_traces(&call_traces, protocol_version)
+            .insert_call_traces(&call_traces, protocol_version, call_traces_max_chunk_size)
             .await?;
 
         transaction.commit().await
@@ -1113,6 +1121,7 @@ impl TransactionsDal<'_, '_> {
         let mut l1_execution_infos = Vec::with_capacity(l1_txs_len);
         let mut l1_refunded_gas = Vec::with_capacity(l1_txs_len);
         let mut l1_effective_gas_prices = Vec::with_capacity(l1_txs_len);
+        let mut l1_force_fail = Vec::with_capacity(l1_txs_len);
 
         for (index_in_block, tx_res) in transactions.iter().enumerate() {
             let transaction = &tx_res.transaction;
@@ -1157,6 +1166,7 @@ impl TransactionsDal<'_, '_> {
             l1_execution_infos.push(l1_execution_info);
             l1_refunded_gas.push(refunded_gas);
             l1_effective_gas_prices.push(u256_to_big_decimal(common_data.max_fee_per_gas));
+            l1_force_fail.push(common_data.force_fail);
         }
 
         let query = sqlx::query!(
@@ -1187,6 +1197,7 @@ impl TransactionsDal<'_, '_> {
                 execution_info,
                 refunded_gas,
                 effective_gas_price,
+                force_fail,
                 received_at,
                 created_at,
                 updated_at
@@ -1216,6 +1227,7 @@ impl TransactionsDal<'_, '_> {
                 data_table.execution_info,
                 data_table.refunded_gas,
                 data_table.effective_gas_price,
+                data_table.force_fail,
                 NOW(),
                 NOW(),
                 NOW()
@@ -1241,7 +1253,8 @@ impl TransactionsDal<'_, '_> {
                         UNNEST($17::varchar []) AS error,
                         UNNEST($18::jsonb []) AS execution_info,
                         UNNEST($19::bigint []) AS refunded_gas,
-                        UNNEST($20::numeric []) AS effective_gas_price
+                        UNNEST($20::numeric []) AS effective_gas_price,
+                        UNNEST($22::boolean []) AS force_fail
                 ) AS data_table
             "#,
             &l1_hashes as &[&[u8]],
@@ -1265,6 +1278,7 @@ impl TransactionsDal<'_, '_> {
             &l1_refunded_gas,
             &l1_effective_gas_prices,
             l2_block_number.0 as i32,
+            &l1_force_fail,
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -1299,6 +1313,7 @@ impl TransactionsDal<'_, '_> {
         let mut l1_execution_infos = Vec::with_capacity(l1_txs_len);
         let mut l1_refunded_gas = Vec::with_capacity(l1_txs_len);
         let mut l1_effective_gas_prices = Vec::with_capacity(l1_txs_len);
+        let mut l1_force_fail = Vec::with_capacity(l1_txs_len);
 
         for (index_in_block, tx_res) in transactions.iter().enumerate() {
             let transaction = &tx_res.transaction;
@@ -1323,6 +1338,7 @@ impl TransactionsDal<'_, '_> {
             l1_execution_infos.push(l1_execution_info);
             l1_refunded_gas.push(refunded_gas);
             l1_effective_gas_prices.push(u256_to_big_decimal(common_data.max_fee_per_gas));
+            l1_force_fail.push(common_data.force_fail);
         }
 
         let query = sqlx::query!(
@@ -1336,6 +1352,7 @@ impl TransactionsDal<'_, '_> {
                 execution_info = execution_info || data_table.new_execution_info,
                 refunded_gas = data_table.refunded_gas,
                 effective_gas_price = data_table.effective_gas_price,
+                force_fail = data_table.force_fail,
                 updated_at = NOW()
             FROM
                 (
@@ -1345,7 +1362,8 @@ impl TransactionsDal<'_, '_> {
                         UNNEST($4::varchar []) AS error,
                         UNNEST($5::jsonb []) AS new_execution_info,
                         UNNEST($6::bigint []) AS refunded_gas,
-                        UNNEST($7::numeric []) AS effective_gas_price
+                        UNNEST($7::numeric []) AS effective_gas_price,
+                        UNNEST($8::boolean []) AS force_fail
                 ) AS data_table
             WHERE
                 transactions.hash = data_table.hash
@@ -1357,6 +1375,7 @@ impl TransactionsDal<'_, '_> {
             &l1_execution_infos,
             &l1_refunded_gas,
             &l1_effective_gas_prices,
+            &l1_force_fail,
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -1687,7 +1706,8 @@ impl TransactionsDal<'_, '_> {
                 miniblock_number = NULL,
                 error = NULL,
                 index_in_block = NULL,
-                execution_info = '{}'
+                execution_info = '{}',
+                force_fail = NULL
             WHERE
                 miniblock_number > $1
             RETURNING
@@ -2356,21 +2376,46 @@ impl TransactionsDal<'_, '_> {
 
     /// Inserts call traces for the given transactions. Silently ignores transactions that
     /// already have a trace saved (ON CONFLICT DO NOTHING).
+    ///
+    /// `max_chunk_size` bounds the combined size of serialized traces bound in a single insert
+    /// statement (see [`DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE`] for the rationale).
     pub async fn insert_call_traces(
         &mut self,
         traces: &[(H256, Call)],
         protocol_version: ProtocolVersionId,
+        max_chunk_size: usize,
     ) -> DalResult<()> {
         if traces.is_empty() {
             return Ok(());
         }
 
-        let tx_hashes: Vec<&[u8]> = traces.iter().map(|(h, _)| h.as_bytes() as &[u8]).collect();
-        let serialized: Vec<Vec<u8>> = traces
-            .iter()
-            .map(|(_, call)| serialize_call_into_bytes(call.clone(), protocol_version))
-            .collect();
+        // Traces are bounded per transaction by the call tracer, but a block may hold many of them,
+        // and PostgreSQL refuses protocol messages larger than 1 GiB. Bind them in bounded chunks so
+        // that the statement size does not depend on how many transactions a block contains.
+        let mut tx_hashes: Vec<&[u8]> = vec![];
+        let mut serialized: Vec<Vec<u8>> = vec![];
+        let mut chunk_bytes = 0;
 
+        for (tx_hash, call) in traces {
+            let call_trace = serialize_call_into_bytes(call, protocol_version);
+            if chunk_bytes + call_trace.len() > max_chunk_size && !serialized.is_empty() {
+                Self::insert_call_traces_chunk(&mut *self.storage, &tx_hashes, &serialized).await?;
+                tx_hashes.clear();
+                serialized.clear();
+                chunk_bytes = 0;
+            }
+            chunk_bytes += call_trace.len();
+            tx_hashes.push(tx_hash.as_bytes());
+            serialized.push(call_trace);
+        }
+        Self::insert_call_traces_chunk(&mut *self.storage, &tx_hashes, &serialized).await
+    }
+
+    async fn insert_call_traces_chunk(
+        storage: &mut Connection<'_, Core>,
+        tx_hashes: &[&[u8]],
+        serialized: &[Vec<u8>],
+    ) -> DalResult<()> {
         sqlx::query!(
             r#"
             INSERT INTO
@@ -2382,12 +2427,13 @@ impl TransactionsDal<'_, '_> {
                 UNNEST($1::bytea [], $2::bytea []) AS u (tx_hash, call_trace)
             ON CONFLICT (tx_hash) DO NOTHING
             "#,
-            &tx_hashes as &[&[u8]],
-            &serialized
+            tx_hashes as &[&[u8]],
+            serialized
         )
         .instrument("insert_call_traces")
         .report_latency()
-        .execute(self.storage)
+        .with_arg("traces.len", &serialized.len())
+        .execute(storage)
         .await?;
 
         Ok(())
@@ -2501,6 +2547,7 @@ mod tests {
                 1.into(),
                 ProtocolVersionId::latest(),
                 false,
+                DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
             )
             .await
             .unwrap();
@@ -2512,6 +2559,93 @@ mod tests {
             .unwrap()
             .expect("no call trace");
         assert_eq!(call_trace, expected_call_trace);
+    }
+
+    /// Report 85768: a block's traces used to be bound as one array parameter, so their combined
+    /// size — not any single trace — could exceed what PostgreSQL accepts for one message. Checks
+    /// that chunk boundaries do not corrupt anything; the size limit itself needs the test below.
+    #[tokio::test]
+    async fn inserting_call_traces_spanning_several_chunks() {
+        // One trace larger than a whole chunk, plus several that get packed together.
+        test_inserting_call_traces(&[40 << 20, 9 << 20, 9 << 20, 9 << 20, 9 << 20]).await;
+    }
+
+    /// The discriminating half of the test above: without chunking this combined size overflows a
+    /// single PostgreSQL message and the insert fails, which is what took the node down.
+    /// Ignored by default: needs ~5 GiB of RAM and a couple of minutes.
+    #[tokio::test]
+    #[ignore]
+    async fn inserting_call_traces_larger_than_one_postgres_message() {
+        test_inserting_call_traces(&[190 << 20; 6]).await;
+    }
+
+    async fn test_inserting_call_traces(trace_bytes: &[usize]) {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .insert_l2_block(&create_l2_block_header(1))
+            .await
+            .unwrap();
+
+        let child = Call {
+            from: Address::from_low_u64_be(1),
+            to: Address::from_low_u64_be(0x8012),
+            input: vec![0xab; 32],
+            output: vec![2; 4095 * 32],
+            ..Call::default()
+        };
+        let mut tx_results = vec![];
+        let mut tx_hashes = vec![];
+        let mut expected_children = vec![];
+        for &trace_bytes in trace_bytes {
+            let children = trace_bytes / child.output.len();
+            expected_children.push(children);
+            let tx = mock_l2_transaction();
+            tx_hashes.push(tx.hash());
+            conn.transactions_dal()
+                .insert_transaction_l2(
+                    &tx,
+                    TransactionExecutionMetrics::default(),
+                    ValidationTraces::default(),
+                )
+                .await
+                .unwrap();
+            let mut tx_result = mock_execution_result(tx);
+            tx_result.call_traces.push(Call {
+                from: Address::from_low_u64_be(1),
+                to: Address::from_low_u64_be(2),
+                calls: vec![child.clone(); children],
+                ..Call::default()
+            });
+            tx_results.push(tx_result);
+        }
+
+        conn.transactions_dal()
+            .mark_txs_as_executed_in_l2_block(
+                L2BlockNumber(1),
+                &tx_results,
+                1.into(),
+                ProtocolVersionId::latest(),
+                false,
+                DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
+            )
+            .await
+            .unwrap();
+
+        for (tx_hash, children) in tx_hashes.into_iter().zip(expected_children) {
+            let (call_trace, _) = conn
+                .transactions_dal()
+                .get_call_trace(tx_hash)
+                .await
+                .unwrap()
+                .expect("no call trace");
+            // `call_trace()` wraps the transaction's traces into a high-level root call.
+            assert_eq!(call_trace.calls[0].calls.len(), children);
+        }
     }
 
     #[tokio::test]
@@ -2533,6 +2667,7 @@ mod tests {
                 1.into(),
                 ProtocolVersionId::latest(),
                 true,
+                DEFAULT_CALL_TRACES_MAX_CHUNK_SIZE,
             )
             .await
             .unwrap();

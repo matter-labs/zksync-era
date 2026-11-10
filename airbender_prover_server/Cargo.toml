@@ -1,4 +1,11 @@
 [workspace]
+# `cargo/` is the CARGO_HOME of the image build, and it lands
+# inside this directory because the Docker build context *is* this workspace.
+# Without excluding it, cargo walks up from a checked-out git dependency such as
+# `cargo/git/checkouts/zksync-protocol-*/*/eravm-airbender-verifier/crates/multivm`,
+# binds it to this workspace, and then cannot resolve its `../protocol/...` path
+# dependencies -- "no matching package named `circuit_sequencer_api` found".
+exclude = ["cargo"]
 members = ["crates/lib/*"]
 resolver = "2"
 
@@ -105,13 +112,21 @@ vise-exporter = "0.3.2"
 # CUDA `gpu_prover` crate). The server re-enables it through its own `gpu_fri`
 # feature; a `--no-default-features` build stays CUDA-free. Must live on the
 # workspace dep — a member's `default-features = false` is otherwise ignored.
-airbender-host = { git = "https://github.com/matter-labs/airbender-platform", tag = "v0.2.3", default-features = false }
+#
+# The revision must be the one the pinned verifier uses: a second airbender-platform
+# brings a second `execution_utils`, and the two meet wherever this workspace hands an
+# `airbender-host` proof to `eravm-prover-host`.
+airbender-host = { git = "https://github.com/matter-labs/airbender-platform", rev = "b6ce3dd1252bfbda8e42b77fdd868e81c54b7bdc", default-features = false }
 
-eravm-prover-host = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.1.1", default-features = false }
-zksync_airbender_verifier = { git = "https://github.com/matter-labs/eravm-airbender-verifier", tag = "v31.1.1" }
-# Must match the spec `eravm-prover-host` uses so cargo unifies both onto one
-# crate instance.
-zkos-wrapper = { git = "https://github.com/matter-labs/zkos-wrapper/", branch = "dev", default-features = false, features = ["security_100"] }
+# The verifier is vendored into `zksync-protocol`, where it reaches `protocol/`,
+# `vm2/` and `zkos-wrapper/` by path; taking it from there stops those crates arriving
+# twice. It releases on its own tag line — a `v0.153.x` tag names the protocol
+# workspace's version, not the verifier's.
+eravm-prover-host = { git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be", default-features = false }
+zksync_airbender_verifier = { git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be" }
+# The wrapper the verifier reaches by path, so both resolve to one crate instance
+# (and one `SnarkWrapperVK` type). Features match the verifier's own spec.
+zkos-wrapper = { git = "https://github.com/matter-labs/zksync-protocol", rev = "2a2ecb3bfcccc46758826d3b0d11933b95e511be", default-features = false, features = ["security_100"] }
 
 # Local crates in this workspace.
 zksync_cli_utils = { path = "crates/lib/cli_utils" }

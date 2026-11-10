@@ -1,9 +1,10 @@
 use zksync_contracts::{
-    getters_facet_contract, hyperchain_contract, multicall_contract,
+    getters_facet_contract, hyperchain_contract, multicall_contract, server_notifier_contract,
     state_transition_manager_contract, validator_timelock_contract, verifier_contract,
     POST_SHARED_BRIDGE_COMMIT_FUNCTION, POST_SHARED_BRIDGE_EXECUTE_FUNCTION,
     POST_SHARED_BRIDGE_PROVE_FUNCTION, POST_V26_GATEWAY_COMMIT_FUNCTION,
     POST_V26_GATEWAY_EXECUTE_FUNCTION, POST_V26_GATEWAY_PROVE_FUNCTION,
+    UPGRADE_CHAIN_FROM_VERSION_FUNCTION,
 };
 use zksync_types::ethabi::{Contract, Function};
 
@@ -38,6 +39,8 @@ pub(super) struct ZkSyncFunctions {
 
     pub(super) state_transition_manager_contract: Contract,
     pub(super) validator_timelock_contract: Contract,
+    pub(super) server_notifier_contract: Contract,
+    pub(super) upgrade_chain_from_version: Function,
 }
 
 fn get_function(contract: &Contract, name: &str) -> Function {
@@ -91,7 +94,13 @@ impl Default for ZkSyncFunctions {
         let get_verifier_params = get_function(&zksync_contract, "getVerifierParams");
         let get_protocol_version = get_function(&zksync_contract, "getProtocolVersion");
         let aggregate3 = get_function(&multicall_contract, "aggregate3");
-        let verification_key_hash = get_function(&verifier_contract, "verificationKeyHash");
+        let verification_key_hash = verifier_contract
+            .functions_by_name("verificationKeyHash")
+            .unwrap()
+            .iter()
+            .find(|function| function.inputs.is_empty())
+            .expect("missing verificationKeyHash()")
+            .clone();
 
         ZkSyncFunctions {
             post_shared_bridge_commit,
@@ -117,6 +126,8 @@ impl Default for ZkSyncFunctions {
             aggregate3,
             state_transition_manager_contract,
             validator_timelock_contract: validator_timelock_contract(),
+            server_notifier_contract: server_notifier_contract(),
+            upgrade_chain_from_version: UPGRADE_CHAIN_FROM_VERSION_FUNCTION.clone(),
         }
     }
 }

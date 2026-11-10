@@ -228,7 +228,10 @@ impl FriProofCompressorDal<'_, '_> {
         }
     }
 
-    pub async fn protocol_version_for_successful_proof(
+    /// Returns the protocol version of a job whose proof can be delivered. `sent_to_server` is
+    /// accepted so delivery is retriable: it is written before the response reaches the server,
+    /// and nothing ever moves it back, so a failed delivery would strand the batch forever.
+    pub async fn protocol_version_for_available_proof(
         &mut self,
         batch_id: L1BatchId,
     ) -> Option<ProtocolSemanticVersion> {
@@ -236,7 +239,10 @@ impl FriProofCompressorDal<'_, '_> {
             r#"
             SELECT protocol_version, protocol_version_patch
             FROM proof_compression_jobs_fri
-            WHERE l1_batch_number = $1 AND chain_id = $2 AND status = 'successful'
+            WHERE
+                l1_batch_number = $1
+                AND chain_id = $2
+                AND status IN ('successful', 'sent_to_server')
             "#,
             batch_id.batch_number().0 as i64,
             batch_id.chain_id().inner() as i64,
@@ -252,6 +258,8 @@ impl FriProofCompressorDal<'_, '_> {
         })
     }
 
+    /// Marks the proof as handed out. Guarded on `successful`, so a re-delivery is a no-op and
+    /// `updated_at` keeps pointing at the first attempt.
     pub async fn mark_proof_sent_to_server(&mut self, batch_id: L1BatchId) -> Result<(), DalError> {
         sqlx::query!(
             r#"
@@ -262,6 +270,7 @@ impl FriProofCompressorDal<'_, '_> {
             WHERE
                 l1_batch_number = $2
                 AND chain_id = $3
+                AND status = 'successful'
             "#,
             ProofCompressionJobStatus::SentToServer.to_string(),
             batch_id.batch_number().0 as i64,

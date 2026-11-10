@@ -2980,9 +2980,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.7"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccae279728d634d083c00f6099cb58f01cc99c145b84b8be2f6c74618d79922e"
+checksum = "ef8e5e5a340588f4452631496976cf8636d4a7ecf600239fdc27615d2530bc16"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -3217,7 +3217,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "h2 0.4.7",
+ "h2 0.4.19",
  "http 1.1.0",
  "http-body 1.0.1",
  "httparse",
@@ -3922,7 +3922,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -5231,7 +5231,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
- "h2 0.4.7",
+ "h2 0.4.19",
  "http 1.1.0",
  "http-body 1.0.1",
  "http-body-util",
@@ -8081,6 +8081,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "strum 0.26.3",
+ "tempfile",
  "thiserror 2.0.12",
  "tokio",
  "toml",
@@ -8115,7 +8116,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_basic_types"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8205,7 +8206,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_contracts"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "hex",
  "once_cell",
@@ -8217,7 +8218,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "blake2",
@@ -8233,7 +8234,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8280,7 +8281,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8288,7 +8289,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_types"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8313,7 +8314,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_utils"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8323,7 +8324,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "31.5.0-non-semver-compat"
+version = "34.0.2-non-semver-compat"
 dependencies = [
  "anyhow",
  "async-trait",

@@ -6,6 +6,7 @@ use zksync_test_contracts::{Account, TestContract, TxType};
 use zksync_types::{
     get_deployer_key,
     l2::L2Tx,
+    settlement::SettlementLayer,
     system_contracts::get_system_smart_contracts,
     utils::{deployed_address_create, storage_key_for_eth_balance},
     web3,
@@ -241,7 +242,7 @@ fn l1_base_token_minting_storage_slots(base_token_asset_id: H256) -> Vec<(Storag
                 AccountTreeId::new(L2_ASSET_TRACKER_ADDRESS),
                 H256::from_low_u64_be(204),
             ),
-            H256::from_low_u64_be(1),
+            H256::from_low_u64_be(SettlementLayer::for_tests().chain_id().0),
         ),
         // L2AssetTracker.BASE_TOKEN_ASSET_ID (slot 205)
         (

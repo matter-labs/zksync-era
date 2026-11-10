@@ -13,18 +13,26 @@ This is its own Cargo workspace with independent versioning (release-please comp
 - `src/` — the `eravm-prover-server` binary (the workspace root is also this package).
 - `crates/lib/prover_metrics` — Prometheus (`vise`) metrics.
 - `crates/lib/cli_utils` — shared `init_tracing` (with optional Sentry layer).
-- `guest/dist/app/{app.bin,app.text}` — the Airbender guest program (downloaded at build time, gitignored).
-- `vks/fri_vk.bin` — the FRI verification key (downloaded at build time, gitignored).
-- `vks/snark_vk.json` — the SNARK wrapper verification key (downloaded at build time, gitignored).
+- `guest/dist/app/{app.bin,app.text}` — the Airbender guest program (fetched per release, gitignored).
+- `vks/fri_vk.bin` — the FRI verification key (fetched per release, gitignored).
+- `vks/snark_vk.json` — the SNARK wrapper verification key (fetched per release, gitignored).
 
-None of these artifacts are **committed**. [`build.rs`](build.rs) reads `cargo metadata` to find the pinned
-`zksync_airbender_verifier` version, then downloads them from that version's GitHub release into `guest/dist/app` /
-`vks/`. This keeps them locked to the exact verifier code we compile against — bumping the `zksync_airbender_verifier`
-pin automatically re-fetches the matching artifacts on the next build.
+None of these artifacts are **committed**: they belong to the release the `zksync_airbender_verifier` pin names, which
+is what keeps them locked to the exact verifier code we compile against. That release lives in the `zksync-protocol`
+monorepo. To download them by hand:
 
-Downloads are cached: a file is re-fetched only when the pinned version changes. For offline / air-gapped builds, set
-`AIRBENDER_GUEST_DIST_DIR`, `AIRBENDER_FRI_VK`, and/or `AIRBENDER_SNARK_VK` in the build environment to point at
-prebuilt artifacts and the corresponding download is skipped.
+```bash
+tag=v31.5.0  # the `?tag=` on the `zksync_airbender_verifier` pin in Cargo.lock, or else `v<its version>`
+gh release download "$tag" --repo matter-labs/zksync-protocol \
+    --pattern app.bin --pattern app.text --dir guest/dist/app
+gh release download "$tag" --repo matter-labs/zksync-protocol \
+    --pattern fri_vk.bin --pattern snark_vk.json --dir vks
+```
+
+CI does exactly this in [`.github/actions/airbender-artifacts`](../.github/actions/airbender-artifacts/action.yaml).
+[`build.rs`](build.rs) uses files already in place as they are, downloads anything missing when the release is public,
+and otherwise fails with the commands above. For offline / air-gapped builds, set `AIRBENDER_GUEST_DIST_DIR`,
+`AIRBENDER_FRI_VK`, and/or `AIRBENDER_SNARK_VK` to point at prebuilt artifacts instead.
 
 ## Modes
 

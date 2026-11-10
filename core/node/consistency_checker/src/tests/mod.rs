@@ -389,6 +389,13 @@ impl SaveAction<'_> {
                     )
                     .await
                     .unwrap();
+                if let Some(airbender) = &l1_batch.metadata.airbender {
+                    storage
+                        .blocks_dal()
+                        .save_airbender_batch_commitment(l1_batch.header.number, airbender)
+                        .await
+                        .unwrap();
+                }
             }
             Self::InsertCommitTx(l1_batch_number) => {
                 let commit_tx_hash = commit_tx_hash_by_l1_batch[&l1_batch_number];
@@ -983,4 +990,37 @@ async fn checker_detects_incorrect_tx_data_after_snapshot_recovery(
         commitment_mode,
     )
     .await;
+}
+
+#[test]
+fn v34_commitment_verification_checks_both_heap_hashes() {
+    use zksync_types::commitment::AirbenderBatchCommitment;
+    let mut batch = create_l1_batch_with_metadata(1);
+    batch.header.protocol_version = Some(ProtocolVersionId::Version34);
+    batch.metadata.airbender = Some(AirbenderBatchCommitment {
+        commitment: H256::repeat_byte(10),
+        aux_data_hash: H256::repeat_byte(11),
+        bootloader_initial_content_commitment: H256::repeat_byte(12),
+        events_queue_commitment: H256::zero(),
+    });
+    let reference = CommitBatchInfo::new(
+        L1BatchCommitmentMode::Validium,
+        &batch,
+        PubdataSendingMode::Calldata,
+    )
+    .into_token();
+    let local = LocalL1BatchCommitData {
+        l1_batch: batch,
+        commit_tx_hash: H256::zero(),
+        commitment_mode: L1BatchCommitmentMode::Validium,
+        commit_chain_id: None,
+    };
+    local.verify_commitment(&reference, false).unwrap();
+    for index in [3, 6, 7, 8] {
+        let mut changed = reference.clone().into_tuple().unwrap();
+        changed[index] = Token::FixedBytes(vec![42; 32]);
+        assert!(local
+            .verify_commitment(&Token::Tuple(changed), false)
+            .is_err());
+    }
 }

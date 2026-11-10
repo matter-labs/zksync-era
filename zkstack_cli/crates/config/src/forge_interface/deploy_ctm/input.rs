@@ -11,8 +11,7 @@ use crate::{
 pub struct DeployCTMConfig {
     pub owner_address: Address,
     pub testnet_verifier: bool,
-    /// When set, the deploy script also deploys the Airbender PLONK verifier and wires it into
-    /// the dual verifier's third slot. Ignored for ZKsyncOS deployments.
+    /// Deploys the Airbender sub-verifier for Era chains.
     pub airbender_verifier: bool,
     pub support_l2_legacy_shared_bridge_test: bool,
     pub contracts: ContractsDeployCTMConfig,

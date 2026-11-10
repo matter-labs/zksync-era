@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            force_failed_priority_ops (priority_op_id, reason, created_by)\n            VALUES\n            ($1, $2, $3)\n            ON CONFLICT (priority_op_id) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cc006c5932120c9846edc7e06ea56f64bb4a9bcbcf7f2933300eed6db688ea7c"
+}

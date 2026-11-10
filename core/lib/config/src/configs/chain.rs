@@ -7,6 +7,7 @@ use smart_config::{
     ByteSize, DescribeConfig, DeserializeConfig,
 };
 use zksync_basic_types::{Address, U256};
+use zksync_era_airbender_cycles_estimator::PROVING_CYCLE_CEILING;
 
 use crate::utils::{Fallback, ZERO_TO_ONE};
 
@@ -43,6 +44,11 @@ pub struct SharedStateKeeperConfig {
     /// Whether to save call traces when processing blocks in the state keeper.
     #[config(default_t = true)]
     pub save_call_traces: bool,
+    /// Maximum combined size of serialized call traces bound in a single PostgreSQL insert statement.
+    /// A block's call traces are written in chunks not exceeding this size, so that a block with many
+    /// transactions does not produce a protocol message larger than PostgreSQL accepts (~1 GiB).
+    #[config(default_t = ByteSize(32 << 20), with = Fallback(SizeUnit::Bytes))]
+    pub call_traces_max_chunk_size: ByteSize,
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads can be written asynchronously in VM runner instead.
     /// By default, set to `false` as it is expected that a separate `vm_runner_protective_reads` component
@@ -95,7 +101,15 @@ pub struct SealCriteriaConfig {
     /// sequencer estimates a batch's cycles from the features traced during execution
     /// (via the `CycleFeatureTracer`) and seals once the running estimate approaches
     /// this limit.
-    #[config(default_t = 1_000_000_000_000_000)]
+    ///
+    /// Set to any value up to [`PROVING_CYCLE_CEILING`], Airbender's own limit on
+    /// main-trace cycles; a batch past that cannot be proved at all, so a larger budget
+    /// is rejected at config load instead of sealing batches no prover can take. `0`
+    /// switches the criterion off entirely.
+    #[config(
+        default_t = PROVING_CYCLE_CEILING,
+        validate(..=PROVING_CYCLE_CEILING, "must not exceed Airbender's proving cycle ceiling")
+    )]
     pub max_cycles_per_batch: u64,
     /// A single transaction is rejected as unexecutable if, on its own, it would consume
     /// more than this fraction of [`Self::max_cycles_per_batch`].
@@ -121,9 +135,7 @@ impl SealCriteriaConfig {
             close_block_at_eth_params_percentage: 0.95,
             close_block_at_gas_percentage: 0.95,
             max_circuits_per_batch: 24100,
-            // Far above the model base cost so cycle magnitude sealing stays inert in
-            // tests that don't specifically exercise it.
-            max_cycles_per_batch: 1_000_000_000_000_000,
+            max_cycles_per_batch: PROVING_CYCLE_CEILING,
             reject_tx_at_cycles_percentage: 0.95,
             close_block_at_cycles_percentage: 0.95,
         }
@@ -190,6 +202,19 @@ pub struct StateKeeperConfig {
     /// Allowed deployers for L2 transactions.
     #[config(nest)]
     pub deployment_allowlist: Option<DeploymentAllowlist>,
+    #[config(nest)]
+    pub force_fail: ForceFailConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, DescribeConfig, DeserializeConfig)]
+#[config(derive(Default))]
+pub struct ForceFailConfig {
+    /// Apply operator force-fail marks from `force_failed_priority_ops` when sequencing L1->L2 txs.
+    #[config(default_t = false)]
+    pub enabled: bool,
+    /// How often the state keeper reloads the set of force-failed priority op ids.
+    #[config(default_t = Duration::from_secs(10))]
+    pub refresh_interval: Duration,
 }
 
 impl StateKeeperConfig {
@@ -214,6 +239,7 @@ impl StateKeeperConfig {
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 300000,
             deployment_allowlist: None,
+            force_fail: ForceFailConfig::default(),
         }
     }
 }
@@ -253,6 +279,15 @@ pub struct MempoolConfig {
     #[config(default_t = Duration::from_millis(100), with = Fallback(TimeUnit::Millis))]
     pub delay_interval: Duration,
     /// Whether to pause inclusion of L1 (aka priority) transactions in the mempool. Should be used with care.
+    ///
+    /// While paused, priority transactions are neither loaded from Postgres nor handed to the state
+    /// keeper, so no deposit is processed. Nothing is lost: a priority transaction only leaves the
+    /// mempool for good once it is executed in a sealed batch, so unsetting this resumes the queue
+    /// where it stopped.
+    ///
+    /// The state keeper also pauses on its own, and this cannot be unset while it is running: a
+    /// priority transaction that turns out to be unexecutable cannot be rejected, so the queue stalls
+    /// at it instead of stopping the node. Watch `state_keeper_l1_to_l2_txs_paused` for either case.
     #[config(default)]
     pub l1_to_l2_txs_paused: bool,
     /// Address of the initiator of high priority L2 transactions.
@@ -295,7 +330,10 @@ pub struct DeploymentAllowlistDynamic {
 
 #[cfg(test)]
 mod tests {
-    use smart_config::{testing::test_complete, Environment, Yaml};
+    use smart_config::{
+        testing::{test, test_complete},
+        Environment, Yaml,
+    };
 
     use super::*;
 
@@ -305,6 +343,7 @@ mod tests {
                 l2_block_seal_queue_capacity: 10,
                 l2_block_commit_deadline: Duration::from_millis(1000),
                 save_call_traces: false,
+                call_traces_max_chunk_size: ByteSize(16 << 20),
                 protective_reads_persistence_enabled: true,
             },
             seal_criteria: SealCriteriaConfig {
@@ -337,6 +376,10 @@ mod tests {
                 http_file_url: "http://deployment-allowlist/".to_owned(),
                 refresh_interval: Duration::from_secs(120),
             })),
+            force_fail: ForceFailConfig {
+                enabled: true,
+                refresh_interval: Duration::from_secs(5),
+            },
         }
     }
 
@@ -370,10 +413,13 @@ mod tests {
             CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
+            CHAIN_STATE_KEEPER_CALL_TRACES_MAX_CHUNK_SIZE="16777216"
             CHAIN_STATE_KEEPER_PROTECTIVE_READS_PERSISTENCE_ENABLED=true
             CHAIN_STATE_KEEPER_DEPLOYMENT_ALLOWLIST_SOURCE=Dynamic
             CHAIN_STATE_KEEPER_DEPLOYMENT_ALLOWLIST_HTTP_FILE_URL=http://deployment-allowlist/
             CHAIN_STATE_KEEPER_DEPLOYMENT_ALLOWLIST_REFRESH_INTERVAL=2 min
+            CHAIN_STATE_KEEPER_FORCE_FAIL_ENABLED=true
+            CHAIN_STATE_KEEPER_FORCE_FAIL_REFRESH_INTERVAL=5 sec
         "#;
         let env = Environment::from_dotenv("test.env", env)
             .unwrap()
@@ -407,6 +453,7 @@ mod tests {
           fee_model_version: V2
           validation_computational_gas_limit: 10000000
           save_call_traces: false
+          call_traces_max_chunk_size: 16777216
           max_circuits_per_batch: 24100
           max_cycles_per_batch: 500000000
           reject_tx_at_cycles_percentage: 0.7
@@ -417,6 +464,9 @@ mod tests {
             source: Url
             http_file_url: http://deployment-allowlist/
             refresh_interval_secs: 120
+          force_fail:
+            enabled: true
+            refresh_interval_secs: 5
         "#;
 
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
@@ -449,6 +499,7 @@ mod tests {
           fee_model_version: V2
           validation_computational_gas_limit: 10000000
           save_call_traces: false
+          call_traces_max_chunk_size: 16 MB
           max_circuits_per_batch: 24100
           max_cycles_per_batch: 500000000
           reject_tx_at_cycles_percentage: 0.7
@@ -459,11 +510,32 @@ mod tests {
             source: Url
             http_file_url: http://deployment-allowlist/
             refresh_interval: 2min
+          force_fail:
+            enabled: true
+            refresh_interval: 5 sec
         "#;
 
         let yaml = Yaml::new("test.yml", serde_yaml::from_str(yaml).unwrap()).unwrap();
         let config: StateKeeperConfig = test_complete(yaml).unwrap();
         assert_eq!(config, expected_state_keeper_config());
+    }
+
+    /// A budget above Airbender's proving ceiling is refused at load; the ceiling itself
+    /// is accepted.
+    #[test]
+    fn max_cycles_per_batch_is_capped_by_the_proving_ceiling() {
+        let source = |max_cycles: u64| {
+            let yaml = format!("max_pubdata_per_batch: 131072\nmax_cycles_per_batch: {max_cycles}");
+            Yaml::new("test.yml", serde_yaml::from_str(&yaml).unwrap()).unwrap()
+        };
+
+        let config: SealCriteriaConfig = test(source(PROVING_CYCLE_CEILING)).unwrap();
+        assert_eq!(config.max_cycles_per_batch, PROVING_CYCLE_CEILING);
+
+        let err = test::<SealCriteriaConfig>(source(PROVING_CYCLE_CEILING + 1)).unwrap_err();
+        assert_eq!(err.len(), 1, "{err}");
+        let err = err.to_string();
+        assert!(err.contains("max_cycles_per_batch"), "{err}");
     }
 
     fn expected_mempool_config() -> MempoolConfig {

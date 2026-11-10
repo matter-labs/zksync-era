@@ -16,14 +16,20 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
+          gcp-workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          sccache-reader-service-account: ${{ secrets.GCP_SCCACHE_READER_SERVICE_ACCOUNT }}
+          sccache-writer-service-account: ${{ secrets.GCP_SCCACHE_WRITER_SERVICE_ACCOUNT }}
           runner-compose-file: ${{ env.RUNNER_COMPOSE_FILE }}
-          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
 
       - name: Init
         run: |
           # The workspace pins its own nightly via `airbender_prover_server/rust-toolchain`;
           # `rustup show` inside the workspace installs it on demand.
           ci_run run_retried bash -lc "cd airbender_prover_server && rustup show"
+
+      # Both lanes below run `build.rs`, which needs these in place.
+      - name: Fetch Airbender guest artifacts
+        uses: ./.github/actions/airbender-artifacts
 
       - name: Formatting
         run: |
@@ -44,3 +50,7 @@ jobs:
           # Airbender circuit dependencies — faster, and it sidesteps a rustc
           # stack overflow seen during debug-info codegen on the pinned nightly.
           ci_run bash -lc "cd airbender_prover_server && CARGO_PROFILE_DEV_DEBUG=0 cargo test --no-default-features --locked -p eravm-prover-server"
+
+      - name: Show sccache stats
+        if: always()
+        run: ci_sccache_stats

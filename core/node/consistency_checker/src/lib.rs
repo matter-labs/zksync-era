@@ -216,6 +216,12 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         }
 
+        if this.l1_batch.header.protocol_version >= Some(ProtocolVersionId::Version34)
+            && metadata.airbender.is_none()
+        {
+            return Ok(None);
+        }
+
         Ok(Some(this))
     }
 
@@ -590,15 +596,20 @@ impl ConsistencyChecker {
                 "Unexpected encoding version: {}",
                 version[0]
             );
-            let schema = if pre_interop {
-                StoredBatchInfo::schema_pre_interop()
+            let protocol_version = if encoding_version == EncodingVersion::MultiProof.value() {
+                ProtocolVersionId::Version34
+            } else if pre_interop {
+                ProtocolVersionId::Version26
             } else {
-                StoredBatchInfo::schema_post_interop()
+                ProtocolVersionId::Version29
             };
+            let schema = StoredBatchInfo::schema_for_protocol_version(protocol_version);
             let decoded_data = ethabi::decode(
                 &[
                     schema,
-                    ParamType::Array(Box::new(CommitBatchInfo::post_gateway_schema())),
+                    ParamType::Array(Box::new(CommitBatchInfo::schema_for_protocol_version(
+                        protocol_version,
+                    ))),
                 ],
                 encoded_data,
             )

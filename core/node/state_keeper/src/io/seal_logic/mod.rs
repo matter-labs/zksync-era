@@ -12,6 +12,7 @@ use kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{DeduplicatedWritesMetrics, TransactionExecutionResult, VmEvent},
+    tracers::cycle_estimator::PROVING_CYCLE_CEILING,
     utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte, StorageWritesDeduplicator},
 };
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
@@ -48,6 +49,7 @@ impl UpdatesManager {
         l2_legacy_shared_bridge_addr: Option<Address>,
         insert_protective_reads: bool,
         save_predicted_cycles: bool,
+        call_traces_max_chunk_size: usize,
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
         let finished_batch = self
@@ -61,6 +63,7 @@ impl UpdatesManager {
         let l2_block_command = self.seal_l2_block_command(
             l2_legacy_shared_bridge_addr,
             false, // fictive L2 blocks don't have txs, so it's fine to pass `false` here.
+            call_traces_max_chunk_size,
         );
 
         let mut connection = pool.connection_tagged("state_keeper").await?;
@@ -160,16 +163,37 @@ impl UpdatesManager {
         progress.observe(None);
 
         if save_predicted_cycles {
-            // Mirrors `CyclesCriterion`: same feature vector, pubdata and deduplicated
-            // write counts, so the stored prediction is what the sealer reasoned about.
-            // The prover-reported real count lands in the same row later.
-            let predicted_cycles = estimate_batch_cycles(
+            // Same inputs as `CyclesCriterion`, so the stored prediction is what the
+            // sealer reasoned about. Stored as raw main-trace cycles: that is what the
+            // prover reports back into the same row.
+            let estimate = estimate_batch_cycles(
                 &self.pending_cycle_features(),
                 u64::from(self.pending_execution_metrics().pubdata_published),
                 dedup_writes_count as u64,
                 (l1_tx_count + l2_tx_count) as u64,
-            )
-            .total;
+            );
+            let predicted_cycles = estimate.raw;
+            // Reports, not gates: the batch is sealed by now.
+            if estimate.conservative() >= PROVING_CYCLE_CEILING {
+                tracing::warn!(
+                    "L1 batch {} sealed with a cycle estimate of {} past Airbender's proving \
+                     ceiling {PROVING_CYCLE_CEILING}; it is predicted to be unprovable",
+                    self.l1_batch_number(),
+                    estimate.conservative()
+                );
+            }
+            if !estimate.is_reliable() || !estimate.is_within_calibration() {
+                tracing::warn!(
+                    "L1 batch {} has an untrustworthy cycle estimate, so {predicted_cycles} \
+                     may under-count (un-priced: {:?}, out of calibrated domain: {:?}, \
+                     unfilled by the producer: {:?}, trace missing: {})",
+                    self.l1_batch_number(),
+                    estimate.untrusted,
+                    estimate.extrapolating,
+                    estimate.producer_gap,
+                    estimate.trace_missing
+                );
+            }
             transaction
                 .cycle_stats_dal()
                 .save_predicted_cycles(self.l1_batch_number(), predicted_cycles)

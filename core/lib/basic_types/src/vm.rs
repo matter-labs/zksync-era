@@ -21,12 +21,15 @@ pub enum VmVersion {
     VmEcPrecompiles,
     VmInterop,
     VmMediumInterop,
+    /// Protocol v34 and above. [`Self::VmMediumInterop`]'s bootloader and memory model plus the
+    /// force-fail `txMeta` bit.
+    VmMediumInteropForceFail,
 }
 
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        Self::VmMediumInterop
+        Self::VmMediumInteropForceFail
     }
 }
 

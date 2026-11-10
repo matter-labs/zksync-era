@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tokio::sync::watch;
 use zksync_config::configs::eth_proof_manager::EthProofManagerConfig;
-use zksync_dal::{ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{eth_watcher_dal::EventType, ConnectionPool, Core, CoreDal, DalError};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     ethabi::{self, Token},
@@ -14,10 +14,20 @@ use crate::{
     client::{EthProofManagerClient, RETRY_LIMIT},
     metrics::METRICS,
     types::FflonkFinalVerificationKey,
-    watcher::events::{EventHandler, ProofRequestAcknowledgedHandler, ProofRequestProvenHandler},
+    watcher::events::{
+        EventError, EventHandler, ProofRequestAcknowledgedHandler, ProofRequestProvenHandler,
+    },
 };
 
 mod events;
+
+fn event_type_label(event_type: EventType) -> &'static str {
+    match event_type {
+        EventType::ProofRequestAcknowledged => "proof_request_acknowledged",
+        EventType::ProofRequestProven => "proof_request_proven",
+        _ => "other",
+    }
+}
 
 pub struct EthProofWatcher {
     client: Box<dyn EthProofManagerClient>,
@@ -132,21 +142,44 @@ impl EthProofWatcher {
                 tracing::info!("topic: {:?}", topic);
                 tracing::info!("events: {:?}", events.len());
 
-                for log in events.clone() {
-                    event.handle(log).await?;
-                }
-
-                let next_block_to_process = if events.is_empty() {
-                    //nothing was processed
-                    from_block
-                } else {
-                    let block: u64 = events[events.len() - 1]
+                let mut next_block_to_process = from_block;
+                for log in events {
+                    let block: u64 = log
                         .block_number
                         .expect("Event block number is missing")
                         .try_into()
                         .unwrap();
-                    block + 1
-                };
+                    match event.handle(&log).await {
+                        Ok(()) => {}
+                        // Skip this log and continue with the remaining events.
+                        Err(EventError::Fatal(err)) => {
+                            tracing::error!(
+                                "Skipping malformed {:?} event at block {}, it can never be \
+                                 handled; a proof may go unrecorded and its reward stay locked. \
+                                 Log: {:?}. Error: {:#}",
+                                event.event_type(),
+                                block,
+                                log,
+                                err
+                            );
+                            METRICS.skipped_events[&event_type_label(event.event_type())].inc();
+                        }
+                        // Retry from this block on the next poll.
+                        Err(EventError::Transient(err)) => {
+                            tracing::error!(
+                                "Failed to handle {:?} event at block {}, will retry: {:#}",
+                                event.event_type(),
+                                block,
+                                err
+                            );
+                            METRICS.event_handling_errors[&event_type_label(event.event_type())]
+                                .inc();
+                            next_block_to_process = block;
+                            break;
+                        }
+                    }
+                    next_block_to_process = block + 1;
+                }
 
                 self.connection_pool
                     .connection()

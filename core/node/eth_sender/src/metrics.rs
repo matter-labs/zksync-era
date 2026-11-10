@@ -241,6 +241,7 @@ impl EthSenderMetrics {
                 }
                 metrics_latency.observe();
             }
+            AggregatedActionType::ProtocolUpgrade => {}
         }
     }
 }

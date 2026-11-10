@@ -12,6 +12,13 @@ ignore = [
   #  * aws-sdk-s3 to upgrade (https://github.com/smithy-lang/smithy-rs/pull/4470)
   #  * alloy-provider to upgrade (https://github.com/alloy-rs/alloy/pull/3460)
   "RUSTSEC-2026-0002",
+  # Panic-safety unsoundness in `lru`'s `LruCache::pop()`, patched in 0.18.2. Successor to
+  # RUSTSEC-2026-0002 above, with a wider affected range, so it hits the same two unupgradable
+  # transitive pins -- aws-sdk-s3 (lru 0.12) and alloy-provider (lru 0.13) -- plus our own
+  # `lru = "0.16.3"`. Reaching the UB needs a key type whose `Drop` panics and a
+  # `catch_unwind` around the `pop()`; we cache plain data keys and don't catch unwinds
+  # around cache access.
+  "RUSTSEC-2026-0253",
   # Vulnerability in `time`, we don't rely on users input in time and it cannot be maliciously crafted. Meanwhile it required to update rust toolset, which could cause more problems, because we use nightly.
   "RUSTSEC-2026-0009",
   "RUSTSEC-2024-0375", # atty dependency being unmaintained, dependency of clap and criterion, we would need to update to newer major of dependencies
@@ -24,6 +31,11 @@ ignore = [
   "RUSTSEC-2024-0436", # `paste` is an unmaintained dependency of various crates (like alloy-primitives, sqlx-core)
   "RUSTSEC-2025-0052", # `async-std` is discontinued, transitive dependency
   "RUSTSEC-2025-0134", # `rustls-pemfile` is unmaintained, transitive dependency via old rustls versions
+  # rustls 0.21 (aws-smithy) and 0.22 (tonic 0.11) have no patched release. We implement no
+  # `ClientSessionStore` that `Debug`-formats session values, and neither line supports the
+  # post-quantum hybrid group whose downgrade 0349 describes. 0.23 is on the patched 0.23.46.
+  "RUSTSEC-2026-0346",
+  "RUSTSEC-2026-0349",
   "RUSTSEC-2025-0141", # `bincode` is unmaintained, transitive dependency
   # The following `rustls-webpki` advisories all affect the old 0.101.7 and/or 0.102.8 versions
   # still pinned transitively by rustls 0.21/0.22 (via aws-smithy, hyper-rustls, etc.).
@@ -32,6 +44,9 @@ ignore = [
   "RUSTSEC-2026-0098", # URI name constraints incorrectly accepted; affects 0.101.7 and 0.102.8 (0.103.13 patched)
   "RUSTSEC-2026-0099", # Name constraints accept wildcard cert names; affects 0.101.7 and 0.102.8 (0.103.13 patched)
   "RUSTSEC-2026-0104", # Reachable panic in CRL parsing; affects 0.101.7 and 0.102.8 (0.103.13 patched). We don't use CRLs.
+  # Distrusted emSign intermediates; affects 0.101.7 and 0.102.8, no patch on those lines (0.103.16 patched).
+  # Both verify against the OS trust store (hyper-rustls 0.24 `rustls-native-certs`, tonic 0.11 `tls-roots`).
+  "RUSTSEC-2026-0382",
   # `rand` 0.8.x unsoundness in `ThreadRng` reseed under a custom logger calling rand from
   # log macros. Patch only exists for >=0.9.3 / >=0.10.1; no fix backported to 0.8.x. We
   # bumped 0.9.x to 0.9.4; rand 0.8.5 remains via many transitive deps (alloy-primitives,
@@ -46,7 +61,46 @@ ignore = [
   # No released `plist` depends on the patched quick-xml >=0.41.0 yet (latest 1.9.0 caps at
   # ^0.39.2).
   "RUSTSEC-2026-0194",
+  # `zip` <9.0.0 extraction advisories (SUID/SGID bits, symlink targets and permissions through
+  # symlinks). Reached only via svm-rs 0.5.16 (foundry-compilers, test-contract builds), which
+  # extracts checksummed solc releases. svm-rs 0.5.30 moves to zip 9 but needs a newer rustls stack.
+  "RUSTSEC-2026-0367",
+  "RUSTSEC-2026-0368",
+  "RUSTSEC-2026-0369",
   "RUSTSEC-2026-0195",
+  # `h2` unbounded empty DATA frames. Patched in 0.4.16 only -- the 0.3 line got no backport
+  # (0.3.27, the last 0.3 release, predates the advisory by a year), so there is nothing to
+  # upgrade to. We already run h2 0.4.19 everywhere we control; 0.3.26 survives only under the
+  # previous-generation HTTP stacks pulled in transitively: sentry 0.31 -> reqwest 0.11,
+  # rust-eigenda-v2-client + zksync_da_clients -> tonic 0.11, and aws-smithy-runtime ->
+  # aws-smithy-http-client's legacy hyper 0.14 client. Those are all client-side; the flaw is
+  # in accepting and queueing unbounded empty DATA frames from a peer, and is rated low
+  # severity. Dropping it needs sentry, rust-eigenda-v2-client and aws-smithy to move off
+  # hyper 0.14.
+  "RUSTSEC-2026-0258",
+  # `im` aliasing violation in `OrdSet` insertion, and the `sized-chunks` panic-safety
+  # unsoundness underneath it. Neither has a fixed version: both crates are archived and
+  # unmaintained (`im-rs` was archived on 2026-05-03, and sized-chunks 0.7.0 is still
+  # affected). Reached only via zksync_consensus_network -> im -> sized-chunks, so removing
+  # them means an upstream change in the consensus crates.
+  "RUSTSEC-2023-0126",
+  "RUSTSEC-2026-0255",
+  # `zip` 2.4.2 extraction advisories (SUID/SGID bits preserved, symlink targets outside the
+  # destination, permissions applied through symlinks), all in `ZipArchive::extract`. Our only
+  # path to `zip` is foundry-compilers -> svm-rs 0.5.16, where it is a target-specific
+  # dependency for `cfg(all(target_os = "windows", target_arch = "x86_64"))` only: on our Linux
+  # targets the crate is not compiled at all. On Windows svm-rs extracts only solc <=0.7.1
+  # archives whose sha256 was verified against the official release list first. The patched
+  # zip >=9.0.0 only ships with svm-rs 0.5.30, which moves to reqwest 0.13 and the new rustls
+  # stack and does not resolve against our pinned consensus crates.
+  "RUSTSEC-2026-0367",
+  "RUSTSEC-2026-0368",
+  "RUSTSEC-2026-0369",
+  "RUSTSEC-2026-0429",
+  # `crypto-bigint` timing variability, patched only in 0.7.6. 0.4.9 and 0.5.5 come via
+  # elliptic-curve 0.12/0.13 (k256, p256 in aws-sigv4) and boojum; moving to 0.7 needs the
+  # elliptic-curve 0.14 line across alloy, aws-smithy and the crypto crates.
+  "RUSTSEC-2026-0387",
 ]
 
 [licenses]

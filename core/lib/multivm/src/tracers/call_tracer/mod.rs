@@ -14,6 +14,9 @@ pub mod vm_latest;
 pub mod vm_refunds_enhancement;
 pub mod vm_virtual_blocks;
 
+/// Maximum call input / output bytes the tracer reads out of VM memory per transaction;
+pub const MAX_TRACE_DATA_BYTES_PER_TX: usize = 32 * 1_024 * 1_024;
+
 #[derive(Debug, Clone)]
 pub struct CallTracer {
     stack: Vec<FarcallAndNearCallCount>,
@@ -23,6 +26,52 @@ pub struct CallTracer {
 
     max_stack_depth: usize,
     max_near_calls: usize,
+
+    data_budget: DataBudget,
+}
+
+/// Budget of call input / output bytes a tracer is still allowed to retain.
+#[derive(Debug, Clone)]
+pub(crate) struct DataBudget {
+    remaining: usize,
+    dropped: usize,
+}
+
+impl Default for DataBudget {
+    fn default() -> Self {
+        Self::new(MAX_TRACE_DATA_BYTES_PER_TX)
+    }
+}
+
+impl DataBudget {
+    pub(crate) fn new(limit: usize) -> Self {
+        Self {
+            remaining: limit,
+            dropped: 0,
+        }
+    }
+
+    /// Charges up to `len` bytes against the budget and returns how many of them may be retained.
+    /// Callers must clamp the buffer they read out of VM memory to the returned length, so that
+    /// oversized data is never allocated in the first place.
+    pub(crate) fn take(&mut self, len: usize) -> usize {
+        let allowed = len.min(self.remaining);
+        self.remaining -= allowed;
+        self.dropped += len - allowed;
+        allowed
+    }
+
+    /// Reports the number of dropped bytes, if any. Called when a tracer is done.
+    pub(crate) fn report(&self) {
+        if self.dropped > 0 {
+            CALL_METRICS.dropped_data_bytes.observe(self.dropped);
+            tracing::debug!(
+                dropped_bytes = self.dropped,
+                "Call trace exceeded the retained-data budget of {MAX_TRACE_DATA_BYTES_PER_TX} B; \
+                 call inputs / outputs past it were dropped"
+            );
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -36,17 +85,24 @@ impl Drop for CallTracer {
     fn drop(&mut self) {
         CALL_METRICS.call_stack_depth.observe(self.max_stack_depth);
         CALL_METRICS.max_near_calls.observe(self.max_near_calls);
+        self.data_budget.report();
     }
 }
 
 impl CallTracer {
     pub fn new(result: Arc<OnceCell<Vec<Call>>>) -> Self {
+        Self::with_data_budget(result, MAX_TRACE_DATA_BYTES_PER_TX)
+    }
+
+    /// Same as [`Self::new()`], with an explicit budget of retained input / output bytes.
+    pub fn with_data_budget(result: Arc<OnceCell<Vec<Call>>>, data_budget: usize) -> Self {
         Self {
             stack: vec![],
             finished_calls: vec![],
             result,
             max_stack_depth: 0,
             max_near_calls: 0,
+            data_budget: DataBudget::new(data_budget),
         }
     }
 

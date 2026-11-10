@@ -11,7 +11,7 @@ use zksync_config::configs::chain::SealCriteriaConfig;
 use zksync_multivm::{
     interface::{
         Halt, SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs,
-        VmExecutionStatistics,
+        VmExecutionStatistics, VmRevertReason,
     },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -34,8 +34,9 @@ use crate::{
     testonly::{
         successful_exec,
         test_batch_executor::{
-            random_tx, random_upgrade_tx, rejected_exec, MockReadStorageFactory,
-            TestBatchExecutorBuilder, TestIO, TestScenario, FEE_ACCOUNT,
+            random_l1_tx, random_tx, random_upgrade_tx, rejected_exec, reverted_exec,
+            successful_exec_publishing, MockReadStorageFactory, TestBatchExecutorBuilder, TestIO,
+            TestScenario, FEE_ACCOUNT,
         },
         BASE_SYSTEM_CONTRACTS,
     },
@@ -343,6 +344,302 @@ async fn bootloader_tip_out_of_gas_flow() {
         .batch_sealed("2nd batch sealed")
         .run_success(Arc::new(sealer))
         .await;
+}
+
+/// A priority transaction that fails for a reason about the *batch* rather than about itself must be
+/// given another batch, not a verdict. It is rolled back and retried, the same treatment the
+/// out-of-gas path in `bootloader_tip_out_of_gas_flow` above has always had, and it succeeds once
+/// there is room. Without this it would reach `MempoolIO::reject()`, which for a priority
+/// transaction pauses the whole L1->L2 queue until an operator restarts the node.
+#[tokio::test]
+async fn batch_relative_halt_on_an_l1_tx_is_retried_in_the_next_batch() {
+    let config = SealCriteriaConfig {
+        transaction_slots: 2,
+        ..SealCriteriaConfig::for_tests()
+    };
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+
+    let first_tx = random_tx(1);
+    let l1_tx = random_l1_tx(2);
+    let third_tx = random_tx(3);
+    TestScenario::new()
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
+        .next_tx(
+            "An L2 tx takes up part of the batch",
+            first_tx,
+            successful_exec(),
+        )
+        .l2_block_sealed("L2 block with the 1st tx")
+        .next_tx(
+            "Priority tx exhausts what the batch has left",
+            l1_tx.clone(),
+            rejected_exec(Halt::MissingInvocationLimitReached),
+        )
+        .tx_rollback(
+            "Priority tx is rolled back for a retry, not rejected",
+            l1_tx.clone(),
+        )
+        .batch_sealed("Batch sealed without it")
+        .next_tx(
+            "Priority tx succeeds in a batch with room",
+            l1_tx,
+            successful_exec(),
+        )
+        .l2_block_sealed("L2 block with the priority tx")
+        .next_tx("Another L2 tx", third_tx, successful_exec())
+        .l2_block_sealed("L2 block with it")
+        .batch_sealed("2nd batch sealed")
+        .run_success(Arc::new(sealer))
+        .await;
+}
+
+/// The other half of the distinction: a halt that is about the transaction itself stays final at
+/// every position, so a priority transaction carrying one still goes to `reject()` and still pauses
+/// the queue. Retrying such a halt in a new batch would loop forever, since a fresh batch
+/// reproduces it exactly.
+#[tokio::test]
+async fn an_intrinsic_halt_on_an_l1_tx_is_still_final() {
+    let config = SealCriteriaConfig {
+        transaction_slots: 2,
+        ..SealCriteriaConfig::for_tests()
+    };
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+
+    let halt = Halt::VMPanic;
+    let first_tx = random_tx(1);
+    let l1_tx = random_l1_tx(2);
+    TestScenario::new()
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
+        .next_tx(
+            "An L2 tx takes up part of the batch",
+            first_tx,
+            successful_exec(),
+        )
+        .l2_block_sealed("L2 block with the 1st tx")
+        .next_tx(
+            "Priority tx halts",
+            l1_tx.clone(),
+            rejected_exec(halt.clone()),
+        )
+        // Mid-batch, so only the reason keeps this out of the retry path above.
+        .tx_rejected(
+            "Priority tx is final, and the real IO pauses the queue on it",
+            l1_tx,
+            UnexecutableReason::Halt(halt),
+        )
+        .next_tx("L2 traffic continues", random_tx(3), successful_exec())
+        .l2_block_sealed("L2 block with it")
+        .batch_sealed("Batch sealed")
+        .run_success(Arc::new(sealer))
+        .await;
+}
+
+/// Can an ordinary deposit stop the priority queue? No — and this is where that is pinned.
+///
+/// The queue pauses in exactly one place: `MempoolIO::reject()`, which the keeper calls for exactly
+/// one seal resolution, `SealResolution::Unexecutable`. So the question reduces to which execution
+/// outcomes produce it, and an ordinary deposit produces none of them:
+///
+/// * it succeeds — included, nothing to resolve;
+/// * it **reverts** — the common "bad deposit" case, and the one worth being explicit about. A revert
+///   is not a halt; `TxExecutionResult::new()` maps it to `Success`, so the transaction is included
+///   in the batch marked failed and the queue moves straight on to the next one.
+///
+/// The assertion is structural rather than an `assert!`: `TestIO::reject()` pops the next scripted
+/// action and panics unless it is a `Reject`. This scenario scripts none, so any rejection at all
+/// fails the test.
+#[tokio::test]
+async fn an_ordinary_l1_tx_cannot_pause_the_queue() {
+    let config = SealCriteriaConfig {
+        transaction_slots: 4,
+        ..SealCriteriaConfig::for_tests()
+    };
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+
+    TestScenario::new()
+        .seal_l2_block_when(|updates| {
+            updates.last_pending_l2_block().executed_transactions.len() == 1
+        })
+        .next_tx("A deposit that works", random_l1_tx(1), successful_exec())
+        .l2_block_sealed("L2 block with it")
+        .next_tx("A deposit that reverts", random_l1_tx(2), reverted_exec())
+        .l2_block_sealed("L2 block with it — included, not rejected")
+        .next_tx("An L2 tx that reverts", random_tx(3), reverted_exec())
+        .l2_block_sealed("L2 block with it")
+        .next_tx(
+            "And the queue is still moving",
+            random_l1_tx(4),
+            successful_exec(),
+        )
+        .l2_block_sealed("L2 block with it")
+        .batch_sealed("Batch sealed with all four")
+        .run_success(Arc::new(sealer))
+        .await;
+}
+
+/// Every reason classed as batch-relative, driven end to end rather than asserted on the classifier.
+/// Each one must roll the priority transaction back for a retry, and none may reach `reject()`.
+///
+/// Only these four reach the arm the fix added: `Halt::BootloaderOutOfGas` and
+/// `Halt::NotEnoughGasProvided` are picked off earlier, by the out-of-gas arm that already behaved
+/// this way, and `OutOfGasForBatchTip` comes from a seal criterion rather than from a halt.
+#[tokio::test]
+async fn no_batch_relative_reason_pauses_the_queue() {
+    for halt in [
+        Halt::MissingInvocationLimitReached,
+        Halt::FailedToPublishCompressedBytecodes,
+        Halt::FailedToSetL2Block("whatever".to_owned()),
+        Halt::FailedToAppendTransactionToL2Block("whatever".to_owned()),
+    ] {
+        let config = SealCriteriaConfig {
+            transaction_slots: 2,
+            ..SealCriteriaConfig::for_tests()
+        };
+        let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+
+        let l1_tx = random_l1_tx(2);
+        TestScenario::new()
+            .seal_l2_block_when(|updates| {
+                updates.last_pending_l2_block().executed_transactions.len() == 1
+            })
+            .next_tx(
+                "Something already in the batch",
+                random_tx(1),
+                successful_exec(),
+            )
+            .l2_block_sealed("L2 block with it")
+            .next_tx(
+                "Deposit hits the batch's limit",
+                l1_tx.clone(),
+                rejected_exec(halt),
+            )
+            .tx_rollback("Rolled back for a retry", l1_tx.clone())
+            .batch_sealed("Batch sealed to make room")
+            .next_tx("Deposit succeeds with the room", l1_tx, successful_exec())
+            .l2_block_sealed("L2 block with it")
+            .next_tx("More traffic", random_tx(3), successful_exec())
+            .l2_block_sealed("L2 block with it")
+            .batch_sealed("2nd batch sealed")
+            .run_success(Arc::new(sealer))
+            .await;
+    }
+}
+
+/// Which side of the pause each `Halt` falls on, decided here and nowhere else.
+///
+/// The `match` has no wildcard arm on purpose: a `Halt` variant added later fails to compile until
+/// somebody decides whether a new batch could fix it. That is the property worth having — the risk is
+/// not that today's table is wrong, it is that tomorrow's variant defaults into the wrong half
+/// silently.
+fn a_new_batch_could_fix(halt: &Halt) -> bool {
+    match halt {
+        // Batch-wide budgets, spent by whatever ran before this transaction.
+        Halt::BootloaderOutOfGas
+        | Halt::NotEnoughGasProvided
+        | Halt::MissingInvocationLimitReached
+        | Halt::FailedToPublishCompressedBytecodes
+        // State of the L2 block being built, not of the transaction.
+        | Halt::FailedToSetL2Block(_)
+        | Halt::FailedToAppendTransactionToL2Block(_) => true,
+        // Intrinsic to the transaction: a fresh batch reproduces every one of these exactly.
+        Halt::ValidationFailed(_)
+        | Halt::PaymasterValidationFailed(_)
+        | Halt::PrePaymasterPreparationFailed(_)
+        | Halt::PayForTxFailed(_)
+        | Halt::FailedToMarkFactoryDependencies(_)
+        | Halt::FailedToChargeFee(_)
+        | Halt::FromIsNotAnAccount
+        | Halt::InnerTxError
+        | Halt::Unknown(_)
+        | Halt::UnexpectedVMBehavior(_)
+        | Halt::ValidationOutOfGas
+        | Halt::TooBigGasLimit
+        | Halt::VMPanic
+        | Halt::TracerCustom(_)
+        | Halt::FailedBlockTimestampAssertion => false,
+    }
+}
+
+#[test]
+fn every_halt_is_classified_the_way_the_table_says() {
+    // Kept in step with `a_new_batch_could_fix()` by hand; that function is what makes forgetting a
+    // new variant a build failure, and this is what checks the classifier agrees with it.
+    let halts = [
+        Halt::BootloaderOutOfGas,
+        Halt::NotEnoughGasProvided,
+        Halt::MissingInvocationLimitReached,
+        Halt::FailedToPublishCompressedBytecodes,
+        Halt::FailedToSetL2Block(String::new()),
+        Halt::FailedToAppendTransactionToL2Block(String::new()),
+        Halt::ValidationFailed(VmRevertReason::General {
+            msg: String::new(),
+            data: vec![],
+        }),
+        Halt::PaymasterValidationFailed(VmRevertReason::Unknown {
+            function_selector: vec![],
+            data: vec![],
+        }),
+        Halt::PrePaymasterPreparationFailed(VmRevertReason::VmError),
+        Halt::PayForTxFailed(VmRevertReason::VmError),
+        Halt::FailedToMarkFactoryDependencies(VmRevertReason::VmError),
+        Halt::FailedToChargeFee(VmRevertReason::VmError),
+        Halt::FromIsNotAnAccount,
+        Halt::InnerTxError,
+        Halt::Unknown(VmRevertReason::VmError),
+        Halt::UnexpectedVMBehavior(String::new()),
+        Halt::ValidationOutOfGas,
+        Halt::TooBigGasLimit,
+        Halt::VMPanic,
+        Halt::TracerCustom(String::new()),
+        Halt::FailedBlockTimestampAssertion,
+    ];
+    for halt in halts {
+        assert_eq!(
+            UnexecutableReason::Halt(halt.clone()).is_batch_relative(),
+            a_new_batch_could_fix(&halt),
+            "{halt:?}"
+        );
+    }
+}
+
+#[test]
+fn batch_relative_reasons_are_exactly_the_ones_a_new_batch_could_fix() {
+    // Batch-wide resources: what is left depends on what already ran.
+    for reason in [
+        UnexecutableReason::BootloaderOutOfGas,
+        UnexecutableReason::NotEnoughGasProvided,
+        UnexecutableReason::OutOfGasForBatchTip,
+        UnexecutableReason::Halt(Halt::BootloaderOutOfGas),
+        UnexecutableReason::Halt(Halt::MissingInvocationLimitReached),
+        UnexecutableReason::Halt(Halt::FailedToPublishCompressedBytecodes),
+        UnexecutableReason::Halt(Halt::FailedToSetL2Block(String::new())),
+        UnexecutableReason::Halt(Halt::FailedToAppendTransactionToL2Block(String::new())),
+    ] {
+        assert!(reason.is_batch_relative(), "{reason:?}");
+    }
+
+    // Intrinsic to the transaction. A new batch reproduces every one of these, so treating one as
+    // retryable would re-execute a transaction that can never succeed, forever.
+    for reason in [
+        UnexecutableReason::Halt(Halt::TracerCustom(String::new())),
+        UnexecutableReason::Halt(Halt::ValidationOutOfGas),
+        UnexecutableReason::Halt(Halt::TooBigGasLimit),
+        UnexecutableReason::Halt(Halt::InnerTxError),
+        UnexecutableReason::Halt(Halt::VMPanic),
+        UnexecutableReason::TxEncodingSize,
+        UnexecutableReason::LargeEncodingSize,
+        UnexecutableReason::PubdataLimit,
+        UnexecutableReason::ProofWillFail,
+        UnexecutableReason::TooMuchGas,
+        UnexecutableReason::TooMuchUserL2L1Logs,
+        UnexecutableReason::DeploymentNotAllowed,
+    ] {
+        assert!(!reason.is_batch_relative(), "{reason:?}");
+    }
 }
 
 #[tokio::test]
@@ -693,6 +990,105 @@ async fn l2_block_rollback_basics() {
         .next_tx("Third tx", random_tx(3), successful_exec())
         .l2_block_sealed("L2 block 3")
         .batch_sealed("Batch 1")
+        .run_success(Arc::new(sealer))
+        .await;
+}
+
+/// Bytecode of `words` 32-byte words (must be odd, per EraVM). Only its hash and length matter.
+fn factory_dep(words: usize, seed: u8) -> Vec<u8> {
+    assert!(words % 2 == 1, "bytecode must have an odd number of words");
+    let mut code = vec![0_u8; words * 32];
+    code[0] = 1;
+    code[1] = seed;
+    code[2..10].copy_from_slice(&(words as u64).to_be_bytes());
+    code
+}
+
+fn tx_with_factory_deps(tx_number: u64, factory_deps: Vec<Vec<u8>>) -> Transaction {
+    let mut tx = random_tx(tx_number);
+    tx.execute.factory_deps = factory_deps;
+    tx
+}
+
+/// The admission check reads `KnownCodesStorage` at the last sealed L2 block, so several
+/// transactions carrying the same not-yet-published bytecode are all admitted as publishers. Here
+/// the execution says otherwise — no `MarkedAsKnown` event — and the state keeper rejects, which is
+/// what stops that window from being an amplifier.
+#[tokio::test]
+async fn tx_with_large_unpublished_factory_dep_is_rejected() {
+    // One slot: the rejected transaction is never included, so the batch seals on the next one.
+    let config = SealCriteriaConfig {
+        transaction_slots: 1,
+        ..SealCriteriaConfig::for_tests()
+    };
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+
+    let dep = factory_dep(6_251, 1); // 200,032 bytes
+    let tx = tx_with_factory_deps(1, vec![dep]);
+
+    TestScenario::new()
+        .with_max_redundant_factory_deps_size(125_000)
+        .next_tx(
+            "Tx re-supplying a large known dep",
+            tx.clone(),
+            successful_exec(),
+        )
+        .tx_rejected(
+            "Tx is rejected for carrying preimages it does not publish",
+            tx,
+            UnexecutableReason::RedundantFactoryDeps,
+        )
+        .next_tx("Second tx", random_tx(2), successful_exec())
+        .l2_block_sealed("L2 block with the second tx")
+        .batch_sealed("Batch sealed without the rejected tx")
+        .run_success(Arc::new(sealer))
+        .await;
+}
+
+/// The same transaction is included when its execution actually publishes the bytecode: publication
+/// pays gas proportional to the preimage, so those bytes are not free.
+#[tokio::test]
+async fn tx_publishing_large_factory_dep_is_included() {
+    let config = SealCriteriaConfig {
+        transaction_slots: 1,
+        ..SealCriteriaConfig::for_tests()
+    };
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+
+    let dep = factory_dep(6_251, 1);
+    let tx = tx_with_factory_deps(1, vec![dep.clone()]);
+
+    TestScenario::new()
+        .with_max_redundant_factory_deps_size(125_000)
+        .next_tx(
+            "Tx publishing a large dep",
+            tx,
+            successful_exec_publishing(&[dep]),
+        )
+        .l2_block_sealed("L2 block with the publishing tx")
+        .batch_sealed("Batch sealed with the publishing tx")
+        .run_success(Arc::new(sealer))
+        .await;
+}
+
+/// A priority transaction cannot be rejected — it is already committed on L1, and its bytes were
+/// paid for there — so the bound must not apply to it.
+#[tokio::test]
+async fn l1_tx_with_large_unpublished_factory_dep_is_included() {
+    let config = SealCriteriaConfig {
+        transaction_slots: 1,
+        ..SealCriteriaConfig::for_tests()
+    };
+    let sealer = SequencerSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
+
+    let mut tx = random_l1_tx(1);
+    tx.execute.factory_deps = vec![factory_dep(6_251, 1)];
+
+    TestScenario::new()
+        .with_max_redundant_factory_deps_size(125_000)
+        .next_tx("Priority tx with a large known dep", tx, successful_exec())
+        .l2_block_sealed("L2 block with the priority tx")
+        .batch_sealed("Batch sealed with the priority tx")
         .run_success(Arc::new(sealer))
         .await;
 }

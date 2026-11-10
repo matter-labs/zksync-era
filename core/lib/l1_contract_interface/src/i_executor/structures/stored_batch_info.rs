@@ -22,11 +22,18 @@ pub struct StoredBatchInfo {
     pub l2_logs_tree_root: H256,
     pub timestamp: U256,
     pub commitment: H256,
+    pub airbender_commitment: H256,
 }
 
 impl StoredBatchInfo {
     pub fn schema_for_protocol_version(protocol_version: ProtocolVersionId) -> ParamType {
-        if protocol_version.is_pre_interop_fast_blocks() {
+        if protocol_version >= ProtocolVersionId::Version34 {
+            let ParamType::Tuple(mut fields) = Self::schema_post_interop() else {
+                unreachable!()
+            };
+            fields.push(ParamType::FixedBytes(32));
+            ParamType::Tuple(fields)
+        } else if protocol_version.is_pre_interop_fast_blocks() {
             Self::schema_pre_interop()
         } else {
             Self::schema_post_interop()
@@ -60,14 +67,14 @@ impl StoredBatchInfo {
         ])
     }
 
-    /// Encodes the struct into RLP.
-    pub fn encode(&self) -> Vec<u8> {
+    /// Encodes the contract struct for the given protocol version.
+    pub fn encode(&self, protocol_version: ProtocolVersionId) -> Vec<u8> {
         ethabi::encode(&[self
             .clone()
-            .into_token_with_protocol_version(ProtocolVersionId::latest())])
+            .into_token_with_protocol_version(protocol_version)])
     }
 
-    /// Decodes the struct from RLP.
+    /// Decodes the contract struct for the given protocol version.
     pub fn decode(rlp: &[u8], protocol_version: ProtocolVersionId) -> anyhow::Result<Self> {
         let [token] =
             ethabi::decode_whole(&[Self::schema_for_protocol_version(protocol_version)], rlp)?
@@ -77,11 +84,23 @@ impl StoredBatchInfo {
     }
 
     /// `_hashStoredBatchInfo` from `Executor.sol`.
-    pub fn hash(&self) -> H256 {
-        H256(web3::keccak256(&self.encode()))
+    pub fn hash(&self, protocol_version: ProtocolVersionId) -> H256 {
+        H256(web3::keccak256(&self.encode(protocol_version)))
     }
 
     pub fn from_token(token: Token) -> anyhow::Result<Self> {
+        let mut tokens = token.into_tuple().context("not a tuple")?;
+        let airbender_commitment = if tokens.len() == 10 {
+            let Token::FixedBytes(value) = tokens.pop().unwrap() else {
+                anyhow::bail!("bad Airbender commitment")
+            };
+            parse_h256(&value).context("airbender_commitment")?
+        } else {
+            H256::zero()
+        };
+        if tokens.len() == 8 {
+            tokens.insert(5, Token::FixedBytes(vec![0; 32]));
+        }
         let [
             Token::Uint(batch_number),
             Token::FixedBytes(batch_hash),
@@ -92,11 +111,11 @@ impl StoredBatchInfo {
             Token::FixedBytes(l2_logs_tree_root),
             Token::Uint(timestamp),
             Token::FixedBytes(commitment),
-        ] : [Token;9] = token
-            .into_tuple().context("not a tuple")?
+        ] : [Token;9] = tokens
             .try_into().ok().context("bad length")?
         else { anyhow::bail!("bad format") };
         Ok(Self {
+            airbender_commitment,
             batch_number: batch_number
                 .try_into()
                 .ok()
@@ -132,7 +151,7 @@ impl StoredBatchInfo {
                 Token::FixedBytes(self.commitment.as_bytes().to_vec()),
             ])
         } else {
-            Token::Tuple(vec![
+            let mut tokens = vec![
                 Token::Uint(self.batch_number.into()),
                 Token::FixedBytes(self.batch_hash.as_bytes().to_vec()),
                 Token::Uint(self.index_repeated_storage_changes.into()),
@@ -142,7 +161,13 @@ impl StoredBatchInfo {
                 Token::FixedBytes(self.l2_logs_tree_root.as_bytes().to_vec()),
                 Token::Uint(self.timestamp),
                 Token::FixedBytes(self.commitment.as_bytes().to_vec()),
-            ])
+            ];
+            if protocol_version >= ProtocolVersionId::Version34 {
+                tokens.push(Token::FixedBytes(
+                    self.airbender_commitment.as_bytes().to_vec(),
+                ));
+            }
+            Token::Tuple(tokens)
         }
     }
 }
@@ -173,6 +198,16 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
             l2_logs_tree_root: x.metadata.l2_l1_merkle_root,
             timestamp: x.header.timestamp.into(),
             commitment: x.metadata.commitment,
+            airbender_commitment: if x.header.protocol_version >= Some(ProtocolVersionId::Version34)
+            {
+                x.metadata
+                    .airbender
+                    .as_ref()
+                    .expect("missing Airbender commitment")
+                    .commitment
+            } else {
+                H256::zero()
+            },
         }
     }
 }

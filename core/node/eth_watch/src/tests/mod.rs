@@ -18,6 +18,7 @@ use zksync_types::{
 };
 
 use crate::{
+    client::EthClient,
     tests::client::{airbender_vk_hash_of, CtmGeneration, MockEthClient},
     EthWatch, ZkSyncExtentionEthClient,
 };
@@ -48,6 +49,7 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
             priority_queue_type: PriorityQueueType::Deque,
             op_processing_type: OpProcessingType::Common,
             canonical_tx_hash: H256::default(),
+            force_fail: false,
         },
         received_timestamp_ms: 0,
     };
@@ -380,6 +382,19 @@ async fn test_in_place_cut_rewrite_is_used_on_modern_ctm() {
     let db_versions = storage.protocol_versions_dal().all_versions().await;
     assert_eq!(db_versions.len(), 2);
     assert_eq!(db_versions[1], replacement_version);
+
+    let (next_version, upgrade_cut_data) = storage
+        .protocol_versions_dal()
+        .next_version_with_upgrade_cut_data(old_protocol_version)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(next_version, replacement_version);
+    let rewritten_cut = client
+        .diamond_cut_for_version(old_protocol_version, 0)
+        .await
+        .unwrap();
+    assert_eq!(upgrade_cut_data, rewritten_cut);
 }
 
 /// Modern CTMs announce the verifier for the new protocol version via
@@ -1274,4 +1289,188 @@ async fn setup_batch_roots(
                 .unwrap();
         }
     }
+}
+
+fn proof_system_status_log(
+    chain_id: u64,
+    block: u64,
+    log_index: u64,
+    mask: u8,
+) -> zksync_types::api::Log {
+    use zksync_types::{
+        ethabi::{encode, Token},
+        server_notification::PROOF_SYSTEM_STATUS_NOTIFICATION_SIGNATURE,
+    };
+    zksync_types::api::Log {
+        topics: vec![
+            *PROOF_SYSTEM_STATUS_NOTIFICATION_SIGNATURE,
+            H256::from_low_u64_be(chain_id),
+        ],
+        data: encode(&[Token::Tuple(vec![
+            Token::Bool(mask & 1 != 0),
+            Token::Bool(mask & 2 != 0),
+        ])])
+        .into(),
+        block_number: Some(block.into()),
+        log_index: Some(log_index.into()),
+        address: Address::zero(),
+        block_hash: None,
+        l1_batch_number: None,
+        transaction_hash: None,
+        transaction_index: None,
+        transaction_log_index: None,
+        log_type: None,
+        removed: None,
+        block_timestamp: None,
+    }
+}
+
+#[tokio::test]
+async fn proof_system_notifications_follow_l1_cursor_and_survive_restart() {
+    use std::{sync::Arc, time::Duration};
+
+    use zksync_dal::eth_watcher_dal::EventType;
+
+    use crate::event_processors::{EventProcessor, ProofSystemStatusProcessor};
+
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let l1_chain = SLChainId(42);
+    let mut l1 = MockEthClient::new(l1_chain);
+    let mut sl = MockEthClient::new(SL_CHAIN_ID);
+    let chain = L2ChainId::from(270);
+    let watcher = || EthWatch {
+        l1_client: Arc::new(l1.clone()),
+        sl_client: Arc::new(sl.clone()),
+        poll_interval: Duration::from_secs(1),
+        event_expiration_blocks: 50_000,
+        event_processors: vec![Box::new(ProofSystemStatusProcessor::new(chain))],
+        pool: pool.clone(),
+    };
+    let mut watcher = watcher();
+    let older = proof_system_status_log(270, 10, 2, 1);
+    l1.add_proof_system_notification(proof_system_status_log(270, 10, 5, 2))
+        .await;
+    l1.add_proof_system_notification(older.clone()).await;
+    l1.add_proof_system_notification(proof_system_status_log(271, 10, 6, 0))
+        .await;
+    sl.add_proof_system_notification(proof_system_status_log(270, 10, 7, 0))
+        .await;
+    sl.set_last_finalized_block_number(10).await;
+    l1.set_last_finalized_block_number(9).await;
+    watcher.loop_iteration(&mut storage).await.unwrap();
+    assert!(storage
+        .server_notifications_dal()
+        .get_latest_proof_system_status_notification()
+        .await
+        .unwrap()
+        .is_none());
+
+    l1.set_last_finalized_block_number(10).await;
+    watcher.loop_iteration(&mut storage).await.unwrap();
+    let notification = storage
+        .server_notifications_dal()
+        .get_latest_proof_system_status_notification()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(notification.disabled_proof_systems, 2);
+    assert_eq!(notification.log_index, 5);
+    assert_eq!(
+        storage
+            .eth_watcher_dal()
+            .get_or_set_next_block_to_process(EventType::ProofSystemStatus, l1_chain, 0)
+            .await
+            .unwrap(),
+        11
+    );
+    assert_eq!(
+        storage
+            .eth_watcher_dal()
+            .get_or_set_next_block_to_process(EventType::ServerNotification, l1_chain, 0)
+            .await
+            .unwrap(),
+        0
+    );
+
+    ProofSystemStatusProcessor::new(chain)
+        .process_events(&mut storage, vec![older])
+        .await
+        .unwrap();
+    assert_eq!(
+        storage
+            .server_notifications_dal()
+            .get_latest_proof_system_status_notification()
+            .await
+            .unwrap(),
+        Some(notification)
+    );
+    watcher.event_processors = vec![Box::new(ProofSystemStatusProcessor::new(chain))];
+    watcher.loop_iteration(&mut storage).await.unwrap();
+    assert_eq!(
+        storage
+            .server_notifications_dal()
+            .get_latest_proof_system_status_notification()
+            .await
+            .unwrap(),
+        Some(notification)
+    );
+
+    l1.add_proof_system_notification(proof_system_status_log(270, 11, 0, 0))
+        .await;
+    l1.set_last_finalized_block_number(11).await;
+    watcher.loop_iteration(&mut storage).await.unwrap();
+    assert_eq!(
+        storage
+            .server_notifications_dal()
+            .get_latest_proof_system_status_notification()
+            .await
+            .unwrap()
+            .unwrap()
+            .disabled_proof_systems,
+        0
+    );
+}
+
+#[tokio::test]
+async fn proof_system_notifications_reject_invalid_payloads() {
+    use crate::event_processors::{EventProcessor, ProofSystemStatusProcessor};
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
+    let mut processor = ProofSystemStatusProcessor::new(L2ChainId::from(270));
+    let mut missing_index = proof_system_status_log(270, 10, 0, 0);
+    missing_index.log_index = None;
+    let mut short_data = proof_system_status_log(270, 10, 0, 0);
+    short_data.data.0.pop();
+    let mut invalid_bool = proof_system_status_log(270, 10, 0, 0);
+    invalid_bool.data.0[31] = 2;
+    let mut legacy_mask = proof_system_status_log(270, 10, 0, 0);
+    legacy_mask.data.0.truncate(32);
+    for log in [
+        proof_system_status_log(270, 10, 0, 3),
+        missing_index,
+        short_data,
+        invalid_bool,
+        legacy_mask,
+    ] {
+        assert!(processor
+            .process_events(&mut storage, vec![log])
+            .await
+            .is_err());
+    }
+    let mut removed = proof_system_status_log(270, 10, 0, 1);
+    removed.removed = Some(true);
+    processor
+        .process_events(
+            &mut storage,
+            vec![removed, proof_system_status_log(271, 10, 0, 1)],
+        )
+        .await
+        .unwrap();
+    assert!(storage
+        .server_notifications_dal()
+        .get_latest_proof_system_status_notification()
+        .await
+        .unwrap()
+        .is_none());
 }

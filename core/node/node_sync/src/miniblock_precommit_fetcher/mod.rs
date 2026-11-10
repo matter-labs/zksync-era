@@ -101,9 +101,7 @@ impl FetcherCursor {
     ) -> anyhow::Result<L2BlockNumber> {
         let latest_committed_l1_batch = storage
             .blocks_dal()
-            .get_last_committed_to_eth_l1_batch(
-                zksync_config::configs::eth_sender::ProverType::Boojum,
-            )
+            .get_last_committed_to_eth_l1_batch()
             .await?
             .map(|batch| batch.header.number);
 

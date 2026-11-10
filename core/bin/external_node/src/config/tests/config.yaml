@@ -50,6 +50,7 @@ api:
     http_port: 2950
     ws_port: 2951
     req_entities_limit: 1000
+    get_logs_block_range_limit: 10000
     filters_disabled: true
     filters_limit: 5000
     subscriptions_limit: 5000
@@ -95,6 +96,7 @@ contracts:
 state_keeper:
   l2_block_seal_queue_capacity: 20
   save_call_traces: false
+  call_traces_max_chunk_size: 16777216
   protective_reads_persistence_enabled: true
   l2_block_commit_deadline_ms: 1000
 commitment_generator:

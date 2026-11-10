@@ -75,6 +75,9 @@ impl AirbenderProofGenerationDal<'_, '_> {
     /// Reclaims (Step 1) keep the version recorded at first lock and only go to provers whose key
     /// matches it, so an old generation can always finish its own batches. Operational corollary:
     /// retire a prover generation only once its batches reach `snark_generated`.
+    ///
+    /// Both steps require the batch's read proofs (`airbender_read_proofs_blob_url`), so proving
+    /// stalls rather than ships an unprovable input while the producer is behind.
     pub async fn lock_batch_for_proving(
         &mut self,
         processing_timeout: Duration,
@@ -111,6 +114,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
                         p.l1_batch_number >= $3
                         AND p.vm_run_data_blob_url IS NOT NULL
                         AND p.proof_gen_data_blob_url IS NOT NULL
+                        AND p.airbender_read_proofs_blob_url IS NOT NULL
                         AND apgd.attempts < $5
                         AND (
                             apgd.status = $2
@@ -236,6 +240,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 )
                 AND p.vm_run_data_blob_url IS NOT NULL
                 AND p.proof_gen_data_blob_url IS NOT NULL
+                AND p.airbender_read_proofs_blob_url IS NOT NULL
                 AND (l.protocol_version, prover_patch.patch)
                 >= (COALESCE(version_floor.minor, 0), COALESCE(version_floor.patch, 0))
             ON CONFLICT (l1_batch_number) DO NOTHING
@@ -765,6 +770,7 @@ impl AirbenderProofGenerationDal<'_, '_> {
                 p.l1_batch_number >= $1
                 AND p.vm_run_data_blob_url IS NOT NULL
                 AND p.proof_gen_data_blob_url IS NOT NULL
+                AND p.airbender_read_proofs_blob_url IS NOT NULL
                 AND (
                     apgd.l1_batch_number IS NULL
                     OR (apgd.status = $2 AND apgd.attempts < $3)
@@ -901,12 +907,25 @@ mod tests {
 
     /// Marks the proving inputs of an already-inserted batch as present, making it claimable.
     async fn mark_inputs_ready(conn: &mut Connection<'_, Core>, number: L1BatchNumber) {
+        mark_witness_ready(conn, number).await;
+        mark_read_proofs_ready(conn, number).await;
+    }
+
+    /// The BWIP and tree blobs, without the read proofs the producer derives from them.
+    async fn mark_witness_ready(conn: &mut Connection<'_, Core>, number: L1BatchNumber) {
         conn.proof_generation_dal()
             .save_vm_runner_artifacts_metadata(number, "vm_run")
             .await
             .unwrap();
         conn.proof_generation_dal()
             .save_merkle_paths_artifacts_metadata(number, "merkle_paths")
+            .await
+            .unwrap();
+    }
+
+    async fn mark_read_proofs_ready(conn: &mut Connection<'_, Core>, number: L1BatchNumber) {
+        conn.proof_generation_dal()
+            .save_airbender_read_proofs_artifacts_metadata(number, "read_proofs")
             .await
             .unwrap();
     }
@@ -1631,5 +1650,144 @@ mod tests {
             .await
             .unwrap();
         assert!(locked.is_some());
+    }
+
+    /// Neither claim step nor the ready gauge counts a batch until its read proofs are stored.
+    #[tokio::test]
+    async fn lock_waits_for_read_proofs() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch(&mut conn, minor, 0).await;
+        insert_batch_without_inputs(&mut conn, L1BatchNumber(1), minor).await;
+        mark_witness_ready(&mut conn, L1BatchNumber(1)).await;
+
+        assert!(poll(&pool, PROVER_VK, NO_RECLAIM).await.is_none());
+        let ready = conn
+            .airbender_proof_generation_dal()
+            .get_ready_for_proving_count(L1BatchNumber(0), 10)
+            .await
+            .unwrap();
+        assert_eq!(ready, 0);
+
+        mark_read_proofs_ready(&mut conn, L1BatchNumber(1)).await;
+        let ready = conn
+            .airbender_proof_generation_dal()
+            .get_ready_for_proving_count(L1BatchNumber(0), 10)
+            .await
+            .unwrap();
+        assert_eq!(ready, 1);
+        let locked = poll(&pool, PROVER_VK, NO_RECLAIM)
+            .await
+            .expect("batch is claimable once its read proofs are stored");
+        assert_eq!(locked.l1_batch_number, L1BatchNumber(1));
+    }
+
+    /// A claimed batch without read proofs is not reclaimed until they are stored.
+    #[tokio::test]
+    async fn reclaim_waits_for_read_proofs() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch(&mut conn, minor, 0).await;
+        insert_batch_without_inputs(&mut conn, L1BatchNumber(1), minor).await;
+        mark_witness_ready(&mut conn, L1BatchNumber(1)).await;
+        insert_claim_at_version(&mut conn, L1BatchNumber(1), minor, 0).await;
+        conn.airbender_proof_generation_dal()
+            .mark_proof_failed(L1BatchNumber(1), "boom")
+            .await
+            .unwrap();
+
+        assert!(poll(&pool, PROVER_VK, NO_RECLAIM).await.is_none());
+        mark_read_proofs_ready(&mut conn, L1BatchNumber(1)).await;
+        let locked = poll(&pool, PROVER_VK, NO_RECLAIM)
+            .await
+            .expect("failed batch is reclaimable once its read proofs are stored");
+        assert_eq!(locked.l1_batch_number, L1BatchNumber(1));
+    }
+
+    /// Batches come in order, from `min_batch_number` but never genesis, and only while the lock
+    /// can still hand them out. The pending count covers the same batches.
+    #[tokio::test]
+    async fn next_batch_without_read_proofs_follows_the_lock() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        let minor = ProtocolVersionId::latest();
+        save_patch(&mut conn, minor, 0).await;
+        for number in 0..=5 {
+            insert_batch_without_inputs(&mut conn, L1BatchNumber(number), minor).await;
+        }
+        // Batch 4 is not ready yet, batch 3 is ready before batch 2.
+        for number in [0, 1, 3, 2, 5] {
+            mark_witness_ready(&mut conn, L1BatchNumber(number)).await;
+        }
+        let next = |min: u32, max_attempts: u32, skipped: &[u32]| {
+            let pool = pool.clone();
+            let skipped: Vec<_> = skipped.iter().copied().map(L1BatchNumber).collect();
+            async move {
+                pool.connection()
+                    .await
+                    .unwrap()
+                    .proof_generation_dal()
+                    .get_next_batch_without_airbender_read_proofs(
+                        L1BatchNumber(min),
+                        max_attempts,
+                        &skipped,
+                    )
+                    .await
+                    .unwrap()
+            }
+        };
+        let pending = |max_attempts: u32| {
+            let pool = pool.clone();
+            async move {
+                pool.connection()
+                    .await
+                    .unwrap()
+                    .proof_generation_dal()
+                    .get_airbender_read_proofs_pending_count(L1BatchNumber(0), max_attempts)
+                    .await
+                    .unwrap()
+            }
+        };
+
+        assert_eq!(
+            next(0, 10, &[]).await,
+            Some(L1BatchNumber(1)),
+            "genesis is skipped"
+        );
+        assert_eq!(pending(10).await, 4);
+        assert_eq!(next(2, 10, &[]).await, Some(L1BatchNumber(2)));
+        assert_eq!(next(0, 10, &[1]).await, Some(L1BatchNumber(2)));
+
+        mark_read_proofs_ready(&mut conn, L1BatchNumber(1)).await;
+        assert_eq!(next(0, 10, &[]).await, Some(L1BatchNumber(2)));
+
+        // Batch 2 already has a generated FRI proof: nothing left to feed.
+        insert_claim_at_version(&mut conn, L1BatchNumber(2), minor, 0).await;
+        conn.airbender_proof_generation_dal()
+            .save_proof_artifacts_metadata(L1BatchNumber(2), "proof_blob", "prover-1")
+            .await
+            .unwrap();
+        assert_eq!(next(0, 10, &[]).await, Some(L1BatchNumber(3)));
+        assert_eq!(pending(10).await, 2);
+
+        // A picked batch needs proofs while it has attempts left (the claim used one).
+        insert_claim_at_version(&mut conn, L1BatchNumber(3), minor, 0).await;
+        assert_eq!(next(0, 10, &[]).await, Some(L1BatchNumber(3)));
+        assert_eq!(next(0, 1, &[]).await, Some(L1BatchNumber(5)));
+        assert_eq!(pending(1).await, 1);
+
+        // Once batch 5 is claimed, the lock never goes back to the unclaimed batch 4.
+        insert_claim_at_version(&mut conn, L1BatchNumber(5), minor, 0).await;
+        mark_witness_ready(&mut conn, L1BatchNumber(4)).await;
+        mark_read_proofs_ready(&mut conn, L1BatchNumber(3)).await;
+        assert_eq!(next(0, 10, &[]).await, Some(L1BatchNumber(5)));
+        mark_read_proofs_ready(&mut conn, L1BatchNumber(5)).await;
+        assert_eq!(next(0, 10, &[]).await, None);
+        assert_eq!(pending(10).await, 0);
     }
 }

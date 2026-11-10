@@ -51,7 +51,7 @@ jobs:
           fi
 
   code_lint:
-    runs-on: matterlabs-ci-runner-highmem-long
+    runs-on: matterlabs-ci-runner-high-performance
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -66,7 +66,9 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
-          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
+          gcp-workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          sccache-reader-service-account: ${{ secrets.GCP_SCCACHE_READER_SERVICE_ACCOUNT }}
+          sccache-writer-service-account: ${{ secrets.GCP_SCCACHE_WRITER_SERVICE_ACCOUNT }}
 
       - name: Build
         run: |
@@ -91,3 +93,7 @@ jobs:
       - name: Check Database
         run: |
           ci_run zkstack dev database check-sqlx-data --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+
+      - name: Show sccache stats
+        if: always()
+        run: ci_sccache_stats

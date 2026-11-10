@@ -59,8 +59,7 @@ impl WiringLayer for HouseKeeperLayer {
             .as_ref()
             .map(|c| c.first_processed_batch)
             .unwrap_or_default();
-        // Falls back to the config default when Airbender isn't configured; the value is unused in
-        // that case since there are no Airbender jobs to count.
+        // Falls back to the config default when Airbender isn't configured.
         let airbender_max_proving_attempts = self
             .airbender_config
             .as_ref()

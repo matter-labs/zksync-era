@@ -1,10 +1,14 @@
-//! Downloads the guest program + verification keys from the GitHub release of
-//! `zksync_airbender_verifier` matching the version this crate pins, so they
-//! never drift from the verifier code we compile against and need not be
-//! committed. The resolved paths are exported as `AIRBENDER_GUEST_DIST_DIR` /
-//! `AIRBENDER_FRI_VK` / `AIRBENDER_SNARK_VK` for `main.rs` to bake in as
-//! defaults. Set any of those env vars at build time to use prebuilt files and
-//! skip the corresponding download (offline / air-gapped builds).
+//! Resolves the guest program + verification keys of the release `zksync_airbender_verifier`
+//! is pinned to, so they never drift from the verifier code we compile against and need not
+//! be committed. Files already present are used as they are; anything missing is downloaded
+//! from that release. The resolved paths are exported as `AIRBENDER_GUEST_DIST_DIR` /
+//! `AIRBENDER_FRI_VK` / `AIRBENDER_SNARK_VK` for `main.rs` to bake in as defaults. Set any
+//! of those env vars at build time to use prebuilt files and skip the corresponding
+//! download (offline / air-gapped builds).
+//!
+//! The verifier releases from the `zksync-protocol` monorepo. CI puts the files in place
+//! beforehand — see `.github/actions/airbender-artifacts` — and a failed download prints
+//! the `gh release download` command to do the same locally.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -19,6 +23,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=AIRBENDER_GUEST_DIST_DIR");
     println!("cargo:rerun-if-env-changed=AIRBENDER_FRI_VK");
     println!("cargo:rerun-if-env-changed=AIRBENDER_SNARK_VK");
+    println!("cargo:rerun-if-env-changed=AIRBENDER_ARTIFACTS_REPO_URL");
 
     let manifest_dir = PathBuf::from(env_var("CARGO_MANIFEST_DIR"));
     let release = resolve_release();
@@ -97,8 +102,12 @@ fn resolve_release() -> Release {
         .as_str()
         .unwrap_or_else(|| panic!("`{VERIFIER_PACKAGE}` has no `version`"));
 
-    let repo_url = parse_git_repo(source);
-    // An explicit `?tag=`, else the release-please convention `v{version}`.
+    // The assets belong to whichever repository the code came from; a fork's follow the
+    // fork. `AIRBENDER_ARTIFACTS_REPO_URL` overrides.
+    let repo_url =
+        std::env::var("AIRBENDER_ARTIFACTS_REPO_URL").unwrap_or_else(|_| parse_git_repo(source));
+    // An explicit `?tag=` names the release exactly. A pin by rev or branch has none, so
+    // fall back to the package version — right only where releases are tagged `vX.Y.Z`.
     let tag = tag_from_source(source).unwrap_or_else(|| format!("v{version}"));
 
     Release { repo_url, tag }
@@ -200,9 +209,18 @@ fn download(url: &str) -> Vec<u8> {
                 // 5xx and 429 are transient; anything else (e.g. 404) won't fix itself.
                 let transient =
                     status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS;
+                // A private release reads as 404 to an anonymous request, the usual reason
+                // to land here, so say what to do about it.
                 assert!(
                     transient && !last,
-                    "downloading {url} returned HTTP {status}"
+                    "downloading {url} returned HTTP {status}.\n\
+                     If that release is private, put the files in place before building:\n  \
+                     gh release download <tag> --repo <owner/repo> \\\n    \
+                       --pattern app.bin --pattern app.text --dir guest/dist/app\n  \
+                     gh release download <tag> --repo <owner/repo> \\\n    \
+                       --pattern fri_vk.bin --pattern snark_vk.json --dir vks\n\
+                     or point AIRBENDER_GUEST_DIST_DIR / AIRBENDER_FRI_VK / AIRBENDER_SNARK_VK \
+                     at copies you already have."
                 );
                 println!(
                     "cargo:warning=downloading {url} returned HTTP {status}, retry {attempt}/{MAX_ATTEMPTS}"

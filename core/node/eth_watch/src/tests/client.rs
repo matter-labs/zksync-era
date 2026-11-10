@@ -45,6 +45,7 @@ pub struct FakeEthClientData {
     // `NewProtocolVersion` events mapping an old protocol version (topic1) to a new one (topic2).
     new_protocol_versions: HashMap<u64, Vec<Log>>,
     upgrade_timestamp: HashMap<u64, Vec<Log>>,
+    proof_system_notifications: HashMap<u64, Vec<Log>>,
     last_finalized_block_number: u64,
     chain_id: SLChainId,
     processed_priority_transactions_count: u64,
@@ -65,6 +66,7 @@ impl FakeEthClientData {
             diamond_upgrades: Default::default(),
             new_protocol_versions: Default::default(),
             upgrade_timestamp: Default::default(),
+            proof_system_notifications: Default::default(),
             last_finalized_block_number: 0,
             chain_id,
             processed_priority_transactions_count: 0,
@@ -305,6 +307,16 @@ impl MockEthClient {
         self.inner.write().await.add_transactions(transactions);
     }
 
+    pub async fn add_proof_system_notification(&self, log: Log) {
+        self.inner
+            .write()
+            .await
+            .proof_system_notifications
+            .entry(log.block_number.unwrap().as_u64())
+            .or_default()
+            .push(log);
+    }
+
     pub async fn add_upgrade_timestamp(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
         self.inner.write().await.add_upgrade_timestamp(upgrades);
     }
@@ -436,6 +448,15 @@ impl EthClient for MockEthClient {
                 logs.extend_from_slice(ops);
             }
             if let Some(ops) = self.inner.read().await.upgrade_timestamp.get(&number) {
+                logs.extend_from_slice(ops);
+            }
+            if let Some(ops) = self
+                .inner
+                .read()
+                .await
+                .proof_system_notifications
+                .get(&number)
+            {
                 logs.extend_from_slice(ops);
             }
             if let Some(ops) = self.inner.read().await.batch_roots.get(&number) {
@@ -887,6 +908,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
             tx: Default::default(),
             factory_deps: vec![],
             eth_block: 0,
+            force_fail: false,
         })
     else {
         unreachable!()

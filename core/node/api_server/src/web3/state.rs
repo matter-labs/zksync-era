@@ -1,5 +1,6 @@
 use std::{
     future::Future,
+    num::NonZeroU32,
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc,
@@ -120,6 +121,7 @@ pub struct InternalApiConfigBase {
     pub estimate_gas_acceptable_overestimation: u32,
     pub estimate_gas_optimize_search: bool,
     pub req_entities_limit: usize,
+    pub get_logs_block_range_limit: Option<NonZeroU32>,
     pub fee_history_limit: u64,
     pub filters_disabled: bool,
     pub l1_to_l2_txs_paused: bool,
@@ -127,6 +129,7 @@ pub struct InternalApiConfigBase {
     pub send_raw_tx_sync_default_timeout_ms: u64,
     pub send_raw_tx_sync_max_timeout_ms: u64,
     pub send_raw_tx_sync_poll_interval_ms: u64,
+    pub call_traces_max_chunk_size: usize,
 }
 
 impl InternalApiConfigBase {
@@ -144,6 +147,7 @@ impl InternalApiConfigBase {
                 .estimate_gas_acceptable_overestimation,
             estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
             req_entities_limit: web3_config.req_entities_limit as usize,
+            get_logs_block_range_limit: web3_config.get_logs_block_range_limit,
             fee_history_limit: web3_config.fee_history_limit,
             filters_disabled: web3_config.filters_disabled,
             l1_to_l2_txs_paused: false,
@@ -154,6 +158,8 @@ impl InternalApiConfigBase {
                 .shared
                 .l2_block_commit_deadline
                 .as_millis() as u64,
+            call_traces_max_chunk_size: state_keeper_config.shared.call_traces_max_chunk_size.0
+                as usize,
         }
     }
 
@@ -185,6 +191,7 @@ pub struct InternalApiConfig {
     pub l1_diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
+    pub get_logs_block_range_limit: Option<NonZeroU32>,
     pub fee_history_limit: u64,
     pub base_token_address: Option<Address>,
     pub filters_disabled: bool,
@@ -198,6 +205,7 @@ pub struct InternalApiConfig {
     pub send_raw_tx_sync_default_timeout_ms: u64,
     pub send_raw_tx_sync_max_timeout_ms: u64,
     pub send_raw_tx_sync_poll_interval_ms: u64,
+    pub call_traces_max_chunk_size: usize,
 }
 
 impl InternalApiConfig {
@@ -236,6 +244,7 @@ impl InternalApiConfig {
                 .diamond_proxy_addr,
             l2_testnet_paymaster_addr: l2_contracts.testnet_paymaster_addr,
             req_entities_limit: base.req_entities_limit,
+            get_logs_block_range_limit: base.get_logs_block_range_limit,
             fee_history_limit: base.fee_history_limit,
             base_token_address: Some(l1_ecosystem_contracts.base_token_address),
             filters_disabled: base.filters_disabled,
@@ -249,6 +258,7 @@ impl InternalApiConfig {
             send_raw_tx_sync_default_timeout_ms: base.send_raw_tx_sync_default_timeout_ms,
             send_raw_tx_sync_max_timeout_ms: base.send_raw_tx_sync_max_timeout_ms,
             send_raw_tx_sync_poll_interval_ms: base.send_raw_tx_sync_poll_interval_ms,
+            call_traces_max_chunk_size: base.call_traces_max_chunk_size,
         }
     }
 
@@ -456,6 +466,34 @@ impl RpcState {
         let from_block = self.resolve_filter_block_number(filter.from_block).await?;
         let to_block = self.resolve_filter_block_number(filter.to_block).await?;
         Ok((from_block, to_block))
+    }
+
+    /// Checks that the block range requested by an `eth_getLogs`-like query doesn't exceed
+    /// the configured limit.
+    pub fn check_logs_block_range(
+        &self,
+        from_block: L2BlockNumber,
+        to_block: L2BlockNumber,
+    ) -> Result<(), Web3Error> {
+        let Some(limit) = self.api_config.get_logs_block_range_limit else {
+            return Ok(());
+        };
+        if to_block < from_block {
+            // The range is empty, so it trivially satisfies any limit.
+            return Ok(());
+        }
+
+        let limit = limit.get();
+        let range = u64::from(to_block.0 - from_block.0) + 1;
+        if range > u64::from(limit) {
+            return Err(Web3Error::LogsBlockRangeLimitExceeded(
+                range,
+                limit,
+                from_block.0,
+                from_block.0.saturating_add(limit - 1),
+            ));
+        }
+        Ok(())
     }
 
     /// If filter has `block_hash` then it resolves block number by hash and sets it to `from_block` and `to_block`.

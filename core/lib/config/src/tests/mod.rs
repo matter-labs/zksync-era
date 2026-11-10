@@ -5,7 +5,8 @@ use std::path::Path;
 use crate::{
     configs::{
         da_client::avail::AvailClientConfig, object_store::ObjectStoreMode, wallets::Wallets,
-        DataAvailabilitySecrets, GeneralConfig, GenesisConfigWrapper, Secrets,
+        AirbenderReadProofsProducerConfig, DataAvailabilitySecrets, GeneralConfig,
+        GenesisConfigWrapper, Secrets,
     },
     full_config_schema,
     sources::ConfigFilePaths,
@@ -39,6 +40,11 @@ fn pre_smart_config_files_can_be_parsed() {
 // These checks aren't intended to be exhaustive; they mostly check parsing completeness.
 fn assert_general_config(general: GeneralConfig) {
     assert_eq!(general.api_config.unwrap().web3_json_rpc.http_port, 3050);
+    // The file predates this section, so it must fall back to defaults.
+    assert_eq!(
+        general.airbender_read_proofs_producer_config,
+        AirbenderReadProofsProducerConfig::default()
+    );
 
     let snapshot_recovery_store = general.snapshot_recovery.unwrap().object_store.unwrap();
     let ObjectStoreMode::FileBacked {

@@ -9,8 +9,8 @@ use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{
-        AuxCommitments, L1BatchCommitmentArtifacts, L1BatchCommitmentHash, L1BatchMetaParameters,
-        L1BatchMetadata, PubdataParams,
+        AirbenderBatchCommitment, AuxCommitments, L1BatchCommitmentArtifacts,
+        L1BatchCommitmentHash, L1BatchMetaParameters, L1BatchMetadata, PubdataParams,
     },
     fee::Fee,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
@@ -127,6 +127,12 @@ pub fn create_l1_batch(number: u32) -> L1BatchHeader {
 /// Creates metadata for an L1 batch with the specified number.
 pub fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
     L1BatchMetadata {
+        airbender: Some(AirbenderBatchCommitment {
+            commitment: H256::from_low_u64_be(number.into()),
+            aux_data_hash: H256::zero(),
+            bootloader_initial_content_commitment: H256::repeat_byte(1),
+            events_queue_commitment: H256::zero(),
+        }),
         root_hash: H256::from_low_u64_be(number.into()),
         rollup_last_leaf_index: u64::from(number) + 20,
         initial_writes_compressed: Some(vec![]),

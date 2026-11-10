@@ -86,6 +86,16 @@ fn evm_deployment_tx() {
 }
 
 #[test]
+fn code_oracle_trace_data_budget() {
+    call_tracer::test_code_oracle_trace_data_budget::<Vm<_, _>>();
+}
+
+#[test]
+fn revert_reason_trace_data_budget() {
+    call_tracer::test_revert_reason_trace_data_budget::<Vm<_, _>>();
+}
+
+#[test]
 fn evm_deployment_from_contract() {
     call_tracer::test_evm_deployment_from_contract::<Vm<_, _>>();
 }

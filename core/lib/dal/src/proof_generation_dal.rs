@@ -12,7 +12,38 @@ use zksync_db_connection::{
 };
 use zksync_types::L1BatchNumber;
 
-use crate::Core;
+use crate::{airbender_proof_generation_dal::AirbenderProofGenerationJobStatus, Core};
+
+/// Batches that need Airbender read proofs: witness blobs stored, read proofs not, and still
+/// handed out by the Airbender lock, i.e. unclaimed above the highest claimed batch, or picked or
+/// failed with attempts left. Anything else would never be proven, and working on it could stall
+/// every later batch. Binds `$1` = min batch, `$2` / `$3` = picked / failed status,
+/// `$4` = max proving attempts.
+const AIRBENDER_READ_PROOFS_PENDING: &str = r#"
+    FROM
+        proof_generation_details p
+    LEFT JOIN
+        airbender_proof_generation_details apgd
+        ON p.l1_batch_number = apgd.l1_batch_number
+    WHERE
+        p.l1_batch_number >= GREATEST($1, 1::BIGINT)
+        AND p.vm_run_data_blob_url IS NOT NULL
+        AND p.proof_gen_data_blob_url IS NOT NULL
+        AND p.airbender_read_proofs_blob_url IS NULL
+        AND (
+            (
+                apgd.l1_batch_number IS NULL
+                AND p.l1_batch_number > (
+                    SELECT COALESCE(MAX(l1_batch_number), 0)
+                    FROM airbender_proof_generation_details
+                )
+            )
+            OR (
+                (apgd.status = $2 OR apgd.status = $3)
+                AND apgd.attempts < $4
+            )
+        )
+"#;
 
 #[derive(Debug)]
 pub struct ProofGenerationDal<'a, 'c> {
@@ -346,6 +377,128 @@ impl ProofGenerationDal<'_, '_> {
         Ok(())
     }
 
+    /// Forgets a batch's read-proofs blob, so the producer builds it again.
+    pub async fn clear_airbender_read_proofs_blob_url(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<()> {
+        sqlx::query(
+            r#"
+            UPDATE proof_generation_details
+            SET
+                airbender_read_proofs_blob_url = NULL,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $1
+            "#,
+        )
+        .bind(i64::from(batch_number.0))
+        .instrument("clear_airbender_read_proofs_blob_url")
+        .with_arg("l1_batch_number", &batch_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn save_airbender_read_proofs_artifacts_metadata(
+        &mut self,
+        batch_number: L1BatchNumber,
+        airbender_read_proofs_blob_url: &str,
+    ) -> DalResult<()> {
+        let batch_number = i64::from(batch_number.0);
+        let query = sqlx::query!(
+            r#"
+            UPDATE proof_generation_details
+            SET
+                airbender_read_proofs_blob_url = $1,
+                updated_at = NOW()
+            WHERE
+                l1_batch_number = $2
+            "#,
+            airbender_read_proofs_blob_url,
+            batch_number
+        );
+        let instrumentation = Instrumented::new("save_airbender_read_proofs_artifacts_metadata")
+            .with_arg(
+                "airbender_read_proofs_blob_url",
+                &airbender_read_proofs_blob_url,
+            )
+            .with_arg("l1_batch_number", &batch_number);
+        let result = instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+        if result.rows_affected() == 0 {
+            let err = instrumentation.constraint_error(anyhow::anyhow!(
+                "Cannot save airbender_read_proofs_blob_url for a batch number {} that does not exist",
+                batch_number
+            ));
+            return Err(err);
+        }
+
+        Ok(())
+    }
+
+    /// The lowest batch from `min_batch_number`, excluding genesis (no previous root) and
+    /// `skipped`, that still needs Airbender read proofs (see [`AIRBENDER_READ_PROOFS_PENDING`]).
+    pub async fn get_next_batch_without_airbender_read_proofs(
+        &mut self,
+        min_batch_number: L1BatchNumber,
+        max_proving_attempts: u32,
+        skipped: &[L1BatchNumber],
+    ) -> DalResult<Option<L1BatchNumber>> {
+        let max_proving_attempts = i16::try_from(max_proving_attempts).unwrap_or(i16::MAX);
+        let skipped: Vec<i64> = skipped.iter().map(|batch| i64::from(batch.0)).collect();
+        let sql = format!(
+            r#"
+            SELECT
+                p.l1_batch_number
+            {AIRBENDER_READ_PROOFS_PENDING}
+                AND NOT (p.l1_batch_number = ANY($5))
+            ORDER BY
+                p.l1_batch_number ASC
+            LIMIT
+                1
+            "#
+        );
+        let row = sqlx::query(&sql)
+            .bind(i64::from(min_batch_number.0))
+            .bind(AirbenderProofGenerationJobStatus::PickedByProver.to_string())
+            .bind(AirbenderProofGenerationJobStatus::Failed.to_string())
+            .bind(max_proving_attempts)
+            .bind(&skipped)
+            .instrument("get_next_batch_without_airbender_read_proofs")
+            .with_arg("min_batch_number", &min_batch_number)
+            .fetch_optional(self.storage)
+            .await?;
+
+        Ok(row.map(|row| {
+            let number: i64 = row.try_get("l1_batch_number").expect("must be present");
+            L1BatchNumber(number as u32)
+        }))
+    }
+
+    /// Number of batches from `min_batch_number` that still need Airbender read proofs. A count
+    /// that stays above zero means the read-proofs producer is behind or not running.
+    pub async fn get_airbender_read_proofs_pending_count(
+        &mut self,
+        min_batch_number: L1BatchNumber,
+        max_proving_attempts: u32,
+    ) -> DalResult<i64> {
+        let max_proving_attempts = i16::try_from(max_proving_attempts).unwrap_or(i16::MAX);
+        let sql = format!("SELECT COUNT(*) {AIRBENDER_READ_PROOFS_PENDING}");
+        sqlx::query_scalar(&sql)
+            .bind(i64::from(min_batch_number.0))
+            .bind(AirbenderProofGenerationJobStatus::PickedByProver.to_string())
+            .bind(AirbenderProofGenerationJobStatus::Failed.to_string())
+            .bind(max_proving_attempts)
+            .instrument("get_airbender_read_proofs_pending_count")
+            .with_arg("min_batch_number", &min_batch_number)
+            .fetch_one(self.storage)
+            .await
+    }
+
     /// The caller should ensure that `l1_batch_number` exists in the database.
     pub async fn insert_proof_generation_details(
         &mut self,
@@ -459,6 +612,9 @@ impl ProofGenerationDal<'_, '_> {
         Ok(result)
     }
 
+    /// Whether the batch's Airbender inputs, read proofs included, are stored. The producer writes
+    /// read proofs only for batches the lock can still hand out, so batches from before it ran
+    /// may read as absent.
     pub async fn is_batch_present_for_airbender_proof_inputs(
         &mut self,
         batch_number: L1BatchNumber,
@@ -476,6 +632,7 @@ impl ProofGenerationDal<'_, '_> {
                     AND l1_batch_number >= $2
                     AND vm_run_data_blob_url IS NOT NULL
                     AND proof_gen_data_blob_url IS NOT NULL
+                    AND airbender_read_proofs_blob_url IS NOT NULL
             ) AS present
             "#,
         )
@@ -491,6 +648,8 @@ impl ProofGenerationDal<'_, '_> {
         Ok(row.try_get("present").unwrap())
     }
 
+    /// Oldest and latest batch with stored Airbender inputs. Batches in between may be absent; see
+    /// [`Self::is_batch_present_for_airbender_proof_inputs()`].
     pub async fn get_present_batch_bounds_for_airbender_proof_inputs(
         &mut self,
         min_batch_number: L1BatchNumber,
@@ -506,6 +665,7 @@ impl ProofGenerationDal<'_, '_> {
                 l1_batch_number >= $1
                 AND vm_run_data_blob_url IS NOT NULL
                 AND proof_gen_data_blob_url IS NOT NULL
+                AND airbender_read_proofs_blob_url IS NOT NULL
             "#,
         )
         .bind(i64::from(min_batch_number.0))

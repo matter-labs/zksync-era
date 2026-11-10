@@ -60,3 +60,50 @@ fn post_boojum_1_5_0_with_evm() {
 fn post_gateway() {
     run_test("post_gateway_test");
 }
+
+#[test]
+fn airbender_contract_equivalence() {
+    let fixture: CommitmentTest =
+        serde_json::from_str(include_str!("post_gateway_test.json")).unwrap();
+    let mut commitment = L1BatchCommitment::new(fixture.input, true).unwrap();
+    let L1BatchAuxiliaryOutput::PostBoojum {
+        airbender_aux_commitments,
+        ..
+    } = &mut commitment.auxiliary_output
+    else {
+        panic!("post-Boojum fixture")
+    };
+    *airbender_aux_commitments = Some(AuxCommitments {
+        bootloader_initial_content_commitment:
+            "0x35d519e586d0b30fb291b1ce24ce8ce0605af7f52c4bad1394febb63e387ed98"
+                .parse()
+                .unwrap(),
+        events_queue_commitment: H256::zero(),
+    });
+    assert_eq!(commitment.hash().unwrap(), fixture.hashes);
+    let artifacts = commitment.airbender_artifacts().unwrap().unwrap();
+    // era-contracts#2451, AirbenderCommitmentEquivalence.t.sol.
+    assert_eq!(
+        artifacts.commitment,
+        "0xeb414bd21d1e5e39d8e169b9142b7e7eac72a3ebc5f2c6c43b85ca2f0f7272c7"
+            .parse()
+            .unwrap()
+    );
+    assert_ne!(artifacts.commitment, fixture.hashes.commitment);
+    for heap in [false, true] {
+        let mut changed = commitment.clone();
+        let L1BatchAuxiliaryOutput::PostBoojum {
+            aux_commitments, ..
+        } = &mut changed.auxiliary_output
+        else {
+            unreachable!()
+        };
+        if heap {
+            aux_commitments.bootloader_initial_content_commitment = H256::repeat_byte(9);
+        } else {
+            aux_commitments.events_queue_commitment = H256::repeat_byte(9);
+        }
+        assert_ne!(changed.hash().unwrap(), fixture.hashes);
+        assert_eq!(changed.airbender_artifacts().unwrap().unwrap(), artifacts);
+    }
+}

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use axum::{
     body::{to_bytes, Body},
@@ -13,19 +13,27 @@ use zksync_airbender_prover_interface::{
         AirbenderJobRequest, AirbenderSnarkInputsResponse, SubmitAirbenderProofRequest,
         SubmitAirbenderSnarkProofRequest,
     },
+    inputs::{AirbenderReadProofs, StorageReadProof},
     outputs::L1BatchAirbenderProofForL1,
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::MockObjectStore;
-use zksync_prover_interface::outputs::SnarkWrapperProof;
+use zksync_object_store::{MockObjectStore, ObjectStore, ObjectStoreError, StoredObject};
+use zksync_prover_interface::{
+    inputs::{VMRunWitnessInputData, WitnessInputMerklePaths},
+    outputs::SnarkWrapperProof,
+};
 use zksync_types::{
     block::L1BatchHeader, settlement::SettlementLayer, L1BatchNumber, L2ChainId, ProtocolVersion,
     ProtocolVersionId, H256,
 };
 
-use crate::create_proof_processing_router;
+use crate::{
+    airbender_request_processor::{load_witness_blobs, READ_PROOFS_BLOB},
+    create_proof_processing_router,
+    errors::AirbenderProcessorError,
+};
 
 /// A real `SnarkWrapperProof` (bellman PLONK proof), exactly as the verifier submits it. The data
 /// handler flattens it into the CBOR `L1BatchProofForL1` the eth_sender submits, deriving the
@@ -191,6 +199,35 @@ async fn present_batches_returns_oldest_and_latest_batches() {
 
     let body = response_json(response).await;
     assert_eq!(body, json!({ "oldest_batch": 1, "latest_batch": 5 }));
+}
+
+/// A batch whose read proofs are not stored yet cannot be served, so it is not present.
+#[tokio::test]
+async fn present_batches_require_read_proofs() {
+    let db_conn_pool = ConnectionPool::test_pool().await;
+    save_default_protocol_version(&db_conn_pool).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(1), true).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(2), false).await;
+    let mut connection = db_conn_pool.connection().await.unwrap();
+    let mut dal = connection.proof_generation_dal();
+    dal.save_vm_runner_artifacts_metadata(L1BatchNumber(2), "vm_run")
+        .await
+        .unwrap();
+    dal.save_merkle_paths_artifacts_metadata(L1BatchNumber(2), "merkle_paths")
+        .await
+        .unwrap();
+
+    let min = L1BatchNumber(0);
+    assert!(!dal
+        .is_batch_present_for_airbender_proof_inputs(L1BatchNumber(2), min)
+        .await
+        .unwrap());
+    assert_eq!(
+        dal.get_present_batch_bounds_for_airbender_proof_inputs(min)
+            .await
+            .unwrap(),
+        Some((L1BatchNumber(1), L1BatchNumber(1)))
+    );
 }
 
 // Test /airbender/submit_proofs endpoint
@@ -755,6 +792,11 @@ async fn insert_batch_for_airbender_inputs(
             .save_merkle_paths_artifacts_metadata(batch_number, "merkle_paths")
             .await
             .unwrap();
+        connection
+            .proof_generation_dal()
+            .save_airbender_read_proofs_artifacts_metadata(batch_number, "read_proofs")
+            .await
+            .unwrap();
     }
 }
 
@@ -806,4 +848,148 @@ async fn send_submit_snark_proof_request(
         )
         .await
         .unwrap()
+}
+
+fn sample_witness_blobs() -> (VMRunWitnessInputData, WitnessInputMerklePaths) {
+    let vm_run_data = VMRunWitnessInputData {
+        l1_batch_number: L1BatchNumber(1),
+        used_bytecodes: Default::default(),
+        initial_heap_content: vec![],
+        protocol_version: Default::default(),
+        bootloader_code: vec![],
+        default_account_code_hash: Default::default(),
+        evm_emulator_code_hash: None,
+        storage_refunds: vec![],
+        pubdata_costs: vec![],
+        witness_block_state: Default::default(),
+    };
+    (vm_run_data, WitnessInputMerklePaths::new(1))
+}
+
+/// The stored read proofs reach the verifier input unchanged.
+#[tokio::test]
+async fn witness_blobs_carry_stored_read_proofs() {
+    let store = MockObjectStore::arc();
+    let (vm_run_data, merkle_paths) = sample_witness_blobs();
+    let proofs = AirbenderReadProofs {
+        proofs: vec![StorageReadProof {
+            leaf_hashed_key: 7.into(),
+            leaf_enumeration_index: 3,
+            value: [5; 32],
+            merkle_path: vec![[6; 32]],
+        }],
+    };
+    let batch = L1BatchNumber(1);
+    store.put(batch, &vm_run_data).await.unwrap();
+    store.put(batch, &merkle_paths).await.unwrap();
+    store.put(batch, &proofs).await.unwrap();
+
+    let (_, _, loaded) = load_witness_blobs(store.as_ref(), batch).await.unwrap();
+    assert_eq!(loaded, proofs);
+}
+
+/// A missing read-proofs blob is the soft "not on GCS yet" error, which rolls the lock back.
+#[tokio::test]
+async fn missing_read_proofs_blob_is_key_not_found() {
+    let store = MockObjectStore::arc();
+    let (vm_run_data, merkle_paths) = sample_witness_blobs();
+    let batch = L1BatchNumber(1);
+    store.put(batch, &vm_run_data).await.unwrap();
+    store.put(batch, &merkle_paths).await.unwrap();
+
+    let err = load_witness_blobs(store.as_ref(), batch).await.unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            AirbenderProcessorError::ObjectStore {
+                source: ObjectStoreError::KeyNotFound(_),
+                context,
+            } if context == READ_PROOFS_BLOB
+        ),
+        "{err:?}"
+    );
+}
+
+/// A batch whose read-proofs blob is missing is not handed out, its lock is rolled back, and its
+/// read-proofs URL is cleared so the producer rebuilds the blob.
+#[tokio::test]
+async fn missing_read_proofs_blob_rolls_the_lock_back() {
+    let (db_conn_pool, store) = batch_with_witness_blobs().await;
+    assert_read_proofs_blob_is_rebuilt(db_conn_pool, store).await;
+}
+
+/// Same for a read-proofs blob that doesn't decode.
+#[tokio::test]
+async fn undecodable_read_proofs_blob_rolls_the_lock_back() {
+    let (db_conn_pool, store) = batch_with_witness_blobs().await;
+    store
+        .put_raw(
+            AirbenderReadProofs::BUCKET,
+            &AirbenderReadProofs::encode_key(L1BatchNumber(1)),
+            vec![0xff],
+        )
+        .await
+        .unwrap();
+    assert_read_proofs_blob_is_rebuilt(db_conn_pool, store).await;
+}
+
+/// Batch 1 with its read-proofs URL set and its witness blobs stored, but no read-proofs blob.
+async fn batch_with_witness_blobs() -> (ConnectionPool<Core>, Arc<dyn ObjectStore>) {
+    let db_conn_pool = ConnectionPool::test_pool().await;
+    save_default_protocol_version(&db_conn_pool).await;
+    insert_batch_for_airbender_inputs(db_conn_pool.clone(), L1BatchNumber(1), true).await;
+
+    let store = MockObjectStore::arc();
+    let (vm_run_data, merkle_paths) = sample_witness_blobs();
+    store.put(L1BatchNumber(1), &vm_run_data).await.unwrap();
+    store.put(L1BatchNumber(1), &merkle_paths).await.unwrap();
+    (db_conn_pool, store)
+}
+
+async fn assert_read_proofs_blob_is_rebuilt(
+    db_conn_pool: ConnectionPool<Core>,
+    store: Arc<dyn ObjectStore>,
+) {
+    let app = create_proof_processing_router(
+        store,
+        db_conn_pool.clone(),
+        test_config(),
+        L2ChainId::default(),
+    );
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/airbender/proof_inputs")
+                .header(http::header::CONTENT_TYPE, "application/json")
+                .body(job_request_body())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let picked = db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .airbender_proof_generation_dal()
+        .get_oldest_picked_by_prover_batch()
+        .await
+        .unwrap();
+    assert_eq!(picked, None, "the lock must be rolled back");
+
+    let next = db_conn_pool
+        .connection()
+        .await
+        .unwrap()
+        .proof_generation_dal()
+        .get_next_batch_without_airbender_read_proofs(L1BatchNumber(0), 10, &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        next,
+        Some(L1BatchNumber(1)),
+        "the producer must rebuild the blob"
+    );
 }

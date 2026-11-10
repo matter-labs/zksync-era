@@ -1,2 +1,4 @@
+# Matches the repository-wide nightly. The two `RUST_TOOLCHAIN` args in
+# `docker/airbender-prover-server/Dockerfile{,.cpu}` must move with this file.
 [toolchain]
-channel = "nightly-2026-02-10"
+channel = "nightly-2026-08-09"

@@ -22,3 +22,4 @@ anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 clap = { workspace = true, features = ["derive"] }
+toml = "0.8.12"

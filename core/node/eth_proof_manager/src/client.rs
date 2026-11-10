@@ -29,6 +29,26 @@ const TOO_BIG_RANGE_RETH: &str = "query exceeds max block range";
 const TOO_MANY_RESULTS_CHAINSTACK: &str = "range limit exceeded";
 const REQUEST_REJECTED_503: &str = "Request rejected `503`";
 
+/// Why a single [`ProofManagerClient::send_tx`] attempt did not produce a confirmed
+/// transaction.
+///
+/// The distinction matters: the transport failures are worth retrying, while a revert is a
+/// settled answer from the chain that an identical retry can only reproduce.
+#[derive(Debug)]
+enum SendFailure {
+    /// Mined and reverted.
+    Reverted {
+        hash: H256,
+        revert_reason: String,
+        revert_data: Vec<u8>,
+    },
+    /// Broadcast, but no receipt within the polling window. It may still be mined, so the
+    /// caller keeps the hash and re-checks it before sending a replacement.
+    Unconfirmed { hash: H256, error: anyhow::Error },
+    /// Never reached the network.
+    NotSent { error: anyhow::Error },
+}
+
 #[async_trait]
 pub trait EthProofManagerClient: 'static + std::fmt::Debug + Send + Sync {
     fn clone_boxed(&self) -> Box<dyn EthProofManagerClient>;
@@ -115,6 +135,28 @@ impl ProofManagerClient {
         (base_fee_per_gas, priority_fee_per_gas)
     }
 
+    /// Returns the hash of any already-broadcast transaction that turned out to be
+    /// confirmed.
+    ///
+    /// A failure on a later attempt says nothing if an earlier one actually landed: the
+    /// operation is already done, at the earlier nonce. Cheap when nothing was broadcast,
+    /// which is the common case.
+    async fn confirmed_broadcast_hash(&self, broadcast_hashes: &[H256]) -> Option<H256> {
+        for &hash in broadcast_hashes {
+            match self.client.deref().as_ref().tx_receipt(hash).await {
+                Ok(Some(receipt)) if receipt.status == Some(1.into()) => {
+                    tracing::info!(
+                        "Previously broadcast transaction {} was confirmed",
+                        hex::encode(hash)
+                    );
+                    return Some(receipt.transaction_hash);
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
     async fn send_tx_with_retries(&self, calldata: Vec<u8>) -> Result<H256, ClientError> {
         let max_attempts = self.config.max_tx_sending_attempts;
         let sleep_duration = self.config.tx_sending_sleep;
@@ -134,17 +176,8 @@ impl ProofManagerClient {
             // Before sending a replacement tx, verify that none of the transactions we
             // already broadcast have been confirmed in the meantime. If one was, we are
             // done — there is no need to send more transactions.
-            for &hash in &broadcast_hashes {
-                match self.client.deref().as_ref().tx_receipt(hash).await {
-                    Ok(Some(receipt)) if receipt.status == Some(1.into()) => {
-                        tracing::info!(
-                            "Previously broadcast transaction {} was confirmed on retry check",
-                            hex::encode(hash)
-                        );
-                        return Ok(receipt.transaction_hash);
-                    }
-                    _ => {}
-                }
+            if let Some(hash) = self.confirmed_broadcast_hash(&broadcast_hashes).await {
+                return Ok(hash);
             }
 
             let (base_fee_per_gas, priority_fee_per_gas) =
@@ -154,42 +187,63 @@ impl ProofManagerClient {
                 .send_tx(calldata.clone(), base_fee_per_gas, priority_fee_per_gas)
                 .await;
 
-            match result {
+            let err = match result {
                 Ok(hash) => return Ok(hash),
-                Err((maybe_hash, err)) => {
-                    // If the tx was broadcast but the receipt polling timed out, save the
-                    // hash so we can check it at the top of the next iteration.
-                    if let Some(hash) = maybe_hash {
-                        broadcast_hashes.push(hash);
+                // A revert is deterministic: every remaining attempt would send identical
+                // calldata and fail identically, so stop here and let the caller decide
+                // whether the work is already done or should be re-attempted later on its
+                // own backoff.
+                Err(SendFailure::Reverted {
+                    hash,
+                    revert_reason,
+                    revert_data,
+                }) => {
+                    // An earlier attempt whose receipt we missed may be exactly why this
+                    // one reverted: it mined, the nonce advanced, and this replacement
+                    // repeated an operation that had already succeeded. Reconcile before
+                    // reporting a revert, or we would discard a landed transaction.
+                    if let Some(hash) = self.confirmed_broadcast_hash(&broadcast_hashes).await {
+                        return Ok(hash);
                     }
-                    tracing::info!(
-                        "Failed to send transaction, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
-                        attempt,
-                        base_fee_per_gas,
-                        priority_fee_per_gas,
-                        err
+
+                    tracing::warn!(
+                        "Transaction {} reverted on chain, not retrying: {} (data 0x{})",
+                        hex::encode(hash),
+                        revert_reason,
+                        hex::encode(&revert_data)
                     );
-                    tokio::time::sleep(sleep_duration).await;
-                    prev_base_fee_per_gas = Some(base_fee_per_gas);
-                    prev_priority_fee_per_gas = Some(priority_fee_per_gas);
-                    last_error = Some(err);
+                    return Err(ClientError::Reverted {
+                        tx_hash: hash,
+                        revert_reason,
+                        revert_data,
+                    });
                 }
-            }
+                // The tx was broadcast but the receipt polling timed out; save the hash so
+                // we can check it at the top of the next iteration.
+                Err(SendFailure::Unconfirmed { hash, error }) => {
+                    broadcast_hashes.push(hash);
+                    error
+                }
+                Err(SendFailure::NotSent { error }) => error,
+            };
+
+            tracing::info!(
+                "Failed to send transaction, attempt {}, base_fee_per_gas {}, priority_fee_per_gas {}: {}",
+                attempt,
+                base_fee_per_gas,
+                priority_fee_per_gas,
+                err
+            );
+            tokio::time::sleep(sleep_duration).await;
+            prev_base_fee_per_gas = Some(base_fee_per_gas);
+            prev_priority_fee_per_gas = Some(priority_fee_per_gas);
+            last_error = Some(err);
         }
 
         // Final pass: the last attempt may have broadcast a tx that was confirmed while
         // we were about to give up.
-        for &hash in &broadcast_hashes {
-            match self.client.deref().as_ref().tx_receipt(hash).await {
-                Ok(Some(receipt)) if receipt.status == Some(1.into()) => {
-                    tracing::info!(
-                        "Previously broadcast transaction {} was confirmed on final check",
-                        hex::encode(hash)
-                    );
-                    return Ok(receipt.transaction_hash);
-                }
-                _ => {}
-            }
+        if let Some(hash) = self.confirmed_broadcast_hash(&broadcast_hashes).await {
+            return Ok(hash);
         }
 
         let error_message = "Failed to send proof request";
@@ -201,16 +255,14 @@ impl ProofManagerClient {
 
     /// Send a single transaction and wait for its receipt.
     ///
-    /// Returns the confirmed transaction hash on success. On failure, returns a tuple of
-    /// `(Option<H256>, Error)`: the hash is `Some` when the transaction was broadcast to
-    /// the network but we timed out before seeing its receipt (so it may still be mined
-    /// later), and `None` when the transaction could not be sent at all.
+    /// Returns the confirmed transaction hash on success, or a [`SendFailure`] describing
+    /// how far the attempt got, which is what tells the caller whether retrying can help.
     async fn send_tx(
         &self,
         calldata: Vec<u8>,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
-    ) -> Result<H256, (Option<H256>, anyhow::Error)> {
+    ) -> Result<H256, SendFailure> {
         let nonce = self
             .client
             .deref()
@@ -218,7 +270,7 @@ impl ProofManagerClient {
             .nonce_at_for_account(self.client.sender_account(), BlockNumber::Latest)
             .await
             .with_context(|| "failed getting transaction count")
-            .map_err(|e| (None, e))?
+            .map_err(|error| SendFailure::NotSent { error })?
             .as_u64();
 
         let options = Options {
@@ -234,7 +286,7 @@ impl ProofManagerClient {
             .sign_prepared_tx_for_addr(calldata, self.client.contract_addr(), options)
             .await
             .context("cannot sign a transaction")
-            .map_err(|e| (None, e))?;
+            .map_err(|error| SendFailure::NotSent { error })?;
 
         let hash = self
             .client
@@ -243,7 +295,7 @@ impl ProofManagerClient {
             .send_raw_tx(signed_tx.raw_tx)
             .await
             .context("failed sending transaction")
-            .map_err(|e| (None, e))?;
+            .map_err(|error| SendFailure::NotSent { error })?;
 
         // From this point the tx is in the network. Any error we return must carry the
         // hash so the caller can check whether the tx was eventually confirmed.
@@ -260,7 +312,7 @@ impl ProofManagerClient {
                     "failed getting receipt for transaction {}",
                     hex::encode(hash)
                 ))
-                .map_err(|e| (Some(hash), e))?;
+                .map_err(|error| SendFailure::Unconfirmed { hash, error })?;
             if let Some(receipt) = maybe_receipt {
                 tracing::info!("Transaction sent: {:?}", hex::encode(hash));
 
@@ -269,27 +321,27 @@ impl ProofManagerClient {
                     return Ok(receipt.transaction_hash);
                 }
 
-                let reason = self
-                    .client
-                    .deref()
-                    .as_ref()
-                    .failure_reason(hash)
-                    .await
-                    .context(format!(
-                        "failed getting failure reason of transaction {}",
-                        hex::encode(hash)
-                    ))
-                    .map_err(|e| (Some(hash), e))?;
+                // The receipt already proves the transaction reverted. Failing to fetch
+                // the returndata must not downgrade that verdict to a retryable failure,
+                // so an absent reason only costs the caller its ability to classify it.
+                let (revert_reason, revert_data) =
+                    match self.client.deref().as_ref().failure_reason(hash).await {
+                        Ok(Some(info)) => (info.revert_reason, info.revert_data),
+                        Ok(None) => (String::new(), Vec::new()),
+                        Err(err) => {
+                            tracing::warn!(
+                                "Could not fetch failure reason of reverted transaction {}: {err}",
+                                hex::encode(hash)
+                            );
+                            (String::new(), Vec::new())
+                        }
+                    };
 
-                return Err((
-                    Some(hash),
-                    anyhow::Error::msg(format!(
-                        "Failed to send transaction {:?} failed with status {:?}, reason: {:?}",
-                        hex::encode(hash),
-                        receipt.status,
-                        reason
-                    )),
-                ));
+                return Err(SendFailure::Reverted {
+                    hash,
+                    revert_reason,
+                    revert_data,
+                });
             } else {
                 tokio::time::sleep(sleep_duration).await;
             }
@@ -298,13 +350,13 @@ impl ProofManagerClient {
         // The tx was broadcast but we could not confirm it within the polling window. Return
         // the hash alongside the error so `send_tx_with_retries` can check it on the next
         // iteration rather than blindly sending a new transaction.
-        Err((
-            Some(hash),
-            anyhow::Error::msg(format!(
+        Err(SendFailure::Unconfirmed {
+            hash,
+            error: anyhow::Error::msg(format!(
                 "Unable to retrieve transaction status in {} attempts",
                 max_attempts
             )),
-        ))
+        })
     }
 }
 

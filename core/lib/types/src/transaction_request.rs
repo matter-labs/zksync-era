@@ -218,6 +218,8 @@ pub enum SerializationTransactionError {
     OversizedData(usize, usize),
     #[error("gas per pub data limit is zero")]
     GasPerPubDataLimitZero,
+    #[error("transaction is not canonically encoded")]
+    NonCanonicalEncoding,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -552,6 +554,12 @@ impl TransactionRequest {
                 rlp.append(&0u8);
                 rlp.append(&0u8);
             }
+            // Pre-EIP-155 legacy tx: `v` is `27 + y`, not the bare parity used by typed txs.
+            (Some(sig), None, true) => {
+                rlp.append(&(u64::from(sig.v()) + 27));
+                rlp.append(&U256::from_big_endian(sig.r()));
+                rlp.append(&U256::from_big_endian(sig.s()));
+            }
             (Some(sig), _, _) => {
                 rlp.append(&sig.v());
                 rlp.append(&U256::from_big_endian(sig.r()));
@@ -627,13 +635,24 @@ impl TransactionRequest {
         Some(EIP_712_TX_TYPE.into()) == self.transaction_type
     }
 
+    /// Creates an [`Rlp`] view over `payload`, requiring the encoded item to span it entirely.
+    /// A trailing suffix takes no part in decoding, yet it stays in `raw` and thus changes
+    /// `keccak(raw)` — the hash the bootloader rebuilds from the decoded fields instead.
+    fn parse_single_rlp_item(payload: &[u8]) -> Result<Rlp<'_>, DecoderError> {
+        let rlp = Rlp::new(payload);
+        if rlp.payload_info()?.total() != payload.len() {
+            return Err(DecoderError::RlpInconsistentLengthAndData);
+        }
+        Ok(rlp)
+    }
+
     pub fn from_bytes_unverified(
         bytes: &[u8],
     ) -> Result<(Self, H256), SerializationTransactionError> {
         let rlp;
         let mut tx = match bytes.first() {
             Some(x) if *x >= 0x80 => {
-                rlp = Rlp::new(bytes);
+                rlp = Self::parse_single_rlp_item(bytes)?;
                 if rlp.item_count()? != 9 {
                     return Err(DecoderError::RlpIncorrectListLen.into());
                 }
@@ -650,7 +669,7 @@ impl TransactionRequest {
                 }
             }
             Some(&EIP_1559_TX_TYPE) => {
-                rlp = Rlp::new(&bytes[1..]);
+                rlp = Self::parse_single_rlp_item(&bytes[1..])?;
                 if rlp.item_count()? != 12 {
                     return Err(DecoderError::RlpIncorrectListLen.into());
                 }
@@ -670,7 +689,7 @@ impl TransactionRequest {
                 }
             }
             Some(&EIP_712_TX_TYPE) => {
-                rlp = Rlp::new(&bytes[1..]);
+                rlp = Self::parse_single_rlp_item(&bytes[1..])?;
                 if rlp.item_count()? != 16 {
                     return Err(DecoderError::RlpIncorrectListLen.into());
                 }
@@ -703,6 +722,16 @@ impl TransactionRequest {
             validate_factory_deps(&meta.factory_deps)?;
         }
         tx.raw = Some(Bytes(bytes.to_vec()));
+
+        // Type 0/2 hash is keccak(raw), so non-canonical bytes that still decode (e.g. inflated
+        // list length + incomplete item) would mismatch the bootloader's hash and halt batch
+        // sealing. Require raw to re-encode to itself; type 113 hashes the message, not raw.
+        if !tx.is_eip712_tx() {
+            let canonical = tx.get_signed_bytes(&tx.get_packed_signature()?)?;
+            if canonical != bytes {
+                return Err(SerializationTransactionError::NonCanonicalEncoding);
+            }
+        }
 
         let default_signed_message = tx.get_default_signed_message()?;
 
@@ -890,8 +919,11 @@ impl L2Tx {
 
     /// Ensures that encoded transaction size is not greater than `max_tx_size`.
     fn check_encoded_size(&self, max_tx_size: usize) -> Result<(), SerializationTransactionError> {
-        // since `abi_encoding_len` returns 32-byte words multiplication on 32 is needed
-        let tx_size = self.abi_encoding_len() * 32;
+        // since `abi_encoding_len` returns 32-byte words multiplication on 32 is needed, with the
+        // one 32-byte hash it counts per factory dependency replaced by the preimage size.
+        let deps = &self.execute.factory_deps;
+        let tx_size =
+            (self.abi_encoding_len() - deps.len()) * 32 + deps.iter().map(Vec::len).sum::<usize>();
         if tx_size > max_tx_size {
             return Err(SerializationTransactionError::OversizedData(
                 max_tx_size,
@@ -1503,6 +1535,51 @@ mod tests {
         );
     }
 
+    /// A handful of large factory dependencies weigh as much as a megabyte of calldata, but
+    /// `abi_encoding_len` sees only one 32-byte hash per dependency. The size bound has to charge
+    /// the preimages, or a transaction passes it while carrying an L2 block's worth of payload.
+    #[test]
+    fn transaction_request_with_oversize_factory_deps() {
+        let max_tx_size = 1_000_000; // bytes
+                                     // Two ~500 KB dependencies: 8 words of hashes under the old accounting, ~1 MB in reality.
+        let factory_deps = vec![vec![0_u8; 16_385 * 32]; 2];
+        let total_dep_size: usize = factory_deps.iter().map(Vec::len).sum();
+        assert!(total_dep_size > max_tx_size);
+
+        let tx = TransactionRequest {
+            nonce: U256::from(1u32),
+            to: Some(Address::random()),
+            from: Some(Address::random()),
+            value: U256::from(10u32),
+            gas_price: U256::from(11u32),
+            max_priority_fee_per_gas: Some(U256::from(0u32)),
+            gas: U256::from(12u32),
+            input: Bytes::from(vec![1, 2, 3]),
+            transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
+            eip712_meta: Some(Eip712Meta {
+                gas_per_pubdata: U256::from(4u32),
+                factory_deps,
+                custom_signature: Some(vec![1, 2, 3]),
+                paymaster_params: None,
+            }),
+            chain_id: Some(270),
+            ..Default::default()
+        };
+
+        let err = L2Tx::from_request(tx.clone(), max_tx_size, true).unwrap_err();
+        let SerializationTransactionError::OversizedData(reported_max, reported_size) = err else {
+            panic!("unexpected error: {err}");
+        };
+        assert_eq!(reported_max, max_tx_size);
+        assert!(
+            reported_size >= total_dep_size,
+            "reported size {reported_size} must account for {total_dep_size} bytes of preimages"
+        );
+
+        // The same transaction is fine against a bound that actually fits it.
+        L2Tx::from_request(tx, 2_000_000, true).unwrap();
+    }
+
     #[test]
     fn transaction_request_with_oversize_data() {
         let random_tx_max_size = 1_000_000; // bytes
@@ -1667,6 +1744,169 @@ mod tests {
         assert_matches!(
             try_to_l2_tx,
             Err(SerializationTransactionError::ToAddressIsNull)
+        );
+    }
+
+    /// Legacy/EIP-155 transaction: chain ID 324, nonce 0, zero-value self-transfer.
+    const LEGACY_TX: &str = "f866808405f5e10083030d409425bb6f94624236bed93de9f0910ddcb53803848980808202aca0e0efc71c61dbdca759fb9257e8c174a00afa024639601f9e0ce90e426300fc6ba0322abc993282281595cea4048911e2b73af29a91b62969339dbf35a0474e9a62";
+
+    fn assert_rejects_trailing_bytes(canonical: &[u8], chain_id: L2ChainId) {
+        for suffix in [vec![0xff], vec![0x00], vec![0x80], vec![0xff; 32]] {
+            let padded = [canonical, &suffix].concat();
+            let err = TransactionRequest::from_bytes(&padded, chain_id).unwrap_err();
+            assert_matches!(
+                err,
+                SerializationTransactionError::DecodeRlpError(
+                    DecoderError::RlpInconsistentLengthAndData
+                ),
+                "{} trailing byte(s) were accepted",
+                suffix.len()
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_tx_with_trailing_bytes_is_rejected() {
+        let canonical = hex::decode(LEGACY_TX).unwrap();
+        let chain_id = L2ChainId::from(324);
+
+        let (tx, hash) = TransactionRequest::from_bytes(&canonical, chain_id).unwrap();
+        assert_eq!(
+            tx.from.unwrap().as_bytes(),
+            hex::decode("25bb6f94624236bed93de9f0910ddcb538038489").unwrap()
+        );
+        assert_eq!(
+            hash.as_bytes(),
+            hex::decode("547291d45ce980f93088232e04d41eaa3a4acac0582072c300ce93d6ebd88e15")
+                .unwrap()
+        );
+
+        assert_rejects_trailing_bytes(&canonical, chain_id);
+    }
+
+    #[test]
+    fn eip1559_tx_with_trailing_bytes_is_rejected() {
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(7)).unwrap();
+        let chain_id = L2ChainId::from(324);
+        let tx = TransactionRequest {
+            nonce: 1.into(),
+            to: Some(Address::repeat_byte(2)),
+            gas: 100_000.into(),
+            gas_price: 1_000.into(),
+            max_priority_fee_per_gas: Some(1_000.into()),
+            chain_id: Some(chain_id.as_u64()),
+            transaction_type: Some(EIP_1559_TX_TYPE.into()),
+            ..TransactionRequest::default()
+        };
+        let signed_message = tx.get_default_signed_message().unwrap();
+        let signature = PackedEthSignature::sign_raw(&private_key, &signed_message).unwrap();
+        let canonical = tx.get_signed_bytes(&signature).unwrap();
+
+        let (decoded, _) = TransactionRequest::from_bytes(&canonical, chain_id).unwrap();
+        assert_eq!(decoded.from, Some(private_key.address()));
+
+        assert_rejects_trailing_bytes(&canonical, chain_id);
+    }
+
+    #[test]
+    fn eip712_tx_with_trailing_bytes_is_rejected() {
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(9)).unwrap();
+        let chain_id = L2ChainId::from(324);
+        let tx = L2Tx::new_signed(
+            Some(Address::repeat_byte(2)),
+            vec![],
+            Nonce(0),
+            Fee {
+                gas_limit: 100_000.into(),
+                max_fee_per_gas: 1_000.into(),
+                max_priority_fee_per_gas: 1_000.into(),
+                gas_per_pubdata_limit: DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into(),
+            },
+            U256::zero(),
+            chain_id,
+            &private_key,
+            vec![],
+            PaymasterParams::default(),
+        )
+        .unwrap();
+        let canonical = tx.common_data.input_data().unwrap().to_vec();
+        assert_eq!(canonical[0], EIP_712_TX_TYPE);
+
+        TransactionRequest::from_bytes(&canonical, chain_id).unwrap();
+        assert_rejects_trailing_bytes(&canonical, chain_id);
+    }
+
+    /// Bumps the list length by one, filling the gap with an incomplete `0xb8` item: still decodes.
+    fn inflated_list_with_incomplete_item(canonical: &[u8]) -> Vec<u8> {
+        let header = if canonical[0] >= 0xc0 { 0 } else { 1 };
+        assert_eq!(
+            canonical[header], 0xf8,
+            "expected the 0xf8 list-length form"
+        );
+        let mut out = canonical.to_vec();
+        out[header + 1] += 1;
+        out.push(0xb8);
+        out
+    }
+
+    #[test]
+    fn legacy_tx_with_inflated_list_length_is_rejected() {
+        let canonical = hex::decode(LEGACY_TX).unwrap();
+        let chain_id = L2ChainId::from(324);
+
+        TransactionRequest::from_bytes(&canonical, chain_id).unwrap();
+        let inflated = inflated_list_with_incomplete_item(&canonical);
+        assert_matches!(
+            TransactionRequest::from_bytes(&inflated, chain_id).unwrap_err(),
+            SerializationTransactionError::NonCanonicalEncoding
+        );
+    }
+
+    #[test]
+    fn eip1559_tx_with_inflated_list_length_is_rejected() {
+        let private_key = K256PrivateKey::from_bytes(H256::repeat_byte(7)).unwrap();
+        let chain_id = L2ChainId::from(324);
+        let tx = TransactionRequest {
+            nonce: 1.into(),
+            to: Some(Address::repeat_byte(2)),
+            gas: 100_000.into(),
+            gas_price: 1_000.into(),
+            max_priority_fee_per_gas: Some(1_000.into()),
+            chain_id: Some(chain_id.as_u64()),
+            transaction_type: Some(EIP_1559_TX_TYPE.into()),
+            ..TransactionRequest::default()
+        };
+        let signed_message = tx.get_default_signed_message().unwrap();
+        let signature = PackedEthSignature::sign_raw(&private_key, &signed_message).unwrap();
+        let canonical = tx.get_signed_bytes(&signature).unwrap();
+
+        TransactionRequest::from_bytes(&canonical, chain_id).unwrap();
+        let inflated = inflated_list_with_incomplete_item(&canonical);
+        assert_matches!(
+            TransactionRequest::from_bytes(&inflated, chain_id).unwrap_err(),
+            SerializationTransactionError::NonCanonicalEncoding
+        );
+    }
+
+    /// Pre-EIP-155 legacy transaction (`v = 27`, no chain ID): the keyless deployment of
+    /// Arachnid's deterministic deployment proxy.
+    const PRE_EIP155_TX: &str = "f8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222";
+
+    #[test]
+    fn pre_eip155_legacy_tx_is_canonical() {
+        let raw = hex::decode(PRE_EIP155_TX).unwrap();
+        let (tx, hash) = TransactionRequest::from_bytes(&raw, L2ChainId::from(324)).unwrap();
+
+        assert_eq!(tx.chain_id, None);
+        assert_eq!(hash, H256(keccak256(&raw)));
+        let expected_from: Address = "0x3fab184622dc19b6109349b94811493bf2a45362"
+            .parse()
+            .unwrap();
+        assert_eq!(tx.from, Some(expected_from));
+        assert_eq!(
+            tx.get_signed_bytes(&tx.get_packed_signature().unwrap())
+                .unwrap(),
+            raw
         );
     }
 }

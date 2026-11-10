@@ -79,6 +79,11 @@ pub struct MultiVmBaseSystemContracts<C> {
     interop: BaseSystemContracts,
     /// Contracts to be used after the full interop upgrade
     medium_interop: BaseSystemContracts,
+    /// Contracts to be used after the v33 upgrade: the same VM as v32, with the bootloader rebuilt
+    /// with DSE limits (era-contracts #2522).
+    medium_interop_dse: BaseSystemContracts,
+    /// Contracts to be used after the force-fail upgrade (v34)
+    force_fail: BaseSystemContracts,
     // We use `fn() -> C` marker so that the `MultiVmBaseSystemContracts` unconditionally implements `Send + Sync`.
     _contracts_kind: PhantomData<fn() -> C>,
 }
@@ -117,8 +122,16 @@ impl<C: ContractsKind> MultiVmBaseSystemContracts<C> {
             ProtocolVersionId::Version29 => &self.interop,
             ProtocolVersionId::Version30 => &self.interop,
             ProtocolVersionId::Version31 => &self.medium_interop,
-            // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
+            // v32 shares v31's base system contracts: `configs/genesis/era/latest.json` carries the
+            // same `bootloader_hash` across the v31 -> v32 bump.
             ProtocolVersionId::Version32 => &self.medium_interop,
+            // v33 keeps v32's VM but ships a new bootloader (DSE limits), so its
+            // eth_call and fee estimation use that bootloader's playground and estimation builds.
+            // These are the prebuilt copies of what is deployed on L1, not the checked-out contracts.
+            ProtocolVersionId::Version33 => &self.medium_interop_dse,
+            ProtocolVersionId::Version34 => &self.force_fail,
+            // Speculative base system contracts for the next protocol version to be used in the upgrade integration test etc.
+            ProtocolVersionId::Version35 => &self.force_fail,
         };
         base.clone()
     }
@@ -145,6 +158,8 @@ impl MultiVmBaseSystemContracts<EstimateGas> {
             vm_precompiles: BaseSystemContracts::estimate_gas_precompiles(),
             interop: BaseSystemContracts::estimate_gas_interop(),
             medium_interop: BaseSystemContracts::estimate_gas_medium_interop(),
+            medium_interop_dse: BaseSystemContracts::estimate_gas_medium_interop_dse(),
+            force_fail: BaseSystemContracts::estimate_gas_force_fail(),
             _contracts_kind: PhantomData,
         }
     }
@@ -171,6 +186,8 @@ impl MultiVmBaseSystemContracts<CallOrExecute> {
             vm_precompiles: BaseSystemContracts::playground_precompiles(),
             interop: BaseSystemContracts::playground_interop(),
             medium_interop: BaseSystemContracts::playground_medium_interop(),
+            medium_interop_dse: BaseSystemContracts::playground_medium_interop_dse(),
+            force_fail: BaseSystemContracts::playground_force_fail(),
             _contracts_kind: PhantomData,
         }
     }

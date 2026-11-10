@@ -50,7 +50,8 @@ async function runTest(
     testName: string,
     chainName: string,
     testPattern: string | undefined = undefined,
-    additionalArgs: string[] = []
+    additionalArgs: string[] = [],
+    options: { env?: NodeJS.ProcessEnv; logName?: string } = {}
 ): Promise<void> {
     const emojiMap: Record<string, string> = {
         integration: '🧪',
@@ -60,8 +61,11 @@ async function runTest(
         recovery: '🛟'
     };
     const emoji = emojiMap[testName] || '🧪';
+    // Names the run in console output and log files; differs from `testName` when one zkstack
+    // test command is invoked more than once per chain (e.g. `integration` and then `force_fail`).
+    const label = options.logName ?? testName;
     console.log(
-        `${emoji} Running ${testName} tests for chain: ${chainName}${testPattern ? ` with pattern: ${testPattern}` : ''}`
+        `${emoji} Running ${label} tests for chain: ${chainName}${testPattern ? ` with pattern: ${testPattern}` : ''}`
     );
     const command = 'zkstack';
     const args = ['dev', 'test', testName, '--no-deps', '--chain', chainName, ...additionalArgs];
@@ -70,12 +74,15 @@ async function runTest(
     }
     try {
         const en_prefix = additionalArgs.includes('--external-node') ? 'en_' : '';
-        await executeCommand(command, args, chainName, `${en_prefix}${testName}_tests`);
-        appendServerLogs(chainName, testName);
+        const logName = `${en_prefix}${label}`;
+        await executeCommand(command, args, chainName, `${logName}_tests`, false, {
+            env: options.env ? { ...process.env, ...options.env } : undefined
+        });
+        appendServerLogs(chainName, logName);
 
-        console.log(`✅ ${testName} tests completed successfully for chain: ${chainName}`);
+        console.log(`✅ ${label} tests completed successfully for chain: ${chainName}`);
     } catch (error) {
-        console.error(`❌ ${testName} tests failed for chain: ${chainName}`, error);
+        console.error(`❌ ${label} tests failed for chain: ${chainName}`, error);
         throw error;
     }
 }
@@ -91,6 +98,14 @@ export async function runIntegrationTests(
         '--ignore-prerequisites',
         secondChainName ? `--second-chain=${secondChainName}` : ''
     ]);
+    // The force-fail suite predicts the next priority op id, so it cannot share the chain with
+    // suites that enqueue priority ops. It runs once they are done; jest skips it otherwise.
+    if (!testPattern) {
+        await runTest('integration', chainName, undefined, ['--verbose', '--ignore-prerequisites', 'force-fail'], {
+            env: { RUN_FORCE_FAIL_TEST: '1' },
+            logName: 'force_fail'
+        });
+    }
 }
 
 export async function feesTest(chainName: string): Promise<void> {

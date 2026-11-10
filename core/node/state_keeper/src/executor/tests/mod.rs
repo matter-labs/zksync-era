@@ -79,6 +79,7 @@ fn message_root_init_txn() -> Transaction {
             .into(),
             factory_deps: vec![],
             eth_block: 0,
+            force_fail: false,
         },
         false,
     )

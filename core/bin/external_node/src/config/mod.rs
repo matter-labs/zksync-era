@@ -213,6 +213,7 @@ impl From<&LocalConfig> for InternalApiConfigBase {
             estimate_gas_acceptable_overestimation: web3_rpc.estimate_gas_acceptable_overestimation,
             estimate_gas_optimize_search: web3_rpc.estimate_gas_optimize_search,
             req_entities_limit: web3_rpc.req_entities_limit as usize,
+            get_logs_block_range_limit: web3_rpc.get_logs_block_range_limit,
             fee_history_limit: web3_rpc.fee_history_limit,
             filters_disabled: web3_rpc.filters_disabled,
             l1_to_l2_txs_paused: false,
@@ -222,6 +223,7 @@ impl From<&LocalConfig> for InternalApiConfigBase {
             send_raw_tx_sync_poll_interval_ms: state_keeper_config
                 .l2_block_commit_deadline
                 .as_millis() as u64,
+            call_traces_max_chunk_size: state_keeper_config.call_traces_max_chunk_size.0 as usize,
         }
     }
 }
@@ -247,6 +249,9 @@ impl From<&LocalConfig> for TxSenderConfig {
             whitelisted_tokens_for_aa: Default::default(),
             // It will be set in the wiring code.
             timestamp_asserter_params: None,
+            // The EN proxies transactions to the main node, which enforces the bound itself; an EN
+            // that rejected more than the main node would only hide transactions from it.
+            max_redundant_factory_deps_size: None,
         }
     }
 }

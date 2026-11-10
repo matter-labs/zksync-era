@@ -91,6 +91,9 @@ struct L1TxCommonDataSerde {
     pub eth_hash: H256,
     #[serde(default)]
     pub eth_block: u64,
+
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub force_fail: bool,
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -123,6 +126,10 @@ pub struct L1TxCommonData {
 
     // DEPRECATED.
     pub eth_block: u64,
+
+    /// Set by the sequencer to make the bootloader fail this tx before any user code runs.
+    /// Never part of the canonical hash. See the force-fail plan.
+    pub force_fail: bool,
 }
 
 impl serde::Serialize for L1TxCommonData {
@@ -145,6 +152,8 @@ impl serde::Serialize for L1TxCommonData {
             deadline_block: 0,
             eth_hash: H256::default(),
             eth_block: self.eth_block,
+
+            force_fail: self.force_fail,
         }
         .serialize(s)
     }
@@ -169,6 +178,8 @@ impl<'de> serde::Deserialize<'de> for L1TxCommonData {
 
             // DEPRECATED.
             eth_block: x.eth_block,
+
+            force_fail: x.force_fail,
         })
     }
 }
@@ -345,6 +356,7 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
             priority_queue_type: PriorityQueueType::Deque,
             // DEPRECATED.
             eth_block: 0,
+            force_fail: false,
         };
 
         let execute = Execute {

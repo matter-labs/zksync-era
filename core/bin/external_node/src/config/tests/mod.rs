@@ -198,6 +198,7 @@ fn parsing_from_full_env() {
         EN_FILTERS_LIMIT=5000
         EN_SUBSCRIPTIONS_LIMIT=5000
         EN_REQ_ENTITIES_LIMIT=1000
+        EN_GET_LOGS_BLOCK_RANGE_LIMIT=10000
         EN_MAX_TX_SIZE_BYTES=1000000
         EN_VM_EXECUTION_CACHE_MISSES_LIMIT=1000
         EN_FEE_HISTORY_LIMIT=100
@@ -260,6 +261,7 @@ fn parsing_from_full_env() {
         EN_L2_BLOCK_COMMIT_DEADLINE_MS=1000
         # NEW PARAMS: From SharedStateKeeperConfig
         EN_SAVE_CALL_TRACES=false
+        EN_CALL_TRACES_MAX_CHUNK_SIZE=16777216
 
         EN_CONTRACTS_DIAMOND_PROXY_ADDR=0x0000000000000000000000000000000000010001
         EN_MAIN_NODE_RATE_LIMIT_RPS=150
@@ -343,6 +345,10 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.filters_limit, 5_000);
     assert_eq!(config.subscriptions_limit, 5_000);
     assert_eq!(config.req_entities_limit, 1_000);
+    assert_eq!(
+        config.get_logs_block_range_limit,
+        Some(NonZeroU32::new(10_000).unwrap())
+    );
     assert_eq!(config.max_tx_size, ByteSize(1_000_000));
     assert_eq!(config.vm_execution_cache_misses_limit, Some(1_000));
     assert_eq!(config.fee_history_limit, 100);
@@ -434,6 +440,7 @@ fn test_parsing_general_config(source: impl ConfigSource + Clone) {
     assert_eq!(config.l2_block_seal_queue_capacity, 20);
     assert!(config.protective_reads_persistence_enabled);
     assert!(!config.save_call_traces);
+    assert_eq!(config.call_traces_max_chunk_size, ByteSize(16 << 20));
 
     let config: SharedL1ContractsConfig =
         tester.for_config().test_complete(source.clone()).unwrap();

@@ -9,7 +9,7 @@ use zksync_airbender_prover_interface::{
         SubmitAirbenderProofResponse, SubmitAirbenderSnarkProofRequest,
         SubmitAirbenderSnarkProofResponse,
     },
-    inputs::{AirbenderVerifierInput, BlobHash, CommitmentInput},
+    inputs::{AirbenderReadProofs, AirbenderVerifierInput, BlobHash, CommitmentInput},
     outputs::{L1BatchAirbenderProofForL1, L1BatchAirbenderSnarkProofForL1},
 };
 use zksync_config::configs::AirbenderProofDataHandlerConfig;
@@ -31,6 +31,48 @@ use crate::{
     errors::AirbenderProcessorError,
     metrics::{ProcessorErrorKind, ProofStage, METRICS},
 };
+
+/// Error context of a missing read-proofs blob, which, unlike the witness blobs, can be rebuilt.
+pub(crate) const READ_PROOFS_BLOB: &str = "Failed to get AirbenderReadProofs";
+
+/// The object-store inputs of a batch. A missing blob surfaces as `ObjectStoreError::KeyNotFound`,
+/// which the locking path treats as "not ready" and rolls the lock back; a lost read-proofs blob
+/// is also rebuilt.
+pub(crate) async fn load_witness_blobs(
+    blob_store: &dyn ObjectStore,
+    l1_batch_number: L1BatchNumber,
+) -> Result<
+    (
+        VMRunWitnessInputData,
+        WitnessInputMerklePaths,
+        AirbenderReadProofs,
+    ),
+    AirbenderProcessorError,
+> {
+    let vm_run_data: VMRunWitnessInputData =
+        blob_store.get(l1_batch_number).await.map_err(|source| {
+            AirbenderProcessorError::ObjectStore {
+                source,
+                context: "Failed to get VMRunWitnessInputData".into(),
+            }
+        })?;
+    let merkle_paths: WitnessInputMerklePaths =
+        blob_store.get(l1_batch_number).await.map_err(|source| {
+            AirbenderProcessorError::ObjectStore {
+                source,
+                context: "Failed to get WitnessInputMerklePaths".into(),
+            }
+        })?;
+    // Stored by the read-proofs producer.
+    let read_proofs: AirbenderReadProofs =
+        blob_store.get(l1_batch_number).await.map_err(|source| {
+            AirbenderProcessorError::ObjectStore {
+                source,
+                context: READ_PROOFS_BLOB.into(),
+            }
+        })?;
+    Ok((vm_run_data, merkle_paths, read_proofs))
+}
 
 #[derive(Clone)]
 pub(crate) struct AirbenderRequestProcessor {
@@ -120,6 +162,34 @@ impl AirbenderRequestProcessor {
                         attempt + 1,
                         max_attempts,
                     );
+                    if context == READ_PROOFS_BLOB {
+                        // Its URL would keep the producer off the batch for good.
+                        connection
+                            .proof_generation_dal()
+                            .clear_airbender_read_proofs_blob_url(batch_number)
+                            .await?;
+                        tracing::warn!(
+                            "Read-proofs blob lost for batch {batch_number}; cleared its URL for rebuild"
+                        );
+                    }
+                    continue; // try the next batch
+                }
+                // Unlike the witness blobs, this one can be rebuilt, so it must not stall proving.
+                Err(AirbenderProcessorError::ObjectStore {
+                    source: ObjectStoreError::Serialization(err),
+                    context,
+                }) if context == READ_PROOFS_BLOB => {
+                    drop(transaction);
+                    METRICS.airbender_processor_errors
+                        [&ProcessorErrorKind::ReadProofsBlobUndecodable]
+                        .inc();
+                    connection
+                        .proof_generation_dal()
+                        .clear_airbender_read_proofs_blob_url(batch_number)
+                        .await?;
+                    tracing::warn!(
+                        "Read-proofs blob for batch {batch_number} doesn't decode ({err}); cleared its URL for rebuild"
+                    );
                     continue; // try the next batch
                 }
                 Err(err) => {
@@ -192,23 +262,8 @@ impl AirbenderRequestProcessor {
         l1_batch_number: L1BatchNumber,
         connection: &mut Connection<'_, Core>,
     ) -> Result<AirbenderVerifierInput, AirbenderProcessorError> {
-        let vm_run_data: VMRunWitnessInputData = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(|source| AirbenderProcessorError::ObjectStore {
-                source,
-                context: "Failed to get VMRunWitnessInputData".into(),
-            })?;
-
-        let merkle_paths: WitnessInputMerklePaths = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(|source| AirbenderProcessorError::ObjectStore {
-                source,
-                context: "Failed to get WitnessInputMerklePaths".into(),
-            })?;
+        let (vm_run_data, merkle_paths, read_proofs) =
+            load_witness_blobs(self.blob_store.as_ref(), l1_batch_number).await?;
 
         let l2_blocks_execution_data = connection
             .transactions_dal()
@@ -254,15 +309,6 @@ impl AirbenderRequestProcessor {
             )));
         }
 
-        // Prev-batch hashes from L1 settlement of batch N-1. For batch 1 we
-        // read the genesis batch (#0) commitments, which
-        // `genesis::insert_genesis_batch` populates at chain bootstrap — so
-        // batch 1 is provable. Batch 0 itself has no predecessor and isn't a
-        // valid proving target. The Airbender variant uses lighter
-        // aux-commitment math (zero events queue + Blake2 bootloader heap), so
-        // its `commitment` and `aux_data_hash` differ from Boojum's;
-        // `meta_parameters_hash` matches and is read from the regular
-        // `l1_batches` row in the same query.
         let prev_number = L1BatchNumber(l1_batch_number.0.checked_sub(1).ok_or_else(|| {
             AirbenderProcessorError::GeneralError(anyhow::anyhow!(
                 "batch {l1_batch_number} has no predecessor (only batch 1+ are provable)"
@@ -270,12 +316,11 @@ impl AirbenderRequestProcessor {
         })?);
         let prev_commitment_input = connection
             .blocks_dal()
-            .get_prev_batch_airbender_commitment_input(prev_number)
+            .get_prev_batch_airbender_commitment_input(prev_number, system_env.version)
             .await?
             .ok_or_else(|| {
                 AirbenderProcessorError::GeneralError(anyhow::anyhow!(
-                    "previous batch {prev_number} has no Airbender commitment input yet — \
-                     commitment_generator must run before Airbender V2 proving"
+                    "previous batch {prev_number} has no settlement commitment input yet"
                 ))
             })?;
 
@@ -329,6 +374,7 @@ impl AirbenderRequestProcessor {
             system_env,
             pubdata_params,
             commitment_input: Some(commitment_input),
+            prestate_read_proofs: read_proofs.proofs,
         })
     }
 

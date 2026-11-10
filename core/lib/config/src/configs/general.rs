@@ -13,9 +13,10 @@ use crate::{
         snapshot_recovery::SnapshotRecoveryConfig,
         vm_runner::{BasicWitnessInputProducerConfig, ProtectiveReadsWriterConfig},
         wallets::Wallets,
-        AirbenderProofDataHandlerConfig, CommitmentGeneratorConfig, ConsistencyCheckerConfig,
-        ExperimentalVmConfig, ExternalPriceApiClientConfig, FriProofCompressorConfig,
-        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig, GatewayMigratorConfig,
+        AirbenderProofDataHandlerConfig, AirbenderReadProofsProducerConfig,
+        CommitmentGeneratorConfig, ConsistencyCheckerConfig, ExperimentalVmConfig,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, GatewayMigratorConfig,
         GenesisConfigWrapper, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
         Secrets,
     },
@@ -59,6 +60,8 @@ pub struct GeneralConfig {
         alias = "tee_proof_data_handler"
     )]
     pub airbender_proof_data_handler_config: Option<AirbenderProofDataHandlerConfig>,
+    #[config(nest, rename = "airbender_read_proofs_producer")]
+    pub airbender_read_proofs_producer_config: AirbenderReadProofsProducerConfig,
     #[config(nest, rename = "db", alias = "database")]
     pub db_config: DBConfig,
     #[config(nest)]

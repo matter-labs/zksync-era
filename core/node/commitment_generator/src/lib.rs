@@ -439,21 +439,20 @@ impl CommitmentGenerator {
             .connection_pool
             .connection_tagged("commitment_generator")
             .await?;
-        // Saving changes atomically is not required here; since we save batches in order, if we encounter a DB error,
-        // the commitment generator will be able to recover gracefully.
         for (l1_batch_number, artifacts) in artifacts {
             let latency =
                 METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
-            connection
-                .blocks_dal()
-                .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts.boojum)
-                .await?;
             if let Some(airbender) = &artifacts.airbender {
                 connection
                     .blocks_dal()
                     .save_airbender_batch_commitment(l1_batch_number, airbender)
                     .await?;
             }
+            // The Boojum commitment advances the retry cursor.
+            connection
+                .blocks_dal()
+                .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts.boojum)
+                .await?;
             let latency = latency.observe();
             tracing::debug!(
                 "Stored commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"

@@ -99,6 +99,10 @@ impl From<Transaction> for TransactionData {
                 }
             }
             ExecuteTransactionCommon::L1(common_data) => {
+                assert!(
+                    !common_data.force_fail,
+                    "force_fail is not supported by this VM version"
+                );
                 let refund_recipient = h256_to_u256(address_to_h256(&common_data.refund_recipient));
                 TransactionData {
                     tx_type: common_data.tx_format() as u8,

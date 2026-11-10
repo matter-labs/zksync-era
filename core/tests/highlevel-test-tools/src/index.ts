@@ -5,6 +5,7 @@ export { startServer, TestMainNode } from './start-server';
 export { initExternalNode, runExternalNode, TestExternalNode } from './start-external-node';
 export { FileMutex, cleanTestChains, cleanMutexLockFiles } from './file-mutex';
 export {
+    initTestWallet,
     runIntegrationTests,
     feesTest,
     revertTest,

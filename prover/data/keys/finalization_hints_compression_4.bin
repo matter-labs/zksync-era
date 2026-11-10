@@ -1910,24 +1910,24 @@
     ]
   ],
   "column_finalization_hints": [],
-  "nop_gates_to_add": 1742,
+  "nop_gates_to_add": 1738,
   "final_trace_len": 32768,
   "public_inputs": [
     [
       0,
-      31025
+      31029
     ],
     [
       1,
-      31025
+      31029
     ],
     [
       2,
-      31025
+      31029
     ],
     [
       3,
-      31025
+      31029
     ]
   ]
 }

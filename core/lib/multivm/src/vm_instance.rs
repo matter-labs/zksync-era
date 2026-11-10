@@ -257,6 +257,15 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 );
                 Self::Vm1_5_2(vm)
             }
+            VmVersion::VmMediumInteropForceFail => {
+                let vm = vm_latest::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env,
+                    storage_view,
+                    vm_latest::MultiVmSubversion::ForceFail,
+                );
+                Self::Vm1_5_2(vm)
+            }
         }
     }
 

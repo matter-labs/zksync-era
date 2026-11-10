@@ -120,6 +120,8 @@ impl PriorityOpsMerkleProof {
 /// Precalculated data for the L1 batch that was used in commitment and L1 transaction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct L1BatchMetadata {
+    #[serde(default)]
+    pub airbender: Option<AirbenderBatchCommitment>,
     pub root_hash: H256,
     pub rollup_last_leaf_index: u64,
     pub initial_writes_compressed: Option<Vec<u8>>,
@@ -332,7 +334,7 @@ pub struct BlobHash {
 /// `airbender_batch_commitments`, parallel to the Boojum-shape row in
 /// `l1_batches`. The two variants differ only in `aux_commitments`; the change
 /// cascades into different `aux_data_hash` and `commitment` values.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AirbenderBatchCommitment {
     /// Top-level `L1BatchCommitment` hash with Airbender-shape `aux_commitments`.
     pub commitment: H256,
@@ -346,10 +348,8 @@ pub struct AirbenderBatchCommitment {
     pub bootloader_initial_content_commitment: H256,
 }
 
-/// Subset of previous-batch commitment artifacts the Airbender V2 prover
-/// consumes via `CommitmentInput.prev_*`. Aggregated from `l1_batches`
-/// (`meta_parameters_hash`) and `airbender_batch_commitments` (commitment +
-/// `aux_data_hash`) in a single DAL query.
+/// Airbender predecessor hashes; v34 proofs use Boojum hashes for a pre-v34 predecessor.
+/// Pre-v34 shadow proofs retain the Airbender hash chain.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct PrevBatchAirbenderCommitmentInput {
     pub meta_parameters_hash: H256,

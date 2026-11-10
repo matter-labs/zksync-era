@@ -179,10 +179,20 @@ where
                             let message_len =
                                 "execution reverted: ".len().min(call_err.message().len());
                             let revert_reason = call_err.message()[message_len..].to_string();
+                            // Custom errors put their returndata here and nowhere else;
+                            // the message for those is the bare `execution reverted`.
+                            let revert_data = call_err
+                                .data()
+                                .and_then(|data| {
+                                    serde_json::from_str::<web3::Bytes>(data.get()).ok()
+                                })
+                                .map(|data| data.0)
+                                .unwrap_or_default();
 
                             Ok(Some(FailureInfo {
                                 revert_code,
                                 revert_reason,
+                                revert_data,
                                 gas_used,
                                 gas_limit,
                             }))

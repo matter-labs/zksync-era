@@ -15,7 +15,9 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
-          sccache_mode: ${{ github.event_name == 'merge_group' && 'READ_WRITE' || 'READ_ONLY' }}
+          gcp-workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          sccache-reader-service-account: ${{ secrets.GCP_SCCACHE_READER_SERVICE_ACCOUNT }}
+          sccache-writer-service-account: ${{ secrets.GCP_SCCACHE_WRITER_SERVICE_ACCOUNT }}
 
       - name: Build
         run: |

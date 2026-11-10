@@ -9,6 +9,7 @@ import {
     GATEWAY_CHAIN_ID,
     L2_INTEROP_ROOT_STORAGE_ADDRESS,
     L2_BRIDGEHUB_ADDRESS,
+    USER_PRIORITY_TX_MAX_GAS_LIMIT,
     ArtifactL2InteropRootStorage,
     ArtifactIBridgehubBase,
     ArtifactIGetters
@@ -351,9 +352,18 @@ export function isLocalHost(network: string): boolean {
     return network.toLowerCase() == 'localhost';
 }
 
-export function maxL2GasLimitForPriorityTxs(maxGasBodyLimit: bigint): bigint {
-    // Find maximum `gasLimit` that satisfies `txBodyGasLimit <= CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT`
-    // using binary search.
+/**
+ * Largest `l2GasLimit` the Mailbox accepts for an L1->L2 transaction whose gas limit comes from the
+ * caller: the body gas bound plus the overhead `TransactionValidator.getTransactionBodyGasLimit`
+ * subtracts.
+ *
+ * The bound is not the chain's `priorityTxMaxGasLimit` alone. `MailboxFacet._userPriorityTxMaxGasLimit`
+ * lowers it to `USER_PRIORITY_TX_MAX_GAS_LIMIT` on an EraVM chain configured higher, so passing the
+ * chain limit here without clamping yields a value that reverts with `TooMuchGas`.
+ */
+export function maxL2GasLimitForPriorityTxs(chainMaxGasBodyLimit: bigint): bigint {
+    const maxGasBodyLimit =
+        chainMaxGasBodyLimit < USER_PRIORITY_TX_MAX_GAS_LIMIT ? chainMaxGasBodyLimit : USER_PRIORITY_TX_MAX_GAS_LIMIT;
     const overhead = getOverheadForTransaction(
         // We can just pass 0 as `encodingLength` because the overhead for the transaction's slot
         // will be greater than `overheadForLength` for a typical transacction

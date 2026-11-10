@@ -161,6 +161,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 timestamp,
                 ..ProtocolUpgrade::try_from_diamond_cut(
                     &diamond_cut,
+                    old_protocol_version.minor,
                     self.l1_client.as_ref(),
                     self.l1_client
                         .get_chain_gateway_upgrade_info()
@@ -235,6 +236,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                 (
                     old_protocol_version,
                     upgrade,
+                    diamond_cut,
                     scheduler_vk_hash,
                     fflonk_scheduler_vk_hash,
                     airbender_scheduler_vk_hash,
@@ -261,6 +263,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         for (
             old_protocol_version,
             upgrade,
+            diamond_cut,
             scheduler_vk_hash,
             fflonk_scheduler_vk_hash,
             airbender_scheduler_vk_hash,
@@ -310,9 +313,25 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
                     );
                     assert!(new_version.tx.is_none());
                 }
-                storage
+                let mut transaction = storage
+                    .start_transaction()
+                    .await
+                    .map_err(DalError::generalize)
+                    .map_err(EventProcessorError::internal)?;
+                transaction
                     .protocol_versions_dal()
                     .save_protocol_version_with_tx(&new_version)
+                    .await
+                    .map_err(DalError::generalize)
+                    .map_err(EventProcessorError::internal)?;
+                transaction
+                    .protocol_versions_dal()
+                    .save_upgrade_cut_data(new_version.version, &diamond_cut)
+                    .await
+                    .map_err(DalError::generalize)
+                    .map_err(EventProcessorError::internal)?;
+                transaction
+                    .commit()
                     .await
                     .map_err(DalError::generalize)
                     .map_err(EventProcessorError::internal)?;

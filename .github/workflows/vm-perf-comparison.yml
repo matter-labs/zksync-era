@@ -10,7 +10,11 @@ jobs:
     name: Run VM benchmarks
     runs-on: [ matterlabs-ci-runner-highmem-long ]
     permissions:
+      # `contents: read` is required explicitly: an explicit block replaces the
+      # default permission set.
+      contents: read
       pull-requests: write
+      id-token: write
 
     steps:
       - name: checkout base branch
@@ -40,10 +44,9 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
-          # This job compiles and runs contributor-supplied benchmark code from
-          # (possibly forked) PRs, so it must never be able to write the shared
-          # sccache cache that trusted release builds read from.
-          sccache_mode: READ_ONLY
+          gcp-workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          sccache-reader-service-account: ${{ secrets.GCP_SCCACHE_READER_SERVICE_ACCOUNT }}
+          sccache-writer-service-account: ${{ secrets.GCP_SCCACHE_WRITER_SERVICE_ACCOUNT }}
 
       - name: run benchmarks on base branch
         shell: bash
@@ -53,6 +56,15 @@ jobs:
             --package vm-benchmark --bench instructions -- --verbose || echo "Instructions benchmark is missing"
           ci_run cargo run --manifest-path ./core/Cargo.toml \
             --package vm-benchmark --release --bin instruction_counts | tee base-opcodes
+
+      # `ci_run` executes in the container as root, so the contracts build above
+      # leaves root-owned files under the tracked `contracts` submodule. The
+      # checkout below runs on the host as the runner user and cannot replace
+      # them ("unable to unlink old ...: Permission denied").
+      - name: Reclaim files the container wrote as root
+        run: |
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
+          ${SUDO} chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}" || true
 
       - name: checkout PR
         run: |

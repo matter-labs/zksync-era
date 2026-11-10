@@ -179,6 +179,9 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
     }
 
     fn decommit_code(&mut self, hash: U256) -> Vec<u8> {
+        if let Some(code) = self.bytecode_cache.get(&hash) {
+            return code.clone();
+        }
         self.decommit(hash)
             .code_page()
             .as_ref()

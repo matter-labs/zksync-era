@@ -14,6 +14,8 @@ categories.workspace = true
 zksync_basic_types.workspace = true
 zksync_crypto_primitives.workspace = true
 zksync_concurrency.workspace = true
+# For `PROVING_CYCLE_CEILING`, the upper bound `max_cycles_per_batch` is validated against.
+zksync-era-airbender-cycles-estimator.workspace = true
 
 # Observability exensions
 zksync_vlog = { workspace = true, optional = true }

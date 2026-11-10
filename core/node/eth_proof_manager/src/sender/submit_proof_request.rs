@@ -77,13 +77,20 @@ impl ProofRequestSubmitter {
     }
 
     pub async fn loop_iteration(&self) -> anyhow::Result<()> {
-        let batch_id = self
-            .connection_pool
-            .connection()
-            .await?
-            .eth_proof_manager_dal()
-            .lock_batch_for_proving_network_and_prepare()
-            .await?;
+        let batch_id = {
+            let mut connection = self.connection_pool.connection().await?;
+            let routed = connection
+                .eth_proof_manager_dal()
+                .route_unsampled_batches_to_prover_cluster(self.config.batch_step)
+                .await?;
+            if routed > 0 {
+                tracing::info!("Routed {routed} batches to prover cluster");
+            }
+            connection
+                .eth_proof_manager_dal()
+                .lock_batch_for_proving_network_and_prepare(self.config.batch_step)
+                .await?
+        };
         if let Some(batch_id) = batch_id {
             tracing::info!(
                 "Locked batch {} for proving-network submission and persisted preparing state",

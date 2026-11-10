@@ -5,6 +5,7 @@ use std::{mem, time::Duration};
 
 use anyhow::{bail, Context};
 use zksync_airbender_proof_data_handler::node::AirbenderProofDataHandlerLayer;
+use zksync_airbender_read_proofs_producer::node::AirbenderReadProofsProducerLayer;
 use zksync_base_token_adjuster::node::{
     BaseTokenRatioPersisterLayer, BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
 };
@@ -75,6 +76,7 @@ use zksync_state_keeper::node::{
 };
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, L2DACommitmentScheme, PubdataType},
+    factory_deps::max_redundant_factory_deps_size,
     pubdata_da::PubdataSendingMode,
     Address, L2ChainId,
 };
@@ -295,7 +297,10 @@ impl MainNodeBuilder {
                 .with_protective_reads_persistence_enabled(
                     sk_config.shared.protective_reads_persistence_enabled,
                 )
-                .with_predicted_cycles_persistence_enabled(true);
+                .with_predicted_cycles_persistence_enabled(true)
+                .with_call_traces_max_chunk_size(
+                    sk_config.shared.call_traces_max_chunk_size.0 as usize,
+                );
         let mempool_io_layer = MempoolIOLayer::new(
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
@@ -318,8 +323,15 @@ impl MainNodeBuilder {
                 .0 as usize,
             max_open_files: db_config.experimental.state_keeper_db_max_open_files,
         };
-        let state_keeper_layer =
-            StateKeeperLayer::new(db_config.state_keeper_db_path, rocksdb_options);
+        let state_keeper_layer = StateKeeperLayer::new(
+            db_config.state_keeper_db_path,
+            rocksdb_options,
+            // Admission checks against the last sealed L2 block; this re-check closes the
+            // window on publications still sitting in the mempool.
+            Some(max_redundant_factory_deps_size(
+                sk_config.l2_block_max_payload_size.0 as usize,
+            )),
+        );
         self.node
             .add_layer(persistence_layer)
             .add_layer(mempool_io_layer)
@@ -394,6 +406,14 @@ impl MainNodeBuilder {
         self.node.add_layer(AirbenderProofDataHandlerLayer::new(
             try_load_config!(self.configs.airbender_proof_data_handler_config),
             self.genesis_config.l2_chain_id,
+        ));
+        Ok(self)
+    }
+
+    fn add_airbender_read_proofs_producer_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(AirbenderReadProofsProducerLayer::new(
+            self.configs.airbender_read_proofs_producer_config.clone(),
+            try_load_config!(self.configs.airbender_proof_data_handler_config),
         ));
         Ok(self)
     }
@@ -811,7 +831,9 @@ impl MainNodeBuilder {
         // Sort the components, so that the components they may depend on each other are added in the correct order.
         components.sort_unstable_by_key(|component| match component {
             // API consumes the resources provided by other layers (multiple ones), so it has to come the last.
-            Component::HttpApi | Component::WsApi => 1,
+            // The read-proofs producer falls back to an HTTP tree client, so an in-process tree
+            // must register its client first.
+            Component::HttpApi | Component::WsApi | Component::AirbenderReadProofsProducer => 1,
             // Default priority.
             _ => 0,
         });
@@ -893,6 +915,11 @@ impl MainNodeBuilder {
                 }
                 Component::AirbenderProofDataHandler => {
                     self = self.add_airbender_proof_data_handler_layer()?;
+                }
+                Component::AirbenderReadProofsProducer => {
+                    self = self
+                        .add_tree_api_client_layer()?
+                        .add_airbender_read_proofs_producer_layer()?;
                 }
                 Component::Consensus => {
                     self = self.add_consensus_layer()?;

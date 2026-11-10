@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE protocol_patches\n            SET\n                upgrade_cut_data = $3\n            WHERE\n                minor = $1\n                AND patch = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "233a11dfbf4c3355a50b2fb07175e6c5ae87c4a03912149e9007e9207a005adc"
+}

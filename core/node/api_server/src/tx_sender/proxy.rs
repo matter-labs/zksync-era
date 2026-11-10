@@ -377,6 +377,7 @@ impl TxSink for TxProxy {
                 eth_prove_tx_hash: None,
                 eth_execute_tx_hash: None,
                 eth_precommit_tx_hash: None,
+                force_failed: false,
             }));
         }
         Ok(None)

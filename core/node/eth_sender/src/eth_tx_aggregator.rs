@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use tokio::sync::watch;
-use zksync_config::configs::eth_sender::{PrecommitParams, SenderConfig};
+use zksync_config::configs::eth_sender::{PrecommitParams, ProverType, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
@@ -24,15 +24,17 @@ use zksync_types::{
     },
     commitment::{L1BatchWithMetadata, L2DACommitmentScheme, SerializeCommitment},
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, EthTxBlobSidecarV2, SidecarBlobV1},
-    ethabi::{Function, Token},
+    ethabi::{Function, Param, ParamType, StateMutability, Token},
     l2_to_l1_log::UserL2ToL1Log,
-    protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
+    protocol_version::{L1VerifierConfig, ProtocolSemanticVersion, PACKED_SEMVER_MINOR_MASK},
     pubdata_da::PubdataSendingMode,
     server_notification::GatewayMigrationState,
     settlement::SettlementLayer,
     web3::{contract::Error as Web3ContractError, BlockId, BlockNumber, CallRequest},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
 };
+
+mod protocol_upgrade;
 
 use super::aggregated_operations::{
     AggregatedOperation, L1BatchAggregatedOperation, L2BlockAggregatedOperation,
@@ -66,6 +68,7 @@ pub enum EthereumUpgradeState {
 pub struct MulticallData {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub verifier_address: Address,
+    pub chain_protocol_version: ProtocolSemanticVersion,
     pub chain_protocol_version_id: ProtocolVersionId,
     /// The latest validator timelock that is stored on the StateTransitionManager (ChainTypeManager).
     /// For a smoother upgrade process, if the `stm_protocol_version_id` is the same as `chain_protocol_version_id`,
@@ -74,8 +77,6 @@ pub struct MulticallData {
     pub stm_validator_timelock_address: Address,
     pub stm_protocol_version_id: ProtocolVersionId,
     pub da_validator_pair: DAValidatorPair,
-    /// Execution delay in seconds from the ValidatorTimelock contract
-    pub execution_delay: Duration,
 }
 
 /// The component is responsible for aggregating l1 batches into eth_txs.
@@ -111,10 +112,94 @@ struct TxData {
     sidecar: Option<EthTxBlobSidecar>,
 }
 
-const FFLONK_VERIFIER_TYPE: i32 = 1;
-/// Verifier type routed to the Airbender PLONK verifier by the dual verifier contract
-/// (see `EraDualVerifier.sol`: 0 = FFLONK, 1 = PLONK, 2 = Airbender PLONK).
+const FFLONK_VERIFIER_TYPE: i32 = 0;
+/// Airbender key-discovery index on EraMultiProofVerifier.
 const AIRBENDER_PLONK_VERIFIER_TYPE: i32 = 2;
+
+#[derive(Debug, PartialEq)]
+struct DisabledProofSystems(u8);
+
+impl zksync_l1_contract_interface::Detokenize for DisabledProofSystems {
+    fn from_tokens(tokens: Vec<Token>) -> Result<Self, zksync_types::web3::contract::Error> {
+        if let [Token::Tuple(fields)] = tokens.as_slice() {
+            if let [Token::Bool(boojum), Token::Bool(airbender)] = fields.as_slice() {
+                return Ok(Self(u8::from(*boojum) | (u8::from(*airbender) << 1)));
+            }
+        }
+        Err(zksync_types::web3::contract::Error::InvalidOutputType(
+            "expected DisabledProofSystems(bool,bool)".into(),
+        ))
+    }
+}
+
+async fn proof_systems_match_notification(
+    storage: &mut Connection<'_, Core>,
+    current_mask: u8,
+) -> Result<bool, EthSenderError> {
+    if let Some(expected) = storage
+        .server_notifications_dal()
+        .get_latest_proof_system_status_notification()
+        .await?
+    {
+        if expected.disabled_proof_systems != current_mask {
+            tracing::info!(
+                expected = expected.disabled_proof_systems,
+                current = current_mask,
+                "Waiting for announced proof system status"
+            );
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn resolve_prover_policy(
+    configured_prover: ProverType,
+    mask: U256,
+    supported: U256,
+    required: U256,
+    proof_type: U256,
+) -> Result<ProverType, String> {
+    if mask > U256::from(2)
+        || proof_type != U256::from(4)
+        || supported.is_zero()
+        || supported > U256::from(3)
+        || required.is_zero()
+        || required != (supported & (U256::from(3) ^ mask))
+    {
+        return Err("unsupported verifier policy".into());
+    }
+    let configured = U256::from(3 ^ configured_prover.disabled_proof_systems());
+    if (configured & required) != required {
+        return Err(format!(
+            "configured {configured_prover:?} does not supply required systems {required}"
+        ));
+    }
+    ProverType::from_disabled_proof_systems(3 ^ required.as_u32() as u8)
+        .map_err(|err| err.to_string())
+}
+
+#[allow(deprecated)]
+fn view_function(name: &str, inputs: Vec<ParamType>, output: ParamType) -> Function {
+    Function {
+        name: name.into(),
+        inputs: inputs
+            .into_iter()
+            .map(|kind| Param {
+                name: String::new(),
+                kind,
+                internal_type: None,
+            })
+            .collect(),
+        outputs: vec![Param {
+            name: String::new(),
+            kind: output,
+            internal_type: None,
+        }],
+        constant: None,
+        state_mutability: StateMutability::View,
+    }
+}
 
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
@@ -368,20 +453,6 @@ impl EthTxAggregator {
             calldata: get_da_validator_pair_input,
         };
 
-        // Get execution delay from ValidatorTimelock contract
-        let get_execution_delay_input = self
-            .functions
-            .validator_timelock_contract
-            .function("executionDelay")
-            .unwrap()
-            .encode_input(&[])
-            .unwrap();
-        let get_execution_delay_call = Multicall3Call {
-            target: self.config_timelock_contract_address,
-            allow_failure: true,
-            calldata: get_execution_delay_input,
-        };
-
         let get_post_v29_upgradeable_validator_timelock_input = self
             .functions
             .state_transition_manager_contract
@@ -406,7 +477,6 @@ impl EthTxAggregator {
             get_stm_protocol_version_call.into_token(),
             get_stm_pre_v29_validator_timelock_call.into_token(),
             get_da_validator_pair_call.into_token(),
-            get_execution_delay_call.into_token(),
             get_post_v29_upgradeable_validator_timelock_call.into_token(),
         ];
 
@@ -443,8 +513,8 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
-            let number_of_calls = if evm_emulator_hash_requested { 11 } else { 10 };
-            // 10 or 11 calls are aggregated in multicall (added execution delay call and post-v29 validator timelock call)
+            let number_of_calls = if evm_emulator_hash_requested { 10 } else { 9 };
+            // 9 or 10 calls are aggregated in multicall (added post-v29 validator timelock call)
             if call_results.len() != number_of_calls {
                 return parse_error(&call_results);
             }
@@ -503,10 +573,11 @@ impl EthTxAggregator {
             let verifier_address =
                 Self::parse_address(call_results_iterator.next().unwrap(), "verifier address")?;
 
-            let chain_protocol_version_id = Self::parse_protocol_version(
+            let chain_protocol_version = Self::parse_protocol_semver(
                 call_results_iterator.next().unwrap(),
                 "contract protocol version",
             )?;
+            let chain_protocol_version_id = chain_protocol_version.minor;
             let stm_protocol_version_id = Self::parse_protocol_version(
                 call_results_iterator.next().unwrap(),
                 "STM protocol version",
@@ -520,11 +591,6 @@ impl EthTxAggregator {
                 call_results_iterator.next().unwrap(),
                 "contract DA validator pair",
                 chain_protocol_version_id,
-            )?;
-
-            let execution_delay = Self::parse_execution_delay(
-                call_results_iterator.next().unwrap(),
-                "execution delay",
             )?;
 
             let stm_validator_timelock_address =
@@ -543,11 +609,11 @@ impl EthTxAggregator {
             return Ok(MulticallData {
                 base_system_contracts_hashes,
                 verifier_address,
+                chain_protocol_version,
                 chain_protocol_version_id,
                 stm_protocol_version_id,
                 stm_validator_timelock_address,
                 da_validator_pair,
-                execution_delay,
             });
         }
         parse_error(&[token])
@@ -557,6 +623,13 @@ impl EthTxAggregator {
         data: Token,
         name: &'static str,
     ) -> Result<ProtocolVersionId, EthSenderError> {
+        Ok(Self::parse_protocol_semver(data, name)?.minor)
+    }
+
+    fn parse_protocol_semver(
+        data: Token,
+        name: &'static str,
+    ) -> Result<ProtocolSemanticVersion, EthSenderError> {
         let multicall_data = Multicall3Result::from_token(data)?.return_data;
         if multicall_data.len() != 32 {
             return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
@@ -570,13 +643,16 @@ impl EthTxAggregator {
         let protocol_version = U256::from_big_endian(&multicall_data);
         // In case the protocol version is smaller than `PACKED_SEMVER_MINOR_MASK`, it will mean that it is
         // equal to the `protocol_version_id` value, since it the interface from before the semver was supported.
-        let protocol_version_id = if protocol_version < U256::from(PACKED_SEMVER_MINOR_MASK) {
-            ProtocolVersionId::try_from(protocol_version.as_u32() as u16).unwrap()
+        let protocol_version = if protocol_version < U256::from(PACKED_SEMVER_MINOR_MASK) {
+            ProtocolSemanticVersion {
+                minor: ProtocolVersionId::try_from(protocol_version.as_u32() as u16).unwrap(),
+                patch: 0.into(),
+            }
         } else {
-            ProtocolVersionId::try_from_packed_semver(protocol_version).unwrap()
+            ProtocolSemanticVersion::try_from_packed(protocol_version).unwrap()
         };
 
-        Ok(protocol_version_id)
+        Ok(protocol_version)
     }
 
     fn parse_address(data: Token, name: &'static str) -> Result<Address, EthSenderError> {
@@ -658,22 +734,103 @@ impl EthTxAggregator {
         Ok(pair)
     }
 
-    fn parse_execution_delay(data: Token, name: &'static str) -> Result<Duration, EthSenderError> {
+    /// Returns `None` if the getter call itself has failed, which is the case when it is not
+    /// present on the deployed timelock.
+    fn parse_execution_delay(
+        data: Token,
+        name: &'static str,
+    ) -> Result<Option<Duration>, EthSenderError> {
         let multicall_data = Multicall3Result::from_token(data)?;
 
         if !multicall_data.success {
             tracing::warn!(
-                "multicall3 {name} data is not of the len of 32: {:?}, returning zero delay",
+                "multicall3 {name} call has failed: {:?}, ignoring the returned delay",
                 multicall_data.return_data
             );
-            return Ok(Duration::ZERO);
+            return Ok(None);
         }
 
         let delay_seconds = U256::from_big_endian(&multicall_data.return_data);
-        Ok(Duration::from_secs(delay_seconds.as_u64()))
+        Ok(Some(Duration::from_secs(delay_seconds.as_u64())))
     }
 
-    fn timelock_contract_address(
+    /// Reads the execution delay enforced for this chain from `timelock_address`, which has to be
+    /// the timelock the execute transactions are sent to, as returned by
+    /// [`Self::timelock_contract_address`]. The delay is stored per chain, so reading it from any
+    /// other timelock would silently yield the ecosystem-wide value.
+    ///
+    /// Both getters are allowed to fail: `getExecutionDelay` is only present starting from v29
+    /// timelocks, and some setups have no timelock at all. A reverting call is ignored rather than
+    /// counted as a zero delay, while a transport error still surfaces as an error.
+    pub(super) async fn get_execution_delay(
+        &self,
+        timelock_address: Address,
+    ) -> Result<Duration, EthSenderError> {
+        const ALLOW_FAILURE: bool = true;
+        let timelock_contract = &self.functions.validator_timelock_contract;
+
+        // The ecosystem-wide floor, present on every version of the timelock.
+        let ecosystem_delay_call = Multicall3Call {
+            target: timelock_address,
+            allow_failure: ALLOW_FAILURE,
+            calldata: timelock_contract
+                .function("executionDelay")
+                .unwrap()
+                .encode_input(&[])
+                .unwrap(),
+        };
+        // The delay enforced for this chain in `ValidatorTimelock.executeBatchesSharedBridge`,
+        // i.e. `max(executionDelay, chainExecutionDelay[chain])`. A chain admin can raise its own
+        // delay above the ecosystem-wide one, in which case scheduling execute transactions based
+        // on `executionDelay` alone would make them revert with `TimeNotReached`.
+        let chain_delay_call = Multicall3Call {
+            target: timelock_address,
+            allow_failure: ALLOW_FAILURE,
+            calldata: timelock_contract
+                .function("getExecutionDelay")
+                .unwrap()
+                .encode_input(&[Token::Address(self.state_transition_chain_contract)])
+                .unwrap(),
+        };
+
+        let args = CallFunctionArgs::new(
+            &self.functions.aggregate3.name,
+            vec![
+                ecosystem_delay_call.into_token(),
+                chain_delay_call.into_token(),
+            ],
+        )
+        .for_contract(
+            self.l1_multicall3_address,
+            &self.functions.multicall_contract,
+        );
+        let aggregate3_result: Token = args.call((*self.eth_client).as_ref()).await?;
+
+        let Token::Array(call_results) = aggregate3_result else {
+            return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                format!("Failed to parse execution delay multicall token: {aggregate3_result:?}"),
+            )));
+        };
+        let [ecosystem_delay_result, chain_delay_result] = <[Token; 2]>::try_from(call_results)
+            .map_err(|results| {
+                EthSenderError::Parse(Web3ContractError::InvalidOutputType(format!(
+                    "Expected 2 execution delay calls in multicall, got: {results:?}"
+                )))
+            })?;
+
+        let ecosystem_delay =
+            Self::parse_execution_delay(ecosystem_delay_result, "ecosystem-wide execution delay")?;
+        let chain_delay =
+            Self::parse_execution_delay(chain_delay_result, "chain-specific execution delay")?;
+        // `getExecutionDelay` already returns the maximum of the two delays, but it is missing on
+        // pre-v29 timelocks; taking the maximum here keeps the ecosystem-wide value as a floor
+        // regardless of which of the two getters is available.
+        Ok(chain_delay
+            .unwrap_or_default()
+            .max(ecosystem_delay.unwrap_or_default()))
+    }
+
+    pub(super) fn timelock_contract_address(
         &self,
         chain_protocol_version_id: ProtocolVersionId,
         stm_protocol_version_id: ProtocolVersionId,
@@ -705,7 +862,7 @@ impl EthTxAggregator {
 
         let vk_hash: H256 = CallFunctionArgs::new(&get_vk_hash.name, ())
             .for_contract(verifier_address, &self.functions.verifier_contract)
-            .call((*self.eth_client).as_ref())
+            .call_with_function((*self.eth_client).as_ref(), get_vk_hash.clone())
             .await?;
         Ok(vk_hash)
     }
@@ -741,14 +898,13 @@ impl EthTxAggregator {
         verifier_address: Address,
     ) -> Result<Option<H256>, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
-        // We are getting function separately to get the second function with the same name, but
-        // overriden one
         let function = self
             .functions
             .verifier_contract
             .functions_by_name(&get_vk_hash.name)
             .map_err(|x| EthSenderError::ContractCall(ContractCallError::Function(x)))?
-            .get(1);
+            .iter()
+            .find(|function| function.inputs.len() == 1);
 
         if let Some(function) = function {
             let vk_hash: Option<H256> =
@@ -763,20 +919,83 @@ impl EthTxAggregator {
         }
     }
 
+    async fn sync_proof_systems(
+        &mut self,
+        storage: &mut Connection<'_, Core>,
+        verifier: Address,
+    ) -> Result<Option<&'static str>, EthSenderError> {
+        let disabled: DisabledProofSystems = CallFunctionArgs::new("disabledProofSystems", ())
+            .for_contract(
+                self.state_transition_chain_contract,
+                &self.functions.verifier_contract,
+            )
+            .call_with_function(
+                (*self.eth_client).as_ref(),
+                view_function(
+                    "disabledProofSystems",
+                    vec![],
+                    ParamType::Tuple(vec![ParamType::Bool, ParamType::Bool]),
+                ),
+            )
+            .await?;
+        if !proof_systems_match_notification(storage, disabled.0).await? {
+            return Ok(Some("waiting for announced proof system status"));
+        }
+        let mask = U256::from(disabled.0);
+        let supported: U256 = CallFunctionArgs::new("supportedProofSystems", ())
+            .for_contract(verifier, &self.functions.verifier_contract)
+            .call_with_function(
+                (*self.eth_client).as_ref(),
+                view_function("supportedProofSystems", vec![], ParamType::Uint(8)),
+            )
+            .await?;
+        let required: U256 = CallFunctionArgs::new("requiredProofSystems", mask)
+            .for_contract(verifier, &self.functions.verifier_contract)
+            .call_with_function(
+                (*self.eth_client).as_ref(),
+                view_function(
+                    "requiredProofSystems",
+                    vec![ParamType::Uint(8)],
+                    ParamType::Uint(8),
+                ),
+            )
+            .await?;
+        let proof_type: U256 = CallFunctionArgs::new("acceptedProofType", ())
+            .for_contract(verifier, &self.functions.verifier_contract)
+            .call_with_function(
+                (*self.eth_client).as_ref(),
+                view_function("acceptedProofType", vec![], ParamType::Uint(256)),
+            )
+            .await?;
+        match resolve_prover_policy(self.config.prover, mask, supported, required, proof_type) {
+            Ok(prover) => {
+                self.aggregator.set_prover(prover);
+                Ok(None)
+            }
+            Err(reason) => {
+                tracing::warn!(
+                    %reason, %mask, %supported, %required, %proof_type,
+                    configured_prover = ?self.config.prover,
+                    "Proof submission paused: incompatible proof system policy"
+                );
+                Ok(Some("incompatible proof system policy"))
+            }
+        }
+    }
+
     async fn get_airbender_snark_wrapper_vk_hash(
         &mut self,
         verifier_address: Address,
     ) -> Result<Option<H256>, EthSenderError> {
         let get_vk_hash = &self.functions.verification_key_hash;
-        // Same overloaded `verificationKeyHash(uint256)` as for FFLONK, routed to the Airbender
-        // PLONK verifier. Older verifiers without an Airbender route revert, which surfaces as
-        // `None` here.
+        // Older verifiers without the Airbender key return `None`.
         let function = self
             .functions
             .verifier_contract
             .functions_by_name(&get_vk_hash.name)
             .map_err(|x| EthSenderError::ContractCall(ContractCallError::Function(x)))?
-            .get(1);
+            .iter()
+            .find(|function| function.inputs.len() == 1);
 
         if let Some(function) = function {
             let vk_hash: Option<H256> =
@@ -800,15 +1019,35 @@ impl EthTxAggregator {
         let MulticallData {
             base_system_contracts_hashes,
             verifier_address,
+            chain_protocol_version,
             chain_protocol_version_id,
             stm_protocol_version_id,
             stm_validator_timelock_address,
             da_validator_pair,
-            execution_delay,
         } = self.get_multicall_data().await.map_err(|err| {
             tracing::error!("Failed to get multicall data {err:?}");
             err
         })?;
+
+        // The timelock the execute transactions are sent to, and hence the one whose execution
+        // delay is enforced for this chain.
+        let timelock_contract_address = self.timelock_contract_address(
+            chain_protocol_version_id,
+            stm_protocol_version_id,
+            stm_validator_timelock_address,
+        );
+        let execution_delay = self
+            .get_execution_delay(timelock_contract_address)
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get execution delay from the ValidatorTimelock {err:?}");
+                err
+            })?
+            .max(
+                self.config
+                    .l1_batch_min_age_before_execute
+                    .unwrap_or_default(),
+            );
 
         let fusaka_activation_state = self.fusaka_activation_state().await?;
 
@@ -834,6 +1073,12 @@ impl EthTxAggregator {
                 err
             })?;
 
+        let prove_restriction = if chain_protocol_version_id >= ProtocolVersionId::Version34 {
+            self.sync_proof_systems(storage, verifier_address).await?
+        } else {
+            None
+        };
+
         let l1_verifier_config = L1VerifierConfig {
             snark_wrapper_vk_hash,
             fflonk_snark_wrapper_vk_hash,
@@ -855,7 +1100,7 @@ impl EthTxAggregator {
 
         let mut op_restrictions = OperationSkippingRestrictions {
             commit_restriction,
-            prove_restriction: None,
+            prove_restriction,
             execute_restriction: Self::is_pending_gateway_upgrade(
                 storage,
                 chain_protocol_version_id,
@@ -918,6 +1163,19 @@ impl EthTxAggregator {
         }
         let use_fusaka_blob_format = fusaka_activation_state == EthereumUpgradeState::Finished;
 
+        if self
+            .handle_protocol_upgrade(
+                storage,
+                chain_protocol_version,
+                timelock_contract_address,
+                is_gateway,
+                &mut op_restrictions,
+            )
+            .await?
+        {
+            return Ok(());
+        }
+
         if let Some(agg_op) = self
             .aggregator
             .get_next_ready_operation(
@@ -937,11 +1195,7 @@ impl EthTxAggregator {
                 .save_eth_tx(
                     storage,
                     &agg_op,
-                    self.timelock_contract_address(
-                        chain_protocol_version_id,
-                        stm_protocol_version_id,
-                        stm_validator_timelock_address,
-                    ),
+                    timelock_contract_address,
                     chain_protocol_version_id,
                     is_gateway,
                     use_fusaka_blob_format,
@@ -1305,8 +1559,8 @@ impl EthTxAggregator {
             AggregatedOperation::L1Batch(agg_op) => {
                 let l1_batch_number_range = agg_op.l1_batch_range();
                 let dependency_roots_per_batch = agg_op.dependency_roots_per_batch();
-                match agg_op.get_action_type() {
-                    L1BatchAggregatedActionType::Execute => {
+                match agg_op {
+                    L1BatchAggregatedOperation::Execute(_) => {
                         L1GasCriterion::total_execute_gas_amount(
                             &mut transaction,
                             l1_batch_number_range.clone(),
@@ -1315,10 +1569,11 @@ impl EthTxAggregator {
                         )
                         .await
                     }
-                    L1BatchAggregatedActionType::PublishProofOnchain => {
+                    L1BatchAggregatedOperation::PublishProofOnchain(prove) => {
                         L1GasCriterion::total_proof_gas_amount(is_gateway)
+                            * prove.proofs.len().max(1) as u64
                     }
-                    L1BatchAggregatedActionType::Commit => {
+                    L1BatchAggregatedOperation::Commit(..) => {
                         L1GasCriterion::total_commit_validium_gas_amount(
                             l1_batch_number_range.clone(),
                             is_gateway,
@@ -1522,4 +1777,355 @@ async fn get_priority_tree_start_index(
         .unwrap();
 
     Ok(Some(priority_tree_start_index.as_usize()))
+}
+
+#[cfg(test)]
+mod proof_system_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn incompatible_policy_only_pauses_proofs() {
+        use std::sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        };
+
+        use zksync_config::EthConfig;
+        use zksync_eth_client::clients::{MockSettlementLayer, L1};
+        use zksync_object_store::MockObjectStore;
+        use zksync_types::{commitment::L1BatchCommitmentMode, L1BatchNumber, ProtocolVersion};
+
+        use crate::tester::{EthSenderTester, TestL1Batch};
+
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        pool.connection()
+            .await
+            .unwrap()
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion {
+                base_system_contracts_hashes: BaseSystemContractsHashes {
+                    bootloader: H256::repeat_byte(1),
+                    default_aa: H256::repeat_byte(2),
+                    evm_emulator: Some(H256::repeat_byte(3)),
+                },
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        let mut tester = EthSenderTester::new(
+            pool.clone(),
+            vec![10; 100],
+            false,
+            false,
+            L1BatchCommitmentMode::Rollup,
+            SettlementLayer::L1(505.into()),
+        )
+        .await;
+        let config = SenderConfig {
+            max_aggregated_blocks_to_commit: 1,
+            max_aggregated_blocks_to_execute: 1,
+            ..EthConfig::for_tests().sender
+        };
+        tester.aggregator.aggregator = Aggregator::new(
+            config,
+            MockObjectStore::arc(),
+            false,
+            L1BatchCommitmentMode::Rollup,
+            pool.clone(),
+            SettlementLayer::L1(505.into()),
+        )
+        .await
+        .unwrap();
+        TestL1Batch::sealed(&mut tester).await;
+        let proven = TestL1Batch::sealed(&mut tester).await;
+        let pending = TestL1Batch::sealed(&mut tester).await;
+        for number in 0..=pending.number.0 {
+            let mut storage = pool.connection().await.unwrap();
+            storage
+                .blocks_dal()
+                .insert_l2_block(&zksync_node_test_utils::create_l2_block(number))
+                .await
+                .unwrap();
+            storage
+                .blocks_dal()
+                .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(number))
+                .await
+                .unwrap();
+        }
+        proven.commit(&mut tester, true).await;
+        proven.save_prove_tx(&mut tester).await;
+
+        let fail_read = Arc::new(AtomicBool::new(false));
+        let fail_read_in_handler = fail_read.clone();
+        let functions = ZkSyncFunctions::default();
+        tester.aggregator.eth_client = Box::new(
+            MockSettlementLayer::<L1>::builder()
+                .with_call_handler(move |call, _| {
+                    let data = &call.data.as_ref().unwrap().0;
+                    if data[..4] == functions.aggregate3.short_signature() {
+                        let result = crate::tests::mock_multicall_response(
+                            call,
+                            ProtocolVersionId::Version34,
+                        );
+                        let Token::Array(mut entries) = result else {
+                            unreachable!()
+                        };
+                        if entries.len() == 2 {
+                            for entry in &mut entries {
+                                *entry = Token::Tuple(vec![
+                                    Token::Bool(true),
+                                    Token::Bytes(vec![0; 32]),
+                                ]);
+                            }
+                        }
+                        return Token::Array(entries);
+                    }
+                    let disabled = view_function(
+                        "disabledProofSystems",
+                        vec![],
+                        ParamType::Tuple(vec![ParamType::Bool, ParamType::Bool]),
+                    );
+                    if data[..4] == disabled.short_signature() {
+                        if fail_read_in_handler.load(Ordering::Relaxed) {
+                            return Token::Tuple(vec![]);
+                        }
+                        return Token::Tuple(vec![Token::Bool(false), Token::Bool(false)]);
+                    }
+                    for (name, value, inputs) in [
+                        ("supportedProofSystems", 3, vec![]),
+                        ("requiredProofSystems", 3, vec![ParamType::Uint(8)]),
+                        ("acceptedProofType", 4, vec![]),
+                    ] {
+                        if data[..4]
+                            == view_function(name, inputs, ParamType::Uint(256)).short_signature()
+                        {
+                            return Token::Uint(value.into());
+                        }
+                    }
+                    if functions
+                        .verifier_contract
+                        .functions_by_name("verificationKeyHash")
+                        .unwrap()
+                        .iter()
+                        .any(|function| data[..4] == function.short_signature())
+                    {
+                        return Token::FixedBytes(vec![0; 32]);
+                    }
+                    panic!("unexpected call: {call:?}");
+                })
+                .build(),
+        );
+        tester.aggregator.priority_tree_start_index = Some(0);
+        tester
+            .aggregator
+            .functions
+            .verifier_contract
+            .functions
+            .get_mut("verificationKeyHash")
+            .unwrap()
+            .reverse();
+        assert_eq!(
+            tester
+                .aggregator
+                .get_fflonk_snark_wrapper_vk_hash(Address::zero())
+                .await
+                .unwrap(),
+            Some(H256::zero())
+        );
+        assert_eq!(
+            tester
+                .aggregator
+                .get_airbender_snark_wrapper_vk_hash(Address::zero())
+                .await
+                .unwrap(),
+            Some(H256::zero())
+        );
+        let mut storage = pool.connection().await.unwrap();
+        assert_eq!(
+            tester
+                .aggregator
+                .sync_proof_systems(&mut storage, Address::zero())
+                .await
+                .unwrap(),
+            Some("incompatible proof system policy")
+        );
+        tester
+            .aggregator
+            .loop_iteration(&mut storage)
+            .await
+            .unwrap();
+        assert_eq!(
+            storage
+                .blocks_dal()
+                .get_number_of_last_l1_batch_with_tx(L1BatchAggregatedActionType::Execute)
+                .await
+                .unwrap(),
+            Some(proven.number)
+        );
+        tester
+            .aggregator
+            .loop_iteration(&mut storage)
+            .await
+            .unwrap();
+        assert!(storage
+            .blocks_dal()
+            .get_eth_commit_tx_id(pending.number)
+            .await
+            .unwrap()
+            .is_some());
+        tester
+            .aggregator
+            .loop_iteration(&mut storage)
+            .await
+            .unwrap();
+        assert_eq!(
+            storage
+                .blocks_dal()
+                .get_last_l1_batch_with_prove_tx()
+                .await
+                .unwrap(),
+            proven.number
+        );
+
+        tester.aggregator.config.prover = ProverType::Both;
+        assert_eq!(
+            tester
+                .aggregator
+                .sync_proof_systems(&mut storage, Address::zero())
+                .await
+                .unwrap(),
+            None
+        );
+        tester
+            .aggregator
+            .loop_iteration(&mut storage)
+            .await
+            .unwrap();
+        assert_eq!(
+            storage
+                .blocks_dal()
+                .get_last_l1_batch_with_prove_tx()
+                .await
+                .unwrap(),
+            L1BatchNumber(2)
+        );
+        fail_read.store(true, Ordering::Relaxed);
+        assert!(tester
+            .aggregator
+            .loop_iteration(&mut storage)
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn proof_notifications_pause_until_l1_matches_and_survive_restart() {
+        use zksync_types::server_notification::ProofSystemStatusNotification;
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
+        for current in 0..=2 {
+            assert!(proof_systems_match_notification(&mut storage, current)
+                .await
+                .unwrap());
+        }
+        for (block, expected) in [1, 0, 2, 0].into_iter().enumerate() {
+            storage
+                .server_notifications_dal()
+                .save_proof_system_status_notification(
+                    zksync_types::L1BlockNumber(block as u32 + 1),
+                    ProofSystemStatusNotification {
+                        disabled_proof_systems: expected,
+                        log_index: 0,
+                    },
+                )
+                .await
+                .unwrap();
+            drop(storage);
+            storage = pool.connection().await.unwrap();
+            for current in 0..=2 {
+                assert_eq!(
+                    proof_systems_match_notification(&mut storage, current)
+                        .await
+                        .unwrap(),
+                    current == expected
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn decodes_disabled_proof_systems_struct() {
+        use zksync_l1_contract_interface::Detokenize;
+        let function = view_function(
+            "disabledProofSystems",
+            vec![],
+            ParamType::Tuple(vec![ParamType::Bool, ParamType::Bool]),
+        );
+        for mask in 0..=3 {
+            let output = zksync_types::ethabi::encode(&[Token::Tuple(vec![
+                Token::Bool(mask & 1 != 0),
+                Token::Bool(mask & 2 != 0),
+            ])]);
+            let decoded = function.decode_output(&output).unwrap();
+            assert_eq!(DisabledProofSystems::from_tokens(decoded).unwrap().0, mask);
+        }
+        assert!(DisabledProofSystems::from_tokens(vec![Token::Uint(0.into())]).is_err());
+    }
+
+    #[test]
+    fn follows_the_onchain_mask_without_skipping_required_proofs() {
+        for (mask, prover) in [
+            (0, ProverType::Both),
+            (1, ProverType::Airbender),
+            (2, ProverType::Boojum),
+        ] {
+            assert_eq!(
+                resolve_prover_policy(
+                    ProverType::Both,
+                    mask.into(),
+                    3.into(),
+                    (3 ^ mask).into(),
+                    4.into()
+                )
+                .unwrap(),
+                prover
+            );
+            assert_eq!(
+                resolve_prover_policy(prover, mask.into(), 3.into(), (3 ^ mask).into(), 4.into())
+                    .unwrap(),
+                prover
+            );
+        }
+        for mask in [0, 2] {
+            assert_eq!(
+                resolve_prover_policy(ProverType::Both, mask.into(), 1.into(), 1.into(), 4.into())
+                    .unwrap(),
+                ProverType::Boojum
+            );
+        }
+        assert_eq!(
+            resolve_prover_policy(ProverType::Both, 0.into(), 2.into(), 2.into(), 4.into())
+                .unwrap(),
+            ProverType::Airbender
+        );
+        for (configured, mask, supported, required, proof_type) in [
+            (ProverType::Boojum, 0, 3, 3, 4),
+            (ProverType::Airbender, 0, 3, 3, 4),
+            (ProverType::Both, 0, 1, 3, 4),
+            (ProverType::Both, 1, 1, 0, 4),
+            (ProverType::Both, 0, 0, 0, 4),
+            (ProverType::Both, 0, 4, 4, 4),
+            (ProverType::Both, 3, 3, 0, 4),
+            (ProverType::Both, 0, 3, 1, 4),
+            (ProverType::Both, 0, 3, 3, 2),
+        ] {
+            assert!(resolve_prover_policy(
+                configured,
+                mask.into(),
+                supported.into(),
+                required.into(),
+                proof_type.into()
+            )
+            .is_err());
+        }
+    }
 }

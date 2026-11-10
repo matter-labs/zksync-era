@@ -14,7 +14,8 @@ use zksync_node_framework::{
 use zksync_object_store::ObjectStore;
 use zksync_types::L2ChainId;
 
-/// Wiring layer for proof data handler server.
+/// Wiring layer for proof data handler server. It only hands out batches with stored read proofs,
+/// so the `airbender_read_proofs_producer` component must run on this or another machine.
 #[derive(Debug)]
 pub struct AirbenderProofDataHandlerLayer {
     proof_data_handler_config: AirbenderProofDataHandlerConfig,

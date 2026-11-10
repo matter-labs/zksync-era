@@ -210,10 +210,41 @@ impl EthSenderDal<'_, '_> {
         Ok(count.try_into().unwrap())
     }
 
+    pub async fn has_unconfirmed_txs_of_type(
+        &mut self,
+        tx_type: AggregatedActionType,
+    ) -> DalResult<bool> {
+        let exists = sqlx::query!(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                FROM eth_txs
+                WHERE
+                    tx_type = $1
+                    AND confirmed_eth_tx_history_id IS NULL
+                    AND NOT has_failed
+            )
+            "#,
+            tx_type.as_str()
+        )
+        .instrument("has_unconfirmed_txs_of_type")
+        .with_arg("tx_type", &tx_type)
+        .fetch_one(self.storage)
+        .await?
+        .exists
+        .unwrap_or_default();
+        Ok(exists)
+    }
+
     pub async fn get_eth_all_blocks_stat(&mut self) -> DalResult<BlocksEthSenderStats> {
         struct EthTxRow {
             number: i64,
             confirmed: bool,
+        }
+
+        enum BlockTxType {
+            L1Batch(L1BatchAggregatedActionType),
+            L2Block(L2BlockAggregatedActionType),
         }
 
         const TX_TYPES: &[AggregatedActionType] = &[
@@ -243,6 +274,11 @@ impl EthSenderDal<'_, '_> {
             if !eth_txs_type_exist {
                 continue;
             }
+            let block_tx_type = match tx_type {
+                AggregatedActionType::L1Batch(action) => BlockTxType::L1Batch(action),
+                AggregatedActionType::L2Block(action) => BlockTxType::L2Block(action),
+                AggregatedActionType::ProtocolUpgrade => continue,
+            };
             let mut tx_rows = vec![];
             for confirmed in [true, false] {
                 let query = match_query_as!(
@@ -253,21 +289,21 @@ impl EthSenderDal<'_, '_> {
                         _, // WHERE clause
                         " ORDER BY number DESC LIMIT 1"
                     ],
-                    match ((confirmed, tx_type)) {
-                        (false, AggregatedActionType::L1Batch( L1BatchAggregatedActionType::Commit)) => ("false", "l1_batches", "l1_batches.eth_commit_tx_id", "";),
-                        (true, AggregatedActionType::L1Batch( L1BatchAggregatedActionType::Commit)) => (
+                    match ((confirmed, &block_tx_type)) {
+                        (false, BlockTxType::L1Batch(L1BatchAggregatedActionType::Commit)) => ("false", "l1_batches", "l1_batches.eth_commit_tx_id", "";),
+                        (true, BlockTxType::L1Batch(L1BatchAggregatedActionType::Commit)) => (
                             "true", "l1_batches", "l1_batches.eth_commit_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
-                        (false,AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain)) => ("false", "l1_batches", "l1_batches.eth_prove_tx_id", "";),
-                        (true, AggregatedActionType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain)) => (
+                        (false,BlockTxType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain)) => ("false", "l1_batches", "l1_batches.eth_prove_tx_id", "";),
+                        (true, BlockTxType::L1Batch(L1BatchAggregatedActionType::PublishProofOnchain)) => (
                             "true", "l1_batches", "l1_batches.eth_prove_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
-                        (false,AggregatedActionType::L1Batch( L1BatchAggregatedActionType::Execute)) => ("false", "l1_batches", "l1_batches.eth_execute_tx_id", "";),
-                        (true,AggregatedActionType::L1Batch( L1BatchAggregatedActionType::Execute)) => (
+                        (false,BlockTxType::L1Batch(L1BatchAggregatedActionType::Execute)) => ("false", "l1_batches", "l1_batches.eth_execute_tx_id", "";),
+                        (true,BlockTxType::L1Batch(L1BatchAggregatedActionType::Execute)) => (
                             "true", "l1_batches", "l1_batches.eth_execute_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
-                        (false,AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit)) => ("false", "miniblocks", "miniblocks.eth_precommit_tx_id", "";),
-                        (true,AggregatedActionType::L2Block(L2BlockAggregatedActionType::Precommit)) => (
+                        (false,BlockTxType::L2Block(L2BlockAggregatedActionType::Precommit)) => ("false", "miniblocks", "miniblocks.eth_precommit_tx_id", "";),
+                        (true,BlockTxType::L2Block(L2BlockAggregatedActionType::Precommit)) => (
                             "true", "miniblocks", "miniblocks.eth_precommit_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
                         ),
                     }

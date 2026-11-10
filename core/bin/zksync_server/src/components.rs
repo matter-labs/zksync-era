@@ -27,6 +27,8 @@ pub(crate) enum Component {
     ProofDataHandler,
     /// Component for exposing APIs to Airbender prover for providing proof generation data and accepting proofs.
     AirbenderProofDataHandler,
+    /// Produces the read proofs the Airbender handler waits for.
+    AirbenderReadProofsProducer,
     /// Component generating BFT consensus certificates for L2 blocks.
     Consensus,
     /// Component generating commitment for L1 batches.
@@ -77,6 +79,9 @@ impl FromStr for Components {
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "airbender_proof_data_handler" | "tee_proof_data_handler" => {
                 Ok(Components(vec![Component::AirbenderProofDataHandler]))
+            }
+            "airbender_read_proofs_producer" => {
+                Ok(Components(vec![Component::AirbenderReadProofsProducer]))
             }
             "consensus" => Ok(Components(vec![Component::Consensus])),
             "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),

@@ -16,6 +16,7 @@
                 "ServerNotification",
                 "ProofRequestAcknowledged",
                 "ProofRequestProven",
+                "ProofSystemStatus",
                 "InteropRoot"
               ]
             }

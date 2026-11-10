@@ -2,21 +2,10 @@ FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# set of args for use of sccache
-ARG SCCACHE_GCS_BUCKET=""
-ARG SCCACHE_GCS_SERVICE_ACCOUNT=""
-ARG SCCACHE_GCS_RW_MODE=""
-ARG RUSTC_WRAPPER=""
-
-ENV SCCACHE_GCS_BUCKET=${SCCACHE_GCS_BUCKET}
-ENV SCCACHE_GCS_SERVICE_ACCOUNT=${SCCACHE_GCS_SERVICE_ACCOUNT}
-ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
-ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
-
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --manifest-path ./core/Cargo.toml --release --bin verified_sources_fetcher
+RUN CARGO_HOME=/usr/src/zksync/cargo cargo build --locked --manifest-path ./core/Cargo.toml --release --bin verified_sources_fetcher
 
 FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 

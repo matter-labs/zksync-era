@@ -114,6 +114,7 @@ pub trait ProtocolUpgradePreimageOracle: Send + Sync {
 async fn prepare_upgrade_call(
     proposed_upgrade: &abi::ProposedUpgrade,
     init_address: Address,
+    old_version: ProtocolVersionId,
     chain_specific: Option<ZkChainSpecificUpgradeData>,
     preimage_oracle: &impl ProtocolUpgradePreimageOracle,
 ) -> anyhow::Result<Vec<u8>> {
@@ -125,7 +126,8 @@ async fn prepare_upgrade_call(
     let minor_version = proposed_upgrade.l2_protocol_upgrade_tx.nonce;
     let version = ProtocolVersionId::try_from(minor_version.as_u32() as u16).unwrap();
 
-    if version == ProtocolVersionId::Version31 {
+    // The v31 upgrade contract rewrites the tx data per chain on L1, so ask it for the real data.
+    if version.rewrites_l2_upgrade_tx(old_version) {
         return preimage_oracle
             .prepare_l2_upgrade_tx_data(
                 init_address,
@@ -178,6 +180,7 @@ async fn prepare_upgrade_call(
 impl ProtocolUpgrade {
     pub async fn try_from_diamond_cut(
         diamond_cut_data: &[u8],
+        old_version: ProtocolVersionId,
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
@@ -193,6 +196,7 @@ impl ProtocolUpgrade {
         Self::try_from_init_calldata(
             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
             init_address,
+            old_version,
             preimage_oracle,
             chain_specific,
         )
@@ -203,6 +207,7 @@ impl ProtocolUpgrade {
     async fn try_from_init_calldata(
         init_calldata: &[u8],
         init_address: Address,
+        old_version: ProtocolVersionId,
         preimage_oracle: impl ProtocolUpgradePreimageOracle,
         chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
@@ -232,9 +237,14 @@ impl ProtocolUpgrade {
                     .await?
             };
 
-            upgrade.l2_protocol_upgrade_tx.data =
-                prepare_upgrade_call(&upgrade, init_address, chain_specific, &preimage_oracle)
-                    .await?;
+            upgrade.l2_protocol_upgrade_tx.data = prepare_upgrade_call(
+                &upgrade,
+                init_address,
+                old_version,
+                chain_specific,
+                &preimage_oracle,
+            )
+            .await?;
 
             Some(
                 Transaction::from_abi(
@@ -242,6 +252,7 @@ impl ProtocolUpgrade {
                         tx: upgrade.l2_protocol_upgrade_tx,
                         factory_deps,
                         eth_block: 0,
+                        force_fail: false,
                     },
                     false,
                 )
@@ -306,6 +317,7 @@ pub fn decode_genesis_upgrade_event(
                     .expect("Event block number is missing")
                     .as_u64(),
                 factory_deps,
+                force_fail: false,
             },
             true,
         )
@@ -603,5 +615,106 @@ mod tests {
             .0
             .truncate(incorrect_log.data.0.len() - 32);
         assert!(TryInto::<GovernanceOperation>::try_into(incorrect_log).is_err());
+    }
+
+    /// Oracle that fails the test if it is consulted. Stands in for the eth call to
+    /// `getL2UpgradeTxData`, which reverts on an upgrade contract that does not implement it.
+    struct UnusableOracle;
+
+    #[async_trait::async_trait]
+    impl ProtocolUpgradePreimageOracle for UnusableOracle {
+        async fn get_protocol_upgrade_preimages(
+            &self,
+            _hashes: Vec<H256>,
+        ) -> anyhow::Result<Vec<Vec<u8>>> {
+            unreachable!("preimages are not requested by these tests")
+        }
+
+        async fn prepare_l2_upgrade_tx_data(
+            &self,
+            _init_address: Address,
+            _existing_tx_data: Vec<u8>,
+        ) -> anyhow::Result<Vec<u8>> {
+            panic!("getL2UpgradeTxData must not be called for a non-settlement-layer upgrade")
+        }
+    }
+
+    fn proposed_upgrade(minor_version: ProtocolVersionId, data: Vec<u8>) -> abi::ProposedUpgrade {
+        abi::ProposedUpgrade {
+            l2_protocol_upgrade_tx: Box::new(abi::L2CanonicalTransaction {
+                tx_type: U256::from(254u32),
+                // `prepare_upgrade_call` reads the minor version out of the nonce.
+                nonce: U256::from(minor_version as u16),
+                data,
+                ..Default::default()
+            }),
+            factory_deps: None,
+            bootloader_hash: [0; 32],
+            default_account_hash: [0; 32],
+            evm_emulator_hash: [0; 32],
+            verifier: Address::zero(),
+            verifier_params: Default::default(),
+            l1_contracts_upgrade_calldata: vec![],
+            post_upgrade_calldata: vec![],
+            upgrade_timestamp: U256::zero(),
+            new_protocol_version: U256::zero(),
+        }
+    }
+
+    /// Plain upgrades use the recorded L2 transaction data.
+    #[tokio::test]
+    async fn upgrades_without_the_rewrite_do_not_consult_the_oracle() {
+        let data = vec![7; 68];
+        let upgrade = proposed_upgrade(ProtocolVersionId::Version33, data.clone());
+
+        let prepared = prepare_upgrade_call(
+            &upgrade,
+            Address::random(),
+            ProtocolVersionId::Version31,
+            None,
+            &UnusableOracle,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(prepared, data);
+    }
+
+    /// The oracle stays the source of truth for an upgrade that does rewrite.
+    #[tokio::test]
+    async fn a_rewriting_upgrade_consults_the_oracle() {
+        struct RewritingOracle;
+
+        #[async_trait::async_trait]
+        impl ProtocolUpgradePreimageOracle for RewritingOracle {
+            async fn get_protocol_upgrade_preimages(
+                &self,
+                _hashes: Vec<H256>,
+            ) -> anyhow::Result<Vec<Vec<u8>>> {
+                unreachable!("preimages are not requested by these tests")
+            }
+
+            async fn prepare_l2_upgrade_tx_data(
+                &self,
+                _init_address: Address,
+                _existing_tx_data: Vec<u8>,
+            ) -> anyhow::Result<Vec<u8>> {
+                Ok(b"rewritten".to_vec())
+            }
+        }
+
+        let upgrade = proposed_upgrade(ProtocolVersionId::Version33, vec![7; 68]);
+
+        let prepared = prepare_upgrade_call(
+            &upgrade,
+            Address::random(),
+            ProtocolVersionId::Version30,
+            None,
+            &RewritingOracle,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(prepared, b"rewritten".to_vec());
     }
 }
