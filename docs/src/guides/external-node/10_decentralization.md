@@ -41,6 +41,10 @@ or
 ).
 
 ```admonish note
+ZKsync Era testnet (chain 312) has no public gossipnet peers, so run testnet nodes without `--enable-consensus`.
+```
+
+```admonish note
 You need to fill in the `public_addr` field. This is the address that will (not implemented yet) be advertised over
 gossipnet to other nodes, so that they can establish connections to your node. If you don't want to expose your node
 to the public internet, you can use IP in your local network.

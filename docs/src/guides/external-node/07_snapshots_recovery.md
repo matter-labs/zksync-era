@@ -50,13 +50,8 @@ EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: 'zksync-era-mainnet-external-node-sna
 EN_SNAPSHOTS_OBJECT_STORE_MODE: 'GCSAnonymousReadOnly'
 ```
 
-For the ZKsync Sepolia testnet, use:
-
-```yaml
-EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
-EN_SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL: 'zksync-era-boojnet-external-node-snapshots'
-EN_SNAPSHOTS_OBJECT_STORE_MODE: 'GCSAnonymousReadOnly'
-```
+ZKsync Era testnet (chain 312) does not publish snapshots. Testnet nodes start from genesis instead, which takes a few
+minutes because the chain is small, so leave `EN_SNAPSHOTS_RECOVERY_ENABLED` unset there.
 
 For a working examples of a fully configured ZKsync Nodes recovering from snapshots, see
 [Docker Compose examples](https://github.com/matter-labs/zksync-era/tree/main/docs/src/guides/external-node/docker-compose-examples)

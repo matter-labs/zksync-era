@@ -52,8 +52,11 @@ can also access a debug page with more information about the node [here](http://
 The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be accessed on port `3061`.
 
 ```admonish note
-The node will recover from a snapshot on it's first run, this may take up to 10h. Before the recovery is finished, the
-API server won't serve any requests.
+The mainnet node will recover from a snapshot on its first run, this may take up to 10h. Before the recovery is
+finished, the API server won't serve any requests.
+
+The testnet node (ZKsync Era testnet, chain 312) has no snapshots and syncs from genesis instead, which takes a few
+minutes.
 
 If you need access to historical transaction data, please use recovery from DB dumps (see Advanced setup section)
 ```
