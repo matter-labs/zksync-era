@@ -327,7 +327,9 @@ where
             .fee_history(
                 U64::from(chunk_size),
                 web3::BlockNumber::from(chunk_end),
-                None,
+                // Serialize as an empty array: `rewardPercentiles` is a required parameter in
+                // the execution-apis spec, and strict L1 RPC providers reject a `null`.
+                Some(vec![]),
             )
             .rpc_context("fee_history")
             .with_arg("chunk_size", &chunk_size)
@@ -435,7 +437,13 @@ where
         let chunk_size = chunk_end - chunk_start + 1;
 
         let fee_history = client
-            .fee_history(U64::from(chunk_size).into(), chunk_end.into(), None)
+            .fee_history(
+                U64::from(chunk_size).into(),
+                chunk_end.into(),
+                // Serialize as an empty array: `rewardPercentiles` is a required parameter in
+                // the execution-apis spec, and strict L1 RPC providers reject a `null`.
+                Some(vec![]),
+            )
             .rpc_context("fee_history")
             .with_arg("chunk_size", &chunk_size)
             .with_arg("block", &chunk_end)
