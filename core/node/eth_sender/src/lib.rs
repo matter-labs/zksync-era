@@ -19,6 +19,8 @@ mod tests;
 mod tester;
 
 pub use self::{
-    aggregator::Aggregator, error::EthSenderError, eth_tx_aggregator::EthTxAggregator,
+    aggregator::{build_execute_batches_payload, Aggregator},
+    error::EthSenderError,
+    eth_tx_aggregator::EthTxAggregator,
     eth_tx_manager::EthTxManager,
 };
