@@ -202,7 +202,7 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         assert_eq!(query.location.memory_type, MemoryType::Code);
         assert!(
             !query.value_is_pointer,
-            "Pointers are not used for decommmits"
+            "Pointers are not used for decommits"
         );
 
         let page = query.location.page.0 as usize;
@@ -235,7 +235,7 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         assert_eq!(query.location.memory_type, MemoryType::Code);
         assert!(
             !query.value_is_pointer,
-            "Pointers are not used for decommmits"
+            "Pointers are not used for decommits"
         );
         assert!(!query.rw_flag, "Only read queries can be processed");
 
